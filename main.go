@@ -157,6 +157,7 @@ func runServe(port int, open bool) error {
 	if err := a.server.Start(); err != nil {
 		return err
 	}
+	go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
 	url := a.server.URL()
 	fmt.Printf("SheetDiver %s\n  UI:      %s\n  MCP:     %s/mcp\n  Library: %s\n", version, url, url, a.core.Config.LibraryDir())
 	if open {

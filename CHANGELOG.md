@@ -15,6 +15,16 @@ every merged pull request.
 - Zero-gate-voltage drain current (`idss`) and on-state drain current
   (`id_on`) are no longer filed as the continuous drain current `id`.
 - CSV and report saving use the desktop save dialog.
+- Characters set in Symbol fonts are read as Greek (µ, Ω, θ…): Office-made
+  PDFs such as AOS MOSFET datasheets no longer read 1 µA as 1 mA.
+- Regulators whose spec tables have no output-current row get their rating
+  from the first page (per part when listed, else the lowest stated
+  rating; boost titles are skipped since they quote the switch limit).
+- Ground current is filed as `iq`, short-circuit current as `isc`, and
+  input currents no longer pose as `iout`.
+- Datasheets read by an older extractor are re-extracted in the background
+  at startup (recorded data is kept), so extraction fixes reach existing
+  libraries.
 
 ### Added
 - **Alternatives:** a part's Alternatives tab (MCP `find_alternatives`)

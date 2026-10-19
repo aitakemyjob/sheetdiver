@@ -506,3 +506,10 @@ func (s *Store) RegionText(ctx context.Context, dsID int64, page int, box pdf.Re
 	}
 	return strings.Join(parts, "\n"), nil
 }
+
+// SetExtractor records which extractor version last read a datasheet (an
+// older version marks it for re-extraction).
+func (s *Store) SetExtractor(ctx context.Context, id int64, version string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE datasheets SET extractor = ? WHERE id = ?`, version, id)
+	return err
+}

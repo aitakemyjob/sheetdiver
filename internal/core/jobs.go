@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/aitakemyjob/sheetdiver/internal/extract"
 )
 
 // Import job states.
@@ -56,7 +58,7 @@ const maxJobs = 300
 func describe(req ImportRequest) (name, source string) {
 	switch {
 	case req.Path != "":
-		return filepath.Base(req.Path), req.Path
+		return firstNonEmpty(req.Filename, filepath.Base(req.Path)), req.Path
 	case req.URL != "":
 		return req.URL, req.URL
 	case req.Lookup != "":
@@ -236,6 +238,26 @@ func (s *Service) ClearImports() {
 	s.jobs.list = keep
 	s.jobs.mu.Unlock()
 	s.emit(EvImport, map[string]any{"cleared": true})
+}
+
+// ReextractOutdated queues re-extraction of every datasheet read by an
+// older extractor, so extraction fixes reach existing libraries. What
+// agents and users recorded is kept. It returns the queued jobs.
+func (s *Service) ReextractOutdated(ctx context.Context) ([]ImportJob, error) {
+	sheets, err := s.Lib.Datasheets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var reqs []ImportRequest
+	for _, d := range sheets {
+		if d.Extractor != extract.Version {
+			reqs = append(reqs, ImportRequest{Path: s.Lib.DatasheetPath(d.File), Filename: d.Filename, Force: true})
+		}
+	}
+	if len(reqs) == 0 {
+		return nil, nil
+	}
+	return s.StartImports(reqs), nil
 }
 
 // maxFolderPDFs bounds a folder import.

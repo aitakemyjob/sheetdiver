@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aitakemyjob/sheetdiver/internal/calc"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
@@ -805,5 +806,31 @@ func TestDiffParams(t *testing.T) {
 	// Keyed rows first; equal values in other units are no change.
 	if ch[0].Key != "iq" || ch[0].Kind != ChangeRemoved || ch[1].Key != "fsw" || ch[2].Name != "Line regulation" {
 		t.Errorf("order = %+v", ch)
+	}
+}
+
+func TestReextractOutdated(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if jobs, err := s.ReextractOutdated(ctx); err != nil || len(jobs) != 0 {
+		t.Fatalf("a current library needs nothing: %v %v", jobs, err)
+	}
+	r, _ := s.ResolvePart(ctx, "SD1234")
+	if err := s.Lib.SetExtractor(ctx, r.Part.DatasheetID, "0"); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := s.ReextractOutdated(ctx)
+	if err != nil || len(jobs) != 1 || jobs[0].Name != "sd1234.pdf" {
+		t.Fatalf("jobs = %+v %v", jobs, err)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if d, _ := s.Lib.Datasheet(ctx, r.Part.DatasheetID); d.Extractor == extract.Version {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("re-extraction didn't finish")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
