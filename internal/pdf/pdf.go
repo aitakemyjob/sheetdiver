@@ -193,6 +193,25 @@ func (e *Engine) Close() error {
 // ErrNotPDF is returned for data that doesn't start with a PDF header.
 var ErrNotPDF = errors.New("not a PDF file")
 
+// symbolMap is the Adobe Symbol font encoding for the characters that
+// PDFium reports as plain letters when a PDF's Symbol font has no Unicode
+// map (common in PDFs made by Office): "m" set in Symbol is µ, "W" is Ω.
+var symbolMap = map[string]string{
+	"a": "α", "b": "β", "c": "χ", "d": "δ", "e": "ε", "f": "φ", "g": "γ", "h": "η", "i": "ι", "j": "ϕ",
+	"k": "κ", "l": "λ", "m": "µ", "n": "ν", "p": "π", "q": "θ", "r": "ρ", "s": "σ", "t": "τ", "u": "υ",
+	"w": "ω", "x": "ξ", "y": "ψ", "z": "ζ",
+	"D": "Δ", "F": "Φ", "G": "Γ", "L": "Λ", "P": "Π", "Q": "Θ", "S": "Σ", "W": "Ω", "X": "Ξ", "Y": "Ψ",
+	"£": "≤", "³": "≥", "´": "×", "¸": "÷", "»": "≈", "¹": "≠", "®": "→", "¥": "∞",
+}
+
+// symbolChar maps a character set in a Symbol font to its meaning.
+func symbolChar(t string) string {
+	if m, ok := symbolMap[t]; ok {
+		return m
+	}
+	return t
+}
+
 // IsPDF reports whether data looks like a PDF (the header may follow a
 // little leading junk, as the spec allows).
 func IsPDF(data []byte) bool {
@@ -394,6 +413,9 @@ func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Sp
 				size = fi.RenderedSize
 			}
 			name := strings.ToLower(fi.Name)
+			if strings.Contains(name, "symbol") {
+				t = symbolChar(t)
+			}
 			bold = fi.Weight >= 600 || strings.Contains(name, "bold") || strings.Contains(name, "black") || strings.Contains(name, "heavy")
 		}
 		if cur != nil {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, ExternalLink, FileText, FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
+import { Calculator, CloudDownload, ExternalLink, FileText, FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
 import { api, figureImageURL, openPDF, tableImageURL } from '../lib/api';
 import { categories, figureKinds, headline, relTime, sectionLabels, sig3 } from '../lib/format';
 import { useStore } from '../lib/store';
@@ -8,8 +8,10 @@ import { Menu } from '../components/Menu';
 import { discouraged, FavoriteStar, StatusBadge, StatusPicker } from '../components/PartStatus';
 import { CategoryBadge, Empty, ErrorBox, Markdown, SourceBadge, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
+import { Alternatives } from './Alternatives';
+import { UpdateDialog } from '../components/UpdateDialog';
 
-type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'sections' | 'registers' | 'tables' | 'notes' | 'variants';
+type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'sections' | 'registers' | 'tables' | 'alternatives' | 'notes' | 'variants';
 
 /** Calculator suggested for a category. */
 export function calcFor(category: string): string | undefined {
@@ -25,6 +27,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
   const ref = String(params.part ?? '');
   const [sub, setSub] = useState<Sub>((params.tab as Sub) || 'overview');
+  const [updating, setUpdating] = useState(false);
   useEffect(() => {
     if (params.tab) setSub(params.tab as Sub);
   }, [params.tab, params.nonce]);
@@ -46,6 +49,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
     ['sections', 'Sections', c.sections],
     ['registers', 'Registers', c.registers],
     ['tables', 'Tables', c.tables],
+    ['alternatives', 'Alternatives'],
     ['notes', 'Notes', d.notes?.length],
     ['variants', 'Variants', d.variants?.length],
   ];
@@ -79,6 +83,11 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               ))}
             </>
           )}
+          {ds?.meta?.revision && (
+            <button className="badge" style={{ border: 0, cursor: 'pointer' }} title={`Datasheet revision${ds.meta.previousRevision ? ` (updated from ${ds.meta.previousRevision})` : ''}. Click to check for a newer one.`} onClick={() => setUpdating(true)}>
+              {ds.meta.revision}
+            </button>
+          )}
           {ds?.families?.map((f) => (
             <span key={f} className="badge" title="Family pattern: x stands for any character">
               {f}
@@ -104,6 +113,11 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
           {calc && (
             <button className="btn sm" onClick={() => s.open({ kind: 'calc', title: `${calc} ${d.part.mpn}`, params: { kind: calc, part: d.part.mpn } })}>
               <Calculator size={13} /> Calculate
+            </button>
+          )}
+          {ds && (
+            <button className="btn sm ghost" title="Check the manufacturer for a newer revision of this datasheet" onClick={() => setUpdating(true)}>
+              <CloudDownload size={13} />
             </button>
           )}
           {ds && (
@@ -134,7 +148,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
         </div>
       </div>
       <div className="scroll" style={{ flex: 1 }}>
-        {!ds && sub !== 'notes' && sub !== 'variants' ? (
+        {!ds && sub !== 'notes' && sub !== 'variants' && sub !== 'alternatives' ? (
           <Empty icon={<FileText size={28} />} title="No datasheet">
             This part has no datasheet in the library yet. Import one to extract its parameters and figures.
           </Empty>
@@ -155,7 +169,9 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
           </div>
         )}
         {sub === 'variants' && <Variants d={d} />}
+        {sub === 'alternatives' && <Alternatives d={d} />}
       </div>
+      {updating && ds && <UpdateDialog ds={ds} onClose={() => setUpdating(false)} />}
     </div>
   );
 }

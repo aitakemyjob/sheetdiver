@@ -33,11 +33,15 @@ type corpusEntry struct {
 		PinNames      []string `json:"pinNames"`
 		PinPackages   []string `json:"pinPackages"`
 		RegularTables []string `json:"regularTables"`
+		// Revision as rendered by Revision.String.
+		Revision string `json:"revision"`
 		// Values of the first parameter with each key.
 		Values map[string]struct {
 			Min *float64 `json:"min"`
 			Typ *float64 `json:"typ"`
 			Max *float64 `json:"max"`
+			// Unit, when set, must match (catches µ read as m).
+			Unit string `json:"unit"`
 		} `json:"values"`
 	} `json:"expect"`
 }
@@ -93,6 +97,9 @@ func TestCorpus(t *testing.T) {
 			}
 			r := Analyze(doc, e.File)
 			x := e.Expect
+			if x.Revision != "" && r.Revision.String() != x.Revision {
+				t.Errorf("revision = %q, want %q", r.Revision, x.Revision)
+			}
 			if x.Manufacturer != "" && r.Manufacturer != x.Manufacturer {
 				t.Errorf("manufacturer = %q, want %q", r.Manufacturer, x.Manufacturer)
 			}
@@ -193,6 +200,8 @@ func TestCorpus(t *testing.T) {
 				same := func(a, b *float64) bool { return b == nil || (a != nil && *a == *b) }
 				if got == nil || !same(got.Min, want.Min) || !same(got.Typ, want.Typ) || !same(got.Max, want.Max) {
 					t.Errorf("%s = %+v, want %v/%v/%v", key, got, num(want.Min), num(want.Typ), num(want.Max))
+				} else if want.Unit != "" && got.Unit != want.Unit {
+					t.Errorf("%s unit = %q, want %q", key, got.Unit, want.Unit)
 				}
 			}
 			figs := map[string]string{}

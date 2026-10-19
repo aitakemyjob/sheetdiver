@@ -255,7 +255,12 @@ func Datasheet() []byte {
 // Mini returns a one-page datasheet for a part number, e.g. Mini("ZX7001",
 // "Step-Down Converter"): a title, an outline and a recommended-operating
 // table with VIN and IOUT, enough for imports, lookups and BOM tests.
-func Mini(mpn, kind string) []byte {
+func Mini(mpn, kind string) []byte { return MiniWith(mpn, kind, "4.5", "28", "2", "") }
+
+// MiniWith is Mini with its VIN range, IOUT maximum, (optionally) a
+// typical quiescent current in µA, and any extra text (such as a
+// revision footer).
+func MiniWith(mpn, kind, vinMin, vinMax, iout, iqUA string, extra ...Text) []byte {
 	row := func(y float64, cells ...string) []Text {
 		xs := []float64{60, 340, 450, 500}
 		var out []Text
@@ -270,7 +275,13 @@ func Mini(mpn, kind string) []byte {
 		{X: 60, Y: 140, Size: 11, Bold: true, S: "6.3 Recommended Operating Conditions"},
 	}}
 	p.Texts = append(p.Texts, row(160, "PARAMETER", "MIN", "MAX", "UNIT")...)
-	p.Texts = append(p.Texts, row(176, "VIN Supply input voltage", "4.5", "28", "V")...)
-	p.Texts = append(p.Texts, row(190, "IOUT Output current", "0", "2", "A")...)
-	return PDF(mpn+" "+kind+" datasheet", []PageSpec{p}, []Outline{{Title: "6.3 Recommended Operating Conditions", Page: 0, Y: 140}})
+	p.Texts = append(p.Texts, row(176, "VIN Supply input voltage", vinMin, vinMax, "V")...)
+	p.Texts = append(p.Texts, row(190, "IOUT Output current", "0", iout, "A")...)
+	p.Texts = append(p.Texts, extra...)
+	if iqUA != "" {
+		p.Texts = append(p.Texts, Text{X: 60, Y: 230, Size: 11, Bold: true, S: "6.5 Electrical Characteristics"})
+		p.Texts = append(p.Texts, Text{X: 60, Y: 250, Size: 8, S: "PARAMETER"}, Text{X: 340, Y: 250, Size: 8, S: "MIN"}, Text{X: 400, Y: 250, Size: 8, S: "TYP"}, Text{X: 450, Y: 250, Size: 8, S: "MAX"}, Text{X: 500, Y: 250, Size: 8, S: "UNIT"})
+		p.Texts = append(p.Texts, Text{X: 60, Y: 266, Size: 8, S: "IQ Quiescent current"}, Text{X: 400, Y: 266, Size: 8, S: iqUA}, Text{X: 500, Y: 266, Size: 8, S: "µA"})
+	}
+	return PDF(mpn+" "+kind+" datasheet", []PageSpec{p}, []Outline{{Title: "6.3 Recommended Operating Conditions", Page: 0, Y: 140}, {Title: "6.5 Electrical Characteristics", Page: 0, Y: 230}})
 }

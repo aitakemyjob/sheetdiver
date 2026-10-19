@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Columns3, Download, Star, X } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, saveText } from '../lib/api';
 import { categories, eng, parseSI } from '../lib/format';
 import { useStore } from '../lib/store';
 import { FavoriteStar, StatusBadge, statusInfo } from '../components/PartStatus';
@@ -93,13 +93,14 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
   const label = categories[category] ?? (category || 'Uncategorized');
   const setFilter = (key: string, patch: Partial<FilterText>) => setFilters({ ...filters, [key]: { op: filters[key]?.op ?? '>=', text: filters[key]?.text ?? '', ...patch } });
   const sortBy = (key: string) => setSort(sort.key === key ? { key, desc: !sort.desc } : { key, desc: key !== 'mpn' && key !== 'iq' && !key.startsWith('rdson') && key !== 'isd' ? true : false });
-  const download = () => {
+  const download = async () => {
     if (!res) return;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([toCSV(res)], { type: 'text/csv' }));
-    a.download = `${category || 'parts'}-comparison.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    try {
+      const where = await saveText(`${category || 'parts'}-comparison.csv`, toCSV(res), 'text/csv', !!s.app?.canSaveFile);
+      if (where && s.app?.canSaveFile) s.toast({ kind: 'ok', title: 'Comparison saved', body: where });
+    } catch (e) {
+      s.toast({ kind: 'err', title: 'Could not save the CSV', body: (e as Error).message });
+    }
   };
   const open = (mpn: string, ds: number, v: CompareValue) =>
     s.open({ kind: 'page', title: `${mpn} p${v.page + 1}`, params: { ds, page: v.page, box: v.box ?? undefined, part: mpn, nonce: Date.now() } });

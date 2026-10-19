@@ -375,6 +375,19 @@ func bestPDFLink(base *url.URL, html string) string {
 	return best
 }
 
+// withRevision copies PDF metadata and adds the detected revision as
+// revision (rendered), revisionDoc, revisionRev and revisionDate.
+func withRevision(meta map[string]string, r extract.Revision) map[string]string {
+	out := map[string]string{}
+	for k, v := range meta {
+		out[k] = v
+	}
+	if !r.IsZero() {
+		out["revision"], out["revisionDoc"], out["revisionRev"], out["revisionDate"] = r.String(), r.Doc, r.Rev, r.Date
+	}
+	return out
+}
+
 // buildImport turns an extraction result into a library import.
 func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha, file, name, src string) *library.Import {
 	mfr := firstNonEmpty(req.Manufacturer, res.Manufacturer)
@@ -383,6 +396,7 @@ func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha,
 		SHA256: sha, File: file, Filename: name, Title: res.Title, Description: res.Description,
 		Manufacturer: mfr, Pages: len(doc.Pages), Families: res.Families, SourceURL: src, Meta: doc.Meta, Extractor: extract.Version,
 	}}
+	in.Datasheet.Meta = withRevision(doc.Meta, res.Revision)
 	mpns := res.PartNumbers
 	if len(req.MPNs) > 0 {
 		mpns = req.MPNs

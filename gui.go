@@ -140,6 +140,7 @@ func runGUI(port int) error {
 	// The MCP server failing to bind (e.g. port in use) must not stop the UI;
 	// the status bar surfaces the error.
 	_ = a.server.Start()
+	go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
 	desk := newDesktop(a.api, a.core)
 	bg := &options.RGBA{R: 11, G: 17, B: 32, A: 255} // Deep Dive --bg
 	return wails.Run(&options.App{

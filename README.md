@@ -40,6 +40,9 @@ maps, notes), so the library gets better every time it's used.
 |---|---|
 | **Import anything** | Drag in PDFs or whole folders, paste a list of URLs (or product pages that link to the PDF) or part numbers, or `sheetdiver import ~/Datasheets TPS563200`. Several import at once, followed in an import queue with retry; re-importing the same file is a no-op. |
 | **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
+| **Alternatives** | "What else in my library could replace this?" ranked key by key: ▲ better, = same, ▼ worse, with drop-ins first. |
+| **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, calculations. |
+| **Datasheet revisions** | Revisions are detected on import; check for newer ones, see which spec rows changed, update in place without losing recorded data. |
 | **Favorites and status** | Star parts and mark them preferred, approved, avoid, NRND or EOL. Filter the library and comparisons by them; projects warn about avoid/NRND/EOL parts, and agents are told to prefer your preferred parts. |
 | **Part numbers that resolve** | `TPS563200DDCR`, `TLV75733PDBVR`, `MCP1700T-3302E/TT`, `STM32U545VET6Q` and `TPS56x200` all find the right part and datasheet. |
 | **Figures** | Every captioned figure is cut out and classified (graph, schematic, waveform, block diagram, pinout, timing, layout, package), with axes from "Y vs X" captions. Describe what a graph shows and it becomes searchable. |
@@ -106,6 +109,7 @@ sheetdiver serve              headless; open the same UI in your browser
 sheetdiver mcp                stdio MCP bridge to the running app
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
+sheetdiver report PROJECT         print a project's design review (Markdown)
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
 sheetdiver version
   -port N   MCP/HTTP port (default 47480)   -mpn LIST   (import) set the part numbers

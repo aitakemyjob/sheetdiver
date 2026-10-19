@@ -46,6 +46,7 @@ Usage:
   sheetdiver mcp [flags]          stdio MCP bridge to the running app (Claude Desktop & other stdio-only clients)
   sheetdiver import FILE|DIR|URL|MPN…  import datasheets, several at a time (part numbers are looked up)
   sheetdiver bom FILE [-project NAME]  build a project from a CSV/KiCad BOM, fetching missing datasheets
+  sheetdiver report PROJECT     print a project's design review (Markdown)
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
   sheetdiver version              print the version
 
@@ -126,6 +127,8 @@ func main() {
 		err = runImport(fl.Args(), *mpn)
 	case "bom":
 		err = runBOM(fl.Args(), *project, *fetch)
+	case "report":
+		err = runReport(fl.Args())
 	case "inspect":
 		err = runInspect(fl.Args())
 	case "version", "--version":
@@ -154,6 +157,7 @@ func runServe(port int, open bool) error {
 	if err := a.server.Start(); err != nil {
 		return err
 	}
+	go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
 	url := a.server.URL()
 	fmt.Printf("SheetDiver %s\n  UI:      %s\n  MCP:     %s/mcp\n  Library: %s\n", version, url, url, a.core.Config.LibraryDir())
 	if open {
@@ -223,6 +227,24 @@ func runImport(args []string, mpns string) error {
 	if failed > 0 {
 		return fmt.Errorf("%d of %d imports failed", failed, len(reqs))
 	}
+	return nil
+}
+
+// runReport prints a project's design-review report as Markdown.
+func runReport(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("give one project name")
+	}
+	a, err := bootstrap(0, false)
+	if err != nil {
+		return err
+	}
+	defer a.core.Close()
+	md, err := a.core.ProjectReport(context.Background(), args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Print(md)
 	return nil
 }
 

@@ -246,3 +246,26 @@ func TestBatchImportBOMAndFavorites(t *testing.T) {
 	}
 	h.must("compare_parts", map[string]any{"category": "buck", "status": "preferred"}, "| ZX7002 |", "★ preferred")
 }
+
+func TestAlternativesReportAndUpdates(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	ctx := context.Background()
+	for _, m := range []string{"ZX7001", "ZX7002"} {
+		if _, err := h.core.Import(ctx, core.ImportRequest{Data: testutil.MiniWith(m, "Step-Down Converter", "4.5", map[string]string{"ZX7001": "28", "ZX7002": "36"}[m], "2", ""), Filename: m + ".pdf"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.must("find_alternatives", map[string]any{"part": "ZX7001"}, "alternatives to ZX7001 (buck), compared on vin, iout", "| ZX7002 | drop-in | ▲ 4.5 V … 36 V | = 0 A … 2 A |", "ZX7001's values: vin 4.5 V … 28 V")
+	h.must("create_project", map[string]any{"name": "b"})
+	h.must("add_to_project", map[string]any{"project": "b", "part": "ZX7001", "designator": "U1"})
+	h.must("export_project_report", map[string]any{"project": "b"}, "# b — design review", "| U1 | 1 | ZX7001 |")
+	// The sample came as bytes (no URL) and lookups are offline here.
+	out, _, _ := h.call("check_datasheet_updates", map[string]any{"part": "nope"})
+	if !strings.Contains(out, "nope") {
+		t.Errorf("unknown part: %s", out)
+	}
+	if _, _, isErr := h.call("apply_datasheet_update", map[string]any{"part": "ZX7001"}); !isErr {
+		t.Error("nothing to apply without a check")
+	}
+}

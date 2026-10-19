@@ -2,6 +2,7 @@ package extract
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -353,5 +354,71 @@ func TestIrregularityAndProse(t *testing.T) {
 	}
 	if tidyConditions("V I = 3.6 V , , unlimited setting ,") != "V I = 3.6 V, unlimited setting" {
 		t.Errorf("tidy = %q", tidyConditions("V I = 3.6 V , , unlimited setting ,"))
+	}
+}
+
+func TestMOSFETCurrentKeys(t *testing.T) {
+	cases := map[string]string{
+		"IDSS Zero Gate Voltage Drain Current": "idss",
+		"Drain-Source Leakage Current":         "idss",
+		"ID(ON) On state drain current":        "id_on",
+		"ID Continuous Drain Current":          "id",
+		"Continuous drain current, TA = 25°C":  "id",
+	}
+	for text, want := range cases {
+		if got := GuessKey(text, "A", ""); got != want {
+			t.Errorf("%q = %q, want %q", text, got, want)
+		}
+	}
+}
+
+func TestRatedCurrent(t *testing.T) {
+	lines := func(ts ...string) []Line {
+		var out []Line
+		for _, s := range ts {
+			out = append(out, Line{Text: s})
+		}
+		return out
+	}
+	one := func(ps []Param) string {
+		var s []string
+		for _, p := range ps {
+			s = append(s, strings.TrimSpace(fmt.Sprintf("%g %s %s", *p.Max, p.Unit, p.Conditions)))
+		}
+		return strings.Join(s, "; ")
+	}
+	cases := []struct {
+		name, cat, title string
+		page             []string
+		parts            []string
+		want             string
+	}{
+		{"per part", "buck", "TPS56x200 4.5-V to 17-V Input, 2-A, 3-A Synchronous Step-down", []string{"• TPS562200 - 2-A converter with integrated", "TPS563200 - 3-A converter with integrated 68-mΩ"}, []string{"TPS562200", "TPS563200"}, "2 A TPS562200; 3 A TPS563200"},
+		{"phrase", "buck", "LMR51430 3-A Buck", []string{"3-A continuous output current", "Up to 5-A peak switch current"}, nil, "3 A"},
+		{"lowest of several", "buck-boost", "MAX77801 2A", []string{"Up to 2A Output Current in Boost Mode", "Up to 3A Output Current in Buck Mode"}, nil, "2 A"},
+		{"after the words", "ldo", "AP2112", []string{"Output Current: 600mA (Min.)"}, nil, "600 mA"},
+		{"title", "ldo", "TPS7A02 Nanopower IQ, 25-nA, 200-mA, Low-Dropout Voltage Regulator", []string{"Some text"}, nil, "200 mA"},
+		{"boost title is a switch limit", "boost", "TPS61023 3.7-A Boost Converter", []string{"3.7-A Valley switching current limit"}, nil, ""},
+		{"not a regulator", "charger", "BQ24074 1.5-A Charger", []string{"1.5-A output current"}, nil, ""},
+		{"limits are not ratings", "buck", "XYZ buck", []string{"1.45-A peak switching current limit output current"}, nil, ""},
+	}
+	for _, c := range cases {
+		if got := one(RatedCurrent(c.cat, c.title, lines(c.page...), c.parts)); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+func TestCurrentKeyRules(t *testing.T) {
+	for text, want := range map[string]string{
+		"IGND Ground current":            "iq",
+		"I Output Short Circuit Current": "isc",
+		"VIO SCL, SDA Input Current":     "",
+		"IOUT Output current":            "iout",
+		"IO Output current":              "iout",
+	} {
+		if got := GuessKey(text, "mA", ""); got != want {
+			t.Errorf("%q = %q, want %q", text, got, want)
+		}
 	}
 }

@@ -465,3 +465,12 @@ html { font-size: var(--ui-font-size, 13px); }
 .seg + * { margin-top: 2px; }
 .import-progress.click { cursor: pointer; }
 .import-progress.click:hover { border-color: var(--border-strong); }
+
+/* Design-review report */
+.report table { border-collapse: collapse; margin: 8px 0 14px; font-size: 12px; }
+.report th, .report td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+.report th { background: var(--bg-2); }
+.report h1 { font-size: 19px; }
+.report h2 { font-size: 15px; margin-top: 18px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.report h3 { font-size: 13px; }
+.report details { margin: 6px 0; }

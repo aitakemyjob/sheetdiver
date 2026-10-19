@@ -44,6 +44,10 @@ Conventions:
 | Tool | What it does |
 |---|---|
 | `import_datasheet` | Download and import a datasheet: by `part_number` (tries TI, ST, ADI, onsemi, Nexperia and Diodes datasheet URLs), from a `url` (a PDF, or a product page linking to one), a local `path`, or `data_base64` for a PDF the agent fetched itself because the site blocks scripted downloads. `reextract` redoes extraction. |
+| `find_alternatives` | Parts in the library that could replace a part: same or related type, compared key by key in the direction that matters (▲ better, = same, ▼ worse, ? unknown); drop-ins first, preferred parts win ties. |
+| `export_project_report` | A project as a Markdown design-review document: findings, rails with load and capacity, parts with status and key parameters, calculations, notes. |
+| `check_datasheet_updates` | Download a part's datasheet again (or all of them) and report a newer revision with the spec rows that changed. Needs import access. |
+| `apply_datasheet_update` | Replace a datasheet with the newer revision just found: same datasheet, parts and projects; extracted data replaced, recorded data kept. Needs import access. |
 | `import_datasheets` | Import many datasheets at once, in parallel: part numbers, URLs, paths or a folder (optionally recursive). One line per import with its outcome. |
 | `import_bom` | Build a project from a BOM (CSV/TSV text or file from KiCad, Altium, JLCPCB…): parts found in the library or fetched by part number; unfetchable parts join as "no datasheet"; lines without a part number are skipped. |
 | `update_part` | Correct part number, manufacturer, description, category, package, tags; add orderable variants or more part numbers on the same datasheet; set family patterns (`STM32U545xx`); star it (`favorite`) or set its `status` (preferred, approved, avoid, nrnd, eol). |
