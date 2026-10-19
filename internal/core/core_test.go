@@ -3,16 +3,19 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/aitakemyjob/sheetdiver/internal/calc"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
+	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
 )
@@ -534,5 +537,273 @@ func TestLookupCandidates(t *testing.T) {
 	}
 	if u := orderedURLs("TPS563200"); !strings.Contains(u[0].pattern, "ti.com") {
 		t.Errorf("TI first: %v", u[0])
+	}
+}
+
+func TestCurrentLimitIsACeilingNotACapacity(t *testing.T) {
+	v := 3.3
+	rail := func(load float64) []RailStatus {
+		return []RailStatus{{Rail: library.Rail{Name: "3V3", VNom: &v}, LoadMax: load, Ceiling: 1.33, CeilingFrom: "TPS63900 current limit, min (p8)", SourcePart: "U1"}}
+	}
+	find := func(cs []ProjectCheck, level, text string) bool {
+		for _, c := range cs {
+			if c.Level == level && strings.Contains(c.Message, text) {
+				return true
+			}
+		}
+		return false
+	}
+	cs := projectChecks(rail(0.4), nil, nil)
+	if !find(cs, calc.Warn, "capacity is unknown") || find(cs, calc.OK, "% of") {
+		t.Errorf("under the limit, capacity is unknown, not OK: %+v", cs)
+	}
+	if cs := projectChecks(rail(1.5), nil, nil); !find(cs, calc.Error, "exceeds the regulator's current limit 1.33 A") {
+		t.Errorf("over the limit is an error: %+v", cs)
+	}
+	if cs := projectChecks(rail(0), nil, nil); find(cs, calc.Warn, "capacity is unknown") {
+		t.Errorf("an unloaded rail needs no warning: %+v", cs)
+	}
+	ps := []library.Parameter{{Key: "ilim", Min: f64(1.33), Unit: "A", Page: 7}}
+	if c, _ := regulatorCapacity(ps); c != 0 {
+		t.Errorf("ilim alone is no capacity: %v", c)
+	}
+	if c, from := regulatorCeiling(ps); c != 1.33 || !strings.Contains(from, "p8") {
+		t.Errorf("ceiling = %v %q", c, from)
+	}
+}
+
+// f64 returns a pointer to v.
+func f64(v float64) *float64 { return &v }
+
+func TestAlternatives(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	add := func(mpn, lo, hi, iout, iq string) {
+		t.Helper()
+		if _, err := s.Import(ctx, ImportRequest{Data: testutil.MiniWith(mpn, "Step-Down Converter", lo, hi, iout, iq), Filename: mpn + ".pdf"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("ZX7001", "4.5", "28", "2", "40") // the original
+	add("ZX7002", "3", "36", "3", "20")   // better everywhere
+	add("ZX7003", "4.5", "17", "2", "40") // narrower input range
+	add("ZX7004", "4.5", "28", "2", "40") // identical, but end of life
+	add("ZX7005", "4.5", "28", "2", "")   // no IQ known
+	r, _ := s.ResolvePart(ctx, "ZX7004")
+	eol := "eol"
+	s.Lib.UpdatePart(ctx, r.Part.ID, library.PartUpdate{Status: &eol})
+
+	res, err := s.Alternatives(ctx, AltRequest{Part: "ZX7001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(res.Keys, ",") != "vin,iout,iq" {
+		t.Fatalf("keys = %v", res.Keys)
+	}
+	var got []string
+	for _, a := range res.Alternatives {
+		got = append(got, fmt.Sprintf("%s:%v/%d/%d", a.Part.MPN, a.DropIn, a.Worse, a.Unknown))
+	}
+	// ZX7002 is better on every key; ZX7005 matches but lacks IQ; ZX7003
+	// can't take 28 V; ZX7004 (EOL) and SD1234/SD1235 (no IOUT) follow
+	// only as far as they share keys.
+	want := "ZX7002:true/0/0 ZX7005:true/0/1 ZX7003:false/1/0"
+	if g := strings.Join(got, " "); !strings.HasPrefix(g, want) || strings.Contains(g, "ZX7004") {
+		t.Errorf("alternatives = %s", g)
+	}
+	for _, c := range res.Alternatives[0].Checks {
+		if c.Verdict != VerdictBetter {
+			t.Errorf("ZX7002 %s = %+v", c.Key, c)
+		}
+	}
+	all, _ := s.Alternatives(ctx, AltRequest{Part: "ZX7001", Discouraged: true})
+	// On request discouraged parts are included; an identical part is the
+	// closest (safest) drop-in.
+	if all.Alternatives[0].Part.MPN != "ZX7004" {
+		t.Errorf("discouraged parts on request: %+v", all.Alternatives[0].Part)
+	}
+	// Among drop-ins the closest wins, unless another is preferred.
+	if res, _ := s.Alternatives(ctx, AltRequest{Part: "ZX7001", Keys: []string{"vin"}}); res.Alternatives[0].Part.MPN != "ZX7005" {
+		t.Errorf("closest first: %+v", res.Alternatives[0].Part)
+	}
+	r2, _ := s.ResolvePart(ctx, "ZX7002")
+	pref := "preferred"
+	s.Lib.UpdatePart(ctx, r2.Part.ID, library.PartUpdate{Status: &pref})
+	if res, _ := s.Alternatives(ctx, AltRequest{Part: "ZX7001", Keys: []string{"vin"}}); res.Alternatives[0].Part.MPN != "ZX7002" {
+		t.Errorf("preferred first among drop-ins: %+v", res.Alternatives[0].Part)
+	}
+	if _, err := s.Alternatives(ctx, AltRequest{Part: "nope"}); err == nil {
+		t.Error("unknown parts are an error")
+	}
+}
+
+func TestCompareKeyDirections(t *testing.T) {
+	v := func(min, typ, max *float64) CompareValue {
+		return CompareValue{Min: min, Typ: typ, Max: max, Unit: "V"}
+	}
+	cases := []struct {
+		key  string
+		o, c CompareValue
+		want string
+	}{
+		{"vin", v(f64(4.5), nil, f64(28)), v(f64(3), nil, f64(36)), VerdictBetter},
+		{"vin", v(f64(4.5), nil, f64(28)), v(f64(4.5), nil, f64(28)), VerdictSame},
+		{"vin", v(f64(4.5), nil, f64(28)), v(f64(5), nil, f64(36)), VerdictWorse},
+		{"iout", v(nil, nil, f64(2)), v(nil, nil, f64(1.99)), VerdictSame},
+		{"iout", v(nil, nil, f64(2)), v(nil, nil, f64(1.5)), VerdictWorse},
+		{"iq", v(nil, f64(40e-6), nil), v(nil, f64(20e-6), nil), VerdictBetter},
+		{"rdson", v(nil, f64(0.02), nil), v(nil, f64(0.03), nil), VerdictWorse},
+		{"vref", v(nil, f64(0.6), nil), v(nil, f64(0.62), nil), VerdictSame},
+		{"vref", v(nil, f64(0.6), nil), v(nil, f64(0.8), nil), VerdictWorse},
+	}
+	for _, c := range cases {
+		if got, _ := compareKey(c.key, c.o, c.c, true, true); got.Verdict != c.want {
+			t.Errorf("%s %s vs %s = %s, want %s", c.key, rangeStr(c.o, true), rangeStr(c.c, true), got.Verdict, c.want)
+		}
+	}
+	if got, _ := compareKey("vin", v(f64(1), nil, f64(2)), CompareValue{}, true, false); got.Verdict != VerdictUnknown || got.Candidate != "–" {
+		t.Errorf("missing value = %+v", got)
+	}
+}
+
+func TestProjectReport(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	proj, err := s.Lib.CreateProject(ctx, "Sensor | board", "Battery sensor node")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v12, v33 := 12.0, 3.3
+	for _, r := range []library.Rail{{ProjectID: proj.ID, Name: "VIN", VNom: &v12}, {ProjectID: proj.ID, Name: "3V3", VNom: &v33}} {
+		if _, err := s.Lib.SetRail(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AddToProject(ctx, "Sensor | board", "SD1234", library.ProjectPart{Designator: "U1", SupplyRail: "VIN", OutputRail: "3V3"}); err != nil {
+		t.Fatal(err)
+	}
+	im := 0.5
+	r, _ := s.ResolvePart(ctx, "SD1235")
+	eol := "eol"
+	s.Lib.UpdatePart(ctx, r.Part.ID, library.PartUpdate{Status: &eol})
+	if _, err := s.AddToProject(ctx, "Sensor | board", "SD1235", library.ProjectPart{Designator: "U2", Qty: 2, SupplyRail: "3V3", IMax: &im}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Calc(ctx, CalcRequest{Kind: "divider", Inputs: json.RawMessage(`{"vin": 3.3, "vout": 1.8}`), Project: "Sensor | board", Save: true, Title: "ADC divider"}); err != nil {
+		t.Fatal(err)
+	}
+	md, err := s.ProjectReport(ctx, "Sensor | board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"# Sensor | board — design review", "Battery sensor node", "2 BOM lines (3 parts), 2 rails",
+		"## Findings", "marked EOL", "## Rails", "| 3V3 | 3.3 V | U1 SD1234 |",
+		"## Parts", "| U2 | 2 | SD1235 |", "eol", "vin 4.5 V … 17 V",
+		"## Calculations", "### ADC divider",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("report lacks %q:\n%s", want, md)
+		}
+	}
+	if _, err := s.ProjectReport(ctx, "nope"); err == nil {
+		t.Error("unknown project")
+	}
+}
+
+func TestDatasheetUpdates(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	rev := func(r, date string) testutil.Text {
+		return testutil.Text{X: 60, Y: 760, Size: 7, S: "SLVSZZ1" + r + " - JANUARY 2020 - REVISED " + date}
+	}
+	var mu sync.Mutex
+	current := testutil.MiniWith("ZX7001", "Step-Down Converter", "4.5", "28", "2", "40", rev("A", "MAY 2021"))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Write(current)
+	}))
+	defer srv.Close()
+	// Part-number lookups (for datasheets without a URL) stay offline.
+	saved := datasheetURLs
+	datasheetURLs = nil
+	defer func() { datasheetURLs = saved }()
+	res, err := s.Import(ctx, ImportRequest{URL: srv.URL + "/zx7001.pdf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := res.Datasheet.ID
+	if res.Datasheet.Meta["revision"] != "SLVSZZ1 rev A (MAY 2021)" {
+		t.Errorf("revision = %q", res.Datasheet.Meta["revision"])
+	}
+	c, err := s.CheckDatasheetUpdate(ctx, id)
+	if err != nil || !c.UpToDate {
+		t.Fatalf("same PDF = %+v %v", c, err)
+	}
+	if _, err := s.ApplyDatasheetUpdate(ctx, id); err == nil {
+		t.Error("nothing to apply when up to date")
+	}
+	// A user-recorded value and a project survive the update.
+	part, _ := s.ResolvePart(ctx, "ZX7001")
+	if _, err := s.Lib.RecordParameters(ctx, id, []library.Parameter{{Key: "fsw", Name: "Switching frequency", Typ: f64(600), Unit: "kHz", Section: "Electrical Characteristics"}}, library.SourceUser, false); err != nil {
+		t.Fatal(err)
+	}
+	s.Lib.CreateProject(ctx, "p", "")
+	s.AddToProject(ctx, "p", "ZX7001", library.ProjectPart{Designator: "U1"})
+
+	mu.Lock()
+	current = testutil.MiniWith("ZX7001", "Step-Down Converter", "4.5", "36", "2", "", rev("B", "JUNE 2024"))
+	mu.Unlock()
+	c, err = s.CheckDatasheetUpdate(ctx, id)
+	if err != nil || c.UpToDate {
+		t.Fatalf("new revision = %+v %v", c, err)
+	}
+	if c.Current != "SLVSZZ1 rev A (MAY 2021)" || c.Latest != "SLVSZZ1 rev B (JUNE 2024)" || c.Recorded != 1 {
+		t.Errorf("check = %+v", c)
+	}
+	if c.Counts[ChangeChanged] != 1 || c.Counts[ChangeRemoved] != 1 || c.Changes[0].Key != "vin" || !strings.Contains(c.Changes[0].After, "36") {
+		t.Errorf("changes = %+v %v", c.Changes, c.Counts)
+	}
+	up, err := s.ApplyDatasheetUpdate(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.Datasheet.ID != id || up.Datasheet.Meta["revision"] != "SLVSZZ1 rev B (JUNE 2024)" || up.Datasheet.Meta["previousRevision"] != "SLVSZZ1 rev A (MAY 2021)" {
+		t.Errorf("updated = %+v", up.Datasheet)
+	}
+	vals, _ := s.partValues(ctx, part.Part)
+	if v := vals["vin"]; v.Max == nil || *v.Max != 36 {
+		t.Errorf("new values in use: %+v", v)
+	}
+	if v := vals["fsw"]; v.Source != library.SourceUser {
+		t.Errorf("recorded values kept: %+v", v)
+	}
+	if d, _ := s.ProjectDetail(ctx, "p"); len(d.Parts) != 1 {
+		t.Error("project entry kept")
+	}
+	if all, err := s.CheckAllUpdates(ctx); err != nil || len(all) != 2 {
+		t.Errorf("check all = %+v %v", all, err)
+	}
+}
+
+func TestDiffParams(t *testing.T) {
+	old := []library.Parameter{
+		{Key: "vin", Name: "Input voltage", Section: "Recommended", Min: f64(4.5), Max: f64(28), Unit: "V"},
+		{Name: "Line regulation", Section: "Electrical", Typ: f64(0.1), Unit: "%"},
+		{Key: "iq", Name: "Quiescent current", Section: "Electrical", Typ: f64(40), Unit: "µA"},
+	}
+	fresh := []extract.Param{
+		{Key: "vin", Name: "Input  voltage", Section: "Recommended", Min: f64(4500), Max: f64(28000), Unit: "mV"},
+		{Name: "Line regulation", Section: "Electrical", Typ: f64(0.2), Unit: "%"},
+		{Key: "fsw", Name: "Switching frequency", Section: "Electrical", Typ: f64(1.2), Unit: "MHz"},
+	}
+	ch, counts := diffParams(old, fresh)
+	if counts[ChangeChanged] != 1 || counts[ChangeAdded] != 1 || counts[ChangeRemoved] != 1 || len(ch) != 3 {
+		t.Fatalf("changes = %+v", ch)
+	}
+	// Keyed rows first; equal values in other units are no change.
+	if ch[0].Key != "iq" || ch[0].Kind != ChangeRemoved || ch[1].Key != "fsw" || ch[2].Name != "Line regulation" {
+		t.Errorf("order = %+v", ch)
 	}
 }

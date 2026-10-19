@@ -292,6 +292,164 @@ func (s *Server) registerCompare() {
 		})
 }
 
+type altArgs struct {
+	Part        string   `json:"part" jsonschema:"the part to replace (MPN, orderable code or id)"`
+	Keys        []string `json:"keys,omitempty" jsonschema:"compare only these keys (default: the type's comparison keys the part has)"`
+	Discouraged bool     `json:"discouraged,omitempty" jsonschema:"also list parts marked avoid, nrnd or eol"`
+	Limit       int      `json:"limit,omitempty" jsonschema:"max candidates (default 10)"`
+	Show        bool     `json:"show,omitempty" jsonschema:"also open the part's alternatives in SheetDiver"`
+}
+
+type reportArgs struct {
+	Project string `json:"project"`
+}
+
+type updateArgs struct {
+	Part string `json:"part,omitempty" jsonschema:"check the datasheet of this part; omit to check every datasheet in the library"`
+}
+
+// registerDesign adds alternatives, reports and datasheet updates.
+func (s *Server) registerDesign() {
+	c := s.core
+	addTool(s, &mcp.Tool{Name: "find_alternatives", Description: "Find library parts that could replace a part (second source, better spec, part out of stock): same or related type, compared key by key in the direction that matters (more output current, less quiescent current, input range covering the original's, matching reference voltage). Drop-ins (nothing worse) first; preferred parts win ties.", Annotations: readOnly("Find alternatives")},
+		read, func(a altArgs) string { return "alternatives " + a.Part }, func(ctx context.Context, a altArgs) (result, error) {
+			if a.Limit == 0 {
+				a.Limit = 10
+			}
+			res, err := c.Alternatives(ctx, core.AltRequest{Part: a.Part, Keys: a.Keys, Discouraged: a.Discouraged, Limit: a.Limit})
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "part", Part: res.Part.MPN, Tab: "alternatives"})
+			}
+			return text(altText(res)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "export_project_report", Description: "A project as a Markdown design-review document: findings (errors and warnings), rails with load and capacity, parts with status and key parameters, saved calculations and notes. Hand it to the user or summarize it.", Annotations: readOnly("Project report")},
+		read, func(a reportArgs) string { return "report " + a.Project }, func(ctx context.Context, a reportArgs) (result, error) {
+			md, err := c.ProjectReport(ctx, a.Project)
+			return text(md), err
+		})
+
+	addTool(s, &mcp.Tool{Name: "check_datasheet_updates", Description: "Download a datasheet again from its source (or by part number) and report whether a newer revision exists, with the spec rows that changed. Without a part, checks every datasheet. Apply with apply_datasheet_update.", Annotations: &mcp.ToolAnnotations{Title: "Check datasheet updates", ReadOnlyHint: true, OpenWorldHint: boolPtr(true)}},
+		importing, func(a updateArgs) string { return "check updates " + a.Part }, func(ctx context.Context, a updateArgs) (result, error) {
+			var checks []core.UpdateCheck
+			if a.Part == "" {
+				all, err := c.CheckAllUpdates(ctx)
+				if err != nil {
+					return result{}, err
+				}
+				checks = all
+			} else {
+				d, err := c.PartDetail(ctx, a.Part)
+				if err != nil {
+					return result{}, err
+				}
+				if d.Datasheet == nil {
+					return result{}, fmt.Errorf("%s has no datasheet", a.Part)
+				}
+				ch, err := c.CheckDatasheetUpdate(ctx, d.Datasheet.ID)
+				if err != nil {
+					return result{}, err
+				}
+				checks = []core.UpdateCheck{ch}
+			}
+			var b strings.Builder
+			for _, ch := range checks {
+				b.WriteString(updateText(ch))
+			}
+			return text(b.String()), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "apply_datasheet_update", Description: "Replace a part's datasheet with the newer revision found by check_datasheet_updates. Same datasheet, parts and projects; extracted data is replaced; recorded data is kept (check any that cite pages).", Annotations: &mcp.ToolAnnotations{Title: "Apply datasheet update", DestructiveHint: boolPtr(false)}},
+		importing, func(a updateArgs) string { return "apply update " + a.Part }, func(ctx context.Context, a updateArgs) (result, error) {
+			d, err := c.PartDetail(ctx, a.Part)
+			if err != nil {
+				return result{}, err
+			}
+			if d.Datasheet == nil {
+				return result{}, fmt.Errorf("%s has no datasheet", a.Part)
+			}
+			res, err := c.ApplyDatasheetUpdate(ctx, d.Datasheet.ID)
+			if err != nil {
+				return result{}, err
+			}
+			return text(fmt.Sprintf("updated datasheet #%d to %s (was %s): %v", res.Datasheet.ID, res.Datasheet.Meta["revision"], res.Datasheet.Meta["previousRevision"], res.Counts)), nil
+		})
+}
+
+// altText renders alternatives as a table.
+func altText(r core.AltResult) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "alternatives to %s (%s), compared on %s; %d candidates considered\n", r.Part.MPN, r.Category, strings.Join(r.Keys, ", "), r.Considered)
+	if len(r.Alternatives) == 0 {
+		b.WriteString("none in the library: import more parts of this type (import_datasheets) and try again\n")
+		return b.String()
+	}
+	b.WriteString("| part | fit | ")
+	b.WriteString(strings.Join(r.Keys, " | "))
+	b.WriteString(" |\n|---|---|" + strings.Repeat("---|", len(r.Keys)) + "\n")
+	mark := map[string]string{core.VerdictBetter: "▲", core.VerdictSame: "=", core.VerdictWorse: "▼", core.VerdictUnknown: "?"}
+	for _, a := range r.Alternatives {
+		fit := fmt.Sprintf("%d worse, %d unknown", a.Worse, a.Unknown)
+		if a.DropIn {
+			fit = "drop-in"
+		}
+		name := a.Part.MPN
+		if a.Part.Status != "" {
+			name += " [" + strings.ToUpper(a.Part.Status) + "]"
+		}
+		if a.SameDatasheet {
+			name += " (same datasheet)"
+		}
+		fmt.Fprintf(&b, "| %s | %s |", name, fit)
+		for _, ch := range a.Checks {
+			fmt.Fprintf(&b, " %s %s |", mark[ch.Verdict], ch.Candidate)
+		}
+		b.WriteString("\n")
+	}
+	if len(r.Alternatives) > 0 {
+		fmt.Fprintf(&b, "\n%s's values: ", r.Part.MPN)
+		var vs []string
+		for _, ch := range r.Alternatives[0].Checks {
+			vs = append(vs, ch.Key+" "+ch.Original)
+		}
+		b.WriteString(strings.Join(vs, ", ") + "\n▲ better, = same, ▼ worse, ? unknown\n")
+	}
+	return b.String()
+}
+
+// updateText renders one update check.
+func updateText(ch core.UpdateCheck) string {
+	var b strings.Builder
+	switch {
+	case ch.Error != "":
+		fmt.Fprintf(&b, "#%d %s: could not check: %s\n", ch.DatasheetID, ch.Filename, ch.Error)
+	case ch.UpToDate:
+		fmt.Fprintf(&b, "#%d %s: up to date (%s)\n", ch.DatasheetID, ch.Filename, ch.Current)
+	default:
+		fmt.Fprintf(&b, "#%d %s: NEW REVISION %s (have %s): %d changed, %d added, %d removed spec rows; %d recorded values kept on update\n",
+			ch.DatasheetID, ch.Filename, ch.Latest, ch.Current, ch.Counts[core.ChangeChanged], ch.Counts[core.ChangeAdded], ch.Counts[core.ChangeRemoved], ch.Recorded)
+		for _, x := range ch.Changes {
+			fmt.Fprintf(&b, "  %s %s%s [%s]", x.Kind, keyTag(x.Key), x.Name, x.Section)
+			if x.Conditions != "" {
+				fmt.Fprintf(&b, " (%s)", x.Conditions)
+			}
+			fmt.Fprintf(&b, ": %s → %s\n", firstNonEmpty(x.Before, "–"), firstNonEmpty(x.After, "–"))
+		}
+	}
+	return b.String()
+}
+
+// keyTag renders "[key] " for keyed rows.
+func keyTag(k string) string {
+	if k == "" {
+		return ""
+	}
+	return "[" + k + "] "
+}
+
 // compareText renders a comparison as a markdown table.
 func compareText(r core.CompareResult) string {
 	var b strings.Builder

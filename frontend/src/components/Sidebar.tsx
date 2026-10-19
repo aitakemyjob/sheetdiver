@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Bot, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
+import { Bot, CloudDownload, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, relTime } from '../lib/format';
 import { finished, useActiveTab, useStore } from '../lib/store';
 import { jobProgress } from './ImportQueue';
+import { AllUpdatesDialog } from './UpdateDialog';
 import { FavoriteStar, StatusBadge } from './PartStatus';
 import { CategoryBadge, ErrorBox, useAsync } from './ui';
 
@@ -27,6 +28,7 @@ function LibraryPanel() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [fav, setFav] = useState(false);
+  const [updates, setUpdates] = useState(false);
   const parts = useAsync(() => api.parts({ query: q, category: cat, favorite: fav }), [q, cat, fav, s.libraryVersion]);
   const cats = useAsync(() => api.categories(), [s.libraryVersion]);
   const activePart = tab?.kind === 'part' ? String(tab.params.part ?? '').toUpperCase() : '';
@@ -43,6 +45,9 @@ function LibraryPanel() {
         <div className="actions">
           <button className={`btn ghost icon sm ${fav ? 'on' : ''}`} title={fav ? 'Show all parts' : 'Show favorites only'} aria-pressed={fav} onClick={() => setFav(!fav)}>
             <Star size={14} fill={fav ? 'currentColor' : 'none'} style={fav ? { color: 'var(--warn)' } : undefined} />
+          </button>
+          <button className="btn ghost icon sm" title="Check every datasheet for a newer revision" onClick={() => setUpdates(true)}>
+            <CloudDownload size={14} />
           </button>
           <button className="btn ghost icon sm" title="Import queue" onClick={() => s.setQueueOpen(true)}>
             <ListChecks size={14} />
@@ -83,6 +88,7 @@ function LibraryPanel() {
           <div className="faint ellipsis">{running.map((j) => j.name).join(', ') || 'queued'}</div>
         </div>
       )}
+      {updates && <AllUpdatesDialog onClose={() => setUpdates(false)} />}
       <div className="panel-body">
         <ErrorBox error={parts.error} />
         {parts.data?.length === 0 && fav && <div className="faint" style={{ padding: 10 }}>No favorites yet: star a part to keep it here.</div>}

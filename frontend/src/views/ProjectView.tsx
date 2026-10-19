@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { AlertOctagon, AlertTriangle, Calculator, CheckCircle2, Plus, Trash2, Zap } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Calculator, CheckCircle2, FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
 import { useStore } from '../lib/store';
 import { StatusBadge } from '../components/PartStatus';
+import { ReportDialog } from '../components/ReportDialog';
 import type { Check, ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
 import { CategoryBadge, Empty, ErrorBox, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
@@ -33,6 +34,7 @@ export function Checks({ checks }: { checks: Check[] }) {
 /** A project: rails with budgets, BOM, checks, calculations and notes. */
 export function ProjectView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
+  const [report, setReport] = useState(false);
   const name = String(params.project ?? '');
   const detail = useAsync(() => api.project(name), [name, s.projectVersion, s.libraryVersion]);
   const d = detail.data;
@@ -53,6 +55,10 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
           {errors > 0 && <span className="badge err">{errors} errors</span>}
           {warns > 0 && <span className="badge warn">{warns} warnings</span>}
           {errors + warns === 0 && d.parts.length > 0 && <span className="badge ok">checks pass</span>}
+          <span className="grow" />
+          <button className="btn sm" title="Design-review report (Markdown): findings, rails, parts, calculations" onClick={() => setReport(true)}>
+            <FileText size={13} /> Report
+          </button>
         </h1>
         <input
           className="input"
@@ -121,6 +127,7 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
           <NotesPanel kind="project" id={d.project.name} />
         </div>
       </div>
+      {report && <ReportDialog project={d.project.name} onClose={() => setReport(false)} />}
     </div>
   );
 }
@@ -176,6 +183,12 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                 <div className="row mono" style={{ fontSize: 12 }}>
                   load {eng(r.loadTyp, 'A')} typ / {eng(r.loadMax, 'A')} max
                   {r.capacity ? <span className="faint"> of {eng(r.capacity, 'A')}</span> : null}
+                  {!r.capacity && r.ceiling ? (
+                    <span className="faint" title={`${r.ceilingFrom}: an upper bound, not a rating`}>
+                      {' '}
+                      · capacity unknown (limit {eng(r.ceiling, 'A')})
+                    </span>
+                  ) : null}
                   <span className="grow" />
                   {eng(r.power, 'W')}
                 </div>

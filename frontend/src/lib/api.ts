@@ -3,7 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck,
 } from './types';
 
 /** Calls a backend method. */
@@ -39,6 +39,12 @@ export const api = {
   clearImports: () => call<null>('imports.clear'),
   importBOM: (req: { text?: string; path?: string; filename?: string; project?: string; fetch: boolean }) => call<BOMResult>('bom.import', req),
   pickFolder: () => call<{ path: string }>('files.pickFolder'),
+  alternatives: (req: { part: string; keys?: string[]; discouraged?: boolean; limit?: number }) => call<AltResult>('part.alternatives', req),
+  projectReport: (project: string) => call<{ markdown: string }>('project.report', { project }),
+  checkUpdate: (id: number) => call<UpdateCheck>('datasheet.checkUpdate', { id }),
+  applyUpdate: (id: number) => call<ImportResult>('datasheet.applyUpdate', { id }),
+  checkAllUpdates: () => call<UpdateCheck[]>('datasheets.checkUpdates'),
+  saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
   addPart: (p: Partial<Part>) => call<Part>('part.add', p),
   deletePart: (id: number) => call<void>('part.delete', { id }),
   setVariants: (id: number, variants: Partial<Variant>[]) => call<void>('part.variants', { id, variants }),
@@ -127,4 +133,24 @@ export async function uploadPDF(file: File, opts: { mpns?: string; manufacturer?
   const body = (await res.json()) as { result?: ImportResult; error?: string };
   if (body.error) throw new Error(body.error);
   return body.result!;
+}
+
+/**
+ * Saves text as a file: through the desktop app's save dialog when it has
+ * one (returns the path, or '' if cancelled), else as a browser download
+ * (returns the file name).
+ */
+export async function saveText(name: string, text: string, mime: string, desktop: boolean): Promise<string> {
+  if (desktop) {
+    const bytes = new TextEncoder().encode(text);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return (await api.saveFile(name, btoa(bin))).path;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  return name;
 }

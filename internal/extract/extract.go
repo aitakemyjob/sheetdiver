@@ -109,6 +109,7 @@ type Result struct {
 	Manufacturer string      `json:"manufacturer"`
 	PartNumbers  []string    `json:"partNumbers"`
 	Families     []string    `json:"families"`
+	Revision     Revision    `json:"revision"`
 	Variants     []Variant   `json:"variants"`
 	Category     string      `json:"category"`
 	Lines        [][]Line    `json:"-"`
@@ -131,7 +132,7 @@ type PageShape struct {
 // Analyze extracts datasheet structure from a document. filename is used
 // as a last-resort part number.
 func Analyze(doc *pdf.Document, filename string) *Result {
-	r := &Result{}
+	r := &Result{Revision: DetectRevision(doc)}
 	for _, p := range doc.Pages {
 		r.Pages = append(r.Pages, PageShape{p.Width, p.Height})
 	}

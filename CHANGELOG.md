@@ -8,7 +8,29 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Changed
+- A regulator without an output-current rating no longer uses its current
+  limit as its capacity: the rail shows "capacity unknown" with the limit
+  as a ceiling (a load above it is still an error).
+- Zero-gate-voltage drain current (`idss`) and on-state drain current
+  (`id_on`) are no longer filed as the continuous drain current `id`.
+- CSV and report saving use the desktop save dialog.
+
 ### Added
+- **Alternatives:** a part's Alternatives tab (MCP `find_alternatives`)
+  ranks library parts of the same or a related type key by key in the
+  direction that matters (more current, less quiescent current, input
+  range covering the original's, matching reference); drop-ins first,
+  preferred parts win ties.
+- **Design-review report** for a project (Report button, `sheetdiver
+  report`, MCP `export_project_report`): findings, rails with load and
+  capacity, parts with status and key parameters, calculations, notes, as
+  Markdown.
+- **Datasheet revisions:** the revision is detected on import (TI, ST,
+  ADI/Maxim, Microchip, Diodes, AOS styles). Check one datasheet or the
+  whole library for a newer revision, see which spec rows changed, and
+  update in place; recorded data and projects are kept (MCP
+  `check_datasheet_updates`, `apply_datasheet_update`).
 - **Batch import:** whole folders (recursively), lists of part numbers or
   URLs, and many dropped files at once, extracted in parallel on a pool of
   PDF engines. An import queue shows progress, results and failures, with

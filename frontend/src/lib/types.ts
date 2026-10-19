@@ -55,6 +55,8 @@ export interface Datasheet {
   pages: number;
   families: string[] | null;
   sourceUrl?: string;
+  /** PDF metadata plus revision, revisionDoc/Rev/Date and previousRevision after an update. */
+  meta?: Record<string, string>;
   extractor: string;
   importedAt: string;
 }
@@ -295,6 +297,9 @@ export interface RailStatus extends Rail {
   loadMax: number;
   capacity?: number;
   capacityFrom?: string;
+  /** The regulator's current limit when it has no output rating: a ceiling, not a capacity. */
+  ceiling?: number;
+  ceilingFrom?: string;
   sourcePart?: string;
   consumers: string[];
   power: number;
@@ -508,4 +513,60 @@ export interface BusEvent {
   type: string;
   time: string;
   data?: unknown;
+}
+
+export type Verdict = 'better' | 'same' | 'worse' | 'unknown';
+
+export interface AltCheck {
+  key: string;
+  direction: 'higher' | 'lower' | 'cover' | 'close';
+  original: string;
+  candidate: string;
+  verdict: Verdict;
+  page: number;
+}
+
+export interface Alternative {
+  part: Part;
+  checks: AltCheck[];
+  better: number;
+  same: number;
+  worse: number;
+  unknown: number;
+  samePackage: boolean;
+  sameDatasheet: boolean;
+  dropIn: boolean;
+  distance: number;
+}
+
+export interface AltResult {
+  part: Part;
+  category: string;
+  keys: string[];
+  alternatives: Alternative[];
+  considered: number;
+}
+
+export interface ParamChange {
+  kind: 'changed' | 'added' | 'removed';
+  key?: string;
+  name: string;
+  section: string;
+  conditions?: string;
+  before?: string;
+  after?: string;
+  page: number;
+}
+
+export interface UpdateCheck {
+  datasheetId: number;
+  filename: string;
+  source: string;
+  current: string;
+  latest?: string;
+  upToDate: boolean;
+  changes?: ParamChange[];
+  counts?: Record<string, number>;
+  recorded: number;
+  error?: string;
 }

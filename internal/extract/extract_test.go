@@ -355,3 +355,18 @@ func TestIrregularityAndProse(t *testing.T) {
 		t.Errorf("tidy = %q", tidyConditions("V I = 3.6 V , , unlimited setting ,"))
 	}
 }
+
+func TestMOSFETCurrentKeys(t *testing.T) {
+	cases := map[string]string{
+		"IDSS Zero Gate Voltage Drain Current": "idss",
+		"Drain-Source Leakage Current":         "idss",
+		"ID(ON) On state drain current":        "id_on",
+		"ID Continuous Drain Current":          "id",
+		"Continuous drain current, TA = 25°C":  "id",
+	}
+	for text, want := range cases {
+		if got := GuessKey(text, "A", ""); got != want {
+			t.Errorf("%q = %q, want %q", text, got, want)
+		}
+	}
+}

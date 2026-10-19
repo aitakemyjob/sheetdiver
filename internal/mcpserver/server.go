@@ -25,6 +25,9 @@ registers. Projects group the parts of a board with their supply rails.
 - Missing a part? import_datasheet downloads it: by part_number (manufacturer URLs), url (PDF or product page),
   path, or data_base64 if you fetched the PDF yourself because the site blocks scripted downloads. import_datasheets
   takes many at once (or a folder); import_bom builds a whole project from a CSV/KiCad BOM.
+- Replacing a part (second source, out of stock, better spec)? find_alternatives. Reviewing a board?
+  export_project_report gives the whole design review as Markdown. check_datasheet_updates finds newer revisions
+  and what changed in their specs.
 - Parts can be starred and have a status (preferred, approved, avoid, nrnd, eol). When suggesting parts, prefer
   preferred/approved ones and flag avoid/nrnd/eol; compare_parts and list_parts filter by both.
 - Find things with search (full text across everything) and list_parts. To choose a part, list_categories then
@@ -77,6 +80,7 @@ func New(c *core.Service) *Server {
 	s.registerProjects()
 	s.registerCalc()
 	s.registerCompare()
+	s.registerDesign()
 	return s
 }
 

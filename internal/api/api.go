@@ -254,6 +254,16 @@ func (a *API) registerLibrary() {
 	a.methods["parts.categories"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Lib.Categories(ctx) })
 	a.methods["categories.list"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Categories(ctx) })
 	a.methods["compare"] = method(func(ctx context.Context, in core.CompareRequest) (any, error) { return c.Compare(ctx, in) })
+	a.methods["part.alternatives"] = method(func(ctx context.Context, in core.AltRequest) (any, error) { return c.Alternatives(ctx, in) })
+	a.methods["project.report"] = method(func(ctx context.Context, in struct {
+		Project string `json:"project"`
+	}) (any, error) {
+		md, err := c.ProjectReport(ctx, in.Project)
+		return map[string]string{"markdown": md}, err
+	})
+	a.methods["datasheet.checkUpdate"] = method(func(ctx context.Context, in idReq) (any, error) { return c.CheckDatasheetUpdate(ctx, in.ID) })
+	a.methods["datasheet.applyUpdate"] = method(func(ctx context.Context, in idReq) (any, error) { return c.ApplyDatasheetUpdate(ctx, in.ID) })
+	a.methods["datasheets.checkUpdates"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CheckAllUpdates(ctx) })
 	a.methods["part.detail"] = method(func(ctx context.Context, in partReq) (any, error) { return c.PartDetail(ctx, in.Part) })
 	a.methods["part.update"] = method(func(ctx context.Context, in struct {
 		ID int64 `json:"id"`

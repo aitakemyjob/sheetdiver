@@ -52,6 +52,7 @@ type Service struct {
 	importMu sync.Mutex
 	slots    chan struct{}
 	jobs     jobs
+	pending  pendingUpdates
 }
 
 // MCPStatus says whether the MCP endpoint is listening.

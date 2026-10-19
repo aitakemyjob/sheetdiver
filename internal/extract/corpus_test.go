@@ -33,6 +33,8 @@ type corpusEntry struct {
 		PinNames      []string `json:"pinNames"`
 		PinPackages   []string `json:"pinPackages"`
 		RegularTables []string `json:"regularTables"`
+		// Revision as rendered by Revision.String.
+		Revision string `json:"revision"`
 		// Values of the first parameter with each key.
 		Values map[string]struct {
 			Min *float64 `json:"min"`
@@ -93,6 +95,9 @@ func TestCorpus(t *testing.T) {
 			}
 			r := Analyze(doc, e.File)
 			x := e.Expect
+			if x.Revision != "" && r.Revision.String() != x.Revision {
+				t.Errorf("revision = %q, want %q", r.Revision, x.Revision)
+			}
 			if x.Manufacturer != "" && r.Manufacturer != x.Manufacturer {
 				t.Errorf("manufacturer = %q, want %q", r.Manufacturer, x.Manufacturer)
 			}

@@ -35,7 +35,8 @@
           "6-8": "graph",
           "8-1": "schematic",
           "8-11": "waveform"
-        }
+        },
+        "revision": "SLVSCB0 rev E (MAY 2023)"
       }
     },
     {
@@ -69,7 +70,8 @@
           "ilim_in": {
             "typ": 1
           }
-        }
+        },
+        "revision": "SLVSET3 rev D (OCTOBER 2020)"
       }
     },
     {
@@ -92,7 +94,8 @@
           "vin",
           "fsw",
           "ilim"
-        ]
+        ],
+        "revision": "SLVSF14 rev B (AUGUST 2020)"
       }
     },
     {
@@ -115,7 +118,8 @@
           "fsw",
           "ton_min",
           "vref"
-        ]
+        ],
+        "revision": "SLUSEF4 rev A (NOVEMBER 2022)"
       }
     },
     {
@@ -137,7 +141,8 @@
           "qg",
           "qgd",
           "ciss"
-        ]
+        ],
+        "revision": "SLPS525 rev A (JANUARY 2016)"
       }
     },
     {
@@ -155,7 +160,8 @@
           "LM317DCYR": "LM317",
           "LM317KTTR": "LM317"
         },
-        "minFigures": 20
+        "minFigures": 20,
+        "revision": "SLVS044 rev Z (APRIL 2025)"
       }
     },
     {
@@ -173,7 +179,8 @@
           "TPS7A0233PDBVR": "TPS7A02"
         },
         "minVariants": 20,
-        "minFigures": 20
+        "minFigures": 20,
+        "revision": "SBVS277 rev C (SEPTEMBER 2022)"
       }
     },
     {
@@ -190,7 +197,8 @@
         "variants": {
           "TLV75733PDBVR": "TLV757P"
         },
-        "minVariants": 10
+        "minVariants": 10,
+        "revision": "SBVS322 rev C (MARCH 2024)"
       }
     },
     {
@@ -217,7 +225,8 @@
         "keys": [
           "ichg",
           "vreg"
-        ]
+        ],
+        "revision": "SLUS810 rev N (OCTOBER 2021)"
       }
     },
     {
@@ -236,7 +245,8 @@
         },
         "sectionKinds": [
           "registers"
-        ]
+        ],
+        "revision": "SBOS448 rev G (DECEMBER 2015)"
       }
     },
     {
@@ -251,7 +261,8 @@
           "MCP1700"
         ],
         "minVariants": 10,
-        "minFigures": 10
+        "minFigures": 10,
+        "revision": "DS20001826 rev E"
       }
     },
     {
@@ -265,7 +276,8 @@
         "partNumbers": [
           "AP2112"
         ],
-        "pins": 5
+        "pins": 5,
+        "revision": "DS39724 rev 2-2"
       }
     },
     {
@@ -284,7 +296,8 @@
           "vgs_th",
           "rdson",
           "qg"
-        ]
+        ],
+        "revision": "rev 3.1 (JULY 2023)"
       }
     },
     {
@@ -338,7 +351,8 @@
           "STM32U545xx"
         ],
         "minSections": 200,
-        "minFigures": 40
+        "minFigures": 40,
+        "revision": "DS14216 rev 5"
       }
     },
     {
@@ -379,7 +393,8 @@
         ],
         "variants": {
           "MAX77801EWP+T": "MAX77801"
-        }
+        },
+        "revision": "19-7515 rev 8 (6/23)"
       }
     }
   ]

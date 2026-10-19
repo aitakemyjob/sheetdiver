@@ -161,23 +161,15 @@ func (s *Service) Compare(ctx context.Context, req CompareRequest) (CompareResul
 	units := map[string]string{}
 	var all []CompareRow
 	for _, p := range parts {
-		row := CompareRow{Part: p, Values: map[string]CompareValue{}}
-		if p.DatasheetID != 0 {
-			params, err := s.Lib.Parameters(ctx, p.DatasheetID, library.ParamFilter{MPN: p.MPN})
-			if err != nil {
-				return out, err
-			}
-			for _, kv := range keyValues(params) {
-				v, ok := compareValue(kv)
-				if !ok {
-					continue
-				}
-				row.Values[kv.Key] = v
-				have[kv.Key]++
-				units[kv.Key] = v.Unit
-			}
+		vals, err := s.partValues(ctx, p)
+		if err != nil {
+			return out, err
 		}
-		all = append(all, row)
+		for k, v := range vals {
+			have[k]++
+			units[k] = v.Unit
+		}
+		all = append(all, CompareRow{Part: p, Values: vals})
 	}
 	keys := req.Keys
 	if len(keys) == 0 {
@@ -208,6 +200,24 @@ rows:
 	sortRows(out.Rows, req.Sort, req.Desc)
 	if len(out.Unknown) == 0 {
 		out.Unknown = nil
+	}
+	return out, nil
+}
+
+// partValues is a part's key parameters in SI, keyed by canonical key.
+func (s *Service) partValues(ctx context.Context, p library.Part) (map[string]CompareValue, error) {
+	out := map[string]CompareValue{}
+	if p.DatasheetID == 0 {
+		return out, nil
+	}
+	params, err := s.Lib.Parameters(ctx, p.DatasheetID, library.ParamFilter{MPN: p.MPN})
+	if err != nil {
+		return nil, err
+	}
+	for _, kv := range keyValues(params) {
+		if v, ok := compareValue(kv); ok {
+			out[kv.Key] = v
+		}
 	}
 	return out, nil
 }

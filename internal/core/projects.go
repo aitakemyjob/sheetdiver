@@ -33,12 +33,19 @@ type RailStatus struct {
 	// plus the input current of regulators fed from it.
 	LoadTyp float64 `json:"loadTyp"`
 	LoadMax float64 `json:"loadMax"`
-	// Capacity is the rail's current limit or its regulator's rating.
-	Capacity     float64  `json:"capacity,omitempty"`
-	CapacityFrom string   `json:"capacityFrom,omitempty"`
-	SourcePart   string   `json:"sourcePart,omitempty"`
-	Consumers    []string `json:"consumers"`
-	Power        float64  `json:"power"`
+	// Capacity is the rail's current limit or its regulator's rated
+	// output current.
+	Capacity     float64 `json:"capacity,omitempty"`
+	CapacityFrom string  `json:"capacityFrom,omitempty"`
+	// Ceiling is the regulator's switch current limit when it has no
+	// output rating: the load can't exceed it, but what the regulator
+	// actually delivers is lower (ripple, VIN, duty cycle), so it isn't
+	// a capacity.
+	Ceiling     float64  `json:"ceiling,omitempty"`
+	CeilingFrom string   `json:"ceilingFrom,omitempty"`
+	SourcePart  string   `json:"sourcePart,omitempty"`
+	Consumers   []string `json:"consumers"`
+	Power       float64  `json:"power"`
 }
 
 // ProjectCheck is a finding about a project.
@@ -105,6 +112,8 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 			}
 			if c, from := regulatorCapacity(params[pp.PartID]); c > 0 && st[i].CurrentLimit == nil {
 				st[i].Capacity, st[i].CapacityFrom = c, pp.MPN+" "+from
+			} else if c, from := regulatorCeiling(params[pp.PartID]); c > 0 && st[i].CurrentLimit == nil {
+				st[i].Ceiling, st[i].CeilingFrom = c, pp.MPN+" "+from
 			}
 		}
 		if i, ok := idx[strings.ToLower(pp.SupplyRail)]; ok && pp.SupplyRail != "" {
@@ -215,12 +224,17 @@ func paramSI(ps []library.Parameter, key string, sections []string, stats ...str
 	return 0, library.Parameter{}, false
 }
 
-// regulatorCapacity is a regulator's output current rating, else its
-// minimum current limit.
+// regulatorCapacity is a regulator's rated output current.
 func regulatorCapacity(ps []library.Parameter) (float64, string) {
 	if v, p, ok := paramSI(ps, "iout", []string{extract.KindRecommended, extract.KindElectrical}, "max", "typ"); ok {
 		return v, fmt.Sprintf("rated output (p%d)", p.Page+1)
 	}
+	return 0, ""
+}
+
+// regulatorCeiling is a regulator's minimum switch current limit: an
+// upper bound on its output, not a rating.
+func regulatorCeiling(ps []library.Parameter) (float64, string) {
 	if v, p, ok := paramSI(ps, "ilim", nil, "min", "typ"); ok {
 		return v, fmt.Sprintf("current limit, min (p%d)", p.Page+1)
 	}
@@ -328,6 +342,13 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 				add(calc.Warn, r.SourcePart, r.Name, 0, "%s load %s is %.0f%% of its capacity %s (%s)", r.Name, calc.Eng(r.LoadMax, "A"), u*100, calc.Eng(r.Capacity, "A"), r.CapacityFrom)
 			default:
 				add(calc.OK, r.SourcePart, r.Name, 0, "%s load %s is %.0f%% of %s", r.Name, calc.Eng(r.LoadMax, "A"), u*100, calc.Eng(r.Capacity, "A"))
+			}
+		}
+		if r.Capacity == 0 && r.Ceiling > 0 && r.LoadMax > 0 {
+			if r.LoadMax > r.Ceiling {
+				add(calc.Error, r.SourcePart, r.Name, 0, "%s load %s exceeds the regulator's current limit %s (%s)", r.Name, calc.Eng(r.LoadMax, "A"), calc.Eng(r.Ceiling, "A"), r.CeilingFrom)
+			} else {
+				add(calc.Warn, r.SourcePart, r.Name, 0, "%s load %s: the regulator has no output-current rating, so its capacity is unknown. Its current limit %s (%s) is only a ceiling: inductor ripple and the input voltage lower what it can deliver. Check the datasheet's output-current graphs or record iout", r.Name, calc.Eng(r.LoadMax, "A"), calc.Eng(r.Ceiling, "A"), r.CeilingFrom)
 			}
 		}
 		if r.VNom == nil && r.VMin == nil && r.VMax == nil {

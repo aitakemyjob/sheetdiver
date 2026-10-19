@@ -31,6 +31,9 @@ type Import struct {
 	Pins      []Pin
 	// Recommendations read from regular recommended-component tables.
 	Recommendations []Recommendation
+	// Replaces, when set, is the datasheet this PDF is a newer revision
+	// of: it takes over that datasheet's ID, parts and recorded data.
+	Replaces int64
 }
 
 // SaveImport stores an import. If the datasheet (by SHA-256) is already in
@@ -44,6 +47,21 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 		d := in.Datasheet
 		fam, _ := json.Marshal(nonNil(d.Families))
 		meta, _ := json.Marshal(d.Meta)
+		if in.Replaces != 0 {
+			var other int64
+			err := tx.QueryRowContext(ctx, `SELECT id FROM datasheets WHERE sha256 = ? AND id <> ?`, d.SHA256, in.Replaces).Scan(&other)
+			if err == nil {
+				return fmt.Errorf("this PDF is already in the library as datasheet #%d", other)
+			}
+			res, err := tx.ExecContext(ctx, `UPDATE datasheets SET sha256 = ?, file = ?, filename = ?, source_url = CASE WHEN ? = '' THEN source_url ELSE ? END, imported_at = ? WHERE id = ?`,
+				d.SHA256, d.File, d.Filename, d.SourceURL, d.SourceURL, now(), in.Replaces)
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return fmt.Errorf("datasheet %d: %w", in.Replaces, ErrNotFound)
+			}
+		}
 		err := tx.QueryRowContext(ctx, `SELECT id FROM datasheets WHERE sha256 = ?`, d.SHA256).Scan(&dsID)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
