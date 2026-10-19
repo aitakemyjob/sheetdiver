@@ -1,0 +1,210 @@
+package mcpserver
+
+import (
+	"context"
+	"encoding/base64"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/aitakemyjob/sheetdiver/internal/config"
+	"github.com/aitakemyjob/sheetdiver/internal/core"
+	"github.com/aitakemyjob/sheetdiver/internal/testutil"
+)
+
+// harness connects an in-memory MCP client to a server over a temporary
+// library.
+type harness struct {
+	t    *testing.T
+	core *core.Service
+	cs   *mcp.ClientSession
+}
+
+// newHarness starts a server on an empty library.
+func newHarness(t *testing.T) *harness {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("SHEETDIVER_LIBRARY", filepath.Join(dir, "lib"))
+	store, err := config.Open(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := core.New(store, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+	ctx := context.Background()
+	st, ct := mcp.NewInMemoryTransports()
+	if _, err := New(svc).MCP().Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test-agent", Version: "1"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cs.Close() })
+	return &harness{t: t, core: svc, cs: cs}
+}
+
+// call runs a tool, returning its text, whether it had an image, and
+// whether it failed.
+func (h *harness) call(name string, args map[string]any) (string, bool, bool) {
+	h.t.Helper()
+	res, err := h.cs.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		h.t.Fatalf("%s: protocol error: %v", name, err)
+	}
+	var sb strings.Builder
+	img := false
+	for _, c := range res.Content {
+		switch c := c.(type) {
+		case *mcp.TextContent:
+			sb.WriteString(c.Text)
+		case *mcp.ImageContent:
+			img = len(c.Data) > 100 && c.MIMEType == "image/png"
+		}
+	}
+	return sb.String(), img, res.IsError
+}
+
+// must runs a tool that must succeed and contain every want.
+func (h *harness) must(name string, args map[string]any, wants ...string) string {
+	h.t.Helper()
+	out, _, isErr := h.call(name, args)
+	if isErr {
+		h.t.Fatalf("%s failed: %s", name, out)
+	}
+	for _, w := range wants {
+		if !strings.Contains(out, w) {
+			h.t.Errorf("%s output lacks %q:\n%s", name, w, out)
+		}
+	}
+	return out
+}
+
+// importSample imports the synthetic datasheet the way an agent would,
+// with bytes it downloaded itself.
+func (h *harness) importSample() {
+	h.must("import_datasheet", map[string]any{"data_base64": base64.StdEncoding.EncodeToString(testutil.Datasheet()), "filename": "sd123x.pdf"},
+		"SD1234", "SD1235", "families: SD123x", "orderable variants: 2")
+}
+
+func TestAgentWorkflow(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	h.must("get_part", map[string]any{"part": "SD1234DDCR"}, "SD1234", "by variant", "vref", "0.765", "same datasheet: SD1235")
+	h.must("search", map[string]any{"query": "switching frequency"}, "fSW Switching frequency")
+	h.must("get_parameters", map[string]any{"part": "SD1235", "key": "ilim"}, "[ilim]", "3.5", "5.3")
+	h.must("get_section", map[string]any{"part": "SD1234", "section": "pins"}, "Pin Configuration")
+	h.must("get_pins", map[string]any{"part": "SD1234"}, "VFB", "Feedback input")
+	h.must("read_pages", map[string]any{"part": "SD1234", "from": 2}, "page 2 of 3", "Feedback voltage")
+	h.must("list_figures", map[string]any{"part": "SD1234", "kind": "graph"}, "Figure 6-1", "Efficiency vs Output Current")
+
+	out, img, isErr := h.call("get_figure", map[string]any{"part": "SD1234", "figure": "6-1"})
+	if isErr || !img || !strings.Contains(out, "Output Current") {
+		t.Fatalf("get_figure: image %v err %v %s", img, isErr, out)
+	}
+	if _, img, _ := h.call("get_page_image", map[string]any{"part": "SD1234", "page": 2, "region": map[string]any{"x0": 50, "y0": 60, "x1": 560, "y1": 160}}); !img {
+		t.Error("get_page_image returns an image")
+	}
+
+	h.must("describe_figure", map[string]any{"part": "SD1234", "figure": "6-1", "title": "Efficiency vs load at VIN = 12 V", "conditions": "VOUT = 3.3 V",
+		"curves": []map[string]any{{"label": "VIN 12 V", "summary": "peaks at 92% near 1 A"}}}, "described by agent")
+	h.must("search", map[string]any{"query": "peaks"}, "Figure 6-1")
+	h.must("record_parameters", map[string]any{"part": "SD1234", "replace_auto": true, "parameters": []map[string]any{
+		{"key": "fsw", "name": "Switching frequency", "min": 520, "typ": 650, "max": 780, "unit": "kHz", "section": "electrical", "page": 2},
+	}}, "recorded 1", "agent")
+	if out, _, isErr := h.call("record_parameters", map[string]any{"part": "SD1234", "parameters": []map[string]any{{"key": "frequency", "name": "x"}}}); !isErr || !strings.Contains(out, "unknown key") {
+		t.Errorf("unknown keys are rejected: %s", out)
+	}
+	h.must("record_recommendations", map[string]any{"part": "SD1234", "recommendations": []map[string]any{{"role": "inductor", "value": "2.2 µH", "mpn": "XAL4020-222", "manufacturer": "Coilcraft", "page": 2}}}, "recorded 1")
+	h.must("record_registers", map[string]any{"part": "SD1234", "registers": []map[string]any{{"name": "CTRL", "address": "0x01", "width": 8, "fields": []map[string]any{{"name": "EN", "bits": "0", "access": "RW"}}}}}, "recorded 1")
+	h.must("get_registers", map[string]any{"part": "SD1234"}, "0x01 CTRL", "[0] EN RW")
+	h.must("add_note", map[string]any{"target": "part", "ref": "SD1234DDCR", "text": "Use 22 µF output caps"}, "note #")
+	h.must("get_part", map[string]any{"part": "SD1234"}, "XAL4020-222", "Use 22 µF output caps", "(agent, ")
+
+	out, img, isErr = h.call("get_tables", map[string]any{"part": "SD1234", "table": "7-1"})
+	if isErr || !img || !strings.Contains(out, "IRREGULAR") {
+		t.Fatalf("get_tables returns the image and flags the matrix: %v %s", img, out)
+	}
+	if out, _, isErr := h.call("record_table", map[string]any{"part": "SD1234", "table": "7-1", "header": []string{"VOUT", "RSET1"}, "rows": [][]string{{"3.3 V"}}}); !isErr || !strings.Contains(out, "row 1 has 1 cells") {
+		t.Errorf("ragged rows are rejected: %s", out)
+	}
+	h.must("record_table", map[string]any{"part": "SD1234", "table": "7-1", "title": "VOUT by RSET1/RSET2",
+		"header": []string{"VOUT", "RSET1", "RSET2"}, "rows": [][]string{{"1.8 V", "0 Ω", "0 Ω"}, {"3.3 V", "1.15 kΩ", "0 Ω"}}}, "recorded table", "2 rows")
+	h.must("get_tables", map[string]any{"part": "SD1234"}, "VOUT by RSET1/RSET2 (transcribed by agent)", "[table] Table 8-1 List of Recommended Inductors")
+	h.must("search", map[string]any{"query": "RSET1", "kinds": []string{"table"}}, "Table 7-1")
+	h.must("get_part", map[string]any{"part": "SD1234"}, "XFL4020-222ME")
+
+	h.must("create_project", map[string]any{"name": "Board A"}, "created project Board A")
+	h.must("set_rail", map[string]any{"name": "VIN", "v_min": 10, "v_max": 14}, "rail VIN")
+	h.must("set_rail", map[string]any{"name": "3V3", "v_nom": 3.3}, "rail 3V3")
+	h.must("add_to_project", map[string]any{"part": "SD1234", "designator": "U1", "supply_rail": "VIN", "output_rail": "3V3"}, "Board A")
+	h.must("add_to_project", map[string]any{"part": "SD1235", "designator": "U9", "supply_rail": "3V3", "i_max": 0.5}, "U9")
+	h.must("get_project", map[string]any{}, "3V3: 3.3 V", "load", "500 mA max", "U1")
+	h.must("update_project_part", map[string]any{"entry": "U9", "remove": true}, "removed")
+
+	calc := h.must("calculate", map[string]any{"kind": "buck", "part": "SD1234", "project": "Board A", "inputs": map[string]any{"iout": 2}, "save": true},
+		"fsw = 650 kHz", "(agent)", "vinMax = 14 V", "vout = 3.3 V", "Chosen inductance", "saved as calculation")
+	if !strings.Contains(calc, "Rtop") {
+		t.Errorf("feedback divider from vref:\n%s", calc)
+	}
+	h.must("get_project", map[string]any{"project": "Board A"}, "Saved calculations", "SD1234 buck")
+	h.must("list_calculators", nil, "gate_divider", "ton_min")
+	h.must("library_overview", nil, "1 datasheets, 2 parts", "Board A")
+}
+
+func TestImportByPartNumberNeedsNetwork(t *testing.T) {
+	if testing.Short() || os.Getenv("SHEETDIVER_NETWORK_TESTS") == "" {
+		t.Skip("set SHEETDIVER_NETWORK_TESTS=1 to download from manufacturer sites")
+	}
+	h := newHarness(t)
+	h.must("import_datasheet", map[string]any{"part_number": "TPS54331"}, "TPS54331", "downloaded from https://www.ti.com")
+}
+
+func TestAccessSwitches(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	st := h.core.Config.Get().Settings
+	st.AgentWrites = false
+	h.core.UpdateSettings(st)
+	if out, _, isErr := h.call("add_note", map[string]any{"target": "part", "ref": "SD1234", "text": "x"}); !isErr || !strings.Contains(out, "read-only") {
+		t.Errorf("writes are refused when read-only: %s", out)
+	}
+	h.must("get_part", map[string]any{"part": "SD1234"}, "SD1234")
+	st.AgentImport = false
+	h.core.UpdateSettings(st)
+	if out, _, isErr := h.call("import_datasheet", map[string]any{"part_number": "X"}); !isErr || !strings.Contains(out, "import") {
+		t.Errorf("imports are refused: %s", out)
+	}
+	st.MCPEnabled = false
+	h.core.UpdateSettings(st)
+	if out, _, isErr := h.call("search", map[string]any{"query": "x"}); !isErr || !strings.Contains(out, "Settings") {
+		t.Errorf("everything is refused when disabled: %s", out)
+	}
+	if acts := h.core.Activity(); len(acts) == 0 || acts[len(acts)-1].Error == "" {
+		t.Error("refused calls show in the activity feed")
+	}
+}
+
+// docs/MCP.md is the public tool reference; keep it complete.
+func TestToolsAreDocumented(t *testing.T) {
+	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "MCP.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t)
+	res, err := h.cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if !strings.Contains(string(doc), "`"+tool.Name+"`") {
+			t.Errorf("tool %s is missing from docs/MCP.md", tool.Name)
+		}
+	}
+}

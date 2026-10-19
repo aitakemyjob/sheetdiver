@@ -1,0 +1,137 @@
+package library
+
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+// openTemp opens an empty library in a temp dir.
+func openTemp(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+// seed stores a small two-part datasheet.
+func seed(t *testing.T, s *Store) int64 {
+	t.Helper()
+	v := 0.6
+	id, err := s.SaveImport(context.Background(), &Import{
+		Datasheet: Datasheet{SHA256: "abc", File: "x.pdf", Filename: "x.pdf", Title: "XYZ12x LDO", Manufacturer: "Acme", Pages: 2, Families: []string{"XYZ12x"}},
+		Parts:     []Part{{MPN: "XYZ120", Category: "ldo"}, {MPN: "XYZ121", Category: "ldo"}},
+		Variants:  []ImportVariant{{MPN: "XYZ120-33TR", Base: "XYZ120"}},
+		Pages:     []Page{{Page: 0, Width: 612, Height: 792, Text: "Low dropout regulator with power-good"}, {Page: 1, Width: 612, Height: 792, Text: "Dropout voltage 300 mV"}},
+		Sections:  []Section{{Title: "Electrical Characteristics", Level: 1, Kind: "electrical", Page: 1}},
+		Figures:   []Figure{{Page: 1, Number: "3", Caption: "Dropout vs Load", Kind: "graph"}},
+		Params:    []Parameter{{Key: "vdropout", Name: "Dropout voltage", Max: &v, Unit: "V", Section: "electrical", Page: 1, AppliesTo: []string{"XYZ121"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestResolve(t *testing.T) {
+	s := openTemp(t)
+	seed(t, s)
+	ctx := context.Background()
+	for ref, via := range map[string]string{"XYZ120": "mpn", "xyz120-33tr": "variant", "XYZ121-18TR": "prefix", "XYZ12x": "family"} {
+		r, err := s.Resolve(ctx, ref)
+		if err != nil || r.Via != via {
+			t.Errorf("%s: %+v %v", ref, r, err)
+		}
+	}
+	_, err := s.Resolve(ctx, "XYZ999")
+	if err == nil || !strings.Contains(err.Error(), "similar: XYZ120") {
+		t.Errorf("not-found error should suggest similar parts: %v", err)
+	}
+}
+
+func TestSearchAndScoping(t *testing.T) {
+	s := openTemp(t)
+	ds := seed(t, s)
+	ctx := context.Background()
+	hits, err := s.Search(ctx, `power-good "regulator`, SearchOptions{})
+	if err != nil || len(hits) == 0 || hits[0].Kind != "page" {
+		t.Fatalf("hits = %+v, %v", hits, err)
+	}
+	if hits, _ := s.Search(ctx, "XYZ120", SearchOptions{}); len(hits) == 0 || hits[0].Kind != "part" {
+		t.Errorf("part hits come first: %+v", hits)
+	}
+	if ps, _ := s.Parameters(ctx, ds, ParamFilter{MPN: "XYZ120"}); len(ps) != 0 {
+		t.Error("a parameter limited to XYZ121 must not apply to XYZ120")
+	}
+	n, err := s.AddNote(ctx, Note{TargetKind: TargetPart, TargetID: "XYZ120", Body: "Use the 3.3 V option; errata ES-7"}, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hits, _ := s.Search(ctx, "errata", SearchOptions{DatasheetID: ds}); len(hits) != 1 || hits[0].Kind != "note" {
+		t.Errorf("notes are searchable: %+v", hits)
+	}
+	if err := s.DeleteNote(ctx, n.ID); err != nil {
+		t.Fatal(err)
+	}
+	if hits, _ := s.Search(ctx, "errata", SearchOptions{}); len(hits) != 0 {
+		t.Error("deleted notes leave the index")
+	}
+}
+
+func TestProjects(t *testing.T) {
+	s := openTemp(t)
+	seed(t, s)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, "Sensor", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, "sensor", ""); err == nil {
+		t.Error("names are unique ignoring case")
+	}
+	lo, hi := 4.5, 5.5
+	r, err := s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "5V", VMin: &lo, VMax: &hi})
+	if err != nil || r.VNom == nil || *r.VNom != 5 {
+		t.Fatalf("rail %+v %v", r, err)
+	}
+	part, _ := s.Resolve(ctx, "XYZ120")
+	pp, err := s.AddProjectPart(ctx, ProjectPart{ProjectID: p.ID, PartID: part.Part.ID, Designator: "U1", SupplyRail: "5V"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Adding the same designator again updates instead of duplicating.
+	pp.Role = "3V3 LDO"
+	if _, err := s.AddProjectPart(ctx, pp); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.ProjectParts(ctx, p.ID)
+	if len(list) != 1 || list[0].Role != "3V3 LDO" || list[0].MPN != "XYZ120" {
+		t.Errorf("BOM = %+v", list)
+	}
+	ps, _ := s.Projects(ctx)
+	if len(ps) != 1 || ps[0].Parts != 1 || ps[0].Rails != 1 {
+		t.Errorf("projects = %+v", ps)
+	}
+	if _, err := s.Project(ctx, "nope"); err == nil || !strings.Contains(err.Error(), "Sensor") {
+		t.Errorf("unknown project lists the others: %v", err)
+	}
+}
+
+func TestDeleteDatasheetKeepsParts(t *testing.T) {
+	s := openTemp(t)
+	ds := seed(t, s)
+	ctx := context.Background()
+	if _, err := s.DeleteDatasheet(ctx, ds); err != nil {
+		t.Fatal(err)
+	}
+	r, err := s.Resolve(ctx, "XYZ120")
+	if err != nil || r.Part.DatasheetID != 0 {
+		t.Errorf("part after delete: %+v %v", r, err)
+	}
+	if hits, _ := s.Search(ctx, "dropout", SearchOptions{}); len(hits) != 0 {
+		t.Error("the datasheet's index entries are gone")
+	}
+}

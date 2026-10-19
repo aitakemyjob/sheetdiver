@@ -1,0 +1,209 @@
+name: Release
+
+# Push a version tag to publish a release:
+#
+#   make release VERSION=v0.2.0        (or: git tag v0.2.0 && git push origin v0.2.0)
+#
+# Tags with a suffix (v1.0.0-beta.1) are published as pre-releases. Every
+# platform is built by scripts/build.sh or scripts/build.ps1 — the same
+# scripts developers run locally.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v0.2.0
+        required: true
+
+# Read-only by default; only the publish job, which creates the release,
+# gets write access.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  GO_VERSION: '1.26.x'
+  NODE_VERSION: '24'
+  NFPM_VERSION: 'v2.43.0'
+
+jobs:
+  verify:
+    name: Verify tag & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tag is semver
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a version like v1.2.3 or v1.2.3-rc.1"; exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true  # runner caches can lag behind the latest patch
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci && npm run typecheck && npm test
+      - run: go vet -tags nogui ./... && go test -race -tags nogui -count=1 ./...
+
+  desktop:
+    name: Desktop · ${{ matrix.name }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-amd64, os: ubuntu-24.04, platform: linux/amd64 }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, platform: linux/arm64 }
+          - { name: macos-universal, os: macos-latest, platform: darwin/universal }
+          - { name: windows-amd64, os: windows-latest, arch: amd64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true  # runner caches can lag behind the latest patch
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Linux prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}
+      - name: Build (Linux / macOS)
+        if: runner.os != 'Windows'
+        env:
+          # Optional macOS signing/notarization; leave secrets unset to skip.
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: scripts/build.sh --platform ${{ matrix.platform }} --version "$TAG" --package
+
+      - name: Windows prerequisites
+        if: runner.os == 'Windows'
+        run: choco install nsis -y --no-progress
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: scripts/build.ps1 -Arch ${{ matrix.arch }} -Version $env:TAG -Package
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  headless:
+    name: Headless binaries
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true  # runner caches can lag behind the latest patch
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: scripts/build.sh --headless --version "$TAG" --package
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-headless
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [desktop, headless]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write     # sign build provenance attestations
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: SBOM (SPDX) of Go and npm dependencies
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/sheetdiver_${{ env.TAG }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Checksums
+        run: cd dist && sha256sum * > checksums.txt && cat checksums.txt
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Release notes header
+        run: |
+          # The CHANGELOG section for this version leads the notes; GitHub
+          # appends the list of merged PRs below.
+          highlights=$(scripts/changelog-section.sh "$TAG")
+          if [ -n "$highlights" ]; then
+            printf "## What's new in %s\n\n%s\n\n" "${TAG#v}" "$highlights" > notes.md
+          else
+            : > notes.md
+          fi
+          cat >> notes.md <<EOF
+          ## Install
+
+          **macOS / Linux:** \`curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/scripts/install.sh | sh\`
+
+          **Windows:** \`irm https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/scripts/install.ps1 | iex\`
+
+          | Platform | Download |
+          |---|---|
+          | macOS (Apple Silicon + Intel) | \`sheetdiver_darwin_universal.zip\` |
+          | Windows | \`sheetdiver_windows_amd64_installer.exe\` or \`sheetdiver_windows_amd64.zip\` |
+          | Linux x64 | \`.deb\`, \`.rpm\` or \`.tar.gz\` (\`sheetdiver_linux_amd64.*\`) |
+          | Linux ARM64 | \`sheetdiver_linux_arm64.*\` |
+          | Headless server (\`sheetdiver serve\`) | \`sheetdiver-headless_<os>_<arch>.*\` |
+
+          Verify downloads against \`checksums.txt\`, and check that a file was built by this repository's release workflow with:
+
+          \`\`\`sh
+          gh attestation verify <file> --repo ${GITHUB_REPOSITORY}
+          \`\`\`
+
+          The SBOM (\`sheetdiver_${TAG}.spdx.json\`) lists every Go and npm dependency in this release.
+          EOF
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.TAG }}
+          name: SheetDiver ${{ env.TAG }}
+          body_path: notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(env.TAG, '-') }}
+          files: dist/*
+          fail_on_unmatched_files: true

@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in SheetDiver doesn't work as expected.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please search [existing issues](https://github.com/aitakemyjob/sheetdiver/issues) first.
+        **Security problems:** please don't file them here — see [SECURITY.md](https://github.com/aitakemyjob/sheetdiver/security/policy).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: "Importing a datasheet from URL fails with ..."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Import datasheet ... (link)
+        2. Open part ... and click ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SheetDiver version
+      description: Run `sheetdiver version`, or see the bottom-right of the status bar.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How are you running it?
+      options: [Desktop app, "Browser (sheetdiver serve)", MCP only (sheetdiver mcp)]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Import / extraction
+        - Parts, parameters, pins
+        - Figures and page viewer
+        - Search
+        - Projects
+        - Calculators
+        - Agent / MCP tools
+        - Install / packaging
+        - Other
+  - type: input
+    id: agent
+    attributes:
+      label: Agent / MCP client (if relevant)
+      placeholder: Claude Code 2.x, Cursor, VS Code...
+  - type: input
+    id: datasheet
+    attributes:
+      label: Datasheet (if relevant)
+      description: A public link to the datasheet involved.
+      placeholder: https://www.ti.com/lit/ds/symlink/tps563200.pdf
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Terminal output, browser console errors (for `serve`), or screenshots. Please remove anything private.
+      render: shell

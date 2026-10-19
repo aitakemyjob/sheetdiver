@@ -1,0 +1,53 @@
+# golangci-lint v2 configuration. Run locally with `make lint`.
+version: "2"
+
+run:
+  build-tags: [nogui]
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - misspell
+    - bodyclose
+    - gosec
+  settings:
+    errcheck:
+      # Errors from these are either impossible or not actionable: closing
+      # read-only files, writing an HTTP response the client already
+      # abandoned, draining a pipe.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*io.PipeWriter).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*encoding/json.Encoder).Encode
+        - io.Copy
+        - (*flag.FlagSet).Parse
+        - (github.com/modelcontextprotocol/go-sdk/mcp.Connection).Close
+        - (*github.com/modelcontextprotocol/go-sdk/mcp.ClientSession).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*database/sql.Tx).Rollback
+        - (*database/sql.DB).Close
+        - (net/http.ResponseWriter).Write
+        - (*github.com/aitakemyjob/sheetdiver/internal/core.Service).Close
+        - (*github.com/aitakemyjob/sheetdiver/internal/pdf.Engine).Close
+    gosec:
+      excludes:
+        - G104 # duplicates errcheck, which has the exclusions above
+        - G304 # reading files the user or agent asked to import is the point
+        - G306 # config and cache files are not secrets
+        - G301 # library and cache directories are user-owned
+        - G107 # importing a datasheet from a URL the user or agent gave is the point
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, bodyclose, errcheck]
+      - path: scripts/
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,43 @@
+name: Datasheet extracts badly
+description: Part numbers, parameters, figures, pins or sections come out wrong for a datasheet.
+labels: [extraction, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Extraction is heuristic, so real datasheets are the best test cases. If you can, run `sheetdiver inspect your.pdf` and paste the relevant part of its output.
+  - type: input
+    id: link
+    attributes:
+      label: Datasheet
+      description: A public link to the PDF (we add good examples to the test corpus by link; PDFs are never committed).
+      placeholder: https://www.ti.com/lit/ds/symlink/tps563200.pdf
+    validations:
+      required: true
+  - type: dropdown
+    id: what
+    attributes:
+      label: What's wrong?
+      multiple: true
+      options:
+        - Part numbers / variants / family
+        - Manufacturer or category
+        - Parameters (values, units, keys, conditions)
+        - Figures (missing, wrong region, wrong kind)
+        - Pins
+        - Sections / outline
+        - Import fails
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: What you expected and what you got, with page numbers.
+    validations:
+      required: true
+  - type: textarea
+    id: inspect
+    attributes:
+      label: sheetdiver inspect output
+      render: text

@@ -1,0 +1,34 @@
+# nfpm config for .deb / .rpm. VERSION and ARCH come from the environment.
+name: sheetdiver
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+# Take the version verbatim (e.g. 0.1.0~rc.2) instead of parsing it as semver.
+version_schema: none
+section: electronics
+priority: optional
+maintainer: SheetDiver contributors
+description: |
+  Component datasheet library: extracts part numbers, parameters, figures,
+  pins and registers from PDF datasheets, groups parts into board projects
+  with power budgets and design calculators, and serves it all to AI agents
+  over a built-in MCP server.
+homepage: https://github.com/aitakemyjob/sheetdiver
+license: MIT
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
+overrides:
+  rpm:
+    depends:
+      - gtk3
+      - webkit2gtk4.1
+contents:
+  - src: build/bin/sheetdiver
+    dst: /usr/bin/sheetdiver
+    file_info:
+      mode: 0755
+  - src: packaging/sheetdiver.desktop
+    dst: /usr/share/applications/sheetdiver.desktop
+  - src: build/appicon.png
+    dst: /usr/share/icons/hicolor/512x512/apps/sheetdiver.png

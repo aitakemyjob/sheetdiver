@@ -1,0 +1,38 @@
+# Path rules for actions/labeler (see workflows/labeler.yml).
+go:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.go', 'go.mod', 'go.sum']
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: ['frontend/**']
+# Only docs-only PRs are "documentation": most PRs add a CHANGELOG entry,
+# and the release notes group PRs by their first matching label.
+documentation:
+  - changed-files:
+      - all-globs-to-all-files: ['{docs/**,**/*.md,LICENSE,.github/ISSUE_TEMPLATE/**}']
+# The kind of change, from the branch name (feat/..., fix/...).
+enhancement:
+  - head-branch: ['^feat/']
+bug:
+  - head-branch: ['^fix/']
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'scripts/**', 'Makefile']
+"area: extraction":
+  - changed-files:
+      - any-glob-to-any-file: ['internal/pdf/**', 'internal/extract/**', 'testdata/corpus/**']
+"area: library":
+  - changed-files:
+      - any-glob-to-any-file: ['internal/library/**', 'internal/core/importer.go', 'internal/core/parts.go']
+"area: mcp":
+  - changed-files:
+      - any-glob-to-any-file: ['internal/mcpserver/**', 'bridge.go', 'docs/MCP.md']
+"area: projects":
+  - changed-files:
+      - any-glob-to-any-file: ['internal/core/projects.go', 'frontend/src/views/ProjectView.tsx']
+"area: calculators":
+  - changed-files:
+      - any-glob-to-any-file: ['internal/calc/**', 'internal/core/calcs.go', 'frontend/src/views/CalcView.tsx']
+"area: packaging":
+  - changed-files:
+      - any-glob-to-any-file: ['packaging/**', 'scripts/build.*', 'scripts/install.*', 'wails.json', 'gui.go', 'build/**']

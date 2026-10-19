@@ -1,0 +1,357 @@
+{
+  "about": "Real datasheets the extractor is checked against. The PDFs are the manufacturers' copyright and are not committed: `make corpus` downloads them to ~/.cache/sheetdiver/corpus (or $SHEETDIVER_CORPUS), and `make test-corpus` runs internal/extract's TestCorpus over them. Entries marked manual can't be fetched by script (the site blocks it); download them in a browser into the corpus folder under the given file name. Manufacturers revise datasheets, so a checksum mismatch is a warning, and expectations are kept to what any revision should satisfy.",
+  "datasheets": [
+    {
+      "file": "tps563200.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps563200.pdf",
+      "sha256": "ec98a636c386d233ed2dfa01cc84cb6c73cd3cc25b0cadd27a2f1c6ca4a45df2",
+      "why": "Two parts in one datasheet behind a family pattern (TPS56x200), TI layout, graphs in form XObjects with bogus bounds, three-row pin table header.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "buck",
+        "partNumbers": [
+          "TPS562200",
+          "TPS563200"
+        ],
+        "families": [
+          "TPS56x200"
+        ],
+        "variants": {
+          "TPS563200DDCR": "TPS563200",
+          "TPS562200DDCT": "TPS562200"
+        },
+        "minSections": 40,
+        "minFigures": 40,
+        "pins": 6,
+        "keys": [
+          "vin",
+          "vref",
+          "toff_min",
+          "rdson_hs",
+          "rdson_ls",
+          "rth_ja"
+        ],
+        "figures": {
+          "6-8": "graph",
+          "8-1": "schematic",
+          "8-11": "waveform"
+        }
+      }
+    },
+    {
+      "file": "tps63900.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps63900.pdf",
+      "sha256": "06ee84ef9067de0feb67614d3f9c29ab21878b1cac84c0c229fcaf36ebc79b0b",
+      "why": "Buck-boost configured by resistor-to-digital pins: selection matrix tables (irregular, read from the image), several current limits (start-up, peak, average input) that must not be confused, typ printed half a line above min/max, ±3% tolerance limits, recommended inductor and capacitor tables.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "buck-boost",
+        "partNumbers": [
+          "TPS63900"
+        ],
+        "irregularTables": [
+          "7-2"
+        ],
+        "regularTables": [
+          "8-2",
+          "8-3"
+        ],
+        "values": {
+          "ilim": {
+            "min": 1.33,
+            "typ": 1.45,
+            "max": 1.6
+          },
+          "ilim_startup": {
+            "min": 0.35,
+            "max": 0.83
+          },
+          "ilim_in": {
+            "typ": 1
+          }
+        }
+      }
+    },
+    {
+      "file": "tps61023.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps61023.pdf",
+      "sha256": "7e18c6542dc5e1dea4d789ba528bf30c0b1c51e563733ff07a222c97840a1711",
+      "why": "Boost converter.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "boost",
+        "partNumbers": [
+          "TPS61023"
+        ],
+        "variants": {
+          "TPS61023DRLR": "TPS61023"
+        },
+        "minFigures": 15,
+        "pins": 6,
+        "keys": [
+          "vin",
+          "fsw",
+          "ilim"
+        ]
+      }
+    },
+    {
+      "file": "lmr51430.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/lmr51430.pdf",
+      "sha256": "f7d8053844fb07ae773844f023373c0c570507ca61603fe28dda15364987296c",
+      "why": "Buck with frequency/spread-spectrum option letters in the orderable codes.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "buck",
+        "partNumbers": [
+          "LMR51430"
+        ],
+        "variants": {
+          "LMR51430XDDCR": "LMR51430"
+        },
+        "minFigures": 15,
+        "keys": [
+          "vin",
+          "fsw",
+          "ton_min",
+          "vref"
+        ]
+      }
+    },
+    {
+      "file": "csd17578q3a.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/csd17578q3a.pdf",
+      "sha256": "64e1b956aa6a796f5d9495839139f330160c6626d6c1d23c947f4396044e51dd",
+      "why": "N-channel MOSFET: gate charge, capacitances, RDS(on).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "CSD17578Q3A"
+        ],
+        "minFigures": 8,
+        "keys": [
+          "vds",
+          "vgs_th",
+          "rdson",
+          "qg",
+          "qgd",
+          "ciss"
+        ]
+      }
+    },
+    {
+      "file": "lm317.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/lm317.pdf",
+      "sha256": "1646fb2e4f8cf8c2cbd93aaf22edad368571619ad062476deca8ee29f95c65d3",
+      "why": "Classic part with many package variants and mentions of related parts (LM317L, LM317M) that are not its variants.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "ldo",
+        "partNumbers": [
+          "LM317"
+        ],
+        "variants": {
+          "LM317DCYR": "LM317",
+          "LM317KTTR": "LM317"
+        },
+        "minFigures": 20
+      }
+    },
+    {
+      "file": "tps7a02.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps7a02.pdf",
+      "sha256": "ed213c153f1db84762558fcac2ff9752e322151a1d44672cf554988b860cebc8",
+      "why": "Fixed-output LDO with dozens of voltage-coded orderables (TPS7A0233PDBVR).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "ldo",
+        "partNumbers": [
+          "TPS7A02"
+        ],
+        "variants": {
+          "TPS7A0233PDBVR": "TPS7A02"
+        },
+        "minVariants": 20,
+        "minFigures": 20
+      }
+    },
+    {
+      "file": "tlv757p.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tlv757p.pdf",
+      "sha256": "239d1f1e9bce270377e9af29bd06a5f99fe45f489878612d249d88cf9f2dd7a1",
+      "why": "Voltage code inserted before the trailing letter: TLV757P → TLV75733PDBVR.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "ldo",
+        "partNumbers": [
+          "TLV757P"
+        ],
+        "variants": {
+          "TLV75733PDBVR": "TLV757P"
+        },
+        "minVariants": 10
+      }
+    },
+    {
+      "file": "bq24074.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/bq24074.pdf",
+      "sha256": "4fe4e4f9855501f83b400c6932e3098439e51c50539e40dc45b44a8d509e8db1",
+      "why": "Family BQ2407x covering five parts.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "charger",
+        "partNumbers": [
+          "BQ24072",
+          "BQ24073",
+          "BQ24074",
+          "BQ24075",
+          "BQ24079"
+        ],
+        "families": [
+          "BQ2407x"
+        ],
+        "variants": {
+          "BQ24074RGTR": "BQ24074"
+        },
+        "keys": [
+          "ichg",
+          "vreg"
+        ]
+      }
+    },
+    {
+      "file": "ina219.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/ina219.pdf",
+      "sha256": "58004eda854d07478e6fc6f4398c114f60a3bcf18d4877471c7c1a306d1fa1cb",
+      "why": "I2C device with a register map; grade letters in orderables (INA219AIDCNR).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "current-monitor",
+        "partNumbers": [
+          "INA219"
+        ],
+        "variants": {
+          "INA219AIDCNR": "INA219"
+        },
+        "sectionKinds": [
+          "registers"
+        ]
+      }
+    },
+    {
+      "file": "mcp1700.pdf",
+      "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP1700-Low-Quiescent-Current-LDO-20001826E.pdf",
+      "sha256": "808bac85cf4d3fea97938d2d4ea5f3384d26e1f0dd8e3191ad2d5dae3ed18ee4",
+      "why": "Microchip layout; orderables with voltage code and package after a slash (MCP1700T-3302E/TT).",
+      "expect": {
+        "manufacturer": "Microchip Technology",
+        "category": "ldo",
+        "partNumbers": [
+          "MCP1700"
+        ],
+        "minVariants": 10,
+        "minFigures": 10
+      }
+    },
+    {
+      "file": "ap2112.pdf",
+      "url": "https://www.diodes.com/assets/Datasheets/AP2112.pdf",
+      "sha256": "ef8d376f2ec356e29172eb9e053819a0ebdcc576dba7fc9ab0505c568427920f",
+      "why": "Diodes Inc. layout without bookmarks; package letter variants (AP2112K).",
+      "expect": {
+        "manufacturer": "Diodes Incorporated",
+        "category": "ldo",
+        "partNumbers": [
+          "AP2112"
+        ],
+        "pins": 5
+      }
+    },
+    {
+      "file": "ao3400a.pdf",
+      "url": "https://www.aosmd.com/res/datasheets/AO3400A.pdf",
+      "sha256": "9c60d0b6c1ddc7609a4b788a91181468d8ffe6c3e9ba425c3d8ffc5ba88c5033",
+      "why": "Short MOSFET datasheet with no outline: everything from layout alone.",
+      "expect": {
+        "manufacturer": "Alpha and Omega Semiconductor",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "AO3400A"
+        ],
+        "keys": [
+          "vds",
+          "vgs_th",
+          "rdson",
+          "qg"
+        ]
+      }
+    },
+    {
+      "file": "irlml6344.pdf",
+      "url": "https://www.infineon.com/dgdl/Infineon-IRLML6344-DataSheet-v01_01-EN.pdf?fileId=5546d462533600a4015356686fed261f",
+      "sha256": "fc12d243f636fdbf423159e3d5e5eaf858bc29c204d9dc7592b168189efd4275",
+      "why": "Infineon (ex-IR) MOSFET layout.",
+      "expect": {
+        "manufacturer": "Infineon Technologies",
+        "partNumbers": [
+          "IRLML6344"
+        ],
+        "keys": [
+          "vds",
+          "rdson",
+          "vgs_th"
+        ]
+      }
+    },
+    {
+      "file": "esp32c3.pdf",
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3_datasheet_en.pdf",
+      "sha256": "833fc000b4b3c3d39c496fcbd597fed5806956503ce7390b19cc8ae82f19f968",
+      "why": "Wireless SoC with a family of flash/PSRAM variants (ESP32-C3FH4).",
+      "expect": {
+        "manufacturer": "Espressif Systems",
+        "category": "mcu",
+        "partNumbers": [
+          "ESP32-C3"
+        ],
+        "variants": {
+          "ESP32-C3FH4": "ESP32-C3"
+        }
+      }
+    },
+    {
+      "file": "DS_stm32u545ce.pdf",
+      "url": "https://www.st.com/resource/en/datasheet/stm32u545ce.pdf",
+      "manual": true,
+      "sha256": "79ef579c08f197f73b2ccfa089f8ee806065c75d0950e5ed8b59c6868aa92927",
+      "why": "300-page MCU datasheet for a family (STM32U545xx) whose variants are only named in a summary table; ordering codes are explained, not listed.",
+      "expect": {
+        "manufacturer": "STMicroelectronics",
+        "category": "mcu",
+        "partNumbers": [
+          "STM32U545CE",
+          "STM32U545RE",
+          "STM32U545VE"
+        ],
+        "families": [
+          "STM32U545xx"
+        ],
+        "minSections": 200,
+        "minFigures": 40
+      }
+    },
+    {
+      "file": "tp4056.pdf",
+      "url": "",
+      "manual": true,
+      "sha256": "21da38db9ab8233cf6485296f4bc4b18cc1041934a4cd65079e3e7e63bdb8e19",
+      "why": "Chinese-language datasheet with no outline: the part number must still come through.",
+      "expect": {
+        "partNumbers": [
+          "TP4056"
+        ]
+      }
+    }
+  ]
+}

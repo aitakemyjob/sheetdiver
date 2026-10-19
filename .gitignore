@@ -1,0 +1,19 @@
+# build outputs
+/build/bin/
+/dist/
+/frontend/dist/*
+!/frontend/dist/.gitkeep
+/frontend/node_modules/
+/frontend/*.tsbuildinfo
+
+# Wails-generated platform files (regenerated from build/appicon.png)
+/build/darwin/
+/build/windows/
+/frontend/wailsjs/
+/frontend/package.json.md5
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,433 @@
+// Mirrors of the Go JSON contract (internal/library, internal/core,
+// internal/calc, internal/config). Keep in sync when the Go structs change.
+
+export interface Rect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export interface Settings {
+  theme: string;
+  fontSize: number;
+  mcpPort: number;
+  mcpEnabled: boolean;
+  followAgent: boolean;
+  agentWrites: boolean;
+  agentImport: boolean;
+  libraryDir: string;
+}
+
+export interface Config {
+  settings: Settings;
+  activeProject: string;
+}
+
+export interface MCPStatus {
+  running: boolean;
+  url: string;
+  error?: string;
+}
+
+export interface AppState {
+  version: string;
+  platform: string;
+  config: Config;
+  libraryDir: string;
+  mcp: MCPStatus;
+  canPickFile: boolean;
+  canSaveFile: boolean;
+  keys: Record<string, string>;
+  calculators: Record<string, string>;
+}
+
+export interface Datasheet {
+  id: number;
+  sha256: string;
+  file: string;
+  filename: string;
+  title: string;
+  description: string;
+  manufacturer: string;
+  pages: number;
+  families: string[] | null;
+  sourceUrl?: string;
+  extractor: string;
+  importedAt: string;
+}
+
+export interface Part {
+  id: number;
+  mpn: string;
+  manufacturer: string;
+  description: string;
+  category: string;
+  package?: string;
+  datasheetId: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Variant {
+  mpn: string;
+  partId: number;
+  package?: string;
+  notes?: string;
+  source: string;
+}
+
+export interface Line {
+  t: string;
+  b: Rect;
+  s: number;
+}
+
+export interface Page {
+  datasheetId: number;
+  page: number;
+  width: number;
+  height: number;
+  text: string;
+  lines?: Line[];
+}
+
+export interface Section {
+  id: number;
+  datasheetId: number;
+  ord: number;
+  num: string;
+  title: string;
+  level: number;
+  kind: string;
+  page: number;
+  y: number;
+  endPage: number;
+  endY: number;
+  text?: string;
+}
+
+export interface Curve {
+  label: string;
+  conditions?: string;
+  summary?: string;
+}
+
+export interface Figure {
+  id: number;
+  datasheetId: number;
+  page: number;
+  number: string;
+  caption: string;
+  kind: string;
+  box: Rect;
+  section: string;
+  title?: string;
+  xAxis?: string;
+  yAxis?: string;
+  conditions?: string;
+  description?: string;
+  curves?: Curve[] | null;
+  appliesTo?: string[] | null;
+  source: string;
+  updatedAt: string;
+}
+
+export interface Table {
+  id: number;
+  datasheetId: number;
+  page: number;
+  number?: string;
+  caption?: string;
+  kind: string;
+  section: string;
+  box: Rect;
+  header: string[] | null;
+  rows?: string[][] | null;
+  irregular?: string;
+  title?: string;
+  description?: string;
+  source: string;
+  updatedAt: string;
+}
+
+export interface Parameter {
+  id: number;
+  datasheetId: number;
+  appliesTo?: string[] | null;
+  key?: string;
+  symbol?: string;
+  name: string;
+  conditions?: string;
+  min?: number | null;
+  typ?: number | null;
+  max?: number | null;
+  unit?: string;
+  section: string;
+  page: number;
+  box?: Rect | null;
+  raw?: string;
+  note?: string;
+  source: string;
+  updatedAt: string;
+}
+
+export interface Pin {
+  id: number;
+  package?: string;
+  number: string;
+  name: string;
+  type?: string;
+  description?: string;
+  page: number;
+  source: string;
+}
+
+export interface RegisterField {
+  name: string;
+  bits: string;
+  access?: string;
+  reset?: string;
+  description?: string;
+}
+
+export interface Register {
+  id: number;
+  name: string;
+  address?: string;
+  width?: number;
+  reset?: string;
+  access?: string;
+  description?: string;
+  fields?: RegisterField[] | null;
+  page: number;
+  source: string;
+}
+
+export interface Recommendation {
+  id: number;
+  datasheetId: number;
+  appliesTo?: string[] | null;
+  role: string;
+  value?: string;
+  mpn?: string;
+  manufacturer?: string;
+  conditions?: string;
+  notes?: string;
+  page: number;
+  source: string;
+}
+
+export interface Note {
+  id: number;
+  targetKind: string;
+  targetId: string;
+  body: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  parts: number;
+  rails: number;
+}
+
+export interface KeyValue {
+  key: string;
+  label: string;
+  param: Parameter;
+  rating?: boolean;
+}
+
+export interface PartDetail {
+  part: Part;
+  via: string;
+  matched?: string;
+  datasheet?: Datasheet;
+  siblings: string[];
+  variants: Variant[] | null;
+  keyParameters: KeyValue[] | null;
+  sections: Section[] | null;
+  figureKinds: Record<string, number> | null;
+  counts: Record<string, number>;
+  notes: Note[] | null;
+  projects: Project[] | null;
+  recommended: Recommendation[] | null;
+}
+
+export interface Hit {
+  kind: string;
+  ref: string;
+  datasheetId?: number;
+  page: number;
+  title: string;
+  snippet: string;
+  score: number;
+  parts?: string[] | null;
+}
+
+export interface Rail {
+  id: number;
+  projectId: number;
+  name: string;
+  vNom?: number | null;
+  vMin?: number | null;
+  vMax?: number | null;
+  source?: string;
+  currentLimit?: number | null;
+  notes?: string;
+}
+
+export interface RailStatus extends Rail {
+  loadTyp: number;
+  loadMax: number;
+  capacity?: number;
+  capacityFrom?: string;
+  sourcePart?: string;
+  consumers: string[];
+  power: number;
+}
+
+export interface ProjectPart {
+  id: number;
+  projectId: number;
+  partId: number;
+  mpn: string;
+  category: string;
+  designator?: string;
+  qty: number;
+  role?: string;
+  supplyRail?: string;
+  outputRail?: string;
+  iTyp?: number | null;
+  iMax?: number | null;
+  variant?: string;
+  notes?: string;
+}
+
+export interface Check {
+  level: 'ok' | 'warn' | 'error';
+  message: string;
+  part?: string;
+  rail?: string;
+  page?: number;
+}
+
+export interface Calculation {
+  id: number;
+  projectId?: number;
+  partId?: number;
+  kind: string;
+  title: string;
+  inputs: Record<string, unknown>;
+  outputs: CalcResponse;
+  createdAt: string;
+}
+
+export interface ProjectDetail {
+  project: Project;
+  parts: ProjectPart[];
+  rails: RailStatus[];
+  checks: Check[];
+  calculations: Calculation[];
+  notes: Note[];
+  inputPower: number;
+}
+
+export interface CalcOutput {
+  name: string;
+  symbol?: string;
+  value: number;
+  unit: string;
+  formula?: string;
+  note?: string;
+}
+
+export interface CalcResult {
+  kind: string;
+  summary: string;
+  outputs: CalcOutput[] | null;
+  checks: Check[] | null;
+  suggestions?: string[] | null;
+}
+
+export interface Filled {
+  field: string;
+  value: number;
+  unit: string;
+  from: string;
+  page?: number;
+  paramId?: number;
+}
+
+export interface CalcResponse {
+  kind: string;
+  part?: string;
+  project?: string;
+  inputs: Record<string, unknown>;
+  filled: Filled[];
+  missing?: string[] | null;
+  result: CalcResult;
+  savedId?: number;
+}
+
+export interface CalcField {
+  name: string;
+  type: string;
+  description: string;
+  required: string;
+}
+
+export interface ImportResult {
+  datasheet: Datasheet;
+  parts: Part[];
+  existing: boolean;
+  counts?: Record<string, number>;
+  families?: string[] | null;
+  variants: number;
+  took: string;
+}
+
+export interface ImportProgress {
+  filename: string;
+  stage: string;
+  done: number;
+  total: number;
+}
+
+export interface Activity {
+  id: number;
+  time: string;
+  tool: string;
+  summary: string;
+  error?: string;
+  durationMs: number;
+}
+
+export interface Focus {
+  kind: string;
+  part?: string;
+  datasheetId?: number;
+  page?: number;
+  box?: Rect;
+  figureId?: number;
+  sectionId?: number;
+  project?: string;
+  tab?: string;
+  query?: string;
+  calc?: CalcResponse;
+  message?: string;
+}
+
+export interface BusEvent {
+  type: string;
+  time: string;
+  data?: unknown;
+}

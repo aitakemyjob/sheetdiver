@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SheetDiver
+GenericName=Code Explorer
+Comment=Datasheet library shared with your AI agent
+Exec=sheetdiver
+Icon=sheetdiver
+Terminal=false
+Categories=Development;Electronics;Engineering;
+Keywords=code;git;diff;graph;mcp;agent;
+StartupWMClass=sheetdiver
