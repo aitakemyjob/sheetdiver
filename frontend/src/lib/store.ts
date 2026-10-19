@@ -6,7 +6,7 @@ import { api, uploadPDF } from './api';
 import { getTransport } from './transport';
 import { closeTab, focusToTab, openTab, type Tab } from './tabs';
 import { applyTheme, themeById, type Theme } from './themes';
-import type { Activity, AppState, BusEvent, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings } from './types';
+import type { Activity, AppState, BusEvent, CatalogStatus, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings } from './types';
 
 export type SidebarMode = 'library' | 'types' | 'projects' | 'agent';
 
@@ -34,6 +34,8 @@ interface State {
   queueOpen: boolean;
   /** The import queue by job id. */
   jobs: Record<number, ImportJob>;
+  /** The JLCPCB parts catalogue. */
+  catalog?: CatalogStatus;
   /** Bumped when library data changes, so views refetch. */
   libraryVersion: number;
   projectVersion: number;
@@ -56,6 +58,7 @@ interface State {
   /** Queues many imports at once; progress arrives as import events. */
   queueImports: (req: { paths?: string[]; urls?: string[]; mpns?: string[]; folder?: string; recursive?: boolean }) => Promise<void>;
   setFavorite: (p: Part, on: boolean) => Promise<void>;
+  downloadCatalog: () => Promise<void>;
   setStatus: (p: Part, status: string) => Promise<void>;
   handleEvent: (ev: BusEvent) => void;
   refreshLibrary: () => void;
@@ -86,7 +89,9 @@ export const useStore = create<State>((set, get) => ({
       document.documentElement.style.setProperty('--ui-font-size', `${app.config.settings.fontSize}px`);
       const activity = await api.activity().catch(() => []);
       const jobs = Object.fromEntries((await api.importJobs().catch(() => [] as ImportJob[])).map((j) => [j.id, j]));
-      set({ app, theme, ready: true, activity, jobs });
+      const catalog = await api.catalogStatus().catch(() => undefined);
+      set({ app, theme, ready: true, activity, jobs, catalog });
+      if (catalog?.stale) remindCatalog(catalog);
       const t = await getTransport();
       t.subscribe((ev) => get().handleEvent(ev));
     } catch (e) {
@@ -180,6 +185,13 @@ export const useStore = create<State>((set, get) => ({
       get().toast({ kind: 'err', title: 'Could not start the imports', body: (e as Error).message });
     }
   },
+  async downloadCatalog() {
+    try {
+      set({ catalog: await api.catalogDownload() });
+    } catch (e) {
+      get().toast({ kind: 'err', title: 'Could not download the catalogue', body: (e as Error).message });
+    }
+  },
   async setFavorite(p, on) {
     try {
       await api.updatePart(p.id, { favorite: on });
@@ -254,6 +266,16 @@ export const useStore = create<State>((set, get) => ({
       case 'library':
         set({ libraryVersion: s.libraryVersion + 1 });
         break;
+      case 'catalog': {
+        const c = ev.data as CatalogStatus;
+        const was = s.catalog;
+        set({ catalog: c });
+        if (was?.updating && !c.updating) {
+          if (c.error) s.toast({ kind: 'err', title: 'Catalogue download failed', body: c.error });
+          else s.toast({ kind: 'ok', title: 'Parts catalogue ready', body: `${c.parts.toLocaleString()} parts, ${c.inStock.toLocaleString()} in stock` });
+        }
+        break;
+      }
       case 'project':
         set({ projectVersion: s.projectVersion + 1 });
         break;
@@ -272,6 +294,40 @@ export const useStore = create<State>((set, get) => ({
     set({ libraryVersion: get().libraryVersion + 1 });
   },
 }));
+
+/** Suggests refreshing an old parts catalogue (once per session). */
+function remindCatalog(c: CatalogStatus) {
+  const s = useStore.getState();
+  s.toast({
+    kind: 'info',
+    title: `The parts catalogue is ${c.ageDays} days old`,
+    body: 'JLCPCB stock and prices change daily.',
+    action: { label: 'Refresh', run: () => useStore.getState().downloadCatalog() },
+  });
+}
+
+/** Human-readable size in MB or GB. */
+export function sizeText(bytes: number): string {
+  return bytes >= 1 << 30 ? `${(bytes / (1 << 30)).toFixed(1)} GB` : `${Math.round(bytes / (1 << 20))} MB`;
+}
+
+/** Describes a catalogue download in progress. */
+export function catalogProgressText(c?: CatalogStatus): string {
+  const p = c?.progress;
+  if (!p) return '';
+  const pct = p.total ? ` ${Math.floor((100 * p.done) / p.total)}%` : '';
+  switch (p.stage) {
+    case 'downloading':
+      return `Downloading${pct}${p.total ? ` of ${sizeText(p.total)}` : ''}`;
+    case 'extracting':
+      return `Unpacking${pct}`;
+    case 'checking':
+      return 'Checking';
+    case 'done':
+      return 'Done';
+  }
+  return 'Starting';
+}
 
 /** Reports whether an import job has ended. */
 export function finished(j: ImportJob): boolean {

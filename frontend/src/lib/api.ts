@@ -3,7 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory,
 } from './types';
 
 /** Calls a backend method. */
@@ -45,6 +45,14 @@ export const api = {
   applyUpdate: (id: number) => call<ImportResult>('datasheet.applyUpdate', { id }),
   checkAllUpdates: () => call<UpdateCheck[]>('datasheets.checkUpdates'),
   saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
+  catalogStatus: () => call<CatalogStatus>('catalog.status'),
+  catalogDownload: () => call<CatalogStatus>('catalog.download'),
+  catalogRemove: () => call<CatalogStatus>('catalog.remove'),
+  catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
+    call<CatalogItem[]>('catalog.search', q),
+  catalogCategories: () => call<CatalogCategory[]>('catalog.categories'),
+  catalogSubcategories: () => call<string[]>('catalog.subcategories'),
+  catalogImport: (lcsc: string[]) => call<ImportJob[]>('catalog.import', { lcsc }),
   addPart: (p: Partial<Part>) => call<Part>('part.add', p),
   deletePart: (id: number) => call<void>('part.delete', { id }),
   setVariants: (id: number, variants: Partial<Variant>[]) => call<void>('part.variants', { id, variants }),

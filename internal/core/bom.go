@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
 )
@@ -25,7 +26,9 @@ type BOMLine struct {
 	Manufacturer string   `json:"manufacturer,omitempty"`
 	Value        string   `json:"value,omitempty"`
 	Description  string   `json:"description,omitempty"`
-	Qty          int      `json:"qty"`
+	// LCSC is the JLCPCB/LCSC part code (C20917) when the BOM has one.
+	LCSC string `json:"lcsc,omitempty"`
+	Qty  int    `json:"qty"`
 }
 
 // bomColumns maps normalized header names to fields.
@@ -37,6 +40,8 @@ var bomColumns = map[string]string{
 	"qty": "qty", "quantity": "qty", "count": "qty", "qnty": "qty",
 	"value": "value", "val": "value",
 	"description": "desc", "desc": "desc", "comment": "desc", "comments": "desc",
+	"lcsc": "lcsc", "lcscpart": "lcsc", "lcscpartnumber": "lcsc", "lcscpartno": "lcsc", "jlcpcbpart": "lcsc", "jlcpcbpartnumber": "lcsc",
+	"jlcpart": "lcsc", "jlcpcb": "lcsc", "supplierpart": "lcsc", "supplierpartnumber": "lcsc",
 }
 
 // normHeader lowercases a header and drops everything but letters/digits.
@@ -49,6 +54,9 @@ func normHeader(h string) string {
 	}
 	return b.String()
 }
+
+// lcscRe matches a JLCPCB/LCSC part code.
+var lcscRe = regexp.MustCompile(`^C\d{1,9}$`)
 
 // refRangeRe matches a designator range such as R1-R4 or C10–C12.
 var refRangeRe = regexp.MustCompile(`^([A-Za-z]+)(\d+)\s*[-–]\s*([A-Za-z]*)(\d+)$`)
@@ -110,7 +118,8 @@ func ParseBOM(data []byte) ([]BOMLine, error) {
 		_, ref := found["ref"]
 		_, mpn := found["mpn"]
 		_, val := found["value"]
-		if ref && (mpn || val) {
+		_, lcsc := found["lcsc"]
+		if ref && (mpn || val || lcsc) {
 			cols, headerAt = found, i
 			break
 		}
@@ -119,7 +128,7 @@ func ParseBOM(data []byte) ([]BOMLine, error) {
 		}
 	}
 	if headerAt < 0 {
-		return nil, errors.New("no BOM header found: need a designator/reference column and a part number (MPN) or value column")
+		return nil, errors.New("no BOM header found: need a designator/reference column and a part number (MPN), LCSC or value column")
 	}
 	get := func(rec []string, f string) string {
 		if k, ok := cols[f]; ok && k < len(rec) {
@@ -131,6 +140,9 @@ func ParseBOM(data []byte) ([]BOMLine, error) {
 	for i := headerAt + 1; i < len(records); i++ {
 		rec := records[i]
 		l := BOMLine{Line: i + 1, Designators: splitDesignators(get(rec, "ref")), MPN: get(rec, "mpn"), Manufacturer: get(rec, "mfr"), Value: get(rec, "value"), Description: get(rec, "desc")}
+		if c := strings.ToUpper(get(rec, "lcsc")); lcscRe.MatchString(c) {
+			l.LCSC = c
+		}
 		if len(l.Designators) == 0 && l.MPN == "" && l.Value == "" {
 			continue
 		}
@@ -178,6 +190,15 @@ type BOMRow struct {
 	Part   string `json:"part,omitempty"`
 	Status string `json:"status"`
 	Note   string `json:"note,omitempty"`
+	// JLC is the part in the JLCPCB catalogue, when it is downloaded.
+	JLC *BOMJLC `json:"jlc,omitempty"`
+}
+
+// BOMJLC is a BOM line's JLCPCB assembly availability.
+type BOMJLC struct {
+	LCSC    string `json:"lcsc"`
+	Library string `json:"library"`
+	Stock   int    `json:"stock"`
 }
 
 // BOMResult summarizes a BOM import.
@@ -216,6 +237,31 @@ func (s *Service) ImportBOM(ctx context.Context, req BOMRequest) (BOMResult, err
 		return BOMResult{}, err
 	}
 	out := BOMResult{Project: proj.Name, Counts: map[string]int{}}
+	// With the parts catalogue, LCSC codes give part numbers and every
+	// line gets its JLCPCB availability.
+	jlc := map[int]*BOMJLC{}
+	if s.Catalog.Status(ctx).Installed {
+		for i, l := range lines {
+			var it *catalogItem
+			if l.LCSC != "" {
+				if items, _ := s.Catalog.Get(ctx, []string{l.LCSC}); len(items) > 0 {
+					it = &items[0]
+				}
+			}
+			if it == nil && l.MPN != "" {
+				if items, _ := s.Catalog.ByMPN(ctx, l.MPN); len(items) > 0 && strings.EqualFold(items[0].MPN, l.MPN) {
+					it = &items[0]
+				}
+			}
+			if it == nil {
+				continue
+			}
+			if lines[i].MPN == "" {
+				lines[i].MPN = it.MPN
+			}
+			jlc[i] = &BOMJLC{LCSC: it.LCSC, Library: it.Library, Stock: it.Stock}
+		}
+	}
 	// Find what the library already has, and fetch the rest in parallel.
 	missing := map[string]bool{}
 	for _, l := range lines {
@@ -237,7 +283,7 @@ func (s *Service) ImportBOM(ctx context.Context, req BOMRequest) (BOMResult, err
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				if _, err := s.Import(ctx, ImportRequest{Lookup: mpn}); err != nil {
+				if _, err := s.Import(ctx, ImportRequest{Lookup: mpn, Orderable: []string{mpn}}); err != nil {
 					mu.Lock()
 					fetchErr[mpn] = err.Error()
 					mu.Unlock()
@@ -246,8 +292,8 @@ func (s *Service) ImportBOM(ctx context.Context, req BOMRequest) (BOMResult, err
 		}
 		wg.Wait()
 	}
-	for _, l := range lines {
-		row := BOMRow{BOMLine: l}
+	for i, l := range lines {
+		row := BOMRow{BOMLine: l, JLC: jlc[i]}
 		if l.MPN == "" {
 			row.Status, row.Note = BOMSkipped, "no part number"
 			out.Rows = append(out.Rows, row)
@@ -295,6 +341,9 @@ func (s *Service) ImportBOM(ctx context.Context, req BOMRequest) (BOMResult, err
 	s.emit(EvLibrary, map[string]any{"action": "bom"})
 	return out, nil
 }
+
+// catalogItem is a catalogue part (an alias keeping bom.go readable).
+type catalogItem = catalog.Item
 
 // readSmallFile reads a file of at most max bytes.
 func readSmallFile(path string, max int64) ([]byte, error) {

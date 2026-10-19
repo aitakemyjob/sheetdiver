@@ -48,7 +48,8 @@ Conventions:
 | `export_project_report` | A project as a Markdown design-review document: findings, rails with load and capacity, parts with status and key parameters, calculations, notes. |
 | `check_datasheet_updates` | Download a part's datasheet again (or all of them) and report a newer revision with the spec rows that changed. Needs import access. |
 | `apply_datasheet_update` | Replace a datasheet with the newer revision just found: same datasheet, parts and projects; extracted data replaced, recorded data kept. Needs import access. |
-| `import_datasheets` | Import many datasheets at once, in parallel: part numbers, URLs, paths or a folder (optionally recursive). One line per import with its outcome. |
+| `search_catalog` | Search the downloaded JLCPCB/LCSC parts catalogue (stock, JLC basic/extended, price, package, description, whether the library has it). The user downloads the catalogue in Settings. |
+| `import_datasheets` | Import many datasheets at once, in parallel: part numbers, LCSC codes from `search_catalog`, URLs, paths or a folder (optionally recursive). One line per import with its outcome. |
 | `import_bom` | Build a project from a BOM (CSV/TSV text or file from KiCad, Altium, JLCPCB…): parts found in the library or fetched by part number; unfetchable parts join as "no datasheet"; lines without a part number are skipped. |
 | `update_part` | Correct part number, manufacturer, description, category, package, tags; add orderable variants or more part numbers on the same datasheet; set family patterns (`STM32U545xx`); star it (`favorite`) or set its `status` (preferred, approved, avoid, nrnd, eol). |
 | `record_parameters` | Add or update parameters with key, section and page; `replace_auto` drops automatic rows for the same key; `delete` removes wrong rows. |

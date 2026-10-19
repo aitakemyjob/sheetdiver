@@ -5,10 +5,13 @@
 package core
 
 import (
+	"path/filepath"
+
 	"errors"
 	"sync"
 	"time"
 
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/events"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -26,6 +29,7 @@ const (
 	EvContext  = "context"
 	EvMCP      = "mcp"
 	EvCalc     = "calc"
+	EvCatalog  = "catalog"
 )
 
 // Errors returned to agents when the user has switched something off.
@@ -38,6 +42,8 @@ var (
 // Service is the application: configuration, library, PDF engine, event
 // bus and this session's collaboration state.
 type Service struct {
+	// Catalog is the optional downloaded parts catalogue (JLCPCB/LCSC).
+	Catalog *catalog.Catalog
 	Config  *config.Store
 	Lib     *library.Store
 	Engine  *pdf.Engine
@@ -50,9 +56,15 @@ type Service struct {
 	// importMu serializes saving imports (one writer, and two imports of
 	// the same file must not race); slots bounds concurrent extraction.
 	importMu sync.Mutex
-	slots    chan struct{}
-	jobs     jobs
-	pending  pendingUpdates
+	// catalogProgress and catalogErr describe the last catalogue download.
+	catalogProgress *catalog.Progress
+	catalogErr      string
+	// catalogCats caches the catalogue categories of one download.
+	catalogCats    []catalog.Category
+	catalogCatsKey time.Time
+	slots          chan struct{}
+	jobs           jobs
+	pending        pendingUpdates
 }
 
 // MCPStatus says whether the MCP endpoint is listening.
@@ -68,10 +80,16 @@ func New(cfg *config.Store, version string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	cat, err := catalog.Open(filepath.Join(cfg.LibraryDir(), "catalog"))
+	if err != nil {
+		_ = lib.Close()
+		return nil, err
+	}
 	engine := pdf.NewEngine(pdf.DefaultCacheDir())
 	return &Service{
 		Config:  cfg,
 		Lib:     lib,
+		Catalog: cat,
 		Engine:  engine,
 		Bus:     events.NewBus(),
 		Version: version,
@@ -82,6 +100,7 @@ func New(cfg *config.Store, version string) (*Service, error) {
 // Close releases the library and the PDF engine.
 func (s *Service) Close() error {
 	_ = s.Engine.Close()
+	_ = s.Catalog.Close()
 	return s.Lib.Close()
 }
 

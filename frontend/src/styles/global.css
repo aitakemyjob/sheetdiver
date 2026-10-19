@@ -474,3 +474,18 @@ html { font-size: var(--ui-font-size, 13px); }
 .report h2 { font-size: 15px; margin-top: 18px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .report h3 { font-size: 13px; }
 .report details { margin: 6px 0; }
+
+/* Parts catalogue view */
+.catalog { display: flex; flex: 1; min-height: 0; }
+.catalog-cats { width: 250px; flex: none; border-right: 1px solid var(--border); background: var(--bg-1); display: flex; flex-direction: column; min-height: 0; }
+.catalog-cats .panel-body { overflow: auto; flex: 1; padding: 4px 6px 12px; }
+.cat-group, .cat-sub { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; border-radius: 6px; font-size: 12px; }
+.cat-group { padding: 6px 6px; font-weight: 600; }
+.cat-sub { padding: 4px 6px 4px 24px; color: var(--text-2); }
+.cat-group:hover, .cat-sub:hover { background: var(--bg-2); }
+.cat-sub.on { background: var(--accent-soft); color: var(--accent); }
+.catalog-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.catalog-body { flex: 1; display: flex; min-height: 0; }
+.catalog-detail { width: 330px; flex: none; border-left: 1px solid var(--border); background: var(--bg-1); padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.ab-btn.dot { position: relative; }
+.ab-btn.dot::after { content: ''; position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }

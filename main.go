@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/aitakemyjob/sheetdiver/internal/api"
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/server"
@@ -47,6 +48,7 @@ Usage:
   sheetdiver import FILE|DIR|URL|MPN…  import datasheets, several at a time (part numbers are looked up)
   sheetdiver bom FILE [-project NAME]  build a project from a CSV/KiCad BOM, fetching missing datasheets
   sheetdiver report PROJECT     print a project's design review (Markdown)
+  sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
   sheetdiver version              print the version
 
@@ -127,6 +129,8 @@ func main() {
 		err = runImport(fl.Args(), *mpn)
 	case "bom":
 		err = runBOM(fl.Args(), *project, *fetch)
+	case "catalog":
+		err = runCatalog(fl.Args())
 	case "report":
 		err = runReport(fl.Args())
 	case "inspect":
@@ -228,6 +232,60 @@ func runImport(args []string, mpns string) error {
 		return fmt.Errorf("%d of %d imports failed", failed, len(reqs))
 	}
 	return nil
+}
+
+// runCatalog downloads, describes or searches the parts catalogue.
+func runCatalog(args []string) error {
+	if len(args) == 0 {
+		args = []string{"status"}
+	}
+	a, err := bootstrap(0, false)
+	if err != nil {
+		return err
+	}
+	defer a.core.Close()
+	ctx := context.Background()
+	switch args[0] {
+	case "download", "refresh":
+		last := ""
+		err := a.core.Catalog.Download(ctx, func(p catalog.Progress) {
+			line := p.Stage
+			if p.Total > 0 {
+				line = fmt.Sprintf("%s %d%%", p.Stage, 100*p.Done/p.Total)
+			}
+			if line != last {
+				fmt.Fprintf(os.Stderr, "\r%-24s", line)
+				last = line
+			}
+		})
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return err
+		}
+		fallthrough
+	case "status":
+		st := a.core.CatalogStatus(ctx)
+		if !st.Installed {
+			fmt.Println("not downloaded; run: sheetdiver catalog download")
+			return nil
+		}
+		fmt.Printf("%d parts (%d in stock), published %s, %d days old, %d MB\n", st.Parts, st.InStock, st.Published.Format("2006-01-02 15:04"), st.AgeDays, st.SizeBytes>>20)
+		return nil
+	case "search":
+		items, err := a.core.CatalogSearch(ctx, catalog.Query{Text: strings.Join(args[1:], " "), Limit: 30})
+		if err != nil {
+			return err
+		}
+		for _, it := range items {
+			lib := ""
+			if it.InLibrary != "" {
+				lib = " [in library]"
+			}
+			fmt.Printf("%-10s %-22s %-24s %-12s %-9s %8d  %s%s\n", it.LCSC, it.MPN, it.Manufacturer, it.Package, it.Library, it.Stock, it.Description, lib)
+		}
+		return nil
+	}
+	return fmt.Errorf("catalog takes download, status or search")
 }
 
 // runReport prints a project's design-review report as Markdown.

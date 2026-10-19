@@ -28,6 +28,9 @@ registers. Projects group the parts of a board with their supply rails.
 - Replacing a part (second source, out of stock, better spec)? find_alternatives. Reviewing a board?
   export_project_report gives the whole design review as Markdown. check_datasheet_updates finds newer revisions
   and what changed in their specs.
+- Choosing a part for a design? If the user downloaded the JLCPCB catalogue, search_catalog finds candidates
+  with stock, price and JLC library; import the promising ones (import_datasheets lcsc=[...]) to compare
+  their datasheets.
 - Parts can be starred and have a status (preferred, approved, avoid, nrnd, eol). When suggesting parts, prefer
   preferred/approved ones and flag avoid/nrnd/eol; compare_parts and list_parts filter by both.
 - Find things with search (full text across everything) and list_parts. To choose a part, list_categories then

@@ -30,6 +30,24 @@ type Settings struct {
 	AgentImport bool `json:"agentImport"`
 	// LibraryDir overrides the library location (empty: the default).
 	LibraryDir string `json:"libraryDir"`
+	// CatalogRemindDays is how old the downloaded parts catalogue may get
+	// before the UI suggests refreshing it: 0 means the default (14), -1
+	// never.
+	CatalogRemindDays int `json:"catalogRemindDays"`
+}
+
+// DefaultCatalogRemindDays is the default catalogue refresh reminder.
+const DefaultCatalogRemindDays = 14
+
+// RemindDays is the catalogue reminder in days (0: never).
+func (s Settings) RemindDays() int {
+	switch {
+	case s.CatalogRemindDays < 0:
+		return 0
+	case s.CatalogRemindDays == 0:
+		return DefaultCatalogRemindDays
+	}
+	return s.CatalogRemindDays
 }
 
 // Config is the whole persisted configuration.
@@ -163,6 +181,9 @@ func (s *Store) UpdateSettings(st Settings) error {
 	}
 	if st.FontSize < 9 || st.FontSize > 28 {
 		st.FontSize = 13
+	}
+	if st.CatalogRemindDays < -1 || st.CatalogRemindDays > 365 {
+		st.CatalogRemindDays = 0
 	}
 	s.cfg.Settings = st
 	return s.saveLocked()

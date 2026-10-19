@@ -39,6 +39,7 @@ maps, notes), so the library gets better every time it's used.
 | | |
 |---|---|
 | **Import anything** | Drag in PDFs or whole folders, paste a list of URLs (or product pages that link to the PDF) or part numbers, or `sheetdiver import ~/Datasheets TPS563200`. Several import at once, followed in an import queue with retry; re-importing the same file is a no-op. |
+| **Parts catalogue** | One click downloads JLCPCB's catalogue (about 2.5 million parts, via the open [jlcparts](https://github.com/yaqwsx/jlcparts) dataset) for offline search by part number or specs, with stock, price and JLC library; tick the parts you want and their datasheets are imported. |
 | **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
 | **Alternatives** | "What else in my library could replace this?" ranked key by key: ▲ better, = same, ▼ worse, with drop-ins first. |
 | **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, calculations. |
@@ -110,6 +111,7 @@ sheetdiver mcp                stdio MCP bridge to the running app
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)
+sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
 sheetdiver version
   -port N   MCP/HTTP port (default 47480)   -mpn LIST   (import) set the part numbers
@@ -142,7 +144,8 @@ takes precedence. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   access inside the engine.
 - Agents' changes are marked `agent` and stay inside the library. Settings →
   Agent access turns agents off, makes them read-only, or forbids imports.
-- SheetDiver goes online only to import from a URL or part number.
+- SheetDiver goes online only to import from a URL or part number, to check a datasheet for updates, or to
+  download the parts catalogue, each when you (or an agent you allowed to import) ask.
 
 ## Building from source
 

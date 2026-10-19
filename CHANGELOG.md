@@ -22,11 +22,26 @@ every merged pull request.
   rating; boost titles are skipped since they quote the switch limit).
 - Ground current is filed as `iq`, short-circuit current as `isc`, and
   input currents no longer pose as `iout`.
+- Importing a datasheet that is already in the library from another URL
+  (TI and others serve slightly different files per site) no longer
+  creates an empty duplicate: the same revision counts as existing, another
+  revision updates it in place.
 - Datasheets read by an older extractor are re-extracted in the background
   at startup (recorded data is kept), so extraction fixes reach existing
   libraries.
 
 ### Added
+- **Parts catalogue (JLCPCB / LCSC):** download the open jlcparts dataset
+  (about 2.5 million parts, republished from JLCPCB several times a day)
+  from Settings with one click and search it offline: stock, price, JLC
+  basic/extended library, package, description and datasheet links. Pick
+  parts and import just their datasheets. A Parts catalogue view browses
+  it by category with sorting, paging and a details pane (attributes,
+  stock, price, JLC library). A reminder suggests refreshing
+  it after 14 days (configurable). Part-number lookups and BOM import
+  fall back to its datasheet links; JLCPCB BOMs with only LCSC codes
+  resolve, and BOM results show JLC availability. `sheetdiver catalog`,
+  MCP `search_catalog`, `import_datasheets lcsc=[…]`.
 - **Alternatives:** a part's Alternatives tab (MCP `find_alternatives`)
   ranks library parts of the same or a related type key by key in the
   direction that matters (more current, less quiescent current, input

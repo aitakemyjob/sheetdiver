@@ -2,7 +2,7 @@
 // unit tested.
 import type { Focus } from './types';
 
-export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category';
+export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category' | 'catalog';
 
 export interface Tab {
   id: string;
@@ -32,6 +32,8 @@ export function tabKey(kind: TabKind, params: Record<string, unknown>): string {
       return `category:${params.category ?? ''}`;
     case 'settings':
       return 'settings';
+    case 'catalog':
+      return 'catalog';
   }
 }
 

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
@@ -211,6 +212,33 @@ func (a *API) registerLibrary() {
 		Fetch    bool   `json:"fetch"`
 	}) (any, error) {
 		return c.ImportBOM(ctx, core.BOMRequest{Data: []byte(in.Text), Path: in.Path, Filename: in.Filename, Project: in.Project, Fetch: in.Fetch})
+	})
+	a.methods["catalog.status"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CatalogStatus(ctx), nil })
+	a.methods["catalog.download"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		if err := c.StartCatalogDownload(); err != nil {
+			return nil, err
+		}
+		return c.CatalogStatus(ctx), nil
+	})
+	a.methods["catalog.remove"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		if err := c.Catalog.Remove(); err != nil {
+			return nil, err
+		}
+		return c.CatalogStatus(ctx), nil
+	})
+	a.methods["catalog.search"] = method(func(ctx context.Context, in catalog.Query) (any, error) { return c.CatalogSearch(ctx, in) })
+	a.methods["catalog.categories"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CatalogCategories(ctx) })
+	a.methods["catalog.subcategories"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		m, err := c.Catalog.Subcategories(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return catalog.TopSubcategories(m, 300), nil
+	})
+	a.methods["catalog.import"] = method(func(ctx context.Context, in struct {
+		LCSC []string `json:"lcsc"`
+	}) (any, error) {
+		return c.CatalogImport(ctx, in.LCSC)
 	})
 	a.methods["datasheets.list"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Lib.Datasheets(ctx) })
 	a.methods["datasheet.get"] = method(func(ctx context.Context, in idReq) (any, error) {

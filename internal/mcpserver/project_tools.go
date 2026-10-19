@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/aitakemyjob/sheetdiver/internal/calc"
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -308,9 +309,40 @@ type updateArgs struct {
 	Part string `json:"part,omitempty" jsonschema:"check the datasheet of this part; omit to check every datasheet in the library"`
 }
 
-// registerDesign adds alternatives, reports and datasheet updates.
+type catalogArgs struct {
+	Query       string `json:"query" jsonschema:"words that must all appear in the part number, maker, package, category or description, such as 'buck 3A SOT-23' or '10k 0402' or 'TPS563200'"`
+	InStock     bool   `json:"in_stock,omitempty" jsonschema:"only parts JLCPCB has in stock"`
+	Basic       bool   `json:"basic,omitempty" jsonschema:"only JLCPCB basic/preferred parts (no extended-part setup fee)"`
+	Subcategory string `json:"subcategory,omitempty" jsonschema:"exact JLCPCB category, such as 'DC-DC Converters' or 'MOSFETs'"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"max results (default 20)"`
+}
+
+// registerDesign adds alternatives, reports, datasheet updates and the
+// parts catalogue.
 func (s *Server) registerDesign() {
 	c := s.core
+	addTool(s, &mcp.Tool{Name: "search_catalog", Description: "Search the JLCPCB/LCSC parts catalogue (about 2.5 million parts, if the user downloaded it in Settings) for parts to use: stock, JLC basic/extended library, price, package, attributes and whether the library already has the part. Import the datasheets of the ones worth considering with import_datasheets lcsc=[...].", Annotations: readOnly("Search parts catalogue")},
+		read, func(a catalogArgs) string { return "catalog " + a.Query }, func(ctx context.Context, a catalogArgs) (result, error) {
+			if a.Limit == 0 {
+				a.Limit = 20
+			}
+			items, err := c.CatalogSearch(ctx, catalog.Query{Text: a.Query, InStock: a.InStock, Basic: a.Basic, Subcategory: a.Subcategory, Limit: a.Limit})
+			if err != nil {
+				return result{}, err
+			}
+			st := c.CatalogStatus(ctx)
+			var b strings.Builder
+			fmt.Fprintf(&b, "%d parts (catalogue published %s", len(items), st.Published.Format("2006-01-02"))
+			if st.Stale {
+				fmt.Fprintf(&b, ", %d days old: suggest the user refreshes it", st.AgeDays)
+			}
+			b.WriteString(")\n| LCSC | part | maker | package | JLC | stock | $/1 | in library | description |\n|---|---|---|---|---|---:|---:|---|---|\n")
+			for _, it := range items {
+				fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %.4g | %s | %s |\n", it.LCSC, it.MPN, it.Manufacturer, it.Package, it.Library, it.Stock, it.Price, firstNonEmpty(it.InLibrary, "–"), strings.ReplaceAll(it.Description, "|", "/"))
+			}
+			return text(b.String()), nil
+		})
+
 	addTool(s, &mcp.Tool{Name: "find_alternatives", Description: "Find library parts that could replace a part (second source, better spec, part out of stock): same or related type, compared key by key in the direction that matters (more output current, less quiescent current, input range covering the original's, matching reference voltage). Drop-ins (nothing worse) first; preferred parts win ties.", Annotations: readOnly("Find alternatives")},
 		read, func(a altArgs) string { return "alternatives " + a.Part }, func(ctx context.Context, a altArgs) (result, error) {
 			if a.Limit == 0 {

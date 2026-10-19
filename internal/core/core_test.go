@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aitakemyjob/sheetdiver/internal/calc"
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -832,5 +833,154 @@ func TestReextractOutdated(t *testing.T) {
 			t.Fatal("re-extraction didn't finish")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestCatalogue(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	saved := datasheetURLs
+	datasheetURLs = nil // manufacturer lookups stay offline
+	defer func() { datasheetURLs = saved }()
+
+	var files map[string][]byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/zx7001.pdf":
+			w.Write(testutil.Mini("ZX7001", "Step-Down Converter"))
+		case r.URL.Path == "/zx7003.pdf":
+			w.Write(testutil.Mini("ZX7003", "Step-Down Converter"))
+		case strings.HasPrefix(r.URL.Path, "/data/"):
+			b, ok := files[strings.TrimPrefix(r.URL.Path, "/data/")]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Last-Modified", "Thu, 01 Jan 2026 03:00:00 GMT")
+			w.Header().Set("Content-Length", fmt.Sprint(len(b)))
+			if r.Method == http.MethodGet {
+				w.Write(b)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	rows := [][]any{
+		{1, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7001DBVR", "SOT-23-6", "Zed Semi", "base", 0, "2A 4.5V~28V Buck", srv.URL + "/zx7001.pdf", 1200, "1-:0.31", `{"Output Current":"2A"}`},
+		{3, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7003DR", "SOIC-8", "Zed Semi", "expand", 0, "2A Buck", srv.URL + "/zx7003.pdf", 0, "", `{}`},
+	}
+	db, err := testutil.JLCDatabase(t.TempDir(), "source-db-v2", rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files, err = testutil.SplitZip(db, 700); err != nil {
+		t.Fatal(err)
+	}
+	s.Catalog.Source = srv.URL + "/data/"
+
+	if _, err := s.CatalogSearch(ctx, catalog.Query{Text: "zx"}); err == nil {
+		t.Error("searching needs a download")
+	}
+	if err := s.StartCatalogDownload(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for st := s.CatalogStatus(ctx); !st.Installed || st.Updating; st = s.CatalogStatus(ctx) {
+		if st.Error != "" || time.Now().After(deadline) {
+			t.Fatalf("download: %+v", st)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	st := s.CatalogStatus(ctx)
+	if st.Parts != 2 || st.InStock != 1 || !st.Stale || st.RemindDays != 14 || st.AgeDays < 200 {
+		t.Errorf("status = %+v", st)
+	}
+	never := s.Config.Get().Settings
+	never.CatalogRemindDays = -1
+	s.Config.UpdateSettings(never)
+	if st := s.CatalogStatus(ctx); st.Stale || st.RemindDays != 0 {
+		t.Errorf("reminders off: %+v", st)
+	}
+
+	// Pick a part and import its datasheet; the orderable code resolves.
+	jobs, err := s.CatalogImport(ctx, []string{"C1"})
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("import = %+v %v", jobs, err)
+	}
+	waitJobs(t, s)
+	if r, err := s.ResolvePart(ctx, "ZX7001DBVR"); err != nil || r.Part.MPN != "ZX7001" {
+		t.Errorf("orderable code = %+v %v", r.Part, err)
+	}
+	items, err := s.CatalogSearch(ctx, catalog.Query{Text: "zx70 buck"})
+	if err != nil || len(items) != 2 || items[0].InLibrary != "ZX7001" || items[1].InLibrary != "" {
+		t.Errorf("search = %+v %v", items, err)
+	}
+
+	// Part-number lookups fall back to the catalogue's datasheet link,
+	// and a JLCPCB BOM with only LCSC codes resolves through it.
+	res, err := s.ImportBOM(ctx, BOMRequest{Data: []byte("Designator,Comment,LCSC Part #\nU1,buck,C3\nU2,buck,C1\nR1,10k,\n"), Filename: "jlc.csv", Fetch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]BOMRow{}
+	for _, r := range res.Rows {
+		got[strings.Join(r.Designators, ",")] = r
+	}
+	if r := got["U1"]; r.MPN != "ZX7003DR" || r.Status != BOMImported || r.Part != "ZX7003" || r.JLC == nil || r.JLC.Library != "extended" {
+		t.Errorf("U1 = %+v jlc=%+v", r, r.JLC)
+	}
+	if r := got["U2"]; r.Status != BOMInLibrary || r.JLC == nil || r.JLC.LCSC != "C1" || r.JLC.Stock != 1200 {
+		t.Errorf("U2 = %+v", r)
+	}
+	if r := got["R1"]; r.Status != BOMSkipped {
+		t.Errorf("R1 = %+v", r)
+	}
+}
+
+// waitJobs waits for the import queue to drain.
+func waitJobs(t *testing.T, s *Service) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		busy := false
+		for _, j := range s.ImportJobs() {
+			busy = busy || j.Status == JobQueued || j.Status == JobRunning
+		}
+		if !busy {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("imports didn't finish: %+v", s.ImportJobs())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestSameDocumentFromAnotherURL(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	rev := func(r string, extra string) []byte {
+		return testutil.MiniWith("ZX7001", "Step-Down Converter", "4.5", "28", "2", "", testutil.Text{X: 60, Y: 760, Size: 7, S: "SLVSZZ1" + r + " - JANUARY 2020 - REVISED MAY 2021"}, testutil.Text{X: 60, Y: 780, Size: 6, S: extra})
+	}
+	first, err := s.Import(ctx, ImportRequest{Data: rev("A", "www.ti.com"), Filename: "zx7001.pdf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same revision with a different footer (another site's copy).
+	again, err := s.Import(ctx, ImportRequest{Data: rev("A", "www.ti.com.cn"), Filename: "zx7001-cn.pdf", Orderable: []string{"ZX7001DBVR"}})
+	if err != nil || !again.Existing || again.Datasheet.ID != first.Datasheet.ID || len(again.Parts) != 1 {
+		t.Fatalf("same document = %+v %v", again, err)
+	}
+	if r, err := s.ResolvePart(ctx, "ZX7001DBVR"); err != nil || r.Part.MPN != "ZX7001" {
+		t.Errorf("orderable kept: %+v %v", r, err)
+	}
+	// Another revision updates the datasheet in place.
+	newer, err := s.Import(ctx, ImportRequest{Data: rev("B", "x"), Filename: "zx7001b.pdf"})
+	if err != nil || newer.Existing || newer.Datasheet.ID != first.Datasheet.ID || newer.Datasheet.Meta["revisionRev"] != "B" || newer.Datasheet.Meta["previousRevision"] == "" {
+		t.Fatalf("new revision = %+v %v", newer.Datasheet, err)
+	}
+	if ds, _ := s.Lib.Datasheets(ctx); len(ds) != 2 {
+		t.Errorf("datasheets = %d (the sample plus ZX7001)", len(ds))
 	}
 }
