@@ -80,7 +80,7 @@ var keyRules = []struct {
 	{regexp.MustCompile(`(?i)gate resistance|R\s*G\b`), "rg"},
 	{regexp.MustCompile(`(?i)drain[- ]to[- ]source (breakdown )?voltage|V\s*\(?BR\)?\s*DSS|V\s*DS\b|V\s*DSS\b`), "vds"},
 	{regexp.MustCompile(`(?i)gate[- ]to[- ]source voltage|V\s*GS\b|V\s*GSS\b`), "vgs"},
-	{regexp.MustCompile(`(?i)zero[- ]gate|drain[- ](source )?leakage|I\s*DSS\b`), "idss"},
+	{regexp.MustCompile(`(?i)zero[- ]gate|gate[- ]voltage drain current|drain[- ](source )?leakage|I\s*DSS\b`), "idss"},
 	{regexp.MustCompile(`(?i)on[- ]state drain current|I\s*D\s*\(\s*ON\s*\)`), "id_on"},
 	{regexp.MustCompile(`(?i)continuous drain current|drain current|I\s*D\b`), "id"},
 	{regexp.MustCompile(`(?i)forward voltage|V\s*F\b`), "vf"},

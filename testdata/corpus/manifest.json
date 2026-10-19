@@ -297,7 +297,13 @@
           "rdson",
           "qg"
         ],
-        "revision": "rev 3.1 (JULY 2023)"
+        "revision": "rev 3.1 (JULY 2023)",
+        "values": {
+          "idss": {
+            "max": 1,
+            "unit": "µA"
+          }
+        }
       }
     },
     {

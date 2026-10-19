@@ -134,3 +134,11 @@ func TestConcurrentExtraction(t *testing.T) {
 		}
 	}
 }
+
+func TestSymbolChar(t *testing.T) {
+	for in, want := range map[string]string{"m": "µ", "W": "Ω", "q": "θ", "£": "≤", "5": "5", "±": "±"} {
+		if got := symbolChar(in); got != want {
+			t.Errorf("symbolChar(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

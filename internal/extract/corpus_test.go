@@ -40,6 +40,8 @@ type corpusEntry struct {
 			Min *float64 `json:"min"`
 			Typ *float64 `json:"typ"`
 			Max *float64 `json:"max"`
+			// Unit, when set, must match (catches µ read as m).
+			Unit string `json:"unit"`
 		} `json:"values"`
 	} `json:"expect"`
 }
@@ -198,6 +200,8 @@ func TestCorpus(t *testing.T) {
 				same := func(a, b *float64) bool { return b == nil || (a != nil && *a == *b) }
 				if got == nil || !same(got.Min, want.Min) || !same(got.Typ, want.Typ) || !same(got.Max, want.Max) {
 					t.Errorf("%s = %+v, want %v/%v/%v", key, got, num(want.Min), num(want.Typ), num(want.Max))
+				} else if want.Unit != "" && got.Unit != want.Unit {
+					t.Errorf("%s unit = %q, want %q", key, got.Unit, want.Unit)
 				}
 			}
 			figs := map[string]string{}
