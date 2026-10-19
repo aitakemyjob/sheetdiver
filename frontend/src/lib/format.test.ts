@@ -55,3 +55,12 @@ describe('category comparison', () => {
     ]);
   });
 });
+
+describe('plural', () => {
+  it('pluralizes counts', async () => {
+    const { plural } = await import('./format');
+    expect(plural(1, 'part')).toBe('1 part');
+    expect(plural(0, 'part')).toBe('0 parts');
+    expect(plural(2522372, 'part')).toBe(`${(2522372).toLocaleString()} parts`);
+  });
+});

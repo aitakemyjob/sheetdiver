@@ -26,6 +26,7 @@ ROOT=$(pwd)
 WAILS_VERSION="v2.16.0"
 APP="SheetDiver"
 BIN="sheetdiver"
+BUNDLE_ID="io.github.aitakemyjob.sheetdiver"
 
 VERSION=""
 PLATFORM=""
@@ -106,10 +107,11 @@ if [ "$HEADLESS" = 1 ]; then
     CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -tags nogui -trimpath -ldflags "$LDFLAGS" -o "$out" .
     if [ "$PACKAGE" = 1 ]; then
       name="${BIN}-headless_${os}_${arch}"
+      cp LICENSE THIRD_PARTY_NOTICES.md "$(dirname "$out")/"
       if [ "$os" = windows ]; then
-        (cd "$(dirname "$out")" && zip -q "$ROOT/dist/$name.zip" "${BIN}.exe")
+        (cd "$(dirname "$out")" && zip -q "$ROOT/dist/$name.zip" "${BIN}.exe" LICENSE THIRD_PARTY_NOTICES.md)
       else
-        tar -C "$(dirname "$out")" -czf "dist/$name.tar.gz" "$BIN"
+        tar -C "$(dirname "$out")" -czf "dist/$name.tar.gz" "$BIN" LICENSE THIRD_PARTY_NOTICES.md
       fi
     fi
   done
@@ -164,7 +166,7 @@ mkdir -p dist
 case "$OS" in
   linux)
     stage=$(mktemp -d)
-    cp "build/bin/$BIN" packaging/sheetdiver.desktop "$stage/"
+    cp "build/bin/$BIN" packaging/sheetdiver.desktop LICENSE THIRD_PARTY_NOTICES.md "$stage/"
     cp build/appicon.png "$stage/$BIN.png"
     tar -C "$stage" -czf "dist/${BIN}_linux_${ARCH}.tar.gz" .
     rm -rf "$stage"
@@ -180,6 +182,10 @@ case "$OS" in
     ;;
   darwin)
     app="build/bin/$APP.app"
+    # Wails' template uses com.wails.<name>; give the app its own identity
+    # (used by macOS for preferences and by code signing).
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$app/Contents/Info.plist"
+    cp LICENSE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
     if [ -n "${CODESIGN_IDENTITY:-}" ]; then
       say "signing with $CODESIGN_IDENTITY"
       codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$app"

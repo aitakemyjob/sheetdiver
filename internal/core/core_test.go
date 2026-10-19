@@ -984,3 +984,24 @@ func TestSameDocumentFromAnotherURL(t *testing.T) {
 		t.Errorf("datasheets = %d (the sample plus ZX7001)", len(ds))
 	}
 }
+
+func TestReextractDatasheetWithDocumentNumber(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	data := testutil.MiniWith("ZX7001", "Step-Down Converter", "4.5", "28", "2", "", testutil.Text{X: 60, Y: 760, Size: 7, S: "SLVSZZ1A - JANUARY 2020 - REVISED MAY 2021"})
+	res, err := s.Import(ctx, ImportRequest{Data: data, Filename: "zx7001.pdf"})
+	if err != nil || res.Datasheet.Meta["revisionDoc"] != "SLVSZZ1" {
+		t.Fatalf("import = %+v %v", res.Datasheet.Meta, err)
+	}
+	id := res.Datasheet.ID
+	if err := s.Lib.SetExtractor(ctx, id, "0"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.Reextract(ctx, id)
+	if err != nil || again.Existing || again.Datasheet.ID != id {
+		t.Fatalf("re-extract was skipped as a duplicate: %+v %v", again, err)
+	}
+	if d, _ := s.Lib.Datasheet(ctx, id); d.Extractor != extract.Version {
+		t.Errorf("extractor = %q", d.Extractor)
+	}
+}

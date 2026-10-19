@@ -71,7 +71,7 @@ if (-not $Package) { Say 'done: build\bin'; exit 0 }
 
 New-Item -ItemType Directory -Force dist | Out-Null
 $zip = "dist\${Bin}_windows_${Arch}.zip"
-Compress-Archive -Path "build\bin\$Bin.exe" -DestinationPath $zip -Force
+Compress-Archive -Path "build\bin\$Bin.exe", LICENSE, THIRD_PARTY_NOTICES.md -DestinationPath $zip -Force
 Say $zip
 if ($nsis) {
   $installer = Get-ChildItem build\bin -Filter '*-installer.exe' | Select-Object -First 1

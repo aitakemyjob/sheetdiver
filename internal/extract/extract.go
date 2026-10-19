@@ -15,7 +15,7 @@ import (
 
 // Version identifies the extractor; stored with each datasheet so
 // re-extraction can be offered when it changes.
-const Version = "2"
+const Version = "3"
 
 // Line is a run of spans on one baseline that belong together (spans are
 // split into separate lines at wide gaps, so two captions side by side
@@ -157,6 +157,13 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	r.Families = Families(doc, r.PageText)
 	r.PartNumbers, r.Variants = Expand(r.PageText, PartNumbers(doc, r.Lines, filename), r.Families)
 	r.Category = Category(r.Title, r.Description, first(r.PageText))
+	// A row whose minimum exceeds its maximum was misread; don't let it
+	// stand for a key.
+	for i, p := range r.Params {
+		if p.Min != nil && p.Max != nil && *p.Min > *p.Max {
+			r.Params[i].Key = ""
+		}
+	}
 	if !hasKey(r.Params, "iout") && len(r.Lines) > 0 {
 		r.Params = append(r.Params, RatedCurrent(r.Category, r.Title, r.Lines[0], r.PartNumbers)...)
 	}

@@ -88,7 +88,14 @@ Point a development build at a scratch library with
   manufacturer PDFs.
 - **Extraction changes:** add the datasheet that motivated the change to
   `testdata/corpus/manifest.json` (link, checksum, and expectations any
-  revision should meet), and keep `make test-corpus` green.
+  revision should meet), and keep `make test-corpus` green. Bump
+  `extract.Version` when the change alters what existing datasheets would
+  extract: libraries re-extract older datasheets at startup (recorded data
+  is kept).
+- **Dependencies:** prefer the standard library; new dependencies must have a
+  permissive licence (MIT, BSD, Apache-2.0, ISC). After adding, removing or
+  upgrading one (Go or the frontend's production dependencies), run
+  `make notices` and commit `THIRD_PARTY_NOTICES.md`; CI checks it.
 - **TypeScript:** strict mode, `npm run lint` (ESLint) clean with no warnings. Keep pure logic in `src/lib`
   with `*.test.ts` beside it; views consume the store and `api`.
 - **Documentation:** every Go function and method has a doc comment that
@@ -113,8 +120,12 @@ removes a baked-in checkerboard background automatically.
 
 ## Releases
 
-Move the *Unreleased* entries in `CHANGELOG.md` under the new version, then
-run `make release VERSION=vX.Y.Z` from a clean `main`. It runs the tests,
-tags and pushes; the Release workflow builds every platform with
+Move the *Unreleased* entries in `CHANGELOG.md` under the new version.
+Before tagging, a dry run builds every platform's packages without
+publishing (`gh workflow run release.yml --ref main -f dry_run=true`; the
+packages are kept as workflow artifacts). Then run
+`make release VERSION=vX.Y.Z` from a clean `main`: it runs the tests, tags
+and pushes, and the Release workflow builds every platform with
 `scripts/build.sh` / `scripts/build.ps1` and publishes the GitHub release.
-See the README's *Releasing* section for signing secrets.
+Tags with a suffix (`v0.2.0-rc.1`) publish pre-releases. See the README's
+*Releasing* section for signing secrets.

@@ -52,8 +52,8 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
       <div className="part-head" style={{ paddingBottom: 12 }}>
         <h1 style={{ fontFamily: 'var(--font-ui)' }}>
           {d.project.name}
-          {errors > 0 && <span className="badge err">{errors} errors</span>}
-          {warns > 0 && <span className="badge warn">{warns} warnings</span>}
+          {errors > 0 && <span className="badge err">{errors} error{errors === 1 ? '' : 's'}</span>}
+          {warns > 0 && <span className="badge warn">{warns} warning{warns === 1 ? '' : 's'}</span>}
           {errors + warns === 0 && d.parts.length > 0 && <span className="badge ok">checks pass</span>}
           <span className="grow" />
           <button className="btn sm" title="Design-review report (Markdown): findings, rails, parts, calculations" onClick={() => setReport(true)}>

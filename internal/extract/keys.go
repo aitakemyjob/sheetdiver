@@ -85,7 +85,7 @@ var keyRules = []struct {
 	{regexp.MustCompile(`(?i)on[- ]state drain current|I\s*D\s*\(\s*ON\s*\)`), "id_on"},
 	{regexp.MustCompile(`(?i)continuous drain current|drain current|I\s*D\b`), "id"},
 	{regexp.MustCompile(`(?i)forward voltage|V\s*F\b`), "vf"},
-	{regexp.MustCompile(`(?i)dropout`), "vdropout"},
+	{regexp.MustCompile(`(?i)dropout|V\s*\(?DO\b|V\s*IN\s*[–-]\s*V\s*OUT`), "vdropout"},
 	{regexp.MustCompile(`(?i)under-?voltage lock-?out|\bUVLO\b`), "uvlo"},
 	{regexp.MustCompile(`(?i)current limit.*(start-?up|soft-?start)|(start-?up|soft-?start).*current limit`), "ilim_startup"},
 	{regexp.MustCompile(`(?i)input current limit|I\s*\(?IN[_ ]?LIM`), "ilim_in"},
@@ -104,7 +104,7 @@ var keyRules = []struct {
 	{regexp.MustCompile(`(?i)efficiency|η`), "efficiency"},
 	{regexp.MustCompile(`(?i)output current|load current|\bI\s*\(?OUT|\bI\s*O\b`), "iout"},
 	{regexp.MustCompile(`(?i)output voltage|V\s*\(?OUT|V\s*O\b`), "vout"},
-	{regexp.MustCompile(`(?i)input voltage|supply voltage|V\s*\(?IN\)?\b|V\s*CC\b|V\s*DD\b|V\s*S\b|VIN, EN`), "vin"},
+	{regexp.MustCompile(`(?i)input voltage|supply voltage|V\s*\(?IN\)?\b|V\s*CC\b|V\s*DD\b|V\s*S\b|VIN, EN|^\s*IN\b[^,]*voltage|^\s*V\s*I\b`), "vin"},
 }
 
 // GuessKey assigns a canonical key from a parameter's symbol and name,
@@ -117,6 +117,14 @@ func GuessKey(text, unit, _ string) string {
 		return ""
 	}
 	u := NormalizeUnit(unit)
+	// A per-pin rating ("BAT (with respect to VSS)", "EN, MODE to GND")
+	// is the device's input voltage only for a supply pin.
+	if m := pinRatingRe.FindStringSubmatch(text); m != nil && u == "V" {
+		if supplyPinRe.MatchString(m[1]) {
+			return "vin"
+		}
+		return ""
+	}
 	for _, r := range keyRules {
 		if !r.re.MatchString(text) {
 			continue
@@ -124,10 +132,25 @@ func GuessKey(text, unit, _ string) string {
 		if !unitFits(r.key, u) {
 			continue
 		}
+		// Thresholds, hysteresis and detection levels are not operating
+		// ranges.
+		if (r.key == "vin" || r.key == "vout" || r.key == "iout") && notRangeRe.MatchString(text) {
+			continue
+		}
 		return r.key
 	}
 	return ""
 }
+
+// pinRatingRe matches a row naming pins and their reference: "IN (with
+// respect to VSS)", "SW to PGND", "EN, MODE (with respect to GND)".
+var pinRatingRe = regexp.MustCompile(`^([A-Z][A-Z0-9_]{0,11}(?:\s*,\s*[A-Z][A-Z0-9_]{0,11})*)\s*(?:\(\s*(?:with respect to|w\.?r\.?t\.?|referenced to|to)\s+[A-Z]|to\s+(?:P?GND|A?VSS|AGND|SGND)\b)`)
+
+// supplyPinRe matches input supply pin names.
+var supplyPinRe = regexp.MustCompile(`^(?:IN|VIN|PVIN|AVIN|VCC|VDD|VS|VBUS|VSUP|VSYS|SUPPLY)(?:\s*,|$)`)
+
+// notRangeRe matches parameters that are levels, not operating ranges.
+var notRangeRe = regexp.MustCompile(`(?i)threshold|hysteresis|detect|short[- ]circuit|under-?voltage|over-?voltage|lock-?out|power[- ]good|accuracy|regulation|ripple`)
 
 // keyUnits lists the base units each key's values may have.
 var keyUnits = map[string]string{

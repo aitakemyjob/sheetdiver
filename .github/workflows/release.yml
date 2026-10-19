@@ -7,6 +7,11 @@ name: Release
 # Tags with a suffix (v1.0.0-beta.1) are published as pre-releases. Every
 # platform is built by scripts/build.sh or scripts/build.ps1 — the same
 # scripts developers run locally.
+#
+# Dry run (builds every platform from a branch, publishes nothing; the
+# packages are kept as workflow artifacts for a few days):
+#
+#   gh workflow run release.yml --ref <branch> -f dry_run=true
 on:
   push:
     tags: ['v*']
@@ -14,7 +19,11 @@ on:
     inputs:
       tag:
         description: Existing tag to (re)build, e.g. v0.2.0
-        required: true
+        required: false
+      dry_run:
+        description: Build everything from the selected branch without publishing
+        type: boolean
+        default: false
 
 # Read-only by default; only the publish job, which creates the release,
 # gets write access.
@@ -22,11 +31,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-${{ github.event.inputs.dry_run == 'true' && github.sha || github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
-  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+  TAG: ${{ github.event.inputs.dry_run == 'true' && 'v0.0.0-dryrun' || github.event.inputs.tag || github.ref_name }}
+  # What to build: the tag, or the branch's commit for a dry run.
+  REF: ${{ github.event.inputs.dry_run == 'true' && github.sha || github.event.inputs.tag || github.ref_name }}
   GO_VERSION: '1.26.x'
   NODE_VERSION: '24'
   NFPM_VERSION: 'v2.43.0'
@@ -43,7 +55,7 @@ jobs:
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -71,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -119,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -139,6 +151,7 @@ jobs:
   publish:
     name: Publish release
     needs: [desktop, headless]
+    if: github.event.inputs.dry_run != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

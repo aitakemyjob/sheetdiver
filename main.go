@@ -50,6 +50,7 @@ Usage:
   sheetdiver report PROJECT     print a project's design review (Markdown)
   sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
+  sheetdiver licenses             print SheetDiver's licence and third-party notices
   sheetdiver version              print the version
 
 Flags:
@@ -131,6 +132,8 @@ func main() {
 		err = runBOM(fl.Args(), *project, *fetch)
 	case "catalog":
 		err = runCatalog(fl.Args())
+	case "licenses", "licences":
+		fmt.Print(licenseText, "\n", noticesText)
 	case "report":
 		err = runReport(fl.Args())
 	case "inspect":

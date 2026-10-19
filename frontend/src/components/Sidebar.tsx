@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bot, CloudDownload, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
 import { api } from '../lib/api';
-import { categories, relTime } from '../lib/format';
+import { categories, plural, relTime } from '../lib/format';
 import { finished, useActiveTab, useStore } from '../lib/store';
 import { jobProgress } from './ImportQueue';
 import { AllUpdatesDialog } from './UpdateDialog';
@@ -40,7 +40,7 @@ function LibraryPanel() {
       <div className="panel-head">
         Library
         <span className="faint" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
-          {parts.data ? `${parts.data.length} parts` : ''}
+          {parts.data ? plural(parts.data.length, 'part') : ''}
         </span>
         <div className="actions">
           <button className={`btn ghost icon sm ${fav ? 'on' : ''}`} title={fav ? 'Show all parts' : 'Show favorites only'} aria-pressed={fav} onClick={() => setFav(!fav)}>
@@ -202,7 +202,7 @@ function ProjectsPanel() {
               </button>
             </div>
             <div className="desc">
-              {p.parts} parts · {p.rails} rails · {relTime(p.updatedAt)}
+              {plural(p.parts, 'part')} · {plural(p.rails, 'rail')} · {relTime(p.updatedAt)}
             </div>
           </div>
         ))}

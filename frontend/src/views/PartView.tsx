@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calculator, CloudDownload, ExternalLink, FileText, FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
 import { api, figureImageURL, openPDF, tableImageURL } from '../lib/api';
-import { categories, figureKinds, headline, relTime, sectionLabels, sig3 } from '../lib/format';
+import { categories, figureKinds, headline, plural, relTime, sectionLabels, sig3 } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { Figure, Parameter, PartDetail, Section } from '../lib/types';
 import { Menu } from '../components/Menu';
@@ -193,7 +193,7 @@ function AddToProject({ mpn }: { mpn: string }) {
         ...(projects.data ?? []).map((p) => ({
           key: String(p.id),
           label: p.name,
-          hint: `${p.parts} parts`,
+          hint: plural(p.parts, 'part'),
           onSelect: async () => {
             try {
               await api.addProjectPart(p.name, mpn, { qty: 1 });

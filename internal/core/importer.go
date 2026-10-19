@@ -117,7 +117,7 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 	// The same datasheet from another URL (TI and others serve slightly
 	// different files per site) is the one already in the library, or a
 	// newer revision of it.
-	same, replaces := s.sameDocument(ctx, res, req)
+	same, replaces := s.sameDocument(ctx, res, req, sha)
 	if same != nil {
 		parts, _ := s.Lib.PartsOfDatasheet(ctx, same.ID)
 		s.addOrderable(ctx, parts, req.Orderable)
@@ -164,8 +164,10 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 // (nothing to import), or as replaces when the import is another revision
 // of it (update it in place). Imports with explicit part numbers and
 // datasheets without a detected document number are left alone.
-func (s *Service) sameDocument(ctx context.Context, res *extract.Result, req ImportRequest) (same, replaces *library.Datasheet) {
-	if len(req.MPNs) > 0 || res.Revision.Doc == "" || len(res.PartNumbers) == 0 {
+func (s *Service) sameDocument(ctx context.Context, res *extract.Result, req ImportRequest, sha string) (same, replaces *library.Datasheet) {
+	// Re-extracting a datasheet (Force) reads the very file the library
+	// has: never a duplicate.
+	if req.Force || len(req.MPNs) > 0 || res.Revision.Doc == "" || len(res.PartNumbers) == 0 {
 		return nil, nil
 	}
 	var dsID int64
@@ -177,7 +179,7 @@ func (s *Service) sameDocument(ctx context.Context, res *extract.Result, req Imp
 		dsID = r.Part.DatasheetID
 	}
 	d, err := s.Lib.Datasheet(ctx, dsID)
-	if err != nil || d.Meta["revisionDoc"] != res.Revision.Doc {
+	if err != nil || d.SHA256 == sha || d.Meta["revisionDoc"] != res.Revision.Doc {
 		return nil, nil
 	}
 	if d.Meta["revisionRev"] == res.Revision.Rev {

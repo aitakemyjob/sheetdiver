@@ -8,130 +8,101 @@ every merged pull request.
 
 ## [Unreleased]
 
-### Changed
-- A regulator without an output-current rating no longer uses its current
-  limit as its capacity: the rail shows "capacity unknown" with the limit
-  as a ceiling (a load above it is still an error).
-- Zero-gate-voltage drain current (`idss`) and on-state drain current
-  (`id_on`) are no longer filed as the continuous drain current `id`.
-- CSV and report saving use the desktop save dialog.
-- Characters set in Symbol fonts are read as Greek (µ, Ω, θ…): Office-made
-  PDFs such as AOS MOSFET datasheets no longer read 1 µA as 1 mA.
-- Regulators whose spec tables have no output-current row get their rating
-  from the first page (per part when listed, else the lowest stated
-  rating; boost titles are skipped since they quote the switch limit).
-- Ground current is filed as `iq`, short-circuit current as `isc`, and
-  input currents no longer pose as `iout`.
-- Importing a datasheet that is already in the library from another URL
-  (TI and others serve slightly different files per site) no longer
-  creates an empty duplicate: the same revision counts as existing, another
-  revision updates it in place.
-- Datasheets read by an older extractor are re-extracted in the background
-  at startup (recorded data is kept), so extraction fixes reach existing
-  libraries.
+## [0.1.0] - 2026-10-19
 
-### Added
-- **Parts catalogue (JLCPCB / LCSC):** download the open jlcparts dataset
-  (about 2.5 million parts, republished from JLCPCB several times a day)
-  from Settings with one click and search it offline: stock, price, JLC
-  basic/extended library, package, description and datasheet links. Pick
-  parts and import just their datasheets. A Parts catalogue view browses
-  it by category with sorting, paging and a details pane (attributes,
-  stock, price, JLC library), and filters on each category's own
-  parameters (Drain to Source Voltage ≥ 30V, RDS(on) ≤ 10mΩ, Type =
-  N-Channel; ranges such as an input voltage range compare sensibly),
-  with the category's main parameters as sortable columns. A reminder suggests refreshing
-  it after 14 days (configurable). Part-number lookups and BOM import
-  fall back to its datasheet links; JLCPCB BOMs with only LCSC codes
-  resolve, and BOM results show JLC availability. `sheetdiver catalog`,
-  MCP `search_catalog`, `import_datasheets lcsc=[…]`.
-- **Alternatives:** a part's Alternatives tab (MCP `find_alternatives`)
-  ranks library parts of the same or a related type key by key in the
-  direction that matters (more current, less quiescent current, input
-  range covering the original's, matching reference); drop-ins first,
-  preferred parts win ties.
-- **Design-review report** for a project (Report button, `sheetdiver
-  report`, MCP `export_project_report`): findings, rails with load and
-  capacity, parts with status and key parameters, calculations, notes, as
-  Markdown.
-- **Datasheet revisions:** the revision is detected on import (TI, ST,
-  ADI/Maxim, Microchip, Diodes, AOS styles). Check one datasheet or the
-  whole library for a newer revision, see which spec rows changed, and
-  update in place; recorded data and projects are kept (MCP
-  `check_datasheet_updates`, `apply_datasheet_update`).
-- **Batch import:** whole folders (recursively), lists of part numbers or
-  URLs, and many dropped files at once, extracted in parallel on a pool of
-  PDF engines. An import queue shows progress, results and failures, with
-  retry; `import_datasheets` does the same for agents.
-- **BOM import** (`sheetdiver bom`, Import → BOM, MCP `import_bom`): CSV/TSV
-  from KiCad, Altium, JLCPCB and similar; designator ranges expanded;
-  parts resolved through orderable codes or fetched by part number;
-  unfetchable parts kept as "no datasheet" placeholders and flagged in
-  project checks.
-- **Favorites and part status** (preferred, approved, avoid, NRND, EOL):
-  stars and badges in the library, part view and comparisons; filters in
-  the library, comparisons, `list_parts` and `compare_parts`; project
-  checks warn about discouraged parts.
-- **Import** datasheet PDFs by drag-and-drop, file picker, URL (including
-  product pages that link to the PDF), part number (TI, ST, ADI, onsemi,
-  Nexperia and Diodes datasheet URLs), or `sheetdiver import`. PDFs are
-  read with PDFium compiled to WebAssembly: no cgo, no external tools.
-- **Part numbers** with families and variants: base parts, family patterns
-  (`TPS56x200`, `STM32U545xx`), orderable codes (`TPS563200DDCR`,
-  `TLV75733PDBVR`, `MCP1700T-3302E/TT`) and unlisted ordering codes
-  resolved by prefix (`STM32U545VET6Q` → `STM32U545VE`).
-- **Extraction:** section tree (from the PDF outline or headings, with
-  two-column reading order), captioned figures cut out and classified
-  (graph, schematic, waveform, block diagram, pinout, timing, layout,
-  package) with axes parsed from "Y vs X" captions, spec tables to
-  min/typ/max parameters with canonical keys, pin tables, manufacturer and
-  category.
-- **Library:** SQLite with full-text search over parts, pages, sections,
-  figures, parameters, pins, registers, recommendations and notes. Every row
-  records whether it came from the extractor, the agent or you; recorded
-  data wins and survives re-extraction.
-- **UI:** part overview with key parameters, editable parameter table,
-  figure gallery and editor, pins, sections, registers, tables, notes and
-  variants; page viewer with figure/table overlays, highlights and
-  region selection; projects; calculators; search; themes shared with
-  CodeDiver.
-- **Projects:** BOM with designators, rails and load currents; per-rail
-  load including regulator input currents derived from their output
-  loads; checks against each part's absolute-maximum and recommended
-  limits and regulator capacity.
+The first release: a datasheet library for electronics design, shared with
+your AI agent over MCP.
+
+### Datasheets in, structured data out
+- **Import** PDFs by drag-and-drop (files or folders), file picker, URL
+  (product pages that link to the PDF too), part number (looked up at TI,
+  ST, ADI/Maxim, onsemi, Nexperia and Diodes, then the parts catalogue) or
+  `sheetdiver import`. Several import in parallel, followed in an import
+  queue with progress and retry. PDFs are read by PDFium compiled to
+  WebAssembly: no cgo, no external tools, no filesystem access.
+- **Part numbers that resolve:** base parts, family patterns (`TPS56x200`,
+  `STM32U545xx`), orderable codes (`TPS563200DDCR`, `TLV75733PDBVR`,
+  `MCP1700T-3302E/TT`, `MAX77801EWP+T`) and unlisted ordering codes by
+  prefix (`STM32U545VET6Q` → `STM32U545VE`).
+- **Extraction:** the section tree (outline or headings, two-column reading
+  order); every captioned figure cut out and classified (graph, schematic,
+  waveform, block diagram, pinout, timing, layout, package) with axes from
+  "Y vs X" captions; spec tables as min/typ/max parameters with conditions,
+  section and a canonical key (`vin`, `iout`, `fsw`, `vref`, `ilim`, `iq`,
+  `rdson`, `qg`…); pin tables, per package; every table as an image, with
+  irregular ones flagged for the agent to transcribe; recommended
+  inductors and capacitors; the datasheet revision (TI, ST, ADI/Maxim,
+  Microchip, Diodes, AOS styles).
+- Extraction knows the usual traps: names centred across condition rows,
+  typ printed half a line off, ±% tolerances, current limits in normal
+  operation vs start-up vs input, per-pin absolute-maximum rows, thresholds
+  that aren't operating ranges, µ and Ω set in Symbol fonts, and output
+  ratings stated only on the first page. A corpus of 18 real datasheets
+  guards it (`make corpus && make test-corpus`); `sheetdiver inspect`
+  shows what it finds.
+- **Datasheet revisions:** check one datasheet or the whole library for a
+  newer revision, see which spec rows changed, and update in place. The
+  same datasheet from another URL is recognised instead of duplicated.
+  When the extractor improves, existing datasheets are re-extracted in the
+  background; what you and your agent recorded is always kept.
+
+### Library
+- SQLite with full-text search over parts, pages, sections, figures,
+  parameters, pins, registers, tables, recommendations and notes. Every
+  value records whether it came from the extractor, the agent or you;
+  recorded values win and survive re-extraction.
+- Part view: key parameters, editable parameter table, figure gallery and
+  editor, pins, sections, registers, tables, notes, variants and
+  alternatives. Page viewer with figure and table overlays, highlighted
+  parameter regions and drag-to-select. The PDF opens in your viewer.
+- **Favorites and status** (preferred, approved, avoid, NRND, EOL), used by
+  filters, comparisons, alternatives and project checks.
+- **Compare by type:** a component type's parts side by side on the
+  parameters that matter for it, sorted and filtered with units
+  ("VIN ≥ 24 V, IOUT ≥ 3 A"), every value linked to its page; CSV export.
+- **Alternatives:** library parts that could replace a part, compared key
+  by key in the direction that matters; drop-ins first.
+
+### Parts catalogue (JLCPCB / LCSC)
+- One click downloads the open [jlcparts](https://github.com/yaqwsx/jlcparts)
+  dataset (about 2.5 million parts, republished from JLCPCB three times a
+  day; about 200 MB), searched offline with a reminder to refresh it.
+- Browse by category, search by part number or specs, and filter on each
+  category's own parameters (Drain to Source Voltage ≥ 30V, RDS(on) ≤ 10mΩ,
+  Type = N-Channel; supply ranges compare as "accepts"), with stock, price,
+  JLC basic/extended library and the parameters as sortable columns.
+- Tick parts to import their datasheets. Part-number lookups and BOM import
+  fall back to its datasheet links.
+
+### Projects and design
+- **Projects** for a board: BOM with designators, rails and currents;
+  per-rail load including regulator input currents derived from their
+  output loads; checks against every part's absolute-maximum and
+  recommended limits, regulator ratings (a current limit is only a
+  ceiling), discouraged parts and parts without a datasheet.
+- **BOM import** from CSV/TSV (KiCad, Altium, JLCPCB, LCSC codes): parts
+  found in the library or fetched by part number, with JLC availability.
+- **Design-review report** as Markdown (Report button, `sheetdiver report`).
 - **Calculators:** buck, boost, LDO, MOSFET gate drive, gate bias divider
-  and resistor divider, with inputs filled from the datasheet (with page
-  references) and project rails.
-- **MCP server** with 32 tools to search and read the library, look at
-  figures and pages as images, record parameters, figure descriptions,
-  pins, registers, recommended components and notes, manage projects and
-  run calculators. Settings switch agents off, make them read-only, or
-  forbid imports.
-- **Component types:** a Types panel lists the library's categories;
-  each opens a side-by-side comparison of its parts on the type's key
-  parameters (bucks: VIN, VOUT, IOUT, fSW, ILIM, IQ, RDS(on)…; MOSFETs:
-  VDS, ID, RDS(on), VGS(th), Qg…), with sortable columns, ≥/≤ filters that
-  take units ("24 V", "1µ"), a column picker, text search, CSV export,
-  and cells that open the datasheet page. Agents get `list_categories`
-  and `compare_parts` for picking a part from the library.
-- **Tables as images:** every table renders as an image (`get_tables`,
-  the Tables tab). Selection matrices and other irregular tables are
-  flagged, and the agent saves a clean transcription with `record_table`
-  (searchable, kept on re-extraction). Recommended inductor and capacitor
-  tables become recommendations automatically.
-- **Spec tables:** parameter names centred across several condition rows
-  (TI) are applied to every row, using the table's rules; typ printed
-  half a line from min/max is merged; ±% limits become a tolerance around
-  typ. Current limits are told apart: `ilim` (normal operation),
-  `ilim_startup` and `ilim_in` (average input).
-- **Pin tables with package columns** (Maxim/ADI "20-BUMP WLP" /
-  "20-PIN TQFN"): each pin is recorded per package, multi-pin entries
-  ("A3, B3") stay intact, and subscripted names read as one word (VSYS,
-  I2C).
-- Punctuation no longer splits off the text line (stray "," rows in pin
-  tables and ", ," in conditions).
-- The **PDF** button opens the datasheet in your PDF viewer in the
-  desktop app (the webview can't open tabs); the page viewer has one too.
-- The SheetDiver badge (`sheetdiver.png`) as app icon and logo.
-- `sheetdiver inspect` prints what extraction finds in a PDF; a corpus of
-  real datasheets (`make corpus`, `make test-corpus`) guards extraction.
+  and resistor divider, with inputs filled from the datasheets (with page
+  references) and project rails, and results saved to the project.
+
+### For AI agents
+- A built-in MCP server (streamable HTTP on 127.0.0.1, or `sheetdiver mcp`
+  over stdio) with 43 tools: search and read the library, see figures,
+  pages and tables as images, record parameters, figure descriptions,
+  tables, pins, registers, recommendations and notes, import datasheets and
+  BOMs, search the parts catalogue, find alternatives, manage projects, run
+  calculators and export reports. Settings switch agents off, make them
+  read-only or forbid imports; their changes are marked.
+- Follow agent: what the agent shows opens in front of you.
+
+### Apps and packaging
+- Desktop app for macOS (universal), Windows and Linux (x64 and ARM64; .deb,
+  .rpm, .tar.gz), plus `sheetdiver serve` (headless, the same UI in your
+  browser) for every platform. Ten themes shared with CodeDiver.
+- Releases ship checksums, an SPDX SBOM, signed build provenance, and the
+  third-party notices (`sheetdiver licenses`).
+
+[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.0
