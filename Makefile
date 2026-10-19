@@ -14,7 +14,7 @@ ifeq ($(shell uname -s),Linux)
   WAILS_TAGS := -tags webkit2_41
 endif
 
-.PHONY: help tools deps frontend test test-go test-frontend test-corpus corpus vet lint vuln build package headless headless-all serve dev icon release clean
+.PHONY: help tools deps frontend notices test test-go test-frontend test-corpus corpus vet lint vuln build package headless headless-all serve dev icon release clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -75,6 +75,9 @@ dev: ## Wails dev mode with hot reload
 
 icon: ## Regenerate icons and logos from sheetdiver.png
 	go run ./scripts/brand -src sheetdiver.png
+
+notices: ## Regenerate THIRD_PARTY_NOTICES.md (after changing dependencies)
+	go run ./scripts/notices
 
 release: ## Tag and push a release: make release VERSION=v1.2.3
 	@echo "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$$' || (echo "VERSION must look like v1.2.3 (got $(VERSION))"; exit 1)

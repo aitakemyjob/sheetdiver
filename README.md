@@ -28,11 +28,30 @@ datasheet limits, and runs **design calculators** (buck, boost, LDO, MOSFET
 gate drive and gate dividers, resistor dividers) with inputs filled from the
 datasheets.
 
+Need a part? Download JLCPCB's catalogue of about 2.5 million parts once and
+search it offline by specs (V<sub>IN</sub> ≥ 24 V, I<sub>OUT</sub> ≥ 3 A, in
+stock), then import just the datasheets you want.
+
 Through its built-in [MCP](https://modelcontextprotocol.io) server, Claude
 Code, Cursor, VS Code and other agents can do all of that too. They can look
 at the graphs and schematics as images, and record what they verify
 (corrected parameters, what a graph shows, recommended inductors, register
 maps, notes), so the library gets better every time it's used.
+
+<p align="center">
+  <img src="docs/assets/screenshot-part.jpg" alt="A part in SheetDiver: key parameters, recommended components and the datasheet's figures" width="880" />
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshot-project.jpg" alt="A board project: rails with their load against each regulator's rating" /></td>
+    <td width="50%"><img src="docs/assets/screenshot-catalogue.jpg" alt="The parts catalogue: DC-DC converters filtered to supply ≥ 24 V and output ≥ 3 A" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A board project: every rail's load against its regulator, checked against the datasheets</sub></td>
+    <td align="center"><sub>The parts catalogue, filtered on a category's own parameters</sub></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -70,13 +89,24 @@ curl -fsSL https://raw.githubusercontent.com/aitakemyjob/sheetdiver/main/scripts
 irm https://raw.githubusercontent.com/aitakemyjob/sheetdiver/main/scripts/install.ps1 | iex
 ```
 
-Or grab a file from [Releases](https://github.com/aitakemyjob/sheetdiver/releases/latest).
-Linux needs WebKitGTK 4.1 (`sudo apt install libwebkit2gtk-4.1-0`). PDF
-handling is built in: no Poppler, MuPDF or other tools are needed.
+Or grab a file from [Releases](https://github.com/aitakemyjob/sheetdiver/releases/latest):
+a universal `.zip` for macOS (Apple Silicon and Intel), an installer or portable `.zip` for
+Windows, `.deb`/`.rpm`/`.tar.gz` for Linux (x64 and ARM64), and headless
+server builds for every platform. Linux needs WebKitGTK 4.1
+(`sudo apt install libwebkit2gtk-4.1-0`). PDF handling is built in: no
+Poppler, MuPDF or other tools are needed.
+
+The builds aren't code-signed yet (that's on the [roadmap](ROADMAP.md)). The
+install scripts verify each download's checksum; if you download by hand,
+check it against `checksums.txt`, then on macOS clear the quarantine flag
+(`xattr -dr com.apple.quarantine /Applications/SheetDiver.app`) and on
+Windows choose **More info → Run anyway** in SmartScreen.
 
 ## Quick start
 
 1. Launch SheetDiver and **Import** a datasheet (or `sheetdiver import tps563200`).
+   Optionally download the parts catalogue (Settings → Parts catalogue, or the
+   catalogue icon on the left) to search JLCPCB's parts by specs.
 2. Connect your agent (the **MCP** pill in the title bar shows these too):
 
    ```sh
@@ -113,6 +143,7 @@ sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)
 sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
+sheetdiver licenses           SheetDiver's licence and the third-party notices
 sheetdiver version
   -port N   MCP/HTTP port (default 47480)   -mpn LIST   (import) set the part numbers
   -fetch=false  (bom) don't download missing datasheets
@@ -149,7 +180,7 @@ takes precedence. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Building from source
 
-You need **Go 1.25+** and **Node 22+**; the build scripts install the Wails
+You need **Go 1.26+** and **Node 22+**; the build scripts install the Wails
 CLI if it's missing.
 
 | Platform | Prerequisites | Build |
@@ -168,10 +199,14 @@ make help        # everything else
 
 ## Releasing
 
-From a clean `main`, `make release VERSION=v0.1.0` runs the tests, then tags
-and pushes; the [Release workflow](.github/workflows/release.yml) builds every
-platform, writes checksums, an SPDX SBOM and signed build provenance, and
-publishes the release. Update [CHANGELOG.md](CHANGELOG.md) first.
+Update [CHANGELOG.md](CHANGELOG.md), check every platform builds with a dry
+run (`gh workflow run release.yml --ref main -f dry_run=true`, which publishes
+nothing), then from a clean `main` run `make release VERSION=v0.1.0`: it runs
+the tests, tags and pushes, and the [Release workflow](.github/workflows/release.yml)
+builds every platform, writes checksums, an SPDX SBOM and signed build
+provenance, and publishes the release. macOS builds are signed and notarized
+when the `MACOS_CODESIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and
+`APPLE_APP_PASSWORD` secrets are set.
 
 ## Contributing
 
@@ -191,4 +226,12 @@ the [Code of Conduct](CODE_OF_CONDUCT.md). Security reports go to
 ## License
 
 [MIT](LICENSE). SheetDiver embeds [PDFium](https://pdfium.googlesource.com/pdfium/)
-(BSD-3-Clause) through [go-pdfium](https://github.com/klippa-app/go-pdfium) (MIT).
+(BSD-3-Clause, with the libraries compiled into it) through
+[go-pdfium](https://github.com/klippa-app/go-pdfium); every bundled component
+and its licence is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
+which ships with every release (`sheetdiver licenses`).
+
+The parts catalogue is JLCPCB's data as republished by
+[jlcparts](https://github.com/yaqwsx/jlcparts); SheetDiver downloads it on
+your request and doesn't redistribute it. Datasheets belong to their
+manufacturers and stay in your library.

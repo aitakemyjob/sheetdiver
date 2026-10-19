@@ -1,34 +1,86 @@
 # Roadmap
 
-Where SheetDiver is heading. Plans change; if something here matters to you,
-say so in [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions).
+Where SheetDiver is heading. Plans change with what people need: if something
+here matters to you, or is missing, say so in
+[Discussions](https://github.com/aitakemyjob/sheetdiver/discussions) or 👍 the
+issue. Each release keeps the library format compatible and re-extracts
+existing datasheets automatically when extraction improves.
 
-## 0.2 — Better extraction
+**Shipped: 0.1** — import and extraction, the library and page viewer,
+projects with rail checks, calculators, comparisons and alternatives,
+datasheet revisions, the JLCPCB parts catalogue, BOM import and design-review
+reports, and the MCP server. See the [changelog](CHANGELOG.md).
 
-- **Graph digitizing:** read curves off vector graphs (most TI and ADI
-  graphs are paths) into data points, so "efficiency at 2 A" is a lookup.
+## 0.2 — Numbers you can trust
+
+Extraction gives a good draft; this release makes it measurably better and
+makes reviewing it fast.
+
+- **Review mode:** step through a datasheet's key parameters next to the
+  page region each came from and confirm, correct or reject them with one
+  key. Confirmed values are marked and preferred everywhere.
+- **Extraction coverage report** per datasheet and across the library
+  (which keys were found, which are missing, which are unconfirmed), so you
+  and your agent know what to check.
+- **Graph digitizing:** read curves from vector graphs (most TI and ADI
+  graphs are paths) into data points, so "efficiency at 2 A, 12 V in" is a
+  lookup, not a squint.
 - **Register maps:** structured extraction of register tables (address,
-  fields, reset) instead of leaving them to the agent.
-- **Multi-package pin tables** (QFN vs BGA columns) and ST-style tables
-  with merged cells.
-- A larger corpus: ADI/Maxim, onsemi, Nexperia, Vishay, Renesas, Nordic
-  (sites that need a browser to download).
+  fields, bits, reset values).
+- **Harder tables:** dense multi-column MCU tables, ST-style merged cells,
+  footnoted conditions.
+- **A bigger corpus:** Microchip, Renesas, Nordic, onsemi, Vishay,
+  Infineon and ADI datasheets, with expected values, so every fix is
+  measured and nothing regresses. Contributions welcome: the
+  [Datasheet extracts badly](https://github.com/aitakemyjob/sheetdiver/issues/new/choose)
+  issue template is the fastest way to help.
 
-## 0.3 — Deeper design help
+## 0.3 — Sourcing
 
+From "which part?" to "can I buy it and build it?".
+
+- **Distributor sources:** Digi-Key and Mouser (with your own API keys,
+  stored locally) next to the JLCPCB catalogue: stock, price breaks,
+  lifecycle and datasheet links for parts JLCPCB doesn't carry. Lifecycle
+  feeds part status (NRND, EOL).
+- **Project sourcing view:** per BOM line, availability and price at each
+  source, JLC basic/extended (setup fees), low-stock warnings, and cheaper
+  in-stock alternatives from the catalogue.
+- **BOM export:** costed CSV, and JLCPCB assembly BOMs with LCSC codes.
+- **KiCad:** build a project (parts, designators, rails) from a KiCad
+  schematic or netlist, and keep it in sync.
+
+## 0.4 — Deeper design help
+
+- **Power tree view** of a project: rails, regulators and loads as a graph,
+  with efficiency and dissipation through the tree (from the efficiency
+  curves once they're digitized).
 - **More calculators:** buck-boost and SEPIC, charger termination and
-  thermal, LED drivers, op-amp gain/bandwidth, RC filters, I²C pull-ups,
-  crystal load capacitors.
-- **Power tree view** of a project: rails, regulators and loads as a
-  graph, with efficiency through the tree.
-- **Component search** beyond the library's key parameters: packages,
-  features and conditions ("buck, VIN ≥ 24 V, IOUT ≥ 3 A, SOT-23").
-- **BOM export** and checking a schematic netlist's parts against the
-  library (CSV/KiCad BOM import is done).
+  thermal, LED drivers, op-amp gain and bandwidth, RC and LC filters, I²C
+  pull-ups, crystal load capacitors, thermal budgets.
+- **Pin-level checks:** I/O voltages against each pin's absolute maximum,
+  logic thresholds between connected parts.
+- **Reference designs:** turn a datasheet's typical application and
+  recommended components into a starting BOM.
 
-## 0.4 — Sharing
+## Toward 1.0
 
-- Library sync through a git repository or shared folder, with merge of
-  recorded data.
-- Distributor APIs (Digi-Key, Mouser, with your own keys) for parts the
-  JLCPCB catalogue doesn't carry, and lifecycle status from them.
+- **Shared libraries:** sync through a git repository or shared folder,
+  merging what each person recorded.
+- **Signed and notarized builds** for macOS and Windows, and packages in
+  Homebrew, winget and Flathub.
+- **Extensible extraction:** rules for a manufacturer's table style as data
+  rather than code, so contributors can add them without touching the
+  extractor.
+- Accessibility and localization of the UI.
+
+## Not planned
+
+- **A schematic or PCB editor.** SheetDiver works next to KiCad, Altium and
+  friends, not instead of them.
+- **A cloud service or account.** The library, the catalogue and the MCP
+  server stay on your machine; SheetDiver only goes online when you import
+  or download something.
+- **Bundling datasheets or catalogue data.** Datasheets belong to their
+  manufacturers and the catalogue to JLCPCB; SheetDiver downloads them for
+  you on request.

@@ -120,3 +120,8 @@ export function parseSI(s: string): number | undefined {
   const p = m[2] === 'M' || m[2] === 'm' ? m[2] : m[2].toLowerCase() === 'k' ? 'k' : m[2];
   return parseFloat(m[1]) * (mult[p] ?? 1);
 }
+
+/** "1 part", "3 parts": a count with a word, pluralized with s. */
+export function plural(n: number, word: string): string {
+  return `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+}

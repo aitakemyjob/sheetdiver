@@ -422,3 +422,27 @@ func TestCurrentKeyRules(t *testing.T) {
 		}
 	}
 }
+
+func TestRangeKeysAndPinRatings(t *testing.T) {
+	cases := []struct{ text, unit, want string }{
+		{"IN (with respect to VSS)", "V", "vin"},
+		{"BAT (with respect to VSS) VI Input Voltage", "V", ""},
+		{"TMR, ITERM, SYSOFF, TD (with respect to VSS)", "V", ""},
+		{"SW to PGND", "V", ""},
+		{"VIN, EN to GND", "V", "vin"},
+		{"IN voltage range", "V", "vin"},
+		{"IN operating voltage range ‘74", "V", "vin"},
+		{"VIN(DT) Input power detection threshold", "mV", ""},
+		{"Vhys Hysteresis on VIN(DT)", "mV", ""},
+		{"VDO(IN-OUT) VIN – VOUT", "mV", "vdropout"},
+		{"VO(SC1) Output short-circuit detection threshold", "V", ""},
+		{"VIN Supply input voltage", "V", "vin"},
+		{"VOUT Output voltage range", "V", "vout"},
+		{"VIN_UVLO Undervoltage lockout threshold", "V", "uvlo"},
+	}
+	for _, c := range cases {
+		if got := GuessKey(c.text, c.unit, ""); got != c.want {
+			t.Errorf("%q [%s] = %q, want %q", c.text, c.unit, got, c.want)
+		}
+	}
+}
