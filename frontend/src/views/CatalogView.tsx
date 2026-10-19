@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, Database, Download, FileDown, Filter, Plus, RefreshCw, Search, X } from 'lucide-react';
-import { api } from '../lib/api';
+import { ChevronDown, ChevronRight, Database, Download, ExternalLink, FileDown, Filter, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { api, openShop } from '../lib/api';
 import { catalogProgressText, useStore } from '../lib/store';
 import type { CatalogCategory, CatalogFilter, CatalogItem, CatalogParam } from '../lib/types';
 import { libraryTone, priceText } from '../components/CatalogPanel';
@@ -225,6 +225,8 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
       s.toast({ kind: 'err', title: 'Could not import', body: (e as Error).message });
     }
   };
+  const openShopOrToast = (lcsc: string, shop: 'lcsc' | 'jlcpcb') =>
+    openShop(lcsc, shop, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: `Could not open ${shop === 'lcsc' ? 'LCSC' : 'JLCPCB'}`, body: (e as Error).message }));
   // The details pane shows the description; the table keeps stock and price in view.
   const showDesc = !detail || cols.length === 0;
   const sortBy = (key: string) => setSort(sort.key === key ? { key, desc: !sort.desc } : { key, desc: false });
@@ -414,7 +416,17 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                           {it.inLibrary && <span className="badge ok">in library</span>}
                         </div>
                         <div className="maker" title={it.manufacturer}>
-                          {it.lcsc} · {it.manufacturer || 'unknown maker'}
+                          <a
+                            className="shop-link"
+                            title={`Open ${it.lcsc} at LCSC`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openShopOrToast(it.lcsc, 'lcsc');
+                            }}
+                          >
+                            {it.lcsc}
+                          </a>{' '}
+                          · {it.manufacturer || 'unknown maker'}
                         </div>
                       </td>
                       {cols.map((k) => (
@@ -464,6 +476,8 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
 /** A catalogue part's details: attributes, links and import. */
 function CatalogDetail({ it, onClose, onImport }: { it: CatalogItem; onClose: () => void; onImport: () => void }) {
   const s = useStore();
+  const shop = (where: 'lcsc' | 'jlcpcb') =>
+    openShop(it.lcsc, where, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: `Could not open ${where === 'lcsc' ? 'LCSC' : 'JLCPCB'}`, body: (e as Error).message }));
   const attrs = Object.entries(it.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b));
   return (
     <aside className="catalog-detail">
@@ -499,6 +513,14 @@ function CatalogDetail({ it, onClose, onImport }: { it: CatalogItem; onClose: ()
           <FileDown size={13} /> Import datasheet
         </button>
       )}
+      <div className="row" style={{ gap: 6 }}>
+        <button className="btn grow" title={`Buy ${it.mpn} at LCSC (${it.lcsc})`} onClick={() => shop('lcsc')}>
+          <ExternalLink size={13} /> LCSC
+        </button>
+        <button className="btn grow" title={`${it.mpn} on JLCPCB: assembly library, stock and pricing`} onClick={() => shop('jlcpcb')}>
+          <ExternalLink size={13} /> JLCPCB
+        </button>
+      </div>
       {!it.datasheet && <div className="faint" style={{ fontSize: 11 }}>No datasheet link in the catalogue; the part number is looked up at the manufacturer's site.</div>}
       {attrs.length > 0 && (
         <table className="dtable" style={{ fontSize: 12 }}>

@@ -236,3 +236,21 @@ func installed(t *testing.T, rows [][]any) *Catalog {
 	}
 	return c
 }
+
+func TestShopURL(t *testing.T) {
+	cases := []struct{ code, shop, want string }{
+		{"C25744", "lcsc", "https://www.lcsc.com/product-detail/C25744.html"},
+		{" c25744 ", "", "https://www.lcsc.com/product-detail/C25744.html"},
+		{"C25744", "jlcpcb", "https://jlcpcb.com/partdetail/C25744"},
+	}
+	for _, c := range cases {
+		if got, err := ShopURL(c.code, c.shop); err != nil || got != c.want {
+			t.Errorf("ShopURL(%q, %q) = %q %v", c.code, c.shop, got, err)
+		}
+	}
+	for _, bad := range [][2]string{{"25744", "lcsc"}, {"C25744/../x", "lcsc"}, {"C1", "digikey"}, {"https://evil", "lcsc"}} {
+		if u, err := ShopURL(bad[0], bad[1]); err == nil {
+			t.Errorf("ShopURL(%q, %q) = %q, want an error", bad[0], bad[1], u)
+		}
+	}
+}

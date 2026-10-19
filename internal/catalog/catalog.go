@@ -523,3 +523,28 @@ func (c *Catalog) Remove() error {
 	}
 	return err
 }
+
+// lcscCodeRe matches an LCSC/JLCPCB part code.
+var lcscCodeRe = regexp.MustCompile(`^C\d{1,10}$`)
+
+// Shops are the stores a catalogue part can be opened at.
+const (
+	ShopLCSC   = "lcsc"
+	ShopJLCPCB = "jlcpcb"
+)
+
+// ShopURL is a part's page at LCSC (buy) or JLCPCB (assembly), from its
+// LCSC code ("C25744").
+func ShopURL(code, shop string) (string, error) {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if !lcscCodeRe.MatchString(code) {
+		return "", fmt.Errorf("%q is not an LCSC part code (like C25744)", code)
+	}
+	switch shop {
+	case ShopLCSC, "":
+		return "https://www.lcsc.com/product-detail/" + code + ".html", nil
+	case ShopJLCPCB:
+		return "https://jlcpcb.com/partdetail/" + code, nil
+	}
+	return "", fmt.Errorf("unknown shop %q (lcsc or jlcpcb)", shop)
+}

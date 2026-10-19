@@ -20,6 +20,10 @@ every merged pull request.
   other filters, so after "V<sub>DS</sub> ≥ 30 V" the package list shows only
   packages that still have matching parts, with their counts. Agents get
   the same (`Package = SOT-23|SOT-23-3`, faceted `catalog_parameters`).
+- **Open a catalogue part at LCSC or JLCPCB:** buttons in the part's
+  details pane, and its LCSC code in the results is a link. The desktop
+  app opens your browser; only part pages built from the LCSC code can be
+  opened.
 
 ## [0.1.0] - 2026-10-19
 

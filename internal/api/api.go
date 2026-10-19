@@ -236,7 +236,22 @@ func (a *API) registerLibrary() {
 		}
 		return catalog.TopSubcategories(m, 300), nil
 	})
-	a.methods["catalog.import"] = method(func(ctx context.Context, in struct {
+	a.methods["catalog.openShop"] = method(func(ctx context.Context, in struct {
+		LCSC string `json:"lcsc"`
+		Shop string `json:"shop"`
+	}) (any, error) {
+		// The URL is built here from the part code, so only LCSC and
+		// JLCPCB part pages can be opened.
+		u, err := catalog.ShopURL(in.LCSC, in.Shop)
+		if err != nil {
+			return nil, err
+		}
+		if a.OpenFile == nil {
+			return nil, fmt.Errorf("opening the browser needs the desktop app; open %s", u)
+		}
+		return map[string]string{"url": u}, a.OpenFile(u)
+	})
+		a.methods["catalog.import"] = method(func(ctx context.Context, in struct {
 		LCSC []string `json:"lcsc"`
 	}) (any, error) {
 		return c.CatalogImport(ctx, in.LCSC)

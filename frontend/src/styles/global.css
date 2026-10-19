@@ -517,3 +517,5 @@ html { font-size: var(--ui-font-size, 13px); }
 .value-list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; }
 .value-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .value-row:hover { background: var(--bg-2); }
+.shop-link { color: var(--text-2); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.shop-link:hover { color: var(--accent); }

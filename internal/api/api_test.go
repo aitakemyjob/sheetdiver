@@ -176,3 +176,26 @@ func jobsPart(t *testing.T, a *API, mpn string) int64 {
 	}
 	return d.Part.ID
 }
+
+func TestOpenShop(t *testing.T) {
+	a, _ := newAPI(t)
+	if err := invoke(t, a, "catalog.openShop", map[string]any{"lcsc": "C25744", "shop": "lcsc"}, nil); err == nil {
+		t.Error("the browser UI opens the page itself; the API needs the desktop app")
+	}
+	var opened []string
+	a.OpenFile = func(u string) error {
+		opened = append(opened, u)
+		return nil
+	}
+	var res map[string]string
+	if err := invoke(t, a, "catalog.openShop", map[string]any{"lcsc": "C25744", "shop": "jlcpcb"}, &res); err != nil || res["url"] != "https://jlcpcb.com/partdetail/C25744" {
+		t.Fatalf("open = %v %v", res, err)
+	}
+	// Only part pages built from a part code can be opened.
+	if err := invoke(t, a, "catalog.openShop", map[string]any{"lcsc": "file:///etc/passwd", "shop": "lcsc"}, nil); err == nil {
+		t.Error("arbitrary targets are refused")
+	}
+	if len(opened) != 1 || opened[0] != "https://jlcpcb.com/partdetail/C25744" {
+		t.Errorf("opened = %v", opened)
+	}
+}
