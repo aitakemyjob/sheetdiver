@@ -3,7 +3,8 @@
 Where SheetDiver is heading. Plans change with what people need: if something
 here matters to you, or is missing, say so in
 [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions) or 👍 the
-issue. Each release keeps the library format compatible and re-extracts
+issue. Every item below has an issue in its
+[milestone](https://github.com/aitakemyjob/sheetdiver/milestones). Each release keeps the library format compatible and re-extracts
 existing datasheets automatically when extraction improves.
 
 **Shipped: 0.1** — import and extraction, the library and page viewer,
@@ -12,6 +13,8 @@ datasheet revisions, the JLCPCB parts catalogue, BOM import and design-review
 reports, and the MCP server. See the [changelog](CHANGELOG.md).
 
 ## 0.2 — Numbers you can trust
+
+[Milestone and issues](https://github.com/aitakemyjob/sheetdiver/milestone/2)
 
 Extraction gives a good draft; this release makes it measurably better and
 makes reviewing it fast.
@@ -37,6 +40,8 @@ makes reviewing it fast.
 
 ## 0.3 — Sourcing
 
+[Milestone and issues](https://github.com/aitakemyjob/sheetdiver/milestone/3)
+
 From "which part?" to "can I buy it and build it?".
 
 - **Distributor sources:** Digi-Key and Mouser (with your own API keys,
@@ -52,6 +57,8 @@ From "which part?" to "can I buy it and build it?".
 
 ## 0.4 — Deeper design help
 
+[Milestone and issues](https://github.com/aitakemyjob/sheetdiver/milestone/4)
+
 - **Power tree view** of a project: rails, regulators and loads as a graph,
   with efficiency and dissipation through the tree (from the efficiency
   curves once they're digitized).
@@ -64,6 +71,8 @@ From "which part?" to "can I buy it and build it?".
   recommended components into a starting BOM.
 
 ## Toward 1.0
+
+[Milestone and issues](https://github.com/aitakemyjob/sheetdiver/milestone/5)
 
 - **Shared libraries:** sync through a git repository or shared folder,
   merging what each person recorded.
