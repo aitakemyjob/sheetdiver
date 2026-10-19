@@ -20,5 +20,18 @@ section() {
 
 body=$(section "## [$version]")
 [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || body=$(section "## [Unreleased]")
-# Trim leading and trailing blank lines.
-printf '%s\n' "$body" | awk 'NF { started = 1 } started' | awk '{ lines[NR] = $0 } END { n = NR; while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }'
+# Trim leading and trailing blank lines, and join hard-wrapped lines: GitHub
+# renders every newline in release notes as a line break, so a paragraph or
+# list item wrapped at 72 columns in the changelog would break mid-sentence.
+printf '%s\n' "$body" | awk 'NF { started = 1 } started' | awk '{ lines[NR] = $0 } END { n = NR; while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }' | awk '
+  # A line starts a new block when it is blank, a heading, a list item,
+  # a quote, a table row or a fence; otherwise it continues the last one.
+  function starts(l) { return l ~ /^[[:space:]]*$/ || l ~ /^#/ || l ~ /^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]/ || l ~ /^>/ || l ~ /^[[:space:]]*\|/ || l ~ /^[[:space:]]*```/ }
+  /^[[:space:]]*```/ { if (cur != "") print cur; cur = ""; print; fence = !fence; next }
+  fence { print; next }
+  {
+    if (starts($0) || cur == "") { if (cur != "") print cur; cur = $0; if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^#/) { print cur; cur = "" }; next }
+    line = $0; sub(/^[[:space:]]+/, "", line); cur = cur " " line
+  }
+  END { if (cur != "") print cur }
+'
