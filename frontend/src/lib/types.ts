@@ -17,6 +17,8 @@ export interface Settings {
   agentWrites: boolean;
   agentImport: boolean;
   libraryDir: string;
+  /** Days before the parts catalogue reminder: 0 = 14, −1 = never. */
+  catalogRemindDays?: number;
 }
 
 export interface Config {
@@ -436,6 +438,9 @@ export interface BOMRow {
   part?: string;
   status: 'in library' | 'imported' | 'no datasheet' | 'skipped';
   note?: string;
+  lcsc?: string;
+  /** JLCPCB availability, when the parts catalogue is downloaded. */
+  jlc?: { lcsc: string; library: string; stock: number };
 }
 
 export interface BOMResult {
@@ -569,4 +574,70 @@ export interface UpdateCheck {
   counts?: Record<string, number>;
   recorded: number;
   error?: string;
+}
+
+/** A part in the JLCPCB/LCSC catalogue. */
+export interface CatalogItem {
+  lcsc: string;
+  mpn: string;
+  manufacturer: string;
+  package: string;
+  category: string;
+  subcategory: string;
+  description: string;
+  datasheet: string;
+  stock: number;
+  library: 'basic' | 'preferred' | 'extended';
+  price: number;
+  attributes?: Record<string, string>;
+  /** The library part it resolves to, when already imported. */
+  inLibrary?: string;
+}
+
+export interface CatalogProgress {
+  stage: 'starting' | 'downloading' | 'extracting' | 'checking' | 'done';
+  done: number;
+  total: number;
+}
+
+export interface CatalogStatus {
+  installed: boolean;
+  updating: boolean;
+  parts: number;
+  inStock: number;
+  published: string;
+  downloaded: string;
+  sizeBytes: number;
+  source: string;
+  ageDays: number;
+  remindDays: number;
+  stale: boolean;
+  progress?: CatalogProgress;
+  error?: string;
+}
+
+/** A JLCPCB category and subcategory with part counts. */
+export interface CatalogCategory {
+  category: string;
+  subcategory: string;
+  parts: number;
+  inStock: number;
+}
+
+/** A parameter of a catalogue category, for filtering. */
+export interface CatalogParam {
+  key: string;
+  kind: 'number' | 'text';
+  count: number;
+  unit?: string;
+  min?: number;
+  max?: number;
+  values?: { value: string; count: number }[];
+}
+
+/** A catalogue parameter filter: input is typed ("30V", "10mΩ", "N-Channel"). */
+export interface CatalogFilter {
+  key: string;
+  op: '>=' | '<=' | '=';
+  input: string;
 }

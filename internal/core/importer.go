@@ -42,6 +42,9 @@ type ImportRequest struct {
 	Category     string   `json:"category,omitempty"`
 	// Force re-extracts a datasheet that is already in the library.
 	Force bool `json:"force,omitempty"`
+	// Orderable codes (from a BOM or the parts catalogue) to record as
+	// variants of the imported part.
+	Orderable []string `json:"orderable,omitempty"`
 }
 
 // ImportResult summarizes an import.
@@ -87,6 +90,7 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 				return ImportResult{}, err
 			}
 		}
+		s.addOrderable(ctx, parts, req.Orderable)
 		return ImportResult{Datasheet: d, Parts: parts, Existing: true, Families: d.Families, Took: time.Since(start).Round(time.Millisecond).String()}, nil
 	}
 	// Reading and analysing run in parallel up to the engine's workers;
@@ -110,11 +114,25 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 	s.updateJob(job, func(j *ImportJob) { j.Stage = "analyzing" })
 	res := extract.Analyze(doc, name)
 	<-s.slots
+	// The same datasheet from another URL (TI and others serve slightly
+	// different files per site) is the one already in the library, or a
+	// newer revision of it.
+	same, replaces := s.sameDocument(ctx, res, req)
+	if same != nil {
+		parts, _ := s.Lib.PartsOfDatasheet(ctx, same.ID)
+		s.addOrderable(ctx, parts, req.Orderable)
+		return ImportResult{Datasheet: *same, Parts: parts, Existing: true, Families: same.Families, Took: time.Since(start).Round(time.Millisecond).String()}, nil
+	}
 	file := sha[:16] + "-" + safeName(name)
 	if err := os.WriteFile(s.Lib.DatasheetPath(file), data, 0o644); err != nil {
 		return ImportResult{}, err
 	}
 	in := buildImport(res, doc, req, sha, file, name, src)
+	if replaces != nil {
+		in.Replaces = replaces.ID
+		in.Datasheet.Meta["previousRevision"] = firstNonEmpty(replaces.Meta["revision"], "unknown")
+		in.Datasheet.Meta["previousFile"] = replaces.File
+	}
 	s.updateJob(job, func(j *ImportJob) { j.Stage = "saving" })
 	s.importMu.Lock()
 	id, err := s.Lib.SaveImport(ctx, in)
@@ -127,6 +145,7 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 		return ImportResult{}, err
 	}
 	parts, _ := s.Lib.PartsOfDatasheet(ctx, id)
+	s.addOrderable(ctx, parts, req.Orderable)
 	out := ImportResult{
 		Datasheet: d, Parts: parts, Families: res.Families, Variants: len(res.Variants),
 		Counts: map[string]int{
@@ -137,6 +156,34 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 	}
 	s.emit(EvLibrary, map[string]any{"datasheetId": id, "action": "imported"})
 	return out, nil
+}
+
+// sameDocument finds the library datasheet an import duplicates: every
+// detected part already belongs to one datasheet with the same document
+// number. It returns that datasheet as same when the revision matches too
+// (nothing to import), or as replaces when the import is another revision
+// of it (update it in place). Imports with explicit part numbers and
+// datasheets without a detected document number are left alone.
+func (s *Service) sameDocument(ctx context.Context, res *extract.Result, req ImportRequest) (same, replaces *library.Datasheet) {
+	if len(req.MPNs) > 0 || res.Revision.Doc == "" || len(res.PartNumbers) == 0 {
+		return nil, nil
+	}
+	var dsID int64
+	for _, m := range res.PartNumbers {
+		r, err := s.Lib.Resolve(ctx, m)
+		if err != nil || r.Via != "mpn" || r.Part.DatasheetID == 0 || (dsID != 0 && r.Part.DatasheetID != dsID) {
+			return nil, nil
+		}
+		dsID = r.Part.DatasheetID
+	}
+	d, err := s.Lib.Datasheet(ctx, dsID)
+	if err != nil || d.Meta["revisionDoc"] != res.Revision.Doc {
+		return nil, nil
+	}
+	if d.Meta["revisionRev"] == res.Revision.Rev {
+		return &d, nil
+	}
+	return nil, &d
 }
 
 // addMPNs attaches extra part numbers to an already-imported datasheet.
@@ -197,7 +244,14 @@ func (s *Service) loadPDF(ctx context.Context, req ImportRequest) ([]byte, strin
 	case req.URL != "":
 		return fetchPDF(ctx, req.URL, req.Filename, 1)
 	case req.Lookup != "":
-		return lookupPDF(ctx, req.Lookup)
+		data, name, src, err := lookupPDF(ctx, req.Lookup)
+		if err != nil && s.Catalog.Status(ctx).Installed {
+			// Fall back to the parts catalogue's datasheet link.
+			if d, n, u, cerr := s.catalogLookup(ctx, req.Lookup); cerr == nil {
+				return d, n, u, nil
+			}
+		}
+		return data, name, src, err
 	}
 	return nil, "", "", errors.New("give a path, a URL, a part number to look up, or file data to import")
 }

@@ -1,6 +1,7 @@
 import { useStore } from '../lib/store';
 import { themes } from '../lib/themes';
 import { Switch } from '../components/ui';
+import { CatalogSettings } from '../components/CatalogPanel';
 
 /** Settings: appearance, agent access, server and library. */
 export function SettingsView() {
@@ -61,6 +62,7 @@ export function SettingsView() {
           {row('Allow imports', 'Let agents import datasheets from a URL or a local PDF.', <Switch on={st.agentImport} onChange={(v) => s.saveSettings({ agentImport: v })} />)}
           {row('Follow agent', 'Open what the agent shows automatically (otherwise you get a notification).', <Switch on={st.followAgent} onChange={(v) => s.saveSettings({ followAgent: v })} />)}
         </div>
+        <CatalogSettings />
         <div className="card">
           <h3>Server & library</h3>
           {row(

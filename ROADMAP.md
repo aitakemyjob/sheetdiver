@@ -30,5 +30,5 @@ say so in [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions).
 
 - Library sync through a git repository or shared folder, with merge of
   recorded data.
-- Distributor data (stock, lifecycle, alternates) through optional,
-  explicit integrations.
+- Distributor APIs (Digi-Key, Mouser, with your own keys) for parts the
+  JLCPCB catalogue doesn't carry, and lifecycle status from them.

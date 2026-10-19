@@ -474,3 +474,39 @@ html { font-size: var(--ui-font-size, 13px); }
 .report h2 { font-size: 15px; margin-top: 18px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .report h3 { font-size: 13px; }
 .report details { margin: 6px 0; }
+
+/* Parts catalogue view */
+.catalog { display: flex; flex: 1; min-height: 0; }
+.catalog-cats { width: 250px; flex: none; border-right: 1px solid var(--border); background: var(--bg-1); display: flex; flex-direction: column; min-height: 0; }
+.catalog-cats .panel-body { overflow: auto; flex: 1; padding: 4px 6px 12px; }
+.cat-group, .cat-sub { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; border-radius: 6px; font-size: 12px; }
+.cat-group { padding: 6px 6px; font-weight: 600; }
+.cat-sub { padding: 4px 6px 4px 24px; color: var(--text-2); }
+.cat-group:hover, .cat-sub:hover { background: var(--bg-2); }
+.cat-sub.on { background: var(--accent-soft); color: var(--accent); }
+.catalog-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.catalog-body { flex: 1; display: flex; min-height: 0; }
+.catalog-detail { width: 300px; flex: none; border-left: 1px solid var(--border); background: var(--bg-1); padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.ab-btn.dot { position: relative; }
+.ab-btn.dot::after { content: ''; position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.catalog-filters { gap: 8px; border-top: 0; padding-top: 0; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); font-size: 12px; }
+.filter-chip .input { height: 24px; font-size: 12px; }
+.filter-chip .select { width: auto; min-width: 54px; }
+
+/* Catalogue layout and table */
+.catalog-cats-head { display: flex; align-items: center; padding: 8px 10px; min-height: 46px; border-bottom: 1px solid var(--border); flex: none; }
+.catalog-cats-head .input { width: 100%; }
+.catalog-cats .panel-body { padding-top: 6px; }
+.catalog-filters { min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+.catalog-table th { vertical-align: bottom; }
+.catalog-table th.sortable { cursor: pointer; user-select: none; }
+.catalog-table .part-col { min-width: 170px; max-width: 210px; }
+.catalog-table td.part-col .maker { color: var(--text-3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; margin-top: 1px; }
+.catalog-table th.param-col { white-space: normal; text-align: right; max-width: 130px; min-width: 84px; line-height: 1.25; }
+.catalog-table td.param-col { font-family: var(--font-mono); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.catalog-table th.num-col { text-align: right; white-space: nowrap; }
+.catalog-table td.desc-col { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.catalog-table td { vertical-align: middle; }
+.catalog-detail .dtable td { vertical-align: top; }
+.catalog-detail .dtable td:first-child { width: 55%; }

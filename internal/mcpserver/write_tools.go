@@ -32,6 +32,7 @@ type importManyArgs struct {
 	PartNumbers []string `json:"part_numbers,omitempty" jsonschema:"part numbers to look up at the manufacturers' datasheet URLs"`
 	URLs        []string `json:"urls,omitempty" jsonschema:"PDF or product-page URLs"`
 	Paths       []string `json:"paths,omitempty" jsonschema:"local PDF paths"`
+	LCSC        []string `json:"lcsc,omitempty" jsonschema:"JLCPCB/LCSC part codes (C20917) from search_catalog: imports their datasheets"`
 	Folder      string   `json:"folder,omitempty" jsonschema:"import every PDF in this local folder"`
 	Recursive   bool     `json:"recursive,omitempty" jsonschema:"include subfolders"`
 }
@@ -233,7 +234,7 @@ func (s *Server) registerWrite() {
 
 	addTool(s, &mcp.Tool{Name: "import_datasheets", Description: "Import many datasheets at once, several in parallel: part numbers (looked up at manufacturer sites), URLs, local paths or a whole folder. Returns one line per import with its outcome; failed lookups name the part so you can find its URL.", Annotations: &mcp.ToolAnnotations{Title: "Import datasheets", DestructiveHint: boolPtr(false), IdempotentHint: true, OpenWorldHint: boolPtr(true)}},
 		importing, func(a importManyArgs) string {
-			return fmt.Sprintf("import %d datasheets", len(a.PartNumbers)+len(a.URLs)+len(a.Paths))
+			return fmt.Sprintf("import %d datasheets", len(a.PartNumbers)+len(a.URLs)+len(a.Paths)+len(a.LCSC))
 		}, func(ctx context.Context, a importManyArgs) (result, error) {
 			var reqs []core.ImportRequest
 			for _, m := range a.PartNumbers {
@@ -245,6 +246,15 @@ func (s *Server) registerWrite() {
 			for _, p := range a.Paths {
 				reqs = append(reqs, core.ImportRequest{Path: p})
 			}
+			if len(a.LCSC) > 0 {
+				items, err := c.Catalog.Get(ctx, a.LCSC)
+				if err != nil {
+					return result{}, err
+				}
+				for _, it := range items {
+					reqs = append(reqs, core.CatalogRequest(it))
+				}
+			}
 			if a.Folder != "" {
 				fr, err := core.FolderRequests(a.Folder, a.Recursive)
 				if err != nil {
@@ -253,7 +263,7 @@ func (s *Server) registerWrite() {
 				reqs = append(reqs, fr...)
 			}
 			if len(reqs) == 0 {
-				return result{}, fmt.Errorf("give part_numbers, urls, paths or a folder")
+				return result{}, fmt.Errorf("give part_numbers, lcsc codes, urls, paths or a folder")
 			}
 			out := c.ImportBatch(ctx, reqs)
 			var b strings.Builder

@@ -1,12 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { FileSpreadsheet, FileUp, FolderOpen, Hash, Link2 } from 'lucide-react';
+import { Database, FileSpreadsheet, FileUp, FolderOpen, Hash, Link2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { BOMResult } from '../lib/types';
 import { Modal, Switch } from './ui';
+import { CatalogSearch, libraryTone } from './CatalogPanel';
 
-type Mode = 'files' | 'folder' | 'mpns' | 'urls' | 'bom';
+type Mode = 'files' | 'catalog' | 'folder' | 'mpns' | 'urls' | 'bom';
 
 /** Splits pasted text into entries (one per line, or separated by commas/spaces). */
 export function splitList(text: string): string[] {
@@ -22,13 +23,14 @@ export function ImportDialog() {
   const [mode, setMode] = useState<Mode>('files');
   const modes: [Mode, string, ReactNode][] = [
     ['files', 'Files', <FileUp size={13} key="f" />],
+    ['catalog', 'Catalogue', <Database size={13} key="c" />],
     ['folder', 'Folder', <FolderOpen size={13} key="d" />],
     ['mpns', 'Part numbers', <Hash size={13} key="m" />],
     ['urls', 'URLs', <Link2 size={13} key="u" />],
     ['bom', 'BOM', <FileSpreadsheet size={13} key="b" />],
   ];
   return (
-    <Modal title="Import datasheets" icon={<FileUp size={16} style={{ color: 'var(--accent)' }} />} onClose={() => s.setImportOpen(false)} wide={mode === 'bom'}>
+    <Modal title="Import datasheets" icon={<FileUp size={16} style={{ color: 'var(--accent)' }} />} onClose={() => s.setImportOpen(false)} wide={mode === 'bom' || mode === 'catalog'}>
       <div className="seg" role="tablist">
         {modes.map(([m, label, icon]) => (
           <button key={m} role="tab" aria-selected={mode === m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>
@@ -37,6 +39,7 @@ export function ImportDialog() {
         ))}
       </div>
       {mode === 'files' && <FilesMode />}
+      {mode === 'catalog' && <CatalogSearch />}
       {mode === 'folder' && <FolderMode />}
       {mode === 'mpns' && <ListMode kind="mpns" />}
       {mode === 'urls' && <ListMode kind="urls" />}
@@ -247,6 +250,7 @@ function BOMMode() {
                 <th>BOM part</th>
                 <th>Qty</th>
                 <th>Library part</th>
+                <th>JLC</th>
                 <th>Result</th>
               </tr>
             </thead>
@@ -259,6 +263,15 @@ function BOMMode() {
                   <td className="mono">{r.mpn || <span className="faint">{r.value}</span>}</td>
                   <td className="num">{r.qty}</td>
                   <td className="mono">{r.part ?? ''}</td>
+                  <td title={r.jlc ? `${r.jlc.lcsc}: ${r.jlc.stock.toLocaleString()} in stock` : 'Not in the JLCPCB catalogue (or the catalogue isn\'t downloaded)'}>
+                    {r.jlc ? (
+                      <>
+                        <span className={`badge ${libraryTone[r.jlc.library] ?? ''}`}>{r.jlc.library}</span> <span className="faint">{r.jlc.stock ? r.jlc.stock.toLocaleString() : 'no stock'}</span>
+                      </>
+                    ) : (
+                      <span className="faint">–</span>
+                    )}
+                  </td>
                   <td title={r.note}>
                     <span className={`badge ${{ 'in library': 'ok', imported: 'accent', 'no datasheet': 'warn', skipped: '' }[r.status]}`}>{r.status}</span>
                     {r.note && <div className="faint ellipsis" style={{ maxWidth: 260, fontSize: 11 }}>{r.note}</div>}
@@ -289,7 +302,7 @@ function BOMMode() {
   return (
     <div className="col">
       <div className="faint">
-        A CSV or TSV BOM from KiCad, Altium, JLCPCB and the like: a reference/designator column plus an MPN (or value) column. Each part is found in the library or its datasheet is fetched by
+        A CSV or TSV BOM from KiCad, Altium, JLCPCB and the like: a reference/designator column plus an MPN, LCSC (C-number) or value column. Each part is found in the library or its datasheet is fetched by
         part number; parts that can't be fetched still join the project, marked “no datasheet”. Lines without a part number (most passives) are skipped.
       </div>
       <div
