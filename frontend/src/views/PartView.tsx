@@ -5,6 +5,7 @@ import { categories, figureKinds, headline, relTime, sectionLabels, sig3 } from 
 import { useStore } from '../lib/store';
 import type { Figure, Parameter, PartDetail, Section } from '../lib/types';
 import { Menu } from '../components/Menu';
+import { discouraged, FavoriteStar, StatusBadge, StatusPicker } from '../components/PartStatus';
 import { CategoryBadge, Empty, ErrorBox, Markdown, SourceBadge, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
 
@@ -53,6 +54,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
     <div className="view">
       <div className="part-head">
         <h1>
+          <FavoriteStar part={d.part} size={17} />
           {d.part.mpn}
           {d.part.category && (
             <button className="btn ghost sm" style={{ padding: 0, height: 'auto' }} title={`Compare all ${categories[d.part.category] ?? d.part.category} parts`} onClick={() => s.open({ kind: 'category', title: categories[d.part.category] ?? d.part.category, params: { category: d.part.category, highlight: d.part.mpn } })}>
@@ -60,6 +62,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
             </button>
           )}
           {d.via !== 'mpn' && d.via !== 'id' && d.matched && <span className="badge violet">matched {d.matched} by {d.via}</span>}
+          {discouraged(d.part.status) && <StatusBadge status={d.part.status} />}
         </h1>
         <div className="sub">
           {d.part.manufacturer && <b>{d.part.manufacturer} · </b>}
@@ -96,6 +99,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               </button>
             </>
           )}
+          <StatusPicker part={d.part} />
           <AddToProject mpn={d.part.mpn} />
           {calc && (
             <button className="btn sm" onClick={() => s.open({ kind: 'calc', title: `${calc} ${d.part.mpn}`, params: { kind: calc, part: d.part.mpn } })}>

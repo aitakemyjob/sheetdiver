@@ -23,8 +23,9 @@ say so in [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions).
   graph, with efficiency through the tree.
 - **Component search** beyond the library's key parameters: packages,
   features and conditions ("buck, VIN ≥ 24 V, IOUT ≥ 3 A, SOT-23").
-- **BOM import/export** (KiCad, CSV), and checking a schematic netlist's
-  parts against the library.
+- **BOM export** and checking a schematic netlist's parts against the
+  library (CSV/KiCad BOM import is done).
+- **Alternates:** "find parts like this one" from the comparison data.
 
 ## 0.4 — Sharing
 

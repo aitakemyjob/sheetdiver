@@ -3,7 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob,
 } from './types';
 
 /** Calls a backend method. */
@@ -27,12 +27,18 @@ export const api = {
   reextract: (id: number) => call<ImportResult>('datasheet.reextract', { id }),
   page: (datasheetId: number, page: number) => call<Page>('page.get', { datasheetId, page }),
 
-  parts: (f: { query?: string; category?: string; manufacturer?: string; limit?: number } = {}) => call<Part[]>('parts.list', f),
+  parts: (f: { query?: string; category?: string; manufacturer?: string; favorite?: boolean; status?: string; limit?: number } = {}) => call<Part[]>('parts.list', f),
   categories: () => call<Record<string, number>>('parts.categories'),
   categoryList: () => call<CategoryInfo[]>('categories.list'),
-  compare: (req: { category: string; keys?: string[]; filters?: CompareFilter[]; query?: string; sort?: string; desc?: boolean }) => call<CompareResult>('compare', req),
+  compare: (req: { category: string; keys?: string[]; filters?: CompareFilter[]; query?: string; sort?: string; desc?: boolean; favorite?: boolean; status?: string }) => call<CompareResult>('compare', req),
   part: (part: string) => call<PartDetail>('part.detail', { part }),
-  updatePart: (id: number, u: Partial<Pick<Part, 'mpn' | 'manufacturer' | 'description' | 'category' | 'package' | 'tags'>>) => call<Part>('part.update', { id, ...u }),
+  updatePart: (id: number, u: Partial<Pick<Part, 'mpn' | 'manufacturer' | 'description' | 'category' | 'package' | 'tags' | 'favorite' | 'status'>>) => call<Part>('part.update', { id, ...u }),
+  startImports: (req: { paths?: string[]; urls?: string[]; mpns?: string[]; folder?: string; recursive?: boolean }) => call<ImportJob[]>('imports.start', req),
+  importJobs: () => call<ImportJob[]>('imports.list'),
+  retryImport: (id: number) => call<ImportJob>('imports.retry', { id }),
+  clearImports: () => call<null>('imports.clear'),
+  importBOM: (req: { text?: string; path?: string; filename?: string; project?: string; fetch: boolean }) => call<BOMResult>('bom.import', req),
+  pickFolder: () => call<{ path: string }>('files.pickFolder'),
   addPart: (p: Partial<Part>) => call<Part>('part.add', p),
   deletePart: (id: number) => call<void>('part.delete', { id }),
   setVariants: (id: number, variants: Partial<Variant>[]) => call<void>('part.variants', { id, variants }),

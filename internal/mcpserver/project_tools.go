@@ -246,6 +246,8 @@ type compareArgs struct {
 	Query    string      `json:"query,omitempty" jsonschema:"part number, manufacturer or description fragment"`
 	Sort     string      `json:"sort,omitempty" jsonschema:"a key to sort by (typ value), or mpn"`
 	Desc     bool        `json:"desc,omitempty"`
+	Favorite bool        `json:"favorite,omitempty" jsonschema:"only starred parts"`
+	Status   string      `json:"status,omitempty" jsonschema:"only parts with this status, e.g. preferred"`
 	Show     bool        `json:"show,omitempty" jsonschema:"also open the comparison in SheetDiver"`
 }
 
@@ -271,7 +273,7 @@ func (s *Server) registerCompare() {
 
 	addTool(s, &mcp.Tool{Name: "compare_parts", Description: "Compare the parts of one component type side by side on their key parameters (SI values with min/typ/max), filtered by requirements (vin >= 24 V, iout >= 3 A, iq <= 1 µA…) and sorted. Use it to pick a part for a design from the library.", Annotations: readOnly("Compare parts")},
 		read, func(a compareArgs) string { return "compare " + a.Category }, func(ctx context.Context, a compareArgs) (result, error) {
-			req := core.CompareRequest{Category: a.Category, Keys: a.Keys, Query: a.Query, Sort: a.Sort, Desc: a.Desc}
+			req := core.CompareRequest{Category: a.Category, Keys: a.Keys, Query: a.Query, Sort: a.Sort, Desc: a.Desc, Favorite: a.Favorite, Status: a.Status}
 			for _, f := range a.Filters {
 				v, err := core.ParseQuantity(f.Value)
 				if err != nil {
@@ -297,13 +299,17 @@ func compareText(r core.CompareResult) string {
 	for k, n := range r.Unknown {
 		fmt.Fprintf(&b, "(%d parts excluded only because they have no %s value)\n", n, k)
 	}
-	b.WriteString("\n| part | manufacturer |")
+	b.WriteString("\n| part | manufacturer | status |")
 	for _, col := range r.Columns {
 		fmt.Fprintf(&b, " %s |", col.Key)
 	}
-	b.WriteString("\n|---|---|" + strings.Repeat("---|", len(r.Columns)) + "\n")
+	b.WriteString("\n|---|---|---|" + strings.Repeat("---|", len(r.Columns)) + "\n")
 	for _, row := range r.Rows {
-		fmt.Fprintf(&b, "| %s | %s |", row.Part.MPN, row.Part.Manufacturer)
+		st := row.Part.Status
+		if row.Part.Favorite {
+			st = strings.TrimSpace("★ " + st)
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s |", row.Part.MPN, row.Part.Manufacturer, st)
 		for _, col := range r.Columns {
 			v, ok := row.Values[col.Key]
 			if !ok {

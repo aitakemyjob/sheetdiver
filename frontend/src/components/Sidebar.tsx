@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Bot, FileUp, FolderKanban, Plus, Star } from 'lucide-react';
+import { Bot, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, relTime } from '../lib/format';
-import { useActiveTab, useStore } from '../lib/store';
+import { finished, useActiveTab, useStore } from '../lib/store';
+import { jobProgress } from './ImportQueue';
+import { FavoriteStar, StatusBadge } from './PartStatus';
 import { CategoryBadge, ErrorBox, useAsync } from './ui';
 
 /** The sidebar: library, projects or agent activity. */
@@ -24,11 +26,13 @@ function LibraryPanel() {
   const tab = useActiveTab();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
-  const parts = useAsync(() => api.parts({ query: q, category: cat }), [q, cat, s.libraryVersion]);
+  const [fav, setFav] = useState(false);
+  const parts = useAsync(() => api.parts({ query: q, category: cat, favorite: fav }), [q, cat, fav, s.libraryVersion]);
   const cats = useAsync(() => api.categories(), [s.libraryVersion]);
   const activePart = tab?.kind === 'part' ? String(tab.params.part ?? '').toUpperCase() : '';
   const catList = useMemo(() => Object.entries(cats.data ?? {}).filter(([c]) => c).sort((a, b) => b[1] - a[1]), [cats.data]);
-  const imports = Object.values(s.imports);
+  const active = Object.values(s.jobs).filter((j) => !finished(j));
+  const running = active.filter((j) => j.status === 'running');
   return (
     <>
       <div className="panel-head">
@@ -37,6 +41,12 @@ function LibraryPanel() {
           {parts.data ? `${parts.data.length} parts` : ''}
         </span>
         <div className="actions">
+          <button className={`btn ghost icon sm ${fav ? 'on' : ''}`} title={fav ? 'Show all parts' : 'Show favorites only'} aria-pressed={fav} onClick={() => setFav(!fav)}>
+            <Star size={14} fill={fav ? 'currentColor' : 'none'} style={fav ? { color: 'var(--warn)' } : undefined} />
+          </button>
+          <button className="btn ghost icon sm" title="Import queue" onClick={() => s.setQueueOpen(true)}>
+            <ListChecks size={14} />
+          </button>
           <button className="btn ghost icon sm" title="Import datasheets" onClick={() => s.setImportOpen(true)}>
             <FileUp size={14} />
           </button>
@@ -54,23 +64,29 @@ function LibraryPanel() {
           ))}
         </div>
       )}
-      {imports.map((p) => (
-        <div className="import-progress" key={p.filename}>
+      {active.length === 1 && (
+        <div className="import-progress click" onClick={() => s.setQueueOpen(true)}>
           <div className="ellipsis">
-            Importing <b>{p.filename}</b>
+            Importing <b>{active[0].name}</b>
           </div>
-          <div className="faint">
-            {p.stage}
-            {p.total ? ` · page ${p.done} of ${p.total}` : ''}
-          </div>
+          <div className="faint">{jobProgress(active[0])}</div>
           <div className="bar">
-            <i style={{ width: `${p.total ? (100 * p.done) / p.total : 10}%` }} />
+            <i style={{ width: `${active[0].total ? (100 * active[0].done) / active[0].total : 10}%` }} />
           </div>
         </div>
-      ))}
+      )}
+      {active.length > 1 && (
+        <div className="import-progress click" onClick={() => s.setQueueOpen(true)} title="Show the import queue">
+          <div>
+            Importing <b>{active.length}</b> datasheets
+          </div>
+          <div className="faint ellipsis">{running.map((j) => j.name).join(', ') || 'queued'}</div>
+        </div>
+      )}
       <div className="panel-body">
         <ErrorBox error={parts.error} />
-        {parts.data?.length === 0 && !q && !cat && (
+        {parts.data?.length === 0 && fav && <div className="faint" style={{ padding: 10 }}>No favorites yet: star a part to keep it here.</div>}
+        {parts.data?.length === 0 && !q && !cat && !fav && (
           <div className="dropzone" style={{ margin: 8 }} onClick={() => s.setImportOpen(true)}>
             <FileUp size={22} />
             <div style={{ marginTop: 8 }}>Drop datasheet PDFs here or click to import</div>
@@ -81,6 +97,9 @@ function LibraryPanel() {
             <div className="mpn">
               {p.mpn}
               <CategoryBadge category={p.category} label={categories[p.category]} />
+              <StatusBadge status={p.status} />
+              <div className="grow" />
+              <FavoriteStar part={p} size={13} />
             </div>
             <div className="desc" title={p.description}>
               {p.manufacturer ? `${p.manufacturer} · ` : ''}

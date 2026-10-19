@@ -79,6 +79,9 @@ type CompareRequest struct {
 	// Query keeps parts whose number, manufacturer or description
 	// contains it.
 	Query string `json:"query,omitempty"`
+	// Favorite keeps starred parts; Status keeps parts with that status.
+	Favorite bool   `json:"favorite,omitempty"`
+	Status   string `json:"status,omitempty"`
 	// Sort is a key (by its natural value) or "mpn"; Desc reverses it.
 	Sort string `json:"sort,omitempty"`
 	Desc bool   `json:"desc,omitempty"`
@@ -130,12 +133,15 @@ type CompareResult struct {
 // over ratings), converted to SI.
 func (s *Service) Compare(ctx context.Context, req CompareRequest) (CompareResult, error) {
 	out := CompareResult{Category: req.Category, Rows: []CompareRow{}, Unknown: map[string]int{}}
-	parts, err := s.Lib.Parts(ctx, library.PartFilter{Category: req.Category})
+	parts, err := s.Lib.Parts(ctx, library.PartFilter{Category: req.Category, Favorite: req.Favorite, Status: req.Status})
 	if err != nil {
 		return out, err
 	}
 	if req.Category == "" {
 		return out, fmt.Errorf("give a category; one of: %s", strings.Join(s.categoryNames(ctx), ", "))
+	}
+	if len(parts) == 0 && (req.Favorite || req.Status != "") {
+		return out, nil
 	}
 	if len(parts) == 0 {
 		return out, fmt.Errorf("no parts of type %q; types in the library: %s", req.Category, strings.Join(s.categoryNames(ctx), ", "))

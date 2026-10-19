@@ -9,6 +9,19 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **Batch import:** whole folders (recursively), lists of part numbers or
+  URLs, and many dropped files at once, extracted in parallel on a pool of
+  PDF engines. An import queue shows progress, results and failures, with
+  retry; `import_datasheets` does the same for agents.
+- **BOM import** (`sheetdiver bom`, Import → BOM, MCP `import_bom`): CSV/TSV
+  from KiCad, Altium, JLCPCB and similar; designator ranges expanded;
+  parts resolved through orderable codes or fetched by part number;
+  unfetchable parts kept as "no datasheet" placeholders and flagged in
+  project checks.
+- **Favorites and part status** (preferred, approved, avoid, NRND, EOL):
+  stars and badges in the library, part view and comparisons; filters in
+  the library, comparisons, `list_parts` and `compare_parts`; project
+  checks warn about discouraged parts.
 - **Import** datasheet PDFs by drag-and-drop, file picker, URL (including
   product pages that link to the PDF), part number (TI, ST, ADI, onsemi,
   Nexperia and Diodes datasheet URLs), or `sheetdiver import`. PDFs are

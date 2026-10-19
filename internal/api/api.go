@@ -28,6 +28,8 @@ type API struct {
 	methods map[string]handler
 	// PickPDFs is provided by the desktop shell; nil in browser mode.
 	PickPDFs func() ([]string, error)
+	// PickFolder chooses a folder of datasheets (desktop only).
+	PickFolder func() (string, error)
 	// OpenFile opens a local file in its default application (desktop
 	// only; the browser opens PDFs in a tab instead).
 	OpenFile func(path string) error
@@ -91,6 +93,7 @@ type AppState struct {
 	CanOpenFile bool              `json:"canOpenFile"`
 	CanSaveFile bool              `json:"canSaveFile"`
 	Keys        map[string]string `json:"keys"`
+	Statuses    map[string]string `json:"statuses"`
 	Calculators map[string]string `json:"calculators"`
 }
 
@@ -110,7 +113,7 @@ func (a *API) registerApp() {
 	a.methods["app.state"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		return AppState{
 			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(),
-			CanPickFile: a.PickPDFs != nil, CanOpenFile: a.OpenFile != nil, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
+			CanPickFile: a.PickPDFs != nil, CanOpenFile: a.OpenFile != nil, Statuses: library.Statuses, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
 		}, nil
 	})
 	a.methods["settings.update"] = method(func(ctx context.Context, in config.Settings) (any, error) {
@@ -127,6 +130,13 @@ func (a *API) registerApp() {
 		}
 		paths, err := a.PickPDFs()
 		return map[string]any{"paths": paths}, err
+	})
+	a.methods["files.pickFolder"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		if a.PickFolder == nil {
+			return nil, fmt.Errorf("the folder picker needs the desktop app; type the folder path instead")
+		}
+		p, err := a.PickFolder()
+		return map[string]string{"path": p}, err
 	})
 	a.methods["file.save"] = method(func(ctx context.Context, in struct {
 		Name string `json:"name"`
@@ -150,6 +160,57 @@ func (a *API) registerLibrary() {
 	a.methods["datasheets.import"] = method(func(ctx context.Context, in core.ImportRequest) (any, error) {
 		in.Data = nil // uploads go through /api/upload
 		return c.Import(ctx, in)
+	})
+	a.methods["imports.start"] = method(func(ctx context.Context, in struct {
+		Paths     []string `json:"paths"`
+		URLs      []string `json:"urls"`
+		MPNs      []string `json:"mpns"`
+		Folder    string   `json:"folder"`
+		Recursive bool     `json:"recursive"`
+	}) (any, error) {
+		var reqs []core.ImportRequest
+		for _, p := range in.Paths {
+			reqs = append(reqs, core.ImportRequest{Path: p})
+		}
+		for _, u := range in.URLs {
+			reqs = append(reqs, core.ImportRequest{URL: u})
+		}
+		for _, m := range in.MPNs {
+			reqs = append(reqs, core.ImportRequest{Lookup: m})
+		}
+		if in.Folder != "" {
+			fr, err := core.FolderRequests(in.Folder, in.Recursive)
+			if err != nil {
+				return nil, err
+			}
+			if len(fr) == 0 {
+				return nil, fmt.Errorf("no PDFs in %s", in.Folder)
+			}
+			reqs = append(reqs, fr...)
+		}
+		if len(reqs) == 0 {
+			return nil, fmt.Errorf("nothing to import")
+		}
+		return c.StartImports(reqs), nil
+	})
+	a.methods["imports.list"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.ImportJobs(), nil })
+	a.methods["imports.retry"] = method(func(ctx context.Context, in struct {
+		ID int `json:"id"`
+	}) (any, error) {
+		return c.RetryImport(in.ID)
+	})
+	a.methods["imports.clear"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		c.ClearImports()
+		return nil, nil
+	})
+	a.methods["bom.import"] = method(func(ctx context.Context, in struct {
+		Text     string `json:"text"`
+		Path     string `json:"path"`
+		Filename string `json:"filename"`
+		Project  string `json:"project"`
+		Fetch    bool   `json:"fetch"`
+	}) (any, error) {
+		return c.ImportBOM(ctx, core.BOMRequest{Data: []byte(in.Text), Path: in.Path, Filename: in.Filename, Project: in.Project, Fetch: in.Fetch})
 	})
 	a.methods["datasheets.list"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Lib.Datasheets(ctx) })
 	a.methods["datasheet.get"] = method(func(ctx context.Context, in idReq) (any, error) {

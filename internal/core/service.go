@@ -47,8 +47,11 @@ type Service struct {
 	mu      sync.Mutex
 	mcp     MCPStatus
 	session session
-	// importMu serializes imports (one PDF engine, one writer).
+	// importMu serializes saving imports (one writer, and two imports of
+	// the same file must not race); slots bounds concurrent extraction.
 	importMu sync.Mutex
+	slots    chan struct{}
+	jobs     jobs
 }
 
 // MCPStatus says whether the MCP endpoint is listening.
@@ -64,12 +67,14 @@ func New(cfg *config.Store, version string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	engine := pdf.NewEngine(pdf.DefaultCacheDir())
 	return &Service{
 		Config:  cfg,
 		Lib:     lib,
-		Engine:  pdf.NewEngine(pdf.DefaultCacheDir()),
+		Engine:  engine,
 		Bus:     events.NewBus(),
 		Version: version,
+		slots:   make(chan struct{}, engine.Workers),
 	}, nil
 }
 

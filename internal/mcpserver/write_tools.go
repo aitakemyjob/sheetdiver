@@ -28,6 +28,22 @@ type importArgs struct {
 	Show         bool     `json:"show,omitempty"`
 }
 
+type importManyArgs struct {
+	PartNumbers []string `json:"part_numbers,omitempty" jsonschema:"part numbers to look up at the manufacturers' datasheet URLs"`
+	URLs        []string `json:"urls,omitempty" jsonschema:"PDF or product-page URLs"`
+	Paths       []string `json:"paths,omitempty" jsonschema:"local PDF paths"`
+	Folder      string   `json:"folder,omitempty" jsonschema:"import every PDF in this local folder"`
+	Recursive   bool     `json:"recursive,omitempty" jsonschema:"include subfolders"`
+}
+
+type bomArgs struct {
+	CSV     string `json:"csv,omitempty" jsonschema:"the BOM as CSV/TSV text (KiCad, Altium, JLCPCB exports): reference/designator column plus MPN (or value) and optionally quantity, manufacturer, description"`
+	Path    string `json:"path,omitempty" jsonschema:"or a local BOM file"`
+	Project string `json:"project,omitempty" jsonschema:"project to fill (created if missing; default: the file name)"`
+	Fetch   *bool  `json:"fetch,omitempty" jsonschema:"download datasheets for parts not in the library by part number (default true)"`
+	Show    bool   `json:"show,omitempty"`
+}
+
 type updatePartArgs struct {
 	Part         string   `json:"part" jsonschema:"part number or id"`
 	MPN          *string  `json:"mpn,omitempty" jsonschema:"rename the part number"`
@@ -39,6 +55,8 @@ type updatePartArgs struct {
 	AddVariants  []string `json:"add_variants,omitempty" jsonschema:"orderable codes of this part to add (e.g. TPS563200DDCR)"`
 	AddParts     []string `json:"add_parts,omitempty" jsonschema:"more base part numbers covered by the same datasheet"`
 	Families     []string `json:"families,omitempty" jsonschema:"set the datasheet's family patterns, x = any character (STM32U545xx, TPS56x200)"`
+	Favorite     *bool    `json:"favorite,omitempty" jsonschema:"star or unstar the part"`
+	Status       *string  `json:"status,omitempty" jsonschema:"preferred, approved, avoid, nrnd (not recommended for new designs), eol, or empty to clear"`
 }
 
 type paramInput struct {
@@ -213,13 +231,84 @@ func (s *Server) registerWrite() {
 			return text(b.String()), nil
 		})
 
+	addTool(s, &mcp.Tool{Name: "import_datasheets", Description: "Import many datasheets at once, several in parallel: part numbers (looked up at manufacturer sites), URLs, local paths or a whole folder. Returns one line per import with its outcome; failed lookups name the part so you can find its URL.", Annotations: &mcp.ToolAnnotations{Title: "Import datasheets", DestructiveHint: boolPtr(false), IdempotentHint: true, OpenWorldHint: boolPtr(true)}},
+		importing, func(a importManyArgs) string {
+			return fmt.Sprintf("import %d datasheets", len(a.PartNumbers)+len(a.URLs)+len(a.Paths))
+		}, func(ctx context.Context, a importManyArgs) (result, error) {
+			var reqs []core.ImportRequest
+			for _, m := range a.PartNumbers {
+				reqs = append(reqs, core.ImportRequest{Lookup: m})
+			}
+			for _, u := range a.URLs {
+				reqs = append(reqs, core.ImportRequest{URL: u})
+			}
+			for _, p := range a.Paths {
+				reqs = append(reqs, core.ImportRequest{Path: p})
+			}
+			if a.Folder != "" {
+				fr, err := core.FolderRequests(a.Folder, a.Recursive)
+				if err != nil {
+					return result{}, err
+				}
+				reqs = append(reqs, fr...)
+			}
+			if len(reqs) == 0 {
+				return result{}, fmt.Errorf("give part_numbers, urls, paths or a folder")
+			}
+			out := c.ImportBatch(ctx, reqs)
+			var b strings.Builder
+			counts := map[string]int{}
+			for _, o := range out {
+				counts[o.Job.Status]++
+			}
+			fmt.Fprintf(&b, "%d imported, %d already in the library, %d failed\n", counts[core.JobDone], counts[core.JobExisting], counts[core.JobFailed])
+			for _, o := range out {
+				j := o.Job
+				switch j.Status {
+				case core.JobFailed:
+					fmt.Fprintf(&b, "FAILED %s: %s\n", j.Source, j.Error)
+				default:
+					fmt.Fprintf(&b, "%s %s → %s\n", j.Status, j.Source, strings.Join(j.Parts, ", "))
+				}
+			}
+			return text(b.String()), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "import_bom", Description: "Build a project from a bill of materials (CSV/TSV text or file from KiCad, Altium, JLCPCB…). Each line's part is found in the library or its datasheet is downloaded by part number; parts that can't be fetched still join the project marked 'no datasheet'. Lines without a part number (most passives) are skipped. Then set_rail and add currents, and get_project checks the board.", Annotations: &mcp.ToolAnnotations{Title: "Import BOM", DestructiveHint: boolPtr(false), IdempotentHint: true, OpenWorldHint: boolPtr(true)}},
+		write, func(a bomArgs) string { return "import BOM " + firstNonEmpty(a.Path, a.Project) }, func(ctx context.Context, a bomArgs) (result, error) {
+			fetch := a.Fetch == nil || *a.Fetch
+			if fetch {
+				if err := c.AgentImport(); err != nil {
+					return result{}, err
+				}
+			}
+			res, err := c.ImportBOM(ctx, core.BOMRequest{Data: []byte(a.CSV), Path: a.Path, Project: a.Project, Fetch: fetch})
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "project", Project: res.Project})
+			}
+			var b strings.Builder
+			fmt.Fprintf(&b, "project %s: %d in library, %d imported, %d without datasheet, %d skipped\n", res.Project,
+				res.Counts[core.BOMInLibrary], res.Counts[core.BOMImported], res.Counts[core.BOMNoDatasheet], res.Counts[core.BOMSkipped])
+			for _, r := range res.Rows {
+				fmt.Fprintf(&b, "%s ×%d %s → %s [%s]", strings.Join(r.Designators, ","), r.Qty, firstNonEmpty(r.MPN, r.Value), firstNonEmpty(r.Part, "–"), r.Status)
+				if r.Note != "" {
+					fmt.Fprintf(&b, " — %s", r.Note)
+				}
+				b.WriteString("\n")
+			}
+			return text(b.String()), nil
+		})
+
 	addTool(s, &mcp.Tool{Name: "update_part", Description: "Correct a part: number, manufacturer, description, category, package, tags; add orderable variants or more part numbers covered by the same datasheet; set the datasheet's family patterns.", Annotations: writes("Update part", true)},
 		write, func(a updatePartArgs) string { return "update part " + a.Part }, func(ctx context.Context, a updatePartArgs) (result, error) {
 			r, err := c.ResolvePart(ctx, a.Part)
 			if err != nil {
 				return result{}, err
 			}
-			u := library.PartUpdate{MPN: a.MPN, Manufacturer: a.Manufacturer, Description: a.Description, Category: a.Category, Package: a.Package}
+			u := library.PartUpdate{MPN: a.MPN, Manufacturer: a.Manufacturer, Description: a.Description, Category: a.Category, Package: a.Package, Favorite: a.Favorite, Status: a.Status}
 			if a.Tags != nil {
 				u.Tags = &a.Tags
 			}

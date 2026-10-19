@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -321,5 +324,215 @@ func TestParseQuantity(t *testing.T) {
 	}
 	if _, err := ParseQuantity("lots"); err == nil {
 		t.Error("garbage is rejected")
+	}
+}
+
+func TestBatchAndFolderImport(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	for _, m := range []string{"ZX7001", "ZX7002", "ZX7003"} {
+		if err := os.WriteFile(filepath.Join(dir, strings.ToLower(m)+".pdf"), testutil.Mini(m, "Step-Down Converter"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	os.MkdirAll(filepath.Join(dir, "sub"), 0o755)
+	os.WriteFile(filepath.Join(dir, "sub", "zx7004.pdf"), testutil.Mini("ZX7004", "Step-Down Converter"), 0o644)
+	os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a pdf"), 0o644)
+	flat, err := FolderRequests(dir, false)
+	if err != nil || len(flat) != 3 {
+		t.Fatalf("folder = %d %v", len(flat), err)
+	}
+	all, _ := FolderRequests(dir, true)
+	if len(all) != 4 {
+		t.Fatalf("recursive folder = %d", len(all))
+	}
+	// One duplicate and one broken file in the batch.
+	reqs := append(all, ImportRequest{Data: testutil.Datasheet(), Filename: "dup.pdf"}, ImportRequest{Path: filepath.Join(dir, "notes.txt")})
+	out := s.ImportBatch(ctx, reqs)
+	status := map[string]int{}
+	for _, o := range out {
+		status[o.Job.Status]++
+	}
+	if status[JobDone] != 4 || status[JobExisting] != 1 || status[JobFailed] != 1 {
+		t.Fatalf("statuses = %v", status)
+	}
+	for _, m := range []string{"ZX7001", "ZX7004"} {
+		if r, err := s.ResolvePart(ctx, m); err != nil || r.Part.Category != "buck" {
+			t.Errorf("%s: %+v %v", m, r.Part, err)
+		}
+	}
+	jobs := s.ImportJobs()
+	var failed ImportJob
+	for _, j := range jobs {
+		if j.Status == JobFailed {
+			failed = j
+		}
+	}
+	if failed.ID == 0 || !strings.Contains(failed.Error, "not a PDF") {
+		t.Fatalf("failed job = %+v", failed)
+	}
+	for _, j := range jobs {
+		if j.Status == JobDone {
+			if _, err := s.RetryImport(j.ID); err == nil {
+				t.Error("only failed jobs can be retried")
+			}
+			break
+		}
+	}
+	s.ClearImports()
+	if left := s.ImportJobs(); len(left) != 0 {
+		t.Errorf("cleared queue still has %d jobs", len(left))
+	}
+}
+
+func TestParseBOM(t *testing.T) {
+	kicad := "\"Reference\",\"Value\",\"Footprint\",\"Qty\",\"MPN\",\"Manufacturer\"\n" +
+		"\"C1,C2\",\"10uF\",\"C_0805\",\"2\",\"\",\"\"\n" +
+		"\"U1\",\"TPS563200\",\"SOT-23-6\",\"1\",\"TPS563200DDCR\",\"Texas Instruments\"\n" +
+		"\"U2\",\"ZX7001\",\"SOT-23-6\",\"1\",\"\",\"\"\n" +
+		"\"R1-R4\",\"10k\",\"R_0402\",\"\",\"\",\"\"\n"
+	lines, err := ParseBOM([]byte(kicad))
+	if err != nil || len(lines) != 4 {
+		t.Fatalf("lines = %+v %v", lines, err)
+	}
+	if l := lines[0]; l.Qty != 2 || strings.Join(l.Designators, " ") != "C1 C2" || l.MPN != "" {
+		t.Errorf("passives have no part number: %+v", l)
+	}
+	if l := lines[1]; l.MPN != "TPS563200DDCR" || l.Manufacturer != "Texas Instruments" {
+		t.Errorf("MPN column: %+v", l)
+	}
+	if l := lines[2]; l.MPN != "ZX7001" {
+		t.Errorf("a part-number Value stands in for the MPN: %+v", l)
+	}
+	if l := lines[3]; l.Qty != 4 || l.Designators[3] != "R4" {
+		t.Errorf("ranges expand: %+v", l)
+	}
+	semi := "Designator;Manufacturer Part Number;Quantity\nU1;ZX7002;1\n"
+	if lines, err := ParseBOM([]byte(semi)); err != nil || lines[0].MPN != "ZX7002" {
+		t.Errorf("semicolons: %+v %v", lines, err)
+	}
+	if _, err := ParseBOM([]byte("a,b\n1,2\n")); err == nil {
+		t.Error("a CSV without BOM columns is rejected")
+	}
+}
+
+func TestImportBOMFetchesByPartNumber(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	// A stand-in manufacturer site serving datasheets by lower-case part
+	// number, like ti.com's symlink URLs.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/zx7001.pdf":
+			w.Write(testutil.Mini("ZX7001", "Step-Down Converter"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	saved := datasheetURLs
+	datasheetURLs = []struct {
+		pattern string
+		upper   bool
+	}{{srv.URL + "/%s.pdf", false}}
+	defer func() { datasheetURLs = saved }()
+
+	bom := "Reference,Value,MPN,Qty\nC1,10uF,,1\nU1,,SD1234DDCR,1\nU2,,ZX7001TR,1\nU3,,QQ9999,2\n"
+	res, err := s.ImportBOM(ctx, BOMRequest{Data: []byte(bom), Filename: "board-a.csv", Fetch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Project != "board-a" {
+		t.Errorf("project = %q", res.Project)
+	}
+	got := map[string]BOMRow{}
+	for _, r := range res.Rows {
+		got[strings.Join(r.Designators, ",")] = r
+	}
+	if r := got["U1"]; r.Status != BOMInLibrary || r.Part != "SD1234" {
+		t.Errorf("U1 = %+v", r)
+	}
+	if r := got["U2"]; r.Status != BOMImported || r.Part != "ZX7001" {
+		t.Errorf("U2 fetched by its base number = %+v", r)
+	}
+	if r := got["U3"]; r.Status != BOMNoDatasheet || !strings.Contains(r.Note, "no datasheet for QQ9999") {
+		t.Errorf("U3 = %+v", r)
+	}
+	if r := got["C1"]; r.Status != BOMSkipped {
+		t.Errorf("C1 = %+v", r)
+	}
+	d, err := s.ProjectDetail(ctx, "board-a")
+	if err != nil || len(d.Parts) != 3 {
+		t.Fatalf("project parts = %+v %v", d.Parts, err)
+	}
+	var u1 library.ProjectPart
+	for _, p := range d.Parts {
+		if p.Designator == "U1" {
+			u1 = p
+		}
+		if p.Designator == "U3" && (p.HasDatasheet || p.Qty != 2) {
+			t.Errorf("placeholder = %+v", p)
+		}
+	}
+	if u1.Variant != "SD1234DDCR" {
+		t.Errorf("the BOM's orderable code is kept: %+v", u1)
+	}
+	warned := false
+	for _, c := range d.Checks {
+		if strings.Contains(c.Message, "QQ9999) has no datasheet") {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Errorf("checks = %+v", d.Checks)
+	}
+	// Importing the same BOM again doesn't duplicate project entries.
+	if _, err := s.ImportBOM(ctx, BOMRequest{Data: []byte(bom), Project: "board-a", Fetch: true}); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := s.ProjectDetail(ctx, "board-a"); len(d.Parts) != 3 {
+		t.Errorf("re-import duplicated entries: %d", len(d.Parts))
+	}
+}
+
+func TestStatusesInProjectsAndComparisons(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	r, _ := s.ResolvePart(ctx, "SD1235")
+	eol, yes := "eol", true
+	if _, err := s.Lib.UpdatePart(ctx, r.Part.ID, library.PartUpdate{Status: &eol, Favorite: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Lib.CreateProject(ctx, "p", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddToProject(ctx, "p", "SD1235", library.ProjectPart{Designator: "U1"}); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := s.ProjectDetail(ctx, "p")
+	found := false
+	for _, c := range d.Checks {
+		found = found || (c.Level == calc.Warn && strings.Contains(c.Message, "marked EOL"))
+	}
+	if !found {
+		t.Errorf("an end-of-life part is flagged: %+v", d.Checks)
+	}
+	res, _ := s.Compare(ctx, CompareRequest{Category: "buck", Favorite: true})
+	if len(res.Rows) != 1 || res.Rows[0].Part.MPN != "SD1235" || res.Rows[0].Part.Status != "eol" {
+		t.Errorf("favorites in comparisons = %+v", res.Rows)
+	}
+}
+
+func TestLookupCandidates(t *testing.T) {
+	got := lookupCandidates("max77801ewp+t")
+	if strings.Join(got, " ") != "MAX77801EWP+T MAX77801EWP MAX77801" {
+		t.Errorf("candidates = %v", got)
+	}
+	if u := orderedURLs("MAX77801"); !strings.Contains(u[0].pattern, "analog.com") {
+		t.Errorf("Maxim parts try ADI first: %v", u[0])
+	}
+	if u := orderedURLs("TPS563200"); !strings.Contains(u[0].pattern, "ti.com") {
+		t.Errorf("TI first: %v", u[0])
 	}
 }

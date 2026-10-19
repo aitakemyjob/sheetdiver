@@ -41,20 +41,23 @@ type Rail struct {
 // role and the rails it draws from and drives. ITyp and IMax are the
 // current (amps) each instance draws from its supply rail.
 type ProjectPart struct {
-	ID         int64    `json:"id"`
-	ProjectID  int64    `json:"projectId"`
-	PartID     int64    `json:"partId"`
-	MPN        string   `json:"mpn"`
-	Category   string   `json:"category"`
-	Designator string   `json:"designator,omitempty"`
-	Qty        int      `json:"qty"`
-	Role       string   `json:"role,omitempty"`
-	SupplyRail string   `json:"supplyRail,omitempty"`
-	OutputRail string   `json:"outputRail,omitempty"`
-	ITyp       *float64 `json:"iTyp,omitempty"`
-	IMax       *float64 `json:"iMax,omitempty"`
-	Variant    string   `json:"variant,omitempty"`
-	Notes      string   `json:"notes,omitempty"`
+	ID        int64  `json:"id"`
+	ProjectID int64  `json:"projectId"`
+	PartID    int64  `json:"partId"`
+	MPN       string `json:"mpn"`
+	Category  string `json:"category"`
+	Status    string `json:"status,omitempty"`
+	// HasDatasheet is false for BOM placeholders not yet imported.
+	HasDatasheet bool     `json:"hasDatasheet"`
+	Designator   string   `json:"designator,omitempty"`
+	Qty          int      `json:"qty"`
+	Role         string   `json:"role,omitempty"`
+	SupplyRail   string   `json:"supplyRail,omitempty"`
+	OutputRail   string   `json:"outputRail,omitempty"`
+	ITyp         *float64 `json:"iTyp,omitempty"`
+	IMax         *float64 `json:"iMax,omitempty"`
+	Variant      string   `json:"variant,omitempty"`
+	Notes        string   `json:"notes,omitempty"`
 }
 
 // Calculation is a saved calculator run.
@@ -209,7 +212,7 @@ func (s *Store) DeleteRail(ctx context.Context, projectID int64, name string) er
 
 // ProjectParts lists a project's parts (its BOM).
 func (s *Store) ProjectParts(ctx context.Context, projectID int64) ([]ProjectPart, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT pp.id, pp.part_id, p.mpn, p.category, pp.designator, pp.qty, pp.role, pp.supply_rail, pp.output_rail, pp.i_typ, pp.i_max, pp.variant, pp.notes
+	rows, err := s.db.QueryContext(ctx, `SELECT pp.id, pp.part_id, p.mpn, p.category, p.status, p.datasheet_id IS NOT NULL, pp.designator, pp.qty, pp.role, pp.supply_rail, pp.output_rail, pp.i_typ, pp.i_max, pp.variant, pp.notes
 		FROM project_parts pp JOIN parts p ON p.id = pp.part_id WHERE pp.project_id = ? ORDER BY pp.designator, p.mpn`, projectID)
 	if err != nil {
 		return nil, err
@@ -219,7 +222,7 @@ func (s *Store) ProjectParts(ctx context.Context, projectID int64) ([]ProjectPar
 	for rows.Next() {
 		pp := ProjectPart{ProjectID: projectID}
 		var it, im sql.NullFloat64
-		if err := rows.Scan(&pp.ID, &pp.PartID, &pp.MPN, &pp.Category, &pp.Designator, &pp.Qty, &pp.Role, &pp.SupplyRail, &pp.OutputRail, &it, &im, &pp.Variant, &pp.Notes); err != nil {
+		if err := rows.Scan(&pp.ID, &pp.PartID, &pp.MPN, &pp.Category, &pp.Status, &pp.HasDatasheet, &pp.Designator, &pp.Qty, &pp.Role, &pp.SupplyRail, &pp.OutputRail, &it, &im, &pp.Variant, &pp.Notes); err != nil {
 			return nil, err
 		}
 		pp.ITyp, pp.IMax = floatPtr(it), floatPtr(im)

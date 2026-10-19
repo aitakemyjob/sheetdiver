@@ -448,3 +448,20 @@ html { font-size: var(--ui-font-size, 13px); }
 .dtable.compare tr.filters th { top: 31px; padding-top: 2px; text-transform: none; letter-spacing: 0; }
 .dtable.compare tr.hl td { background: var(--accent-soft); }
 .dtable.compare td.num a:hover { text-decoration: underline; }
+
+/* Favorites */
+.star { border: 0; background: transparent; padding: 2px; margin: -2px; border-radius: 4px; cursor: pointer; color: var(--text-3); display: inline-flex; align-items: center; flex: none; }
+.star:hover { color: var(--warn); background: var(--bg-3); }
+.star.on { color: var(--warn); }
+.part-row .star { opacity: 0; }
+.part-row:hover .star, .part-row .star.on { opacity: 1; }
+
+/* Import queue */
+.queue { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow: auto; }
+.queue-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: 12px; }
+.queue-row:hover { background: var(--bg-2); }
+.queue-row .bar { margin-top: 4px; }
+.err-text { color: var(--err); }
+.seg + * { margin-top: 2px; }
+.import-progress.click { cursor: pointer; }
+.import-progress.click:hover { border-color: var(--border-strong); }

@@ -8,6 +8,7 @@ import { StatusBar } from './components/StatusBar';
 import { Toasts } from './components/Toasts';
 import { ConnectAgent } from './components/ConnectAgent';
 import { ImportDialog } from './components/ImportDialog';
+import { ImportQueue } from './components/ImportQueue';
 import { Spinner } from './components/ui';
 import { ViewHost } from './views/ViewHost';
 
@@ -107,10 +108,11 @@ export function App() {
       <StatusBar />
       <Toasts />
       {s.connectOpen && <ConnectAgent />}
+      {s.queueOpen && !s.importOpen && <ImportQueue />}
       {s.importOpen && <ImportDialog />}
       {dragging && !s.importOpen && (
         <div className="drop-overlay">
-          <div>Drop datasheet PDFs to import</div>
+          <div>Drop datasheet PDFs or folders to import</div>
         </div>
       )}
     </div>

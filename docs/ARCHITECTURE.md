@@ -23,6 +23,13 @@ exactly the same library through the same code.
 
 ## Import pipeline
 
+Imports run as **jobs** (`internal/core/jobs.go`): each one is queued,
+downloads its PDF, waits for an extraction slot, then reads, analyses and
+saves, publishing its progress as `import` events. The PDF engine keeps a
+pool of PDFium instances (up to four, one per CPU), so that many
+documents are read at once; saving is serialized behind one lock. Folder,
+list, BOM and agent imports all go through the same queue.
+
 1. **`internal/pdf`** opens the PDF bytes in PDFium compiled to WebAssembly
    (go-pdfium on wazero: no cgo, and the engine has no filesystem access).
    It returns, per page, text spans built from per-character positions,

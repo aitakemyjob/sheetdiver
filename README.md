@@ -38,7 +38,9 @@ maps, notes), so the library gets better every time it's used.
 
 | | |
 |---|---|
-| **Import anything** | Drag in PDFs, paste a URL (or a product page that links to the PDF), type a part number, or `sheetdiver import TPS563200`. Re-importing the same file is a no-op. |
+| **Import anything** | Drag in PDFs or whole folders, paste a list of URLs (or product pages that link to the PDF) or part numbers, or `sheetdiver import ~/Datasheets TPS563200`. Several import at once, followed in an import queue with retry; re-importing the same file is a no-op. |
+| **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
+| **Favorites and status** | Star parts and mark them preferred, approved, avoid, NRND or EOL. Filter the library and comparisons by them; projects warn about avoid/NRND/EOL parts, and agents are told to prefer your preferred parts. |
 | **Part numbers that resolve** | `TPS563200DDCR`, `TLV75733PDBVR`, `MCP1700T-3302E/TT`, `STM32U545VET6Q` and `TPS56x200` all find the right part and datasheet. |
 | **Figures** | Every captioned figure is cut out and classified (graph, schematic, waveform, block diagram, pinout, timing, layout, package), with axes from "Y vs X" captions. Describe what a graph shows and it becomes searchable. |
 | **Parameters** | Spec tables become min/typ/max rows with conditions, section (absolute max, recommended, electrical…), page, and a canonical key (`vin`, `fsw`, `vref`, `ilim`, `rdson`, `qg`…). Edit any cell; your values win and survive re-extraction. |
@@ -102,10 +104,12 @@ handling is built in: no Poppler, MuPDF or other tools are needed.
 sheetdiver                    launch the desktop app
 sheetdiver serve              headless; open the same UI in your browser
 sheetdiver mcp                stdio MCP bridge to the running app
-sheetdiver import FILE|URL|MPN…   import datasheets into the library
+sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
+sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
 sheetdiver version
   -port N   MCP/HTTP port (default 47480)   -mpn LIST   (import) set the part numbers
+  -fetch=false  (bom) don't download missing datasheets
 ```
 
 The library (a SQLite database, the PDFs and a render cache) lives in

@@ -135,3 +135,32 @@ func TestDeleteDatasheetKeepsParts(t *testing.T) {
 		t.Error("the datasheet's index entries are gone")
 	}
 }
+
+func TestFavoritesAndStatus(t *testing.T) {
+	s := openTemp(t)
+	seed(t, s)
+	ctx := context.Background()
+	r, _ := s.Resolve(ctx, "XYZ121")
+	yes, preferred := true, "Preferred"
+	p, err := s.UpdatePart(ctx, r.Part.ID, PartUpdate{Favorite: &yes, Status: &preferred})
+	if err != nil || !p.Favorite || p.Status != StatusPreferred {
+		t.Fatalf("update = %+v %v", p, err)
+	}
+	bad := "great"
+	if _, err := s.UpdatePart(ctx, r.Part.ID, PartUpdate{Status: &bad}); err == nil {
+		t.Error("unknown statuses are rejected")
+	}
+	all, _ := s.Parts(ctx, PartFilter{})
+	if len(all) != 2 || all[0].MPN != "XYZ121" {
+		t.Errorf("favorites list first: %+v", all)
+	}
+	if fav, _ := s.Parts(ctx, PartFilter{Favorite: true}); len(fav) != 1 || fav[0].MPN != "XYZ121" {
+		t.Errorf("favorite filter: %+v", fav)
+	}
+	if st, _ := s.Parts(ctx, PartFilter{Status: StatusPreferred}); len(st) != 1 {
+		t.Errorf("status filter: %+v", st)
+	}
+	if !Discouraged(StatusEOL) || Discouraged(StatusApproved) {
+		t.Error("discouraged statuses")
+	}
+}

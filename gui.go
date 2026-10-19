@@ -41,6 +41,7 @@ type Desktop struct {
 func newDesktop(a *api.API, c *core.Service) *Desktop {
 	d := &Desktop{api: a, core: c, ready: make(chan struct{})}
 	a.PickPDFs = d.pickPDFs
+	a.PickFolder = d.pickFolder
 	// The webview can't open new windows, so PDFs open in the system viewer.
 	a.OpenFile = openExternal
 	a.SaveFile = d.saveFile
@@ -68,6 +69,15 @@ func (d *Desktop) pickPDFs() ([]string, error) {
 		Title:   "Import datasheets",
 		Filters: []wruntime.FileFilter{{DisplayName: "PDF datasheets", Pattern: "*.pdf;*.PDF"}},
 	})
+}
+
+// pickFolder opens the native folder chooser for a folder of datasheets.
+func (d *Desktop) pickFolder() (string, error) {
+	ctx, err := d.runtimeCtx()
+	if err != nil {
+		return "", err
+	}
+	return wruntime.OpenDirectoryDialog(ctx, wruntime.OpenDialogOptions{Title: "Import a folder of datasheets"})
 }
 
 // saveFile asks where to save an exported file and writes it there. An

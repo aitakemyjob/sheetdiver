@@ -246,6 +246,12 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 	for _, pp := range parts {
 		label := firstNonEmpty(pp.Designator, pp.MPN)
 		ps := params[pp.PartID]
+		if library.Discouraged(pp.Status) {
+			add(calc.Warn, label, "", 0, "%s (%s) is marked %s: %s", label, pp.MPN, strings.ToUpper(pp.Status), library.Statuses[pp.Status])
+		}
+		if !pp.HasDatasheet {
+			add(calc.Warn, label, "", 0, "%s (%s) has no datasheet in the library, so its limits aren't checked; import one", label, pp.MPN)
+		}
 		if pp.SupplyRail == "" && pp.OutputRail == "" && !passive(pp.Category) {
 			add(calc.Warn, label, "", 0, "%s (%s) is not connected to a rail; set its supply rail to check voltages and currents", label, pp.MPN)
 		}

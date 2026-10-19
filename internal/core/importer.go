@@ -13,6 +13,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -53,60 +55,70 @@ type ImportResult struct {
 	Took      string            `json:"took"`
 }
 
-// ImportProgress is published while a datasheet is being read.
-type ImportProgress struct {
-	Filename string `json:"filename"`
-	Stage    string `json:"stage"`
-	Done     int    `json:"done"`
-	Total    int    `json:"total"`
+// Import reads a datasheet into the library and tracks it as an import
+// job. A PDF already in the library (same content) is returned as is
+// unless Force is set, in which case its mechanical extraction is redone
+// and agent/user data is kept.
+func (s *Service) Import(ctx context.Context, req ImportRequest) (ImportResult, error) {
+	job := s.newJob(req)
+	return s.runJob(ctx, job, req.Data)
 }
 
-// Import reads a datasheet into the library. A PDF already in the library
-// (same content) is returned as is unless Force is set, in which case its
-// mechanical extraction is redone and agent/user data is kept.
-func (s *Service) Import(ctx context.Context, req ImportRequest) (ImportResult, error) {
+// importPDF does the work of an import, reporting progress to job.
+func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJob) (ImportResult, error) {
 	start := time.Now()
+	s.updateJob(job, func(j *ImportJob) { j.Stage = "downloading" })
 	data, name, src, err := s.loadPDF(ctx, req)
 	if err != nil {
 		return ImportResult{}, err
 	}
+	s.updateJob(job, func(j *ImportJob) { j.Name = name })
 	sum := sha256.Sum256(data)
 	sha := hex.EncodeToString(sum[:])
-	s.importMu.Lock()
-	defer s.importMu.Unlock()
 	if d, ok, err := s.Lib.DatasheetBySHA(ctx, sha); err != nil {
 		return ImportResult{}, err
 	} else if ok && !req.Force {
 		parts, _ := s.Lib.PartsOfDatasheet(ctx, d.ID)
 		if len(req.MPNs) > 0 {
+			s.importMu.Lock()
 			parts, err = s.addMPNs(ctx, d, req.MPNs, req)
+			s.importMu.Unlock()
 			if err != nil {
 				return ImportResult{}, err
 			}
 		}
 		return ImportResult{Datasheet: d, Parts: parts, Existing: true, Families: d.Families, Took: time.Since(start).Round(time.Millisecond).String()}, nil
 	}
-	progress := func(stage string, done, total int) {
-		s.emit(EvImport, ImportProgress{Filename: name, Stage: stage, Done: done, Total: total})
+	// Reading and analysing run in parallel up to the engine's workers;
+	// saving is serialized.
+	s.updateJob(job, func(j *ImportJob) { j.Stage = "waiting" })
+	select {
+	case s.slots <- struct{}{}:
+	case <-ctx.Done():
+		return ImportResult{}, ctx.Err()
 	}
-	progress("reading", 0, 0)
+	s.updateJob(job, func(j *ImportJob) { j.Stage = "reading" })
 	doc, err := s.Engine.Extract(ctx, data, func(done, total int) {
-		if done%8 == 0 || done == total {
-			progress("reading", done, total)
+		if done%4 == 0 || done == total {
+			s.updateJob(job, func(j *ImportJob) { j.Done, j.Total = done, total })
 		}
 	})
 	if err != nil {
+		<-s.slots
 		return ImportResult{}, fmt.Errorf("read %s: %w", name, err)
 	}
-	progress("analyzing", len(doc.Pages), len(doc.Pages))
+	s.updateJob(job, func(j *ImportJob) { j.Stage = "analyzing" })
 	res := extract.Analyze(doc, name)
+	<-s.slots
 	file := sha[:16] + "-" + safeName(name)
 	if err := os.WriteFile(s.Lib.DatasheetPath(file), data, 0o644); err != nil {
 		return ImportResult{}, err
 	}
 	in := buildImport(res, doc, req, sha, file, name, src)
-	progress("saving", len(doc.Pages), len(doc.Pages))
+	s.updateJob(job, func(j *ImportJob) { j.Stage = "saving" })
+	s.importMu.Lock()
 	id, err := s.Lib.SaveImport(ctx, in)
+	s.importMu.Unlock()
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -123,7 +135,6 @@ func (s *Service) Import(ctx context.Context, req ImportRequest) (ImportResult, 
 		},
 		Took: time.Since(start).Round(time.Millisecond).String(),
 	}
-	progress("done", len(doc.Pages), len(doc.Pages))
 	s.emit(EvLibrary, map[string]any{"datasheetId": id, "action": "imported"})
 	return out, nil
 }
@@ -205,30 +216,82 @@ var datasheetURLs = []struct {
 	{"https://www.diodes.com/assets/Datasheets/%s.pdf", true},
 }
 
-// lookupPDF tries the well-known datasheet URLs for a part number, also
-// with common orderable suffixes stripped.
-func lookupPDF(ctx context.Context, mpn string) ([]byte, string, string, error) {
-	mpn = strings.TrimSpace(mpn)
-	cands := []string{mpn}
-	if base := strings.TrimRight(mpn, "RT"); base != mpn && len(base) >= 4 {
-		cands = append(cands, base)
+// vendorHints send part-number prefixes to the manufacturer most likely
+// to publish them, so a lookup tries that site first.
+var vendorHints = []struct {
+	re   *regexp.Regexp
+	host string
+}{
+	{regexp.MustCompile(`^(TPS|TLV|TL\d|LM|LMR|LP|BQ|INA|OPA|CSD|TMP|ADS|DAC\d|DRV|TCA|TXS|TXB|SN|UCC|ISO|TPD|TS\d|HDC|LMV|REF|TRS)`), "ti.com"},
+	{regexp.MustCompile(`^(STM|L78|L79|LD\d|LDL|VN|ST\d|STL|STD|STP|LSM|LIS|VL\d|M24|L6)`), "st.com"},
+	{regexp.MustCompile(`^(MAX|LT|LTC|LTM|ADP|AD\d|ADM|ADUM|ADA|ADG|ADL|DS\d)`), "analog.com"},
+	{regexp.MustCompile(`^(NCP|NCV|MC\d|FDN|FDS|FDD|NTD|NTR|NVM|FAN|NC7|CAT)`), "onsemi.com"},
+	{regexp.MustCompile(`^(PMV|BUK|PSMN|PESD|BC8|BAS|74LVC|74HC|PMEG|NX)`), "nexperia.com"},
+	{regexp.MustCompile(`^(AP\d|AZ|DMN|DMP|DMG|PAM|AL\d)`), "diodes.com"},
+}
+
+// basePartRe captures a part number up to its ordering suffix:
+// TPS563200DDCR → TPS563200, LM317DCYR → LM317, MAX77801EWP+T → MAX77801.
+var basePartRe = regexp.MustCompile(`^[A-Z]{1,6}\d+(?:[A-Z]\d+)*`)
+
+// lookupCandidates lists the names to try for a part number: as given,
+// without packing suffixes (+T, #, /…), and its base number.
+func lookupCandidates(mpn string) []string {
+	mpn = strings.ToUpper(strings.TrimSpace(mpn))
+	var out []string
+	add := func(c string) {
+		if len(c) >= 4 && !slices.Contains(out, c) {
+			out = append(out, c)
+		}
 	}
-	var tried []string
-	for _, m := range cands {
-		for _, u := range datasheetURLs {
+	add(mpn)
+	if i := strings.IndexAny(mpn, "+#/,"); i > 0 {
+		add(mpn[:i])
+	}
+	add(basePartRe.FindString(mpn))
+	return out
+}
+
+// orderedURLs puts the hinted manufacturer's URL patterns first.
+func orderedURLs(mpn string) []struct {
+	pattern string
+	upper   bool
+} {
+	host := ""
+	for _, h := range vendorHints {
+		if h.re.MatchString(strings.ToUpper(mpn)) {
+			host = h.host
+			break
+		}
+	}
+	urls := slices.Clone(datasheetURLs)
+	sort.SliceStable(urls, func(i, j int) bool {
+		return host != "" && strings.Contains(urls[i].pattern, host) && !strings.Contains(urls[j].pattern, host)
+	})
+	return urls
+}
+
+// lookupPDF tries the well-known datasheet URLs for a part number and its
+// shorter forms, the likely manufacturer first.
+func lookupPDF(ctx context.Context, mpn string) ([]byte, string, string, error) {
+	tried := 0
+	for _, m := range lookupCandidates(mpn) {
+		for _, u := range orderedURLs(m) {
+			if err := ctx.Err(); err != nil {
+				return nil, "", "", err
+			}
 			name := strings.ToLower(m)
 			if u.upper {
 				name = strings.ToUpper(m)
 			}
-			url := fmt.Sprintf(u.pattern, name)
-			tried = append(tried, url)
-			data, fn, src, err := fetchPDF(ctx, url, "", 0)
+			tried++
+			data, fn, src, err := fetchPDF(ctx, fmt.Sprintf(u.pattern, name), "", 0)
 			if err == nil {
 				return data, fn, src, nil
 			}
 		}
 	}
-	return nil, "", "", fmt.Errorf("no datasheet for %s at the usual manufacturer URLs (tried %d); find its URL and import that, or download it yourself and import the file", mpn, len(tried))
+	return nil, "", "", fmt.Errorf("no datasheet for %s at the usual manufacturer URLs (tried %d); find its URL and import that, or download it and import the file", mpn, tried)
 }
 
 // pdfLinkRe finds links to PDFs in an HTML page.

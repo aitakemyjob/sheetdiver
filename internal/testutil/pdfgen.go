@@ -251,3 +251,26 @@ func Datasheet() []byte {
 		{Title: "10 Mechanical, Packaging, and Orderable Information", Page: 2, Y: 70},
 	})
 }
+
+// Mini returns a one-page datasheet for a part number, e.g. Mini("ZX7001",
+// "Step-Down Converter"): a title, an outline and a recommended-operating
+// table with VIN and IOUT, enough for imports, lookups and BOM tests.
+func Mini(mpn, kind string) []byte {
+	row := func(y float64, cells ...string) []Text {
+		xs := []float64{60, 340, 450, 500}
+		var out []Text
+		for i, c := range cells {
+			out = append(out, Text{X: xs[i], Y: y, Size: 8, S: c})
+		}
+		return out
+	}
+	p := PageSpec{Texts: []Text{
+		{X: 60, Y: 30, Size: 9, S: mpn},
+		{X: 60, Y: 80, Size: 18, Bold: true, S: mpn + " 4.5-V to 28-V Input, 2-A " + kind},
+		{X: 60, Y: 140, Size: 11, Bold: true, S: "6.3 Recommended Operating Conditions"},
+	}}
+	p.Texts = append(p.Texts, row(160, "PARAMETER", "MIN", "MAX", "UNIT")...)
+	p.Texts = append(p.Texts, row(176, "VIN Supply input voltage", "4.5", "28", "V")...)
+	p.Texts = append(p.Texts, row(190, "IOUT Output current", "0", "2", "A")...)
+	return PDF(mpn+" "+kind+" datasheet", []PageSpec{p}, []Outline{{Title: "6.3 Recommended Operating Conditions", Page: 0, Y: 140}})
+}
