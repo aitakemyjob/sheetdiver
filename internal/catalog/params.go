@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -133,14 +134,23 @@ func (c *Catalog) candidates(ctx context.Context, q Query, cols string) (*sql.Ro
 
 // Params summarizes the attributes of the parts a query matches (usually
 // one category), most common first; attributes on fewer than 3% of them
-// are left out.
+// are left out. With filters (q.Attrs) the summary is faceted: each
+// parameter is summarized over the parts that pass every other filter,
+// so the package list shows the packages still available after
+// "VDS ≥ 30 V", and keeps listing the alternatives to the package picked.
 func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
 		return nil, ErrNotInstalled
 	}
-	rows, err := c.candidates(ctx, q, "attributes")
+	filters := slices.Clone(q.Attrs)
+	if err := checkFilters(filters); err != nil {
+		return nil, err
+	}
+	scan := q
+	scan.Attrs = nil // every filter is applied here, per facet
+	rows, err := c.candidates(ctx, scan, "package, attributes")
 	if err != nil {
 		return nil, err
 	}
@@ -150,19 +160,54 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 		units    map[string]int
 		min, max map[string]float64
 		texts    map[string]int
+		// nums counts numeric values as written ("10kΩ", "3.3V"), for
+		// suggesting values to an "=" filter.
+		nums map[string]int
 	}
 	all := map[string]*acc{}
+	packages := map[string]int{}
 	n := 0
 	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
+		var pkg, s string
+		if err := rows.Scan(&pkg, &s); err != nil {
 			return nil, err
 		}
-		n++
-		for k, v := range parseAttrs(s) {
+		pkg = strings.TrimSpace(pkg)
+		attrs := parseAttrs(s)
+		// A part counts toward a parameter when it passes every filter on
+		// other parameters: all of them (it's in the results), or all but
+		// that parameter's own.
+		failed := ""
+		fails := 0
+		for _, f := range filters {
+			v := attrs[f.Key]
+			if f.Key == PackageKey {
+				v = pkg
+			}
+			if !f.match(v) {
+				if fails == 0 || failed != f.Key {
+					fails++
+				}
+				failed = f.Key
+			}
+		}
+		if fails > 1 {
+			continue
+		}
+		counts := func(key string) bool { return fails == 0 || failed == key }
+		if fails == 0 {
+			n++
+		}
+		if pkg != "" && counts(PackageKey) {
+			packages[pkg]++
+		}
+		for k, v := range attrs {
+			if !counts(k) {
+				continue
+			}
 			a := all[k]
 			if a == nil {
-				a = &acc{units: map[string]int{}, min: map[string]float64{}, max: map[string]float64{}, texts: map[string]int{}}
+				a = &acc{units: map[string]int{}, min: map[string]float64{}, max: map[string]float64{}, texts: map[string]int{}, nums: map[string]int{}}
 				all[k] = a
 			}
 			a.count++
@@ -174,6 +219,7 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 					a.max[pv.Unit] = pv.Hi
 				}
 				a.units[pv.Unit]++
+				a.nums[strings.TrimSpace(v)]++
 				continue
 			}
 			for _, t := range splitValues(v) {
@@ -198,6 +244,19 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 		p := Param{Key: k, Count: a.count}
 		if best*10 >= a.count*8 {
 			p.Kind, p.Unit, p.Min, p.Max = "number", unit, a.min[unit], a.max[unit]
+			// The commonest values, to pick for "=".
+			for v, c := range a.nums {
+				p.Values = append(p.Values, ValueCount{v, c})
+			}
+			sort.Slice(p.Values, func(i, j int) bool {
+				if p.Values[i].Count != p.Values[j].Count {
+					return p.Values[i].Count > p.Values[j].Count
+				}
+				return p.Values[i].Value < p.Values[j].Value
+			})
+			if len(p.Values) > maxNumberValues {
+				p.Values = p.Values[:maxNumberValues]
+			}
 		} else {
 			p.Kind = "text"
 			for v, c := range a.texts {
@@ -224,8 +283,32 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 		}
 		return out[i].Key < out[j].Key
 	})
+	// The package comes first: every part has one, whatever its category.
+	if len(packages) > 0 {
+		p := Param{Key: PackageKey, Kind: "text"}
+		for v, c := range packages {
+			p.Count += c
+			p.Values = append(p.Values, ValueCount{v, c})
+		}
+		sort.Slice(p.Values, func(i, j int) bool {
+			if p.Values[i].Count != p.Values[j].Count {
+				return p.Values[i].Count > p.Values[j].Count
+			}
+			return p.Values[i].Value < p.Values[j].Value
+		})
+		if len(p.Values) > maxPackages {
+			p.Values = p.Values[:maxPackages]
+		}
+		out = append([]Param{p}, out...)
+	}
 	return out, nil
 }
+
+// maxNumberValues bounds the common values listed for a numeric parameter.
+const maxNumberValues = 40
+
+// maxPackages bounds the packages listed for a package filter.
+const maxPackages = 150
 
 // splitValues splits a multi-valued text attribute ("Overcurrent
 // Protection, Light load efficient mode").
@@ -250,6 +333,9 @@ type AttrFilter struct {
 	Op    string  `json:"op"`
 	Value float64 `json:"value,omitempty"`
 	Text  string  `json:"text,omitempty"`
+	// Values are alternatives for "=": the part matches any of them
+	// (several packages, several channel types).
+	Values []string `json:"values,omitempty"`
 	// Input is the value as typed ("30V", "10mΩ", "4.7u"); when set it
 	// is parsed into Value (for >= and <=) or used as Text (for =).
 	Input string `json:"input,omitempty"`
@@ -259,12 +345,17 @@ type AttrFilter struct {
 func (f AttrFilter) match(v string) bool {
 	switch f.Op {
 	case "=":
-		for _, t := range splitValues(v) {
-			if strings.EqualFold(t, f.Text) {
+		for _, want := range f.wanted() {
+			for _, t := range splitValues(v) {
+				if strings.EqualFold(t, want) {
+					return true
+				}
+			}
+			if strings.EqualFold(strings.TrimSpace(v), want) || equalNumber(v, want) {
 				return true
 			}
 		}
-		return strings.EqualFold(strings.TrimSpace(v), f.Text)
+		return false
 	case ">=", "<=":
 		pv, ok := ParseValue(v)
 		if !ok {
@@ -278,6 +369,47 @@ func (f AttrFilter) match(v string) bool {
 	}
 	return false
 }
+
+// equalTolerance is how close numbers must be to count as equal (relative):
+// 10k matches 10kΩ and 10.0kΩ but not 10.2kΩ.
+const equalTolerance = 1e-3
+
+// equalNumber reports whether an attribute value equals a typed number:
+// the same value within equalTolerance, or a range that contains it
+// ("3.3V" is in "600mV~5.5V"). A unit, when typed, must match.
+func equalNumber(v, want string) bool {
+	pv, ok := ParseValue(v)
+	if !ok {
+		return false
+	}
+	x, err := ParseQuantity(want)
+	if err != nil {
+		return false
+	}
+	if wv, ok := ParseValue(strings.ReplaceAll(want, " ", "")); ok && wv.Unit != "" && wv.Unit != pv.Unit {
+		return false
+	}
+	eps := equalTolerance * math.Max(math.Abs(x), 1e-30)
+	if pv.Lo == pv.Hi {
+		return math.Abs(pv.Lo-x) <= eps
+	}
+	return x >= pv.Lo-eps && x <= pv.Hi+eps
+}
+
+// wanted lists the values an "=" filter accepts.
+func (f AttrFilter) wanted() []string {
+	var out []string
+	for _, v := range append([]string{f.Text}, f.Values...) {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// PackageKey is the filter key for a part's package, which every category
+// has (it's a column of the catalogue, not an attribute).
+const PackageKey = "Package"
 
 // checkFilters validates attribute filters and parses typed values.
 func checkFilters(fs []AttrFilter) error {
@@ -296,10 +428,22 @@ func checkFilters(fs []AttrFilter) error {
 			}
 		case "=":
 			if f.Input != "" {
-				fs[i].Text = f.Input
+				// Several values are separated by |: "SOT-23|SOT-23-3".
+				fs[i].Values = nil
+				for _, v := range strings.Split(f.Input, "|") {
+					if v = strings.TrimSpace(v); v != "" {
+						fs[i].Values = append(fs[i].Values, v)
+					}
+				}
+			}
+			if len(fs[i].wanted()) == 0 {
+				return fmt.Errorf("filter %q: pick a value", f.Key)
 			}
 		default:
 			return fmt.Errorf("filter %q: op must be >=, <= or =", f.Key)
+		}
+		if f.Key == PackageKey && f.Op != "=" {
+			return errors.New("the package filter takes = with one or more packages")
 		}
 	}
 	return nil
@@ -340,6 +484,9 @@ func (c *Catalog) searchAttrs(ctx context.Context, q Query, limit int) ([]Item, 
 		}
 		ok := true
 		for _, f := range q.Attrs {
+			if f.Key == PackageKey {
+				continue // filtered in SQL
+			}
 			if !f.match(it.Attributes[f.Key]) {
 				ok = false
 				break

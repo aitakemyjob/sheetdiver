@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Database, Download, RefreshCw, Search, Trash2 } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, openShop } from '../lib/api';
 import { catalogProgressText, sizeText, useStore } from '../lib/store';
 import type { CatalogItem } from '../lib/types';
 import { ErrorBox, Switch } from './ui';
@@ -194,7 +194,17 @@ export function CatalogSearch() {
                       {it.mpn}
                     </div>
                     <div className="faint" style={{ fontSize: 11 }}>
-                      {it.lcsc} · {it.manufacturer || 'unknown maker'}
+                      <a
+                        className="shop-link"
+                        title={`Open ${it.lcsc} at LCSC`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openShop(it.lcsc, 'lcsc', !!s.app?.canOpenFile).catch((err) => s.toast({ kind: 'err', title: 'Could not open LCSC', body: (err as Error).message }));
+                        }}
+                      >
+                        {it.lcsc}
+                      </a>{' '}
+                      · {it.manufacturer || 'unknown maker'}
                       {it.inLibrary && <span className="badge ok" style={{ marginLeft: 6 }}>in library</span>}
                     </div>
                   </td>

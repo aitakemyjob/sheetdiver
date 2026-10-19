@@ -313,13 +313,21 @@ func TestCatalogueTools(t *testing.T) {
 		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
 	}
 	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)")
-	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A")
+	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A; common: ")
+	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": "=", "value": "1A"}}}, "ZX9000"); strings.Contains(out, "ZX7001DBVR") {
+		t.Errorf("output current = 1 A: %s", out)
+	}
 	out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "1.5A"}}},
 		"| Output Current |", "| ZX7001DBVR |", "| 2A |")
 	if strings.Contains(out, "ZX9000") {
 		t.Errorf("filtered out: %s", out)
 	}
 	h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "sort": "Output Current"}, "ZX9000")
+	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Package [text] 2 parts: SOT-23-6 (2)")
+	h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Package", "op": "=", "value": "SOT-23-6|SOT-23"}}}, "ZX7001DBVR", "ZX9000")
+	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Package", "op": "=", "value": "TO-252"}}}); strings.Contains(out, "ZX7001DBVR") {
+		t.Errorf("package filter: %s", out)
+	}
 	if out, _, isErr := h.call("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "lots"}}}); !isErr || !strings.Contains(out, "can't read") {
 		t.Errorf("bad value: %s", out)
 	}

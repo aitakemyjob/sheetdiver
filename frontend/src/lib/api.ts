@@ -50,7 +50,7 @@ export const api = {
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),
   catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; attrs?: CatalogFilter[]; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
     call<CatalogItem[]>('catalog.search', q),
-  catalogParams: (q: { text: string; subcategory?: string; inStock?: boolean; basic?: boolean }) => call<CatalogParam[]>('catalog.params', q),
+  catalogParams: (q: { text: string; subcategory?: string; inStock?: boolean; basic?: boolean; attrs?: CatalogFilter[] }) => call<CatalogParam[]>('catalog.params', q),
   catalogCategories: () => call<CatalogCategory[]>('catalog.categories'),
   catalogSubcategories: () => call<string[]>('catalog.subcategories'),
   catalogImport: (lcsc: string[]) => call<ImportJob[]>('catalog.import', { lcsc }),
@@ -162,4 +162,24 @@ export async function saveText(name: string, text: string, mime: string, desktop
   a.click();
   URL.revokeObjectURL(a.href);
   return name;
+}
+
+/** A catalogue part's page at LCSC (buy) or JLCPCB (assembly), from its LCSC code. */
+export function shopURL(lcsc: string, shop: 'lcsc' | 'jlcpcb'): string {
+  const code = lcsc.trim().toUpperCase();
+  if (!/^C\d{1,10}$/.test(code)) throw new Error(`${lcsc} is not an LCSC part code`);
+  return shop === 'jlcpcb' ? `https://jlcpcb.com/partdetail/${code}` : `https://www.lcsc.com/product-detail/${code}.html`;
+}
+
+/**
+ * Opens a catalogue part at LCSC or JLCPCB: in the system browser from the
+ * desktop app (the webview can't open tabs), else in a new tab.
+ */
+export async function openShop(lcsc: string, shop: 'lcsc' | 'jlcpcb', desktop: boolean): Promise<void> {
+  const url = shopURL(lcsc, shop);
+  if (desktop) {
+    await getTransport().then((t) => t.invoke('catalog.openShop', { lcsc, shop }));
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
 }

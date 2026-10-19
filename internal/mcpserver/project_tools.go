@@ -311,9 +311,9 @@ type updateArgs struct {
 }
 
 type catalogFilter struct {
-	Parameter string `json:"parameter" jsonschema:"a parameter name from catalog_parameters, such as 'Drain to Source Voltage' or 'RDS(on)'"`
-	Op        string `json:"op" jsonschema:"one of >=, <= (numbers) or = (text values)"`
-	Value     string `json:"value" jsonschema:"for numbers a value with unit like 30V, 10mΩ, 4.7u, 3A; for text one of the parameter's values like N-Channel or Buck"`
+	Parameter string `json:"parameter" jsonschema:"a parameter name from catalog_parameters, such as 'Drain to Source Voltage', 'RDS(on)' or 'Package'"`
+	Op        string `json:"op" jsonschema:"one of >=, <= (numbers) or = (an exact value: text, Package, or a number such as 10k or 3.3V, which also matches ranges that contain it)"`
+	Value     string `json:"value" jsonschema:"a number with unit like 30V, 10mΩ, 4.7u, 3A, or text like N-Channel; for = several values separated by |, like SOT-23|SOT-23-3 or 4.7k|10k"`
 }
 
 type catalogArgs struct {
@@ -329,9 +329,10 @@ type catalogArgs struct {
 }
 
 type catalogParamsArgs struct {
-	Subcategory string `json:"subcategory,omitempty" jsonschema:"a JLCPCB category; omit to list the categories"`
-	Query       string `json:"query,omitempty" jsonschema:"without a subcategory: only categories containing this text"`
-	InStock     bool   `json:"in_stock,omitempty"`
+	Subcategory string          `json:"subcategory,omitempty" jsonschema:"a JLCPCB category; omit to list the categories"`
+	Query       string          `json:"query,omitempty" jsonschema:"without a subcategory: only categories containing this text"`
+	InStock     bool            `json:"in_stock,omitempty"`
+	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"with a subcategory: summarize each parameter over the parts that pass the other filters (e.g. the packages still available after Drain to Source Voltage >= 30V)"`
 }
 
 // registerDesign adds alternatives, reports, datasheet updates and the
@@ -386,7 +387,7 @@ func (s *Server) registerDesign() {
 			return text(b.String()), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "catalog_parameters", Description: "Browse the JLCPCB parts catalogue's structure: without a subcategory, its categories with part and in-stock counts; with one, the parameters its parts have (numeric with unit and range, or text with the common values) to use as search_catalog filters.", Annotations: readOnly("Catalogue parameters")},
+	addTool(s, &mcp.Tool{Name: "catalog_parameters", Description: "Browse the JLCPCB parts catalogue's structure: without a subcategory, its categories with part and in-stock counts; with one, the parameters its parts have (Package first, then numeric ones with unit and range, or text with the common values) to use as search_catalog filters. Pass filters to see what remains available under them (faceted: each parameter over the parts passing the other filters).", Annotations: readOnly("Catalogue parameters")},
 		read, func(a catalogParamsArgs) string { return "catalog parameters " + a.Subcategory }, func(ctx context.Context, a catalogParamsArgs) (result, error) {
 			var b strings.Builder
 			if a.Subcategory == "" {
@@ -407,18 +408,34 @@ func (s *Server) registerDesign() {
 				}
 				return text(b.String()), nil
 			}
-			ps, err := c.CatalogParams(ctx, catalog.Query{Subcategory: a.Subcategory, InStock: a.InStock})
+			q := catalog.Query{Subcategory: a.Subcategory, InStock: a.InStock}
+			for _, f := range a.Filters {
+				q.Attrs = append(q.Attrs, catalog.AttrFilter{Key: f.Parameter, Op: f.Op, Input: f.Value})
+			}
+			ps, err := c.CatalogParams(ctx, q)
 			if err != nil {
 				return result{}, err
 			}
 			fmt.Fprintf(&b, "parameters of %s (how many parts have each):\n", a.Subcategory)
 			for _, p := range ps {
 				if p.Kind == "number" {
-					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s\n", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))
+					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))
+					var common []string
+					for _, v := range p.Values[:min(8, len(p.Values))] {
+						common = append(common, fmt.Sprintf("%s (%d)", v.Value, v.Count))
+					}
+					if len(common) > 0 {
+						fmt.Fprintf(&b, "; common: %s", strings.Join(common, ", "))
+					}
+					b.WriteString("\n")
 					continue
 				}
 				var vs []string
-				for _, v := range p.Values[:min(12, len(p.Values))] {
+				shown := 12
+				if p.Key == catalog.PackageKey {
+					shown = 30
+				}
+				for _, v := range p.Values[:min(shown, len(p.Values))] {
 					vs = append(vs, fmt.Sprintf("%s (%d)", v.Value, v.Count))
 				}
 				fmt.Fprintf(&b, "- %s [text] %d parts: %s\n", p.Key, p.Count, strings.Join(vs, ", "))

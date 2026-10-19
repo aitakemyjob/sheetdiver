@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Database, Download, FileDown, Filter, Plus, RefreshCw, Search, X } from 'lucide-react';
-import { api } from '../lib/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, Database, Download, ExternalLink, FileDown, Filter, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { api, openShop } from '../lib/api';
 import { catalogProgressText, useStore } from '../lib/store';
 import type { CatalogCategory, CatalogFilter, CatalogItem, CatalogParam } from '../lib/types';
 import { libraryTone, priceText } from '../components/CatalogPanel';
@@ -32,13 +32,82 @@ export function groupCategories(cats: CatalogCategory[], filter: string, inStock
 
 /** The filters that are complete enough to send. */
 export function activeFilters(fs: CatalogFilter[]): CatalogFilter[] {
-  return fs.filter((f) => f.input.trim() !== '');
+  // Text filters pick values; number filters (≥, ≤ or =) are typed.
+  return fs.filter((f) => (f.values !== undefined ? f.values.length > 0 : f.input.trim() !== ''));
+}
+
+/** Summarizes a text filter's picked values for its chip. */
+export function valuesLabel(values: string[] | undefined): string {
+  if (!values?.length) return 'any';
+  if (values.length <= 2) return values.join(', ');
+  return `${values[0]} +${values.length - 1}`;
+}
+
+/** Returns value, updated only after it stops changing for ms. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+/**
+ * Multi-select for a text parameter (Package, Type…): its values with
+ * counts under the other filters, a search box and checkboxes.
+ */
+function ValuePicker({ param, picked, onChange }: { param?: CatalogParam; picked: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(picked.length === 0);
+  const [q, setQ] = useState('');
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const counts = new Map((param?.values ?? []).map((v) => [v.value, v.count]));
+  // Picked values stay listed even when the other filters leave none of them.
+  const all = [...picked.filter((v) => !counts.has(v)), ...(param?.values ?? []).map((v) => v.value)];
+  const shown = all.filter((v) => v.toLowerCase().includes(q.trim().toLowerCase()));
+  const toggle = (v: string) => onChange(picked.includes(v) ? picked.filter((x) => x !== v) : [...picked, v]);
+  return (
+    <span className="value-picker" ref={ref}>
+      <button className="btn sm" onClick={() => setOpen(!open)} title={picked.join(', ') || 'Pick values'}>
+        {valuesLabel(picked)} <ChevronDown size={11} />
+      </button>
+      {open && (
+        <div className="value-pop">
+          <input className="input" autoFocus placeholder={`Search ${param?.key ?? 'values'}`} value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="value-list">
+            {shown.map((v) => (
+              <label key={v} className={`value-row ${counts.get(v) ? '' : 'faint'}`}>
+                <input type="checkbox" checked={picked.includes(v)} onChange={() => toggle(v)} />
+                <span className="grow ellipsis" title={v}>
+                  {v}
+                </span>
+                <span className="faint">{(counts.get(v) ?? 0).toLocaleString()}</span>
+              </label>
+            ))}
+            {shown.length === 0 && <div className="faint" style={{ padding: 6 }}>No values match.</div>}
+          </div>
+          {picked.length > 0 && (
+            <button className="btn sm ghost" onClick={() => onChange([])}>
+              Clear {picked.length}
+            </button>
+          )}
+        </div>
+      )}
+    </span>
+  );
 }
 
 /** Columns for a category: filtered and sorted parameters, then its most common numeric ones (5 at most). */
 export function paramColumns(params: CatalogParam[], filters: CatalogFilter[], sortKey: string): string[] {
   const cols: string[] = [];
-  const add = (k: string) => k && !cols.includes(k) && cols.length < 5 && cols.push(k);
+  // Package has its own column; it isn't an attribute.
+  const add = (k: string) => k && k !== 'Package' && !cols.includes(k) && cols.length < 5 && cols.push(k);
   filters.forEach((f) => add(f.key));
   if (sortKey.startsWith('attr:')) add(sortKey.slice(5));
   params.filter((p) => p.kind === 'number' && p.key !== 'Operating Temperature').forEach((p) => cols.length < 4 && add(p.key));
@@ -73,8 +142,14 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   const [catFilter, setCatFilter] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<CatalogFilter[]>([]);
-  const catParams = useAsync(() => (c?.installed && sub ? api.catalogParams({ text: '', subcategory: sub, inStock, basic }) : Promise.resolve([] as CatalogParam[])), [c?.installed, sub, inStock, basic, c?.downloaded]);
   const sent = useMemo(() => activeFilters(filters), [filters]);
+  // Each parameter's values and range follow the other filters (faceted);
+  // refetched once typing settles.
+  const facetFilters = useDebounced(sent, 300);
+  const catParams = useAsync(
+    () => (c?.installed && sub ? api.catalogParams({ text: '', subcategory: sub, inStock, basic, attrs: facetFilters.length ? facetFilters : undefined }) : Promise.resolve([] as CatalogParam[])),
+    [c?.installed, sub, inStock, basic, c?.downloaded, facetFilters],
+  );
   const cols = useMemo(() => paramColumns(catParams.data ?? [], sent, sort.key), [catParams.data, sent, sort.key]);
   const cats = useAsync(() => (c?.installed ? api.catalogCategories() : Promise.resolve([])), [c?.installed, c?.downloaded]);
   const groups = useMemo(() => groupCategories(cats.data ?? [], catFilter, inStock), [cats.data, catFilter, inStock]);
@@ -150,6 +225,8 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
       s.toast({ kind: 'err', title: 'Could not import', body: (e as Error).message });
     }
   };
+  const openShopOrToast = (lcsc: string, shop: 'lcsc' | 'jlcpcb') =>
+    openShop(lcsc, shop, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: `Could not open ${shop === 'lcsc' ? 'LCSC' : 'JLCPCB'}`, body: (e as Error).message }));
   // The details pane shows the description; the table keeps stock and price in view.
   const showDesc = !detail || cols.length === 0;
   const sortBy = (key: string) => setSort(sort.key === key ? { key, desc: !sort.desc } : { key, desc: false });
@@ -233,22 +310,34 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
               return (
                 <span key={f.key + i} className="filter-chip">
                   <b>{f.key}</b>
-                  {p?.kind === 'text' ? (
-                    <select className="input select" value={f.input} onChange={(e) => set({ input: e.target.value })}>
-                      <option value="">any</option>
-                      {p.values?.map((v) => (
-                        <option key={v.value} value={v.value}>
-                          {v.value} ({v.count.toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
+                  {f.values !== undefined ? (
+                    <ValuePicker param={p} picked={f.values} onChange={(values) => set({ values })} />
                   ) : (
                     <>
-                      <select className="input select" value={f.op} onChange={(e) => set({ op: e.target.value as CatalogFilter['op'] })}>
+                      <select className="input select" value={f.op} onChange={(e) => set({ op: e.target.value as CatalogFilter['op'] })} title="≥ at least, ≤ at most, = exactly (or a range containing it)">
                         <option value=">=">≥</option>
                         <option value="<=">≤</option>
+                        <option value="=">=</option>
                       </select>
-                      <input className="input" style={{ width: 90 }} autoFocus={!f.input} placeholder={p?.unit ? `e.g. 10${p.unit}` : 'value'} title={p ? `Range in this category: ${paramRange(p)}` : ''} value={f.input} onChange={(e) => set({ input: e.target.value })} />
+                      <input
+                        className="input"
+                        style={{ width: 96 }}
+                        autoFocus={!f.input}
+                        list={f.op === '=' ? `values-${i}` : undefined}
+                        placeholder={f.op === '=' ? 'e.g. 10k|4.7k' : p?.unit ? `e.g. 10${p.unit}` : 'value'}
+                        title={p ? `Range in this category: ${paramRange(p)}${f.op === '=' ? '. Several values: separate with |' : ''}` : ''}
+                        value={f.input}
+                        onChange={(e) => set({ input: e.target.value })}
+                      />
+                      {f.op === '=' && (
+                        <datalist id={`values-${i}`}>
+                          {p?.values?.map((v) => (
+                            <option key={v.value} value={v.value}>
+                              {v.count.toLocaleString()} parts
+                            </option>
+                          ))}
+                        </datalist>
+                      )}
                     </>
                   )}
                   <button className="btn ghost icon sm" onClick={() => setFilters(filters.filter((_, j) => j !== i))} aria-label={`Remove the ${f.key} filter`}>
@@ -268,7 +357,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                 key: p.key,
                 label: p.key,
                 hint: p.kind === 'number' ? paramRange(p) : `${p.values?.length ?? 0} values`,
-                onSelect: () => setFilters([...filters, { key: p.key, op: p.kind === 'text' ? '=' : '>=', input: '' }]),
+                onSelect: () => setFilters([...filters, p.kind === 'text' ? { key: p.key, op: '=', input: '', values: [] } : { key: p.key, op: '>=', input: '' }]),
               }))}
             />
             {filters.length > 0 && (
@@ -327,7 +416,17 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                           {it.inLibrary && <span className="badge ok">in library</span>}
                         </div>
                         <div className="maker" title={it.manufacturer}>
-                          {it.lcsc} · {it.manufacturer || 'unknown maker'}
+                          <a
+                            className="shop-link"
+                            title={`Open ${it.lcsc} at LCSC`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openShopOrToast(it.lcsc, 'lcsc');
+                            }}
+                          >
+                            {it.lcsc}
+                          </a>{' '}
+                          · {it.manufacturer || 'unknown maker'}
                         </div>
                       </td>
                       {cols.map((k) => (
@@ -377,6 +476,8 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
 /** A catalogue part's details: attributes, links and import. */
 function CatalogDetail({ it, onClose, onImport }: { it: CatalogItem; onClose: () => void; onImport: () => void }) {
   const s = useStore();
+  const shop = (where: 'lcsc' | 'jlcpcb') =>
+    openShop(it.lcsc, where, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: `Could not open ${where === 'lcsc' ? 'LCSC' : 'JLCPCB'}`, body: (e as Error).message }));
   const attrs = Object.entries(it.attributes ?? {}).sort(([a], [b]) => a.localeCompare(b));
   return (
     <aside className="catalog-detail">
@@ -412,6 +513,14 @@ function CatalogDetail({ it, onClose, onImport }: { it: CatalogItem; onClose: ()
           <FileDown size={13} /> Import datasheet
         </button>
       )}
+      <div className="row" style={{ gap: 6 }}>
+        <button className="btn grow" title={`Buy ${it.mpn} at LCSC (${it.lcsc})`} onClick={() => shop('lcsc')}>
+          <ExternalLink size={13} /> LCSC
+        </button>
+        <button className="btn grow" title={`${it.mpn} on JLCPCB: assembly library, stock and pricing`} onClick={() => shop('jlcpcb')}>
+          <ExternalLink size={13} /> JLCPCB
+        </button>
+      </div>
       {!it.datasheet && <div className="faint" style={{ fontSize: 11 }}>No datasheet link in the catalogue; the part number is looked up at the manufacturer's site.</div>}
       {attrs.length > 0 && (
         <table className="dtable" style={{ fontSize: 12 }}>
