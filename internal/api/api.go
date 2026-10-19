@@ -251,7 +251,7 @@ func (a *API) registerLibrary() {
 		}
 		return map[string]string{"url": u}, a.OpenFile(u)
 	})
-		a.methods["catalog.import"] = method(func(ctx context.Context, in struct {
+	a.methods["catalog.import"] = method(func(ctx context.Context, in struct {
 		LCSC []string `json:"lcsc"`
 	}) (any, error) {
 		return c.CatalogImport(ctx, in.LCSC)
