@@ -21,8 +21,8 @@ say so in [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions).
   crystal load capacitors.
 - **Power tree view** of a project: rails, regulators and loads as a
   graph, with efficiency through the tree.
-- **Component search** across the library for a requirement ("buck,
-  VIN ≥ 24 V, IOUT ≥ 3 A, SOT-23").
+- **Component search** beyond the library's key parameters: packages,
+  features and conditions ("buck, VIN ≥ 24 V, IOUT ≥ 3 A, SOT-23").
 - **BOM import/export** (KiCad, CSV), and checking a schematic netlist's
   parts against the library.
 

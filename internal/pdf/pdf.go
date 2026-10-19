@@ -395,10 +395,21 @@ func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Sp
 			gap := box.X0 - cur.Box.X1
 			cy, ny := (cur.Box.Y0+cur.Box.Y1)/2, (box.Y0+box.Y1)/2
 			sameLine := math.Abs(cy-ny) < math.Max(1.5, math.Min(cur.Size, size)*0.35)
-			sameFont := math.Abs(cur.Size-size) < 0.6
+			// Punctuation glyph boxes sit low (commas, periods) or high
+			// (apostrophes); right after the previous character they are
+			// on its line whatever their box says.
+			punct := isPunct(t)
+			if punct && gap > -size*0.2 && gap < size*0.5 && math.Abs(cy-ny) < size {
+				sameLine = true
+			}
+			sameFont := math.Abs(cur.Size-size) < 0.6 || punct
 			if !sameLine || !sameFont || gap > size*0.8 || gap < -size*0.5 {
 				flush()
 			}
+		}
+		if cur != nil && isPunct(t) {
+			// Keep the line's vertical extent from the letters.
+			box.Y0, box.Y1 = cur.Box.Y0, cur.Box.Y1
 		}
 		if cur == nil {
 			cur = &Span{Box: box, Size: size, Bold: bold}
@@ -416,6 +427,16 @@ func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Sp
 	}
 	flush()
 	return out
+}
+
+// isPunct reports whether a character is punctuation whose glyph box is
+// offset from the text line.
+func isPunct(t string) bool {
+	switch t {
+	case ",", ".", ";", ":", "'", "’", "‘", "_", "`":
+		return true
+	}
+	return false
 }
 
 // bookmarks reads the outline tree with destination pages and positions.

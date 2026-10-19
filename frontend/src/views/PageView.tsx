@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ImagePlus, Minus, Plus, ScanText } from 'lucide-react';
-import { api, pageImageURL } from '../lib/api';
+import { ChevronLeft, ChevronRight, ExternalLink, ImagePlus, Minus, Plus, ScanText } from 'lucide-react';
+import { api, openPDF, pageImageURL } from '../lib/api';
 import { figureKinds } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { Rect } from '../lib/types';
@@ -75,6 +75,9 @@ export function PageView({ params }: { params: Record<string, unknown> }) {
         </button>
         {typeof params.message === 'string' && params.message && <span className="badge violet">{params.message}</span>}
         <div className="grow" />
+        <button className="btn sm" onClick={() => openPDF(ds, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: 'Could not open the PDF', body: (e as Error).message }))}>
+          <ExternalLink size={13} /> PDF
+        </button>
         <span className="faint">Drag on the page to select a region</span>
         {sel && (
           <>

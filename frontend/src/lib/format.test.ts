@@ -38,3 +38,20 @@ describe('format', () => {
     expect(snippetHTML('a «VFB» <b>')).toBe('a <mark>VFB</mark> &lt;b&gt;');
   });
 });
+
+import { rangeText, toFilters } from '../views/CategoryView';
+
+describe('category comparison', () => {
+  it('formats compared values', () => {
+    expect(rangeText({ min: 4.5, max: 17, unit: 'V', page: 0, paramId: 1, source: 'auto' })).toBe('4.5 V … 17 V');
+    expect(rangeText({ typ: 650e3, unit: 'Hz', page: 0, paramId: 1, source: 'auto' })).toBe('650 kHz');
+    expect(rangeText({ min: 1.33, typ: 1.45, max: 1.6, unit: 'A', page: 0, paramId: 1, source: 'auto' })).toBe('1.33 A / 1.45 A / 1.6 A');
+  });
+
+  it('parses typed filters with units and prefixes', () => {
+    expect(toFilters({ vin: { op: '>=', text: '24 V' }, iq: { op: '<=', text: '1µ' }, fsw: { op: '>=', text: '' }, x: { op: '>=', text: 'abc' } })).toEqual([
+      { key: 'vin', op: '>=', value: 24 },
+      { key: 'iq', op: '<=', value: 1e-6 },
+    ]);
+  });
+});

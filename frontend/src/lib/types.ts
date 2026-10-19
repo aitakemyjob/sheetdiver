@@ -37,6 +37,7 @@ export interface AppState {
   libraryDir: string;
   mcp: MCPStatus;
   canPickFile: boolean;
+  canOpenFile: boolean;
   canSaveFile: boolean;
   keys: Record<string, string>;
   calculators: Record<string, string>;
@@ -424,6 +425,47 @@ export interface Focus {
   query?: string;
   calc?: CalcResponse;
   message?: string;
+}
+
+export interface CategoryInfo {
+  category: string;
+  count: number;
+  keys: string[] | null;
+}
+
+export interface CompareFilter {
+  key: string;
+  op: '>=' | '<=' | '>' | '<';
+  value: number;
+  stat?: string;
+}
+
+export interface CompareValue {
+  min?: number | null;
+  typ?: number | null;
+  max?: number | null;
+  unit: string;
+  rating?: boolean;
+  conditions?: string;
+  page: number;
+  box?: Rect | null;
+  paramId: number;
+  source: string;
+}
+
+export interface CompareColumn {
+  key: string;
+  label: string;
+  unit: string;
+  have: number;
+}
+
+export interface CompareResult {
+  category: string;
+  columns: CompareColumn[] | null;
+  rows: { part: Part; values: Record<string, CompareValue> }[];
+  total: number;
+  unknown?: Record<string, number> | null;
 }
 
 export interface BusEvent {

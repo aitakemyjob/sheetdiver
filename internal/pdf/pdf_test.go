@@ -84,3 +84,28 @@ func TestRect(t *testing.T) {
 		t.Error("IsPDF")
 	}
 }
+
+func TestPunctuationStaysInItsSpan(t *testing.T) {
+	// Comma glyph boxes sit below the baseline; "A3, B3" must stay one
+	// span instead of splitting off a "," line.
+	data := testutil.PDF("punct", []testutil.PageSpec{{Texts: []testutil.Text{
+		{X: 60, Y: 100, Size: 9, S: "A3, B3"},
+		{X: 200, Y: 100, Size: 9, S: "VIN = 3.6 V, VOUT = 5 V."},
+	}}}, nil)
+	e := NewEngine(DefaultCacheDir())
+	defer e.Close()
+	doc, err := e.Extract(context.Background(), data, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for _, s := range doc.Pages[0].Spans {
+		texts = append(texts, s.Text)
+		if s.Text == "," || s.Text == "." {
+			t.Errorf("punctuation split into its own span: %q", texts)
+		}
+	}
+	if len(texts) != 2 || texts[0] != "A3, B3" || texts[1] != "VIN = 3.6 V, VOUT = 5 V." {
+		t.Errorf("spans = %q", texts)
+	}
+}

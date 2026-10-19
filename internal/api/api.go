@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 
@@ -27,6 +28,9 @@ type API struct {
 	methods map[string]handler
 	// PickPDFs is provided by the desktop shell; nil in browser mode.
 	PickPDFs func() ([]string, error)
+	// OpenFile opens a local file in its default application (desktop
+	// only; the browser opens PDFs in a tab instead).
+	OpenFile func(path string) error
 	// SaveFile asks where to save a file and writes it (desktop only).
 	SaveFile func(name string, data []byte) (string, error)
 }
@@ -84,6 +88,7 @@ type AppState struct {
 	LibraryDir  string            `json:"libraryDir"`
 	MCP         core.MCPStatus    `json:"mcp"`
 	CanPickFile bool              `json:"canPickFile"`
+	CanOpenFile bool              `json:"canOpenFile"`
 	CanSaveFile bool              `json:"canSaveFile"`
 	Keys        map[string]string `json:"keys"`
 	Calculators map[string]string `json:"calculators"`
@@ -105,7 +110,7 @@ func (a *API) registerApp() {
 	a.methods["app.state"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		return AppState{
 			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(),
-			CanPickFile: a.PickPDFs != nil, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
+			CanPickFile: a.PickPDFs != nil, CanOpenFile: a.OpenFile != nil, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
 		}, nil
 	})
 	a.methods["settings.update"] = method(func(ctx context.Context, in config.Settings) (any, error) {
@@ -161,6 +166,20 @@ func (a *API) registerLibrary() {
 		c.Changed("datasheet", in.ID)
 		return nil, err
 	})
+	a.methods["datasheet.open"] = method(func(ctx context.Context, in idReq) (any, error) {
+		if a.OpenFile == nil {
+			return nil, fmt.Errorf("opening files needs the desktop app; the browser opens the PDF in a tab")
+		}
+		d, err := c.Lib.Datasheet(ctx, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		p := c.Lib.DatasheetPath(d.File)
+		if _, err := os.Stat(p); err != nil {
+			return nil, fmt.Errorf("the PDF for %s is missing from the library folder: %w", d.Filename, err)
+		}
+		return map[string]string{"path": p}, a.OpenFile(p)
+	})
 	a.methods["datasheet.delete"] = method(func(ctx context.Context, in idReq) (any, error) { return nil, c.DeleteDatasheet(ctx, in.ID) })
 	a.methods["datasheet.reextract"] = method(func(ctx context.Context, in idReq) (any, error) { return c.Reextract(ctx, in.ID) })
 	a.methods["page.get"] = method(func(ctx context.Context, in struct {
@@ -172,6 +191,8 @@ func (a *API) registerLibrary() {
 
 	a.methods["parts.list"] = method(func(ctx context.Context, in library.PartFilter) (any, error) { return c.Lib.Parts(ctx, in) })
 	a.methods["parts.categories"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Lib.Categories(ctx) })
+	a.methods["categories.list"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.Categories(ctx) })
+	a.methods["compare"] = method(func(ctx context.Context, in core.CompareRequest) (any, error) { return c.Compare(ctx, in) })
 	a.methods["part.detail"] = method(func(ctx context.Context, in partReq) (any, error) { return c.PartDetail(ctx, in.Part) })
 	a.methods["part.update"] = method(func(ctx context.Context, in struct {
 		ID int64 `json:"id"`

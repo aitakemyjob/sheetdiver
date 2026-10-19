@@ -11,6 +11,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       {mode === 'library' && <LibraryPanel />}
+      {mode === 'types' && <TypesPanel />}
       {mode === 'projects' && <ProjectsPanel />}
       {mode === 'agent' && <AgentPanel />}
     </aside>
@@ -85,6 +86,39 @@ function LibraryPanel() {
               {p.manufacturer ? `${p.manufacturer} · ` : ''}
               {p.description}
             </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Component types; each opens a comparison of its parts. */
+function TypesPanel() {
+  const s = useStore();
+  const tab = useActiveTab();
+  const list = useAsync(() => api.categoryList(), [s.libraryVersion]);
+  const keys = s.app?.keys ?? {};
+  return (
+    <>
+      <div className="panel-head">Component types</div>
+      <div className="panel-body">
+        <ErrorBox error={list.error} />
+        {list.data?.length === 0 && <div className="faint" style={{ padding: 10 }}>Import datasheets to see their component types here.</div>}
+        {list.data?.map((c) => (
+          <div
+            key={c.category}
+            className={`part-row ${tab?.kind === 'category' && tab.params.category === c.category ? 'on' : ''}`}
+            onClick={() => s.open({ kind: 'category', title: categories[c.category] ?? (c.category || 'Uncategorized'), params: { category: c.category } })}
+            title={(c.keys ?? []).map((k) => `${k}: ${keys[k] ?? ''}`).join('\n')}
+          >
+            <div className="mpn" style={{ fontFamily: 'var(--font-ui)' }}>
+              <CategoryBadge category={c.category || 'other'} label={categories[c.category] ?? (c.category || 'Uncategorized')} />
+              <span className="faint" style={{ marginLeft: 'auto', fontWeight: 500 }}>
+                {c.count} {c.count === 1 ? 'part' : 'parts'}
+              </span>
+            </div>
+            <div className="desc">{c.keys?.length ? `Compare ${c.keys.slice(0, 6).join(', ')}${c.keys.length > 6 ? '…' : ''}` : 'Compare by every parameter key'}</div>
           </div>
         ))}
       </div>

@@ -41,6 +41,8 @@ type Desktop struct {
 func newDesktop(a *api.API, c *core.Service) *Desktop {
 	d := &Desktop{api: a, core: c, ready: make(chan struct{})}
 	a.PickPDFs = d.pickPDFs
+	// The webview can't open new windows, so PDFs open in the system viewer.
+	a.OpenFile = openExternal
 	a.SaveFile = d.saveFile
 	return d
 }

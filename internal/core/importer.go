@@ -355,7 +355,7 @@ func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha,
 		})
 	}
 	for _, p := range res.Pins {
-		in.Pins = append(in.Pins, library.Pin{Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page})
+		in.Pins = append(in.Pins, library.Pin{Package: p.Package, Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page})
 	}
 	return in
 }

@@ -1,4 +1,4 @@
-import { Bot, Calculator, FolderKanban, Library, Search, Settings } from 'lucide-react';
+import { Bot, Calculator, FolderKanban, LayoutGrid, Library, Search, Settings } from 'lucide-react';
 import { useStore, type SidebarMode } from '../lib/store';
 
 /** Left icon rail: sidebar panels, search, calculators and settings. */
@@ -14,6 +14,7 @@ export function ActivityBar() {
   return (
     <nav className="activitybar">
       {btn('library', <Library size={19} />, 'Library')}
+      {btn('types', <LayoutGrid size={19} />, 'Component types')}
       {btn('projects', <FolderKanban size={19} />, 'Projects')}
       {btn('agent', <Bot size={19} />, 'Agent activity', recent)}
       <button className="ab-btn" title="Search" onClick={() => s.open({ kind: 'search', title: 'Search', params: { query: '' } })}>

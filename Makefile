@@ -73,8 +73,8 @@ serve: headless ## Run the browser UI against your config
 dev: ## Wails dev mode with hot reload
 	$(WAILS) dev $(WAILS_TAGS)
 
-icon: ## Regenerate the app icon and logos (scripts/brand draws the mark)
-	go run ./scripts/brand
+icon: ## Regenerate icons and logos from sheetdiver.png
+	go run ./scripts/brand -src sheetdiver.png
 
 release: ## Tag and push a release: make release VERSION=v1.2.3
 	@echo "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$$' || (echo "VERSION must look like v1.2.3 (got $(VERSION))"; exit 1)

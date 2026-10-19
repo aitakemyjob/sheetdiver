@@ -140,6 +140,13 @@ func TestAgentWorkflow(t *testing.T) {
 	h.must("search", map[string]any{"query": "RSET1", "kinds": []string{"table"}}, "Table 7-1")
 	h.must("get_part", map[string]any{"part": "SD1234"}, "XFL4020-222ME")
 
+	h.must("list_categories", nil, "buck: 2 parts", "compares vin")
+	h.must("compare_parts", map[string]any{"category": "buck", "filters": []map[string]any{{"key": "ilim", "op": ">=", "value": "4 A"}}},
+		"1 of 2 parts match", "| SD1235 |", "excluded only because they have no ilim")
+	if out, _, isErr := h.call("compare_parts", map[string]any{"category": "buck", "filters": []map[string]any{{"key": "vin", "op": ">=", "value": "lots"}}}); !isErr || !strings.Contains(out, "not a number") {
+		t.Errorf("bad filter values are explained: %s", out)
+	}
+
 	h.must("create_project", map[string]any{"name": "Board A"}, "created project Board A")
 	h.must("set_rail", map[string]any{"name": "VIN", "v_min": 10, "v_max": 14}, "rail VIN")
 	h.must("set_rail", map[string]any{"name": "3V3", "v_nom": 3.3}, "rail 3V3")

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/aitakemyjob/sheetdiver/internal/pdf"
 )
@@ -64,6 +65,7 @@ type column struct {
 // splitting spans that straddle columns into words first.
 func cells(cols []column, spans []pdf.Span) []string {
 	out := make([]string, len(cols))
+	last := make([]*word, len(cols))
 	for _, w := range words(spans) {
 		cx := centerX(w.box)
 		best := -1
@@ -76,10 +78,14 @@ func cells(cols []column, spans []pdf.Span) []string {
 		if best < 0 {
 			continue
 		}
-		if out[best] != "" {
+		// A subscript or superscript touching the previous word belongs to
+		// it: V + SYS is VSYS, I + 2 + C is I2C.
+		if p := last[best]; out[best] != "" && !(p != nil && w.box.X0-p.box.X1 < math.Max(0.8, 0.15*p.size) && math.Abs(w.size-p.size) > 0.5) {
 			out[best] += " "
 		}
 		out[best] += w.text
+		w := w
+		last[best] = &w
 	}
 	return out
 }
@@ -209,10 +215,28 @@ var pinRoles = map[string]string{
 	"PIN": "pin",
 }
 
-// pinHeader recognises a pin-function header at row i. TI and others set
-// it over two or three rows ("PIN" above "NAME NO.", with "DESCRIPTION"
-// centred between), so neighbouring rows made only of header words are
-// merged in. It returns the columns and the last header row's index.
+// packageHeaderRe matches package column headers in pin tables:
+// "20-PIN", "20-BUMP", "48-BALL", "WLP", "TQFN", "SOT-23", "DDC"…
+var packageHeaderRe = regexp.MustCompile(`^(\d+-?(PIN|PINS|BUMP|BUMPS|BALL|BALLS|LEAD|LEADS)|WLP|WLCSP|WCSP|CSP|DSBGA|BGA|UFBGA|TQFN|QFN|VQFN|WQFN|UQFN|DFN|WDFN|SON|WSON|VSON|SOIC|TSSOP|MSOP|HTSSOP|QFP|LQFP|TQFP|SOT-?\d*|SC-?70|TO-?\d+|DPAK|D2PAK|DDC|DBV|DRL|DRV|DGK|DGN|RGT|RTE|YCH|DQN|YFF|YZF|PDIP|SO-?\d+)$`)
+
+// pinRole returns a pin-table header word's role; package names are
+// pin-number columns.
+func pinRole(tok string) (string, bool) {
+	if r, ok := pinRoles[tok]; ok {
+		return r, true
+	}
+	if packageHeaderRe.MatchString(tok) {
+		return "number", true
+	}
+	return "", false
+}
+
+// pinHeader recognises a pin-function header at row i. Headers are often
+// stacked over two or three rows ("PIN" above "NAME NO." with
+// "DESCRIPTION" centred between; Maxim's "20-BUMP / WLP" and
+// "20-PIN / TQFN" package columns), so neighbouring rows made only of
+// header words are merged and words stacked in one column form its label.
+// It returns the columns and the last header row's index.
 func pinHeader(rows []Row, i int) ([]column, int, bool) {
 	isHeader := func(r Row) bool {
 		ws := words(r.Spans)
@@ -220,7 +244,7 @@ func pinHeader(rows []Row, i int) ([]column, int, bool) {
 			return false
 		}
 		for _, w := range ws {
-			if _, ok := pinRoles[headerToken(w.text)]; !ok {
+			if _, ok := pinRole(headerToken(w.text)); !ok {
 				return false
 			}
 		}
@@ -229,66 +253,106 @@ func pinHeader(rows []Row, i int) ([]column, int, bool) {
 	if !isHeader(rows[i]) {
 		return nil, i, false
 	}
+	// Header rows share a type size; a larger title above the table
+	// ("Pin Description") is not part of the header.
+	sameSize := func(a, b Row) bool { return math.Abs(rowSize(a)-rowSize(b)) <= 1.5 }
+	if i+1 < len(rows) && isHeader(rows[i+1]) && rowSize(rows[i]) > rowSize(rows[i+1])+1.5 {
+		return nil, i, false
+	}
 	lo, hi := i, i
-	for lo > 0 && isHeader(rows[lo-1]) && rows[lo].Box.Y0-rows[lo-1].Box.Y1 < 12 {
+	for lo > 0 && isHeader(rows[lo-1]) && sameSize(rows[lo-1], rows[i]) && rows[lo].Box.Y0-rows[lo-1].Box.Y1 < 12 {
 		lo--
 	}
-	for hi+1 < len(rows) && isHeader(rows[hi+1]) && rows[hi+1].Box.Y0-rows[hi].Box.Y1 < 12 {
+	for hi+1 < len(rows) && isHeader(rows[hi+1]) && sameSize(rows[hi+1], rows[i]) && rows[hi+1].Box.Y0-rows[hi].Box.Y1 < 12 {
 		hi++
 	}
 	var ws []word
 	for k := lo; k <= hi; k++ {
 		ws = append(ws, words(rows[k].Spans)...)
 	}
-	type hw struct {
-		role string
-		box  pdf.Rect
-	}
-	var hs []hw
 	roles := map[string]bool{}
 	for _, w := range ws {
-		if r, ok := pinRoles[headerToken(w.text)]; ok {
-			hs = append(hs, hw{r, w.box})
-			roles[r] = true
-		}
+		r, _ := pinRole(headerToken(w.text))
+		roles[r] = true
 	}
-	if !roles["description"] || (!roles["name"] && !roles["pin"]) || len(hs) > 7 {
+	if !roles["description"] || (!roles["name"] && !roles["pin"]) {
 		return nil, i, false
 	}
-	// "PIN" names the pin only when there is no separate NAME column;
-	// otherwise it is the spanning label over NAME and NO.
-	var keep []hw
-	for _, h := range hs {
-		if h.role == "pin" {
-			if roles["name"] {
-				continue
-			}
-			if roles["number"] {
-				h.role = "name"
-			} else {
-				h.role = "number"
+	// Stack words into columns by horizontal overlap. A lone "PIN" is the
+	// spanning label over NAME and NO. when there is a NAME column.
+	type group struct {
+		box   pdf.Rect
+		role  string
+		words []word
+	}
+	rank := map[string]int{"description": 4, "name": 3, "type": 2, "number": 1, "pin": 0}
+	var groups []*group
+	for _, w := range ws {
+		r, _ := pinRole(headerToken(w.text))
+		if r == "pin" && roles["name"] {
+			continue
+		}
+		var g *group
+		for _, x := range groups {
+			if w.box.X0 < x.box.X1 && x.box.X0 < w.box.X1 {
+				g = x
+				break
 			}
 		}
-		keep = append(keep, h)
+		if g == nil {
+			g = &group{box: w.box, role: r}
+			groups = append(groups, g)
+		}
+		g.box = g.box.Union(w.box)
+		g.words = append(g.words, w)
+		if rank[r] > rank[g.role] {
+			g.role = r
+		}
 	}
-	sort.Slice(keep, func(i, j int) bool { return keep[i].box.X0 < keep[j].box.X0 })
+	if len(groups) > 8 {
+		return nil, i, false
+	}
+	sort.Slice(groups, func(a, b int) bool { return groups[a].box.X0 < groups[b].box.X0 })
+	numbers := 0
+	for _, g := range groups {
+		if g.role == "pin" {
+			if roles["number"] {
+				g.role = "name"
+			} else {
+				g.role = "number"
+			}
+		}
+		if g.role == "number" {
+			numbers++
+		}
+	}
 	var cols []column
-	for i, h := range keep {
+	for k, g := range groups {
 		x0 := -1.0
-		if i > 0 {
-			x0 = (centerX(keep[i-1].box) + centerX(h.box)) / 2
+		if k > 0 {
+			x0 = (centerX(groups[k-1].box) + centerX(g.box)) / 2
 		}
 		x1 := 1e9
-		if i+1 < len(keep) {
-			x1 = (centerX(h.box) + centerX(keep[i+1].box)) / 2
+		if k+1 < len(groups) {
+			x1 = (centerX(g.box) + centerX(groups[k+1].box)) / 2
 		}
-		cols = append(cols, column{name: strings.ToUpper(h.role), role: h.role, x0: x0, x1: x1})
+		sort.SliceStable(g.words, func(a, b int) bool { return g.words[a].box.Y0 < g.words[b].box.Y0 })
+		var label []string
+		for _, w := range g.words {
+			label = append(label, w.text)
+		}
+		name := strings.ToUpper(g.role)
+		if g.role == "number" && numbers > 1 {
+			// Each package column's label names the package.
+			name = strings.Join(label, " ")
+		}
+		cols = append(cols, column{name: name, role: g.role, x0: x0, x1: x1})
 	}
 	// Descriptions are long and left-aligned: start the column just after
-	// the widest content of the column before it, not at the midpoint.
+	// the column before it, not at the midpoint.
 	for k := 1; k < len(cols); k++ {
 		if cols[k].role == "description" {
-			start := keep[k-1].box.X1 + 6
+			start := groups[k-1].box.X1 + 6
 			cols[k].x0 = math.Min(cols[k].x0, start)
 			cols[k-1].x1 = cols[k].x0
 		}
@@ -915,13 +979,30 @@ func thermalRow(r Row, page int, secName string) (Param, bool) {
 // pinTypeRe matches a pin type cell.
 var pinTypeRe = regexp.MustCompile(`^(?i:I|O|I/O|IO|P|G|PWR|GND|A|AI|AO|D|DI|DO|OD|NC|S|B|—|-|–)$`)
 
+// hasAlnum reports whether s contains a letter or digit.
+func hasAlnum(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
 // pinTable reads a pin-function table. A row with a pin number or name
 // starts a pin; text-only rows (wrapped or vertically centred
-// descriptions) go to the nearest pin row.
+// descriptions) go to the nearest pin row. With several package columns
+// (WLP and TQFN), each pin is recorded once per package.
 func pinTable(cols []column, header Row, body []Row, page int, secName string) (Table, []Pin) {
 	t := Table{Page: page, Kind: TablePins, Section: secName, Box: header.Box}
 	for _, c := range cols {
 		t.Header = append(t.Header, c.name)
+	}
+	var numCols []int
+	for k, c := range cols {
+		if c.role == "number" {
+			numCols = append(numCols, k)
+		}
 	}
 	role := func(cs []string, r string) string {
 		for i, c := range cols {
@@ -940,7 +1021,13 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 	for _, b := range body {
 		cs := cells(cols, b.Spans)
 		t.Box = t.Box.Union(b.Box)
-		rows = append(rows, prow{y: b.Y, cells: cs, pin: role(cs, "number") != "" || role(cs, "name") != ""})
+		pin := hasAlnum(role(cs, "name"))
+		for _, k := range numCols {
+			if hasAlnum(cs[k]) {
+				pin = true
+			}
+		}
+		rows = append(rows, prow{y: b.Y, cells: cs, pin: pin})
 	}
 	type extra struct {
 		y    float64
@@ -954,6 +1041,9 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		d := role(r.cells, "description")
 		if d == "" {
 			d = strings.Join(nonEmpty(r.cells), " ")
+		}
+		if !hasAlnum(d) {
+			continue
 		}
 		best, dist := -1, math.Inf(1)
 		for j, o := range rows {
@@ -970,7 +1060,7 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		if !r.pin {
 			continue
 		}
-		num, name, typ := role(r.cells, "number"), role(r.cells, "name"), role(r.cells, "type")
+		name, typ := role(r.cells, "name"), role(r.cells, "type")
 		parts := []extra{{r.y, role(r.cells, "description")}}
 		parts = append(parts, attached[j]...)
 		sort.SliceStable(parts, func(a, b int) bool { return parts[a].y < parts[b].y })
@@ -985,8 +1075,26 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 			d = strings.TrimSpace(typ + " " + d)
 			typ = ""
 		}
-		t.Rows = append(t.Rows, []string{num, name, typ, d})
-		pins = append(pins, Pin{Number: num, Name: name, Type: typ, Description: d, Page: page})
+		row := append([]string(nil), r.cells...)
+		t.Rows = append(t.Rows, row)
+		if len(numCols) <= 1 {
+			num := ""
+			if len(numCols) == 1 {
+				num = strings.TrimSpace(r.cells[numCols[0]])
+			}
+			if !hasAlnum(num) {
+				num = ""
+			}
+			pins = append(pins, Pin{Number: num, Name: name, Type: typ, Description: d, Page: page})
+			continue
+		}
+		for _, k := range numCols {
+			num := strings.TrimSpace(r.cells[k])
+			if !hasAlnum(num) {
+				continue
+			}
+			pins = append(pins, Pin{Package: cols[k].name, Number: num, Name: name, Type: typ, Description: d, Page: page})
+		}
 	}
 	return t, pins
 }

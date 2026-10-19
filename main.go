@@ -215,16 +215,27 @@ func firstPartCategory(r core.ImportResult) string {
 
 // openBrowser opens url in the default browser (best effort).
 func openBrowser(url string) {
+	if err := openExternal(url); err != nil {
+		slog.Warn("could not open browser", "err", err)
+	}
+}
+
+// openExternal opens a URL or file with the system's default application
+// (a PDF in the user's PDF viewer).
+func openExternal(target string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.Command("open", target)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.Command("xdg-open", target)
 	}
 	if err := cmd.Start(); err != nil {
-		slog.Warn("could not open browser", "err", err)
+		return err
 	}
+	// Reap the opener in the background; it exits once it hands off.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }

@@ -441,3 +441,10 @@ html { font-size: var(--ui-font-size, 13px); }
 .search-hit .snip mark { background: var(--warn-soft); color: var(--text); border-radius: 3px; padding: 0 2px; }
 .note { padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--border); }
 .note .meta { font-size: 11px; color: var(--text-3); display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+
+/* Category comparison */
+.dtable.compare th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.dtable.compare th.sortable:hover { color: var(--text); }
+.dtable.compare tr.filters th { top: 31px; padding-top: 2px; text-transform: none; letter-spacing: 0; }
+.dtable.compare tr.hl td { background: var(--accent-soft); }
+.dtable.compare td.num a:hover { text-decoration: underline; }
