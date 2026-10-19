@@ -150,13 +150,15 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
       s.toast({ kind: 'err', title: 'Could not import', body: (e as Error).message });
     }
   };
+  // The details pane shows the description; the table keeps stock and price in view.
+  const showDesc = !detail || cols.length === 0;
   const sortBy = (key: string) => setSort(sort.key === key ? { key, desc: !sort.desc } : { key, desc: false });
   const arrow = (key: string) => (sort.key === key ? (sort.desc ? ' ↓' : ' ↑') : '');
 
   return (
     <div className="catalog">
       <aside className="catalog-cats">
-        <div className="side-search">
+        <div className="catalog-cats-head">
           <input className="input" placeholder="Filter categories" value={catFilter} onChange={(e) => setCatFilter(e.target.value)} />
         </div>
         <div className="panel-body">
@@ -287,26 +289,26 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
             {loading && !items && <Spinner label="Searching…" />}
             {items && items.length === 0 && <div className="faint pad">No parts match.</div>}
             {items && items.length > 0 && (
-              <table className="dtable compare">
+              <table className="dtable catalog-table">
                 <thead>
                   <tr>
                     <th style={{ width: 26 }} />
-                    <th className="sortable" onClick={() => sortBy('mpn')}>
+                    <th className="sortable part-col" onClick={() => sortBy('mpn')}>
                       Part{arrow('mpn')}
                     </th>
                     {cols.map((k) => (
-                      <th key={k} className="sortable" style={{ textAlign: 'right' }} title={`Sort by ${k}`} onClick={() => sortBy(`attr:${k}`)}>
+                      <th key={k} className="sortable param-col" title={`Sort by ${k}`} onClick={() => sortBy(`attr:${k}`)}>
                         {k}
                         {arrow(`attr:${k}`)}
                       </th>
                     ))}
-                    <th>Description</th>
+                    {showDesc && <th>Description</th>}
                     <th>Package</th>
                     <th>JLC</th>
-                    <th className="sortable" style={{ textAlign: 'right' }} onClick={() => sortBy('stock')}>
+                    <th className="sortable num-col" onClick={() => sortBy('stock')}>
                       Stock{arrow('stock')}
                     </th>
-                    <th className="sortable" style={{ textAlign: 'right' }} onClick={() => sortBy('price')}>
+                    <th className="sortable num-col" onClick={() => sortBy('price')}>
                       Price{arrow('price')}
                     </th>
                   </tr>
@@ -317,27 +319,27 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                       <td onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={picked.has(it.lcsc)} onChange={() => toggle(it.lcsc)} aria-label={`Select ${it.mpn}`} />
                       </td>
-                      <td>
-                        <div className="mono" style={{ fontWeight: 600 }}>
-                          {it.mpn}
+                      <td className="part-col">
+                        <div className="row" style={{ gap: 6 }}>
+                          <span className="mono" style={{ fontWeight: 600 }}>
+                            {it.mpn}
+                          </span>
+                          {it.inLibrary && <span className="badge ok">in library</span>}
                         </div>
-                        <div className="faint" style={{ fontSize: 11 }}>
+                        <div className="maker" title={it.manufacturer}>
                           {it.lcsc} · {it.manufacturer || 'unknown maker'}
-                          {it.inLibrary && (
-                            <span className="badge ok" style={{ marginLeft: 6 }}>
-                              in library
-                            </span>
-                          )}
                         </div>
                       </td>
                       {cols.map((k) => (
-                        <td key={k} className="num mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                        <td key={k} className="param-col" title={it.attributes?.[k]}>
                           {it.attributes?.[k] ?? '–'}
                         </td>
                       ))}
-                      <td className="ellipsis" style={{ maxWidth: cols.length ? 240 : 360, fontSize: 12 }} title={it.description}>
-                        {it.description}
-                      </td>
+                      {showDesc && (
+                        <td className="desc-col" style={{ maxWidth: cols.length ? 220 : 380 }} title={it.description}>
+                          {it.description}
+                        </td>
+                      )}
                       <td className="mono" style={{ fontSize: 12 }}>
                         {it.package}
                       </td>
@@ -417,7 +419,9 @@ function CatalogDetail({ it, onClose, onImport }: { it: CatalogItem; onClose: ()
             {attrs.map(([k, v]) => (
               <tr key={k}>
                 <td className="faint">{k}</td>
-                <td>{v}</td>
+                <td className="mono" style={{ whiteSpace: 'normal', minWidth: 90 }}>
+                  {v}
+                </td>
               </tr>
             ))}
           </tbody>
