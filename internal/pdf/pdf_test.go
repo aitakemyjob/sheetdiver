@@ -3,12 +3,15 @@ package pdf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
 	"testing"
 
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
+	pdfium "github.com/klippa-app/go-pdfium"
+	"github.com/klippa-app/go-pdfium/webassembly"
 )
 
 func TestExtractAndRender(t *testing.T) {
@@ -140,5 +143,39 @@ func TestSymbolChar(t *testing.T) {
 		if got := symbolChar(in); got != want {
 			t.Errorf("symbolChar(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestEngineRetriesWithoutTheCompilationCache(t *testing.T) {
+	saved := initPool
+	defer func() { initPool = saved }()
+	calls := 0
+	initPool = func(cfg webassembly.Config) (pdfium.Pool, error) {
+		calls++
+		if calls == 1 {
+			// What Windows reports when another process writes the same
+			// cache file.
+			return nil, errors.New("could not compile webassembly module: rename …tmp …: Access is denied.")
+		}
+		return saved(cfg)
+	}
+	e := NewEngine(t.TempDir())
+	defer e.Close()
+	if _, err := e.Extract(context.Background(), testutil.Datasheet(), nil); err != nil {
+		t.Fatalf("a failing compilation cache must not stop the engine: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("compile attempts = %d, want 2 (cached, then without the cache)", calls)
+	}
+
+	// Without a cache there's nothing to fall back to: the error stands.
+	calls = 0
+	initPool = func(webassembly.Config) (pdfium.Pool, error) {
+		calls++
+		return nil, errors.New("broken")
+	}
+	e2 := NewEngine("")
+	if _, err := e2.Extract(context.Background(), testutil.Datasheet(), nil); err == nil || calls != 1 {
+		t.Errorf("err = %v after %d attempts", err, calls)
 	}
 }
