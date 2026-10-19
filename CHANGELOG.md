@@ -37,7 +37,10 @@ every merged pull request.
   basic/extended library, package, description and datasheet links. Pick
   parts and import just their datasheets. A Parts catalogue view browses
   it by category with sorting, paging and a details pane (attributes,
-  stock, price, JLC library). A reminder suggests refreshing
+  stock, price, JLC library), and filters on each category's own
+  parameters (Drain to Source Voltage ≥ 30V, RDS(on) ≤ 10mΩ, Type =
+  N-Channel; ranges such as an input voltage range compare sensibly),
+  with the category's main parameters as sortable columns. A reminder suggests refreshing
   it after 14 days (configurable). Part-number lookups and BOM import
   fall back to its datasheet links; JLCPCB BOMs with only LCSC codes
   resolve, and BOM results show JLC availability. `sheetdiver catalog`,

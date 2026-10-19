@@ -61,3 +61,26 @@ describe('catalogue categories', () => {
     expect(groupCategories(cats, 'resistors', false)[0].subs.length).toBe(2);
   });
 });
+
+describe('catalogue parameters', () => {
+  it('picks columns and active filters', async () => {
+    const { activeFilters, paramColumns, paramRange } = await import('../views/CatalogView');
+    const params = [
+      { key: 'Drain to Source Voltage', kind: 'number' as const, count: 9, unit: 'V', min: 8, max: 2500 },
+      { key: 'Type', kind: 'text' as const, count: 9, values: [{ value: 'N-Channel', count: 6 }] },
+      { key: 'Operating Temperature', kind: 'number' as const, count: 8, unit: '℃', min: -55, max: 175 },
+      { key: 'RDS(on)', kind: 'number' as const, count: 8, unit: 'Ω', min: 0.00035, max: 850 },
+      { key: 'Pd - Power Dissipation', kind: 'number' as const, count: 7, unit: 'W', min: 0.1, max: 1600 },
+      { key: 'Gate Charge(Qg)', kind: 'number' as const, count: 6, unit: 'C', min: 1e-9, max: 1e-6 },
+    ];
+    expect(paramColumns(params, [], '')).toEqual(['Drain to Source Voltage', 'RDS(on)', 'Pd - Power Dissipation', 'Gate Charge(Qg)']);
+    const fs = [
+      { key: 'Type', op: '=' as const, input: 'N-Channel' },
+      { key: 'RDS(on)', op: '<=' as const, input: '' },
+    ];
+    expect(activeFilters(fs)).toEqual([fs[0]]);
+    expect(paramColumns(params, activeFilters(fs), 'attr:Gate Charge(Qg)').slice(0, 2)).toEqual(['Type', 'Gate Charge(Qg)']);
+    expect(paramRange(params[0])).toBe('8 V … 2.5 kV');
+    expect(paramRange(params[1])).toBe('');
+  });
+});

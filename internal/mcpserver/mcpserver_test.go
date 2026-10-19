@@ -285,7 +285,7 @@ func TestCatalogueTools(t *testing.T) {
 	defer pdfSrv.Close()
 	db, err := testutil.JLCDatabase(t.TempDir(), "source-db-v2", [][]any{
 		{1, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7001DBVR", "SOT-23-6", "Zed Semi", "base", 0, "2A 4.5V~28V Buck", pdfSrv.URL + "/zx7001.pdf", 1200, "1-:0.31", `{"Output Current":"2A"}`},
-		{2, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX9000", "SOT-23-6", "Zed Semi", "expand", 0, "1A 5V~12V Buck", "", 0, "", `{}`},
+		{2, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX9000", "SOT-23-6", "Zed Semi", "expand", 0, "1A 5V~12V Buck", "", 0, "", `{"Output Current":"1A"}`},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -311,6 +311,17 @@ func TestCatalogueTools(t *testing.T) {
 	h.must("search_catalog", map[string]any{"query": "buck 2A", "in_stock": true}, "1 parts", "| C1 | ZX7001DBVR | Zed Semi | SOT-23-6 | basic | 1200 | 0.31 | – |")
 	if out := h.must("search_catalog", map[string]any{"query": "buck"}); !strings.Contains(out, "ZX9000") {
 		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
+	}
+	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)")
+	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A")
+	out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "1.5A"}}},
+		"| Output Current |", "| ZX7001DBVR |", "| 2A |")
+	if strings.Contains(out, "ZX9000") {
+		t.Errorf("filtered out: %s", out)
+	}
+	h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "sort": "Output Current"}, "ZX9000")
+	if out, _, isErr := h.call("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "lots"}}}); !isErr || !strings.Contains(out, "can't read") {
+		t.Errorf("bad value: %s", out)
 	}
 	h.must("import_datasheets", map[string]any{"lcsc": []string{"C1"}}, "1 imported", "ZX7001")
 	h.must("search_catalog", map[string]any{"query": "ZX7001"}, "| ZX7001 |")

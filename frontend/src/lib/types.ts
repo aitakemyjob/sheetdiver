@@ -623,3 +623,21 @@ export interface CatalogCategory {
   parts: number;
   inStock: number;
 }
+
+/** A parameter of a catalogue category, for filtering. */
+export interface CatalogParam {
+  key: string;
+  kind: 'number' | 'text';
+  count: number;
+  unit?: string;
+  min?: number;
+  max?: number;
+  values?: { value: string; count: number }[];
+}
+
+/** A catalogue parameter filter: input is typed ("30V", "10mΩ", "N-Channel"). */
+export interface CatalogFilter {
+  key: string;
+  op: '>=' | '<=' | '=';
+  input: string;
+}

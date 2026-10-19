@@ -95,6 +95,34 @@ func (s *Service) CatalogCategories(ctx context.Context) ([]catalog.Category, er
 	return cats, nil
 }
 
+// CatalogParams summarizes the parameters of a category's parts (for the
+// given flags), cached per catalogue download; queries with words aren't
+// cached.
+func (s *Service) CatalogParams(ctx context.Context, q catalog.Query) ([]catalog.Param, error) {
+	q.Attrs, q.Sort, q.Desc, q.Limit, q.Offset = nil, "", false, 0, 0
+	key := fmt.Sprintf("%s|%v|%v|%s", q.Subcategory, q.InStock, q.Basic, s.Catalog.Status(ctx).Downloaded)
+	cacheable := strings.TrimSpace(q.Text) == ""
+	if cacheable {
+		s.mu.Lock()
+		ps, ok := s.catalogParams[key]
+		s.mu.Unlock()
+		if ok {
+			return ps, nil
+		}
+	}
+	ps, err := s.Catalog.Params(ctx, q)
+	if err != nil || !cacheable {
+		return ps, err
+	}
+	s.mu.Lock()
+	if s.catalogParams == nil || len(s.catalogParams) > 200 {
+		s.catalogParams = map[string][]catalog.Param{}
+	}
+	s.catalogParams[key] = ps
+	s.mu.Unlock()
+	return ps, nil
+}
+
 // CatalogItem is a catalogue part with whether the library has it.
 type CatalogItem struct {
 	catalog.Item

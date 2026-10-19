@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -309,24 +310,55 @@ type updateArgs struct {
 	Part string `json:"part,omitempty" jsonschema:"check the datasheet of this part; omit to check every datasheet in the library"`
 }
 
+type catalogFilter struct {
+	Parameter string `json:"parameter" jsonschema:"a parameter name from catalog_parameters, such as 'Drain to Source Voltage' or 'RDS(on)'"`
+	Op        string `json:"op" jsonschema:"one of >=, <= (numbers) or = (text values)"`
+	Value     string `json:"value" jsonschema:"for numbers a value with unit like 30V, 10mΩ, 4.7u, 3A; for text one of the parameter's values like N-Channel or Buck"`
+}
+
 type catalogArgs struct {
-	Query       string `json:"query" jsonschema:"words that must all appear in the part number, maker, package, category or description, such as 'buck 3A SOT-23' or '10k 0402' or 'TPS563200'"`
-	InStock     bool   `json:"in_stock,omitempty" jsonschema:"only parts JLCPCB has in stock"`
-	Basic       bool   `json:"basic,omitempty" jsonschema:"only JLCPCB basic/preferred parts (no extended-part setup fee)"`
-	Subcategory string `json:"subcategory,omitempty" jsonschema:"exact JLCPCB category, such as 'DC-DC Converters' or 'MOSFETs'"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"max results (default 20)"`
+	Query       string          `json:"query,omitempty" jsonschema:"words that must all appear in the part number, maker, package, category or description, such as 'buck 3A SOT-23' or '10k 0402' or 'TPS563200'"`
+	InStock     bool            `json:"in_stock,omitempty" jsonschema:"only parts JLCPCB has in stock"`
+	Basic       bool            `json:"basic,omitempty" jsonschema:"only JLCPCB basic/preferred parts (no extended-part setup fee)"`
+	Subcategory string          `json:"subcategory,omitempty" jsonschema:"exact JLCPCB category from catalog_parameters, such as 'DC-DC Converters' or 'MOSFETs'"`
+	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"parameter requirements (need a subcategory or query). For ranges such as an input voltage range, >= 24V means the part accepts 24 V"`
+	Sort        string          `json:"sort,omitempty" jsonschema:"stock (default), price, mpn, or a parameter name to sort by it"`
+	Desc        bool            `json:"desc,omitempty"`
+	Limit       int             `json:"limit,omitempty" jsonschema:"max results (default 20)"`
+	Offset      int             `json:"offset,omitempty" jsonschema:"skip this many results (paging)"`
+}
+
+type catalogParamsArgs struct {
+	Subcategory string `json:"subcategory,omitempty" jsonschema:"a JLCPCB category; omit to list the categories"`
+	Query       string `json:"query,omitempty" jsonschema:"without a subcategory: only categories containing this text"`
+	InStock     bool   `json:"in_stock,omitempty"`
 }
 
 // registerDesign adds alternatives, reports, datasheet updates and the
 // parts catalogue.
 func (s *Server) registerDesign() {
 	c := s.core
-	addTool(s, &mcp.Tool{Name: "search_catalog", Description: "Search the JLCPCB/LCSC parts catalogue (about 2.5 million parts, if the user downloaded it in Settings) for parts to use: stock, JLC basic/extended library, price, package, attributes and whether the library already has the part. Import the datasheets of the ones worth considering with import_datasheets lcsc=[...].", Annotations: readOnly("Search parts catalogue")},
+	addTool(s, &mcp.Tool{Name: "search_catalog", Description: "Search the JLCPCB/LCSC parts catalogue (about 2.5 million parts, if the user downloaded it in Settings) for parts to use: by words and/or a category with parameter filters (get a category's parameters from catalog_parameters), sorted by stock, price or a parameter. Results show stock, JLC basic/extended library, price, package, the filtered parameters and whether the library already has the part. Import the datasheets of the ones worth considering with import_datasheets lcsc=[...].", Annotations: readOnly("Search parts catalogue")},
 		read, func(a catalogArgs) string { return "catalog " + a.Query }, func(ctx context.Context, a catalogArgs) (result, error) {
 			if a.Limit == 0 {
 				a.Limit = 20
 			}
-			items, err := c.CatalogSearch(ctx, catalog.Query{Text: a.Query, InStock: a.InStock, Basic: a.Basic, Subcategory: a.Subcategory, Limit: a.Limit})
+			q := catalog.Query{Text: a.Query, InStock: a.InStock, Basic: a.Basic, Subcategory: a.Subcategory, Limit: a.Limit, Offset: a.Offset, Desc: a.Desc}
+			switch a.Sort {
+			case "", "stock", "price", "mpn":
+				q.Sort = a.Sort
+			default:
+				q.Sort = "attr:" + a.Sort
+			}
+			var cols []string
+			for _, f := range a.Filters {
+				q.Attrs = append(q.Attrs, catalog.AttrFilter{Key: f.Parameter, Op: f.Op, Input: f.Value})
+				cols = append(cols, f.Parameter)
+			}
+			if k := strings.TrimPrefix(q.Sort, "attr:"); k != q.Sort && !slices.Contains(cols, k) {
+				cols = append(cols, k)
+			}
+			items, err := c.CatalogSearch(ctx, q)
 			if err != nil {
 				return result{}, err
 			}
@@ -336,9 +368,60 @@ func (s *Server) registerDesign() {
 			if st.Stale {
 				fmt.Fprintf(&b, ", %d days old: suggest the user refreshes it", st.AgeDays)
 			}
-			b.WriteString(")\n| LCSC | part | maker | package | JLC | stock | $/1 | in library | description |\n|---|---|---|---|---|---:|---:|---|---|\n")
+			b.WriteString(")\n| LCSC | part | maker | package | JLC | stock | $/1 | in library |")
+			for _, k := range cols {
+				b.WriteString(" " + k + " |")
+			}
+			b.WriteString(" description |\n|---|---|---|---|---|---:|---:|---|" + strings.Repeat("---|", len(cols)) + "---|\n")
 			for _, it := range items {
-				fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %.4g | %s | %s |\n", it.LCSC, it.MPN, it.Manufacturer, it.Package, it.Library, it.Stock, it.Price, firstNonEmpty(it.InLibrary, "–"), strings.ReplaceAll(it.Description, "|", "/"))
+				fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %d | %.4g | %s |", it.LCSC, it.MPN, it.Manufacturer, it.Package, it.Library, it.Stock, it.Price, firstNonEmpty(it.InLibrary, "–"))
+				for _, k := range cols {
+					fmt.Fprintf(&b, " %s |", firstNonEmpty(it.Attributes[k], "–"))
+				}
+				fmt.Fprintf(&b, " %s |\n", strings.ReplaceAll(it.Description, "|", "/"))
+			}
+			if len(items) == q.Limit {
+				fmt.Fprintf(&b, "(more results: offset %d)\n", q.Offset+len(items))
+			}
+			return text(b.String()), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "catalog_parameters", Description: "Browse the JLCPCB parts catalogue's structure: without a subcategory, its categories with part and in-stock counts; with one, the parameters its parts have (numeric with unit and range, or text with the common values) to use as search_catalog filters.", Annotations: readOnly("Catalogue parameters")},
+		read, func(a catalogParamsArgs) string { return "catalog parameters " + a.Subcategory }, func(ctx context.Context, a catalogParamsArgs) (result, error) {
+			var b strings.Builder
+			if a.Subcategory == "" {
+				cats, err := c.CatalogCategories(ctx)
+				if err != nil {
+					return result{}, err
+				}
+				q := strings.ToLower(a.Query)
+				b.WriteString("category › subcategory: parts (in stock)\n")
+				for _, x := range cats {
+					if q != "" && !strings.Contains(strings.ToLower(x.Category+" "+x.Subcategory), q) {
+						continue
+					}
+					if a.InStock && x.InStock == 0 {
+						continue
+					}
+					fmt.Fprintf(&b, "%s › %s: %d (%d)\n", x.Category, x.Subcategory, x.Parts, x.InStock)
+				}
+				return text(b.String()), nil
+			}
+			ps, err := c.CatalogParams(ctx, catalog.Query{Subcategory: a.Subcategory, InStock: a.InStock})
+			if err != nil {
+				return result{}, err
+			}
+			fmt.Fprintf(&b, "parameters of %s (how many parts have each):\n", a.Subcategory)
+			for _, p := range ps {
+				if p.Kind == "number" {
+					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s\n", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))
+					continue
+				}
+				var vs []string
+				for _, v := range p.Values[:min(12, len(p.Values))] {
+					vs = append(vs, fmt.Sprintf("%s (%d)", v.Value, v.Count))
+				}
+				fmt.Fprintf(&b, "- %s [text] %d parts: %s\n", p.Key, p.Count, strings.Join(vs, ", "))
 			}
 			return text(b.String()), nil
 		})

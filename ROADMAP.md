@@ -32,4 +32,3 @@ say so in [Discussions](https://github.com/aitakemyjob/sheetdiver/discussions).
   recorded data.
 - Distributor APIs (Digi-Key, Mouser, with your own keys) for parts the
   JLCPCB catalogue doesn't carry, and lifecycle status from them.
-- Parametric filters in the parts catalogue (≥ / ≤ on its attributes).

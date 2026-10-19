@@ -227,6 +227,7 @@ func (a *API) registerLibrary() {
 		return c.CatalogStatus(ctx), nil
 	})
 	a.methods["catalog.search"] = method(func(ctx context.Context, in catalog.Query) (any, error) { return c.CatalogSearch(ctx, in) })
+	a.methods["catalog.params"] = method(func(ctx context.Context, in catalog.Query) (any, error) { return c.CatalogParams(ctx, in) })
 	a.methods["catalog.categories"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CatalogCategories(ctx) })
 	a.methods["catalog.subcategories"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		m, err := c.Catalog.Subcategories(ctx)

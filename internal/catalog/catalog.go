@@ -166,7 +166,10 @@ type Query struct {
 	InStock     bool   `json:"inStock,omitempty"`
 	Basic       bool   `json:"basic,omitempty"`
 	Subcategory string `json:"subcategory,omitempty"`
-	// Sort is stock (default), price or mpn; Desc reverses it.
+	// Attrs filter on the parts' attributes (see Params for which a
+	// category has); they need a Subcategory or search words.
+	Attrs []AttrFilter `json:"attrs,omitempty"`
+	// Sort is stock (default), price, mpn or attr:<key>; Desc reverses it.
 	Sort   string `json:"sort,omitempty"`
 	Desc   bool   `json:"desc,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
@@ -265,6 +268,30 @@ func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
+	if len(q.Attrs) > 0 || attrSort(q.Sort) != "" {
+		return c.searchAttrs(ctx, q, limit)
+	}
+	where, args := q.where()
+	args = append(args, limit, max(0, q.Offset))
+	rows, err := c.db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE `+where+ //nolint:gosec // constant SQL fragments; values are placeholders
+		` ORDER BY `+q.order()+` LIMIT ? OFFSET ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Item{}
+	for rows.Next() {
+		it, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// where builds the SQL condition of a query's words and flags.
+func (q Query) where() (string, []any) {
 	where := []string{"present = 1"}
 	var args []any
 	for _, w := range words(q.Text) {
@@ -288,33 +315,22 @@ func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
 		where = append(where, "subcategory = ?")
 		args = append(args, q.Subcategory)
 	}
-	order := `stock > 0 DESC, library_type <> 'base' AND preferred = 0, stock DESC`
+	return strings.Join(where, " AND "), args
+}
+
+// order is a query's SQL ordering (attribute sorts are applied later).
+func (q Query) order() string {
 	dir := map[bool]string{false: "ASC", true: "DESC"}
 	switch q.Sort {
 	case "price":
 		// Unpriced parts last; the first price break as a number.
-		order = `price = '', CAST(SUBSTR(price, INSTR(price, ':') + 1) AS REAL) ` + dir[q.Desc] + `, stock DESC`
+		return `price = '', CAST(SUBSTR(price, INSTR(price, ':') + 1) AS REAL) ` + dir[q.Desc] + `, stock DESC`
 	case "mpn":
-		order = `mfr ` + dir[q.Desc]
+		return `mfr ` + dir[q.Desc]
 	case "stock":
-		order = `stock ` + dir[!q.Desc]
+		return `stock ` + dir[!q.Desc]
 	}
-	args = append(args, limit, max(0, q.Offset))
-	rows, err := c.db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE `+strings.Join(where, " AND ")+ //nolint:gosec // constant SQL fragments; values are placeholders
-		` ORDER BY `+order+` LIMIT ? OFFSET ?`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []Item{}
-	for rows.Next() {
-		it, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, it)
-	}
-	return out, rows.Err()
+	return `stock > 0 DESC, library_type <> 'base' AND preferred = 0, stock DESC`
 }
 
 // ByMPN finds parts by manufacturer part number: exact (ignoring case)

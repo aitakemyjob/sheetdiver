@@ -62,9 +62,11 @@ type Service struct {
 	// catalogCats caches the catalogue categories of one download.
 	catalogCats    []catalog.Category
 	catalogCatsKey time.Time
-	slots          chan struct{}
-	jobs           jobs
-	pending        pendingUpdates
+	// catalogParams caches parameter summaries by category and flags.
+	catalogParams map[string][]catalog.Param
+	slots         chan struct{}
+	jobs          jobs
+	pending       pendingUpdates
 }
 
 // MCPStatus says whether the MCP endpoint is listening.

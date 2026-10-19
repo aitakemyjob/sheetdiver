@@ -39,7 +39,7 @@ maps, notes), so the library gets better every time it's used.
 | | |
 |---|---|
 | **Import anything** | Drag in PDFs or whole folders, paste a list of URLs (or product pages that link to the PDF) or part numbers, or `sheetdiver import ~/Datasheets TPS563200`. Several import at once, followed in an import queue with retry; re-importing the same file is a no-op. |
-| **Parts catalogue** | One click downloads JLCPCB's catalogue (about 2.5 million parts, via the open [jlcparts](https://github.com/yaqwsx/jlcparts) dataset) for offline search by part number or specs, with stock, price and JLC library; tick the parts you want and their datasheets are imported. |
+| **Parts catalogue** | One click downloads JLCPCB's catalogue (about 2.5 million parts, via the open [jlcparts](https://github.com/yaqwsx/jlcparts) dataset) for offline search by part number or specs, browsing by category and filtering on each category's parameters (V<sub>DS</sub> ≥ 30 V, R<sub>DS(on)</sub> ≤ 10 mΩ…), with stock, price and JLC library; tick the parts you want and their datasheets are imported. |
 | **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
 | **Alternatives** | "What else in my library could replace this?" ranked key by key: ▲ better, = same, ▼ worse, with drop-ins first. |
 | **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, calculations. |

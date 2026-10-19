@@ -222,3 +222,17 @@ func TestDownloadRejectsMixedAndDamagedArchives(t *testing.T) {
 		t.Error("an empty site is an error")
 	}
 }
+
+// installed downloads a stand-in catalogue of rows and returns it.
+func installed(t *testing.T, rows [][]any) *Catalog {
+	t.Helper()
+	db, err := testutil.JLCDatabase(t.TempDir(), sourceFormat, rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := serve(t, &publisher{files: splitZip(t, db, 1<<20), modified: func(string) string { return published }})
+	if err := c.Download(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}

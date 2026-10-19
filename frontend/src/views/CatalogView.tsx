@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Database, Download, FileDown, RefreshCw, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, Download, FileDown, Filter, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { catalogProgressText, useStore } from '../lib/store';
-import type { CatalogCategory, CatalogItem } from '../lib/types';
+import type { CatalogCategory, CatalogFilter, CatalogItem, CatalogParam } from '../lib/types';
 import { libraryTone, priceText } from '../components/CatalogPanel';
 import { Empty, ErrorBox, Spinner, Switch, useAsync } from '../components/ui';
+import { Menu } from '../components/Menu';
+import { eng } from '../lib/format';
 
 /** Rows per page. */
 const pageSize = 100;
@@ -28,6 +30,27 @@ export function groupCategories(cats: CatalogCategory[], filter: string, inStock
   return groups;
 }
 
+/** The filters that are complete enough to send. */
+export function activeFilters(fs: CatalogFilter[]): CatalogFilter[] {
+  return fs.filter((f) => f.input.trim() !== '');
+}
+
+/** Columns for a category: filtered and sorted parameters, then its most common numeric ones (5 at most). */
+export function paramColumns(params: CatalogParam[], filters: CatalogFilter[], sortKey: string): string[] {
+  const cols: string[] = [];
+  const add = (k: string) => k && !cols.includes(k) && cols.length < 5 && cols.push(k);
+  filters.forEach((f) => add(f.key));
+  if (sortKey.startsWith('attr:')) add(sortKey.slice(5));
+  params.filter((p) => p.kind === 'number' && p.key !== 'Operating Temperature').forEach((p) => cols.length < 4 && add(p.key));
+  return cols;
+}
+
+/** Describes a numeric parameter's range for a filter hint. */
+export function paramRange(p: CatalogParam): string {
+  if (p.kind !== 'number' || p.min === undefined || p.max === undefined) return '';
+  return `${eng(p.min, p.unit ?? '')} … ${eng(p.max, p.unit ?? '')}`;
+}
+
 /**
  * The JLCPCB parts catalogue: browse by category or search, filter by
  * stock and JLC library, sort, page through results, inspect a part and
@@ -49,13 +72,22 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   const [detail, setDetail] = useState<CatalogItem>();
   const [catFilter, setCatFilter] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<CatalogFilter[]>([]);
+  const catParams = useAsync(() => (c?.installed && sub ? api.catalogParams({ text: '', subcategory: sub, inStock, basic }) : Promise.resolve([] as CatalogParam[])), [c?.installed, sub, inStock, basic, c?.downloaded]);
+  const sent = useMemo(() => activeFilters(filters), [filters]);
+  const cols = useMemo(() => paramColumns(catParams.data ?? [], sent, sort.key), [catParams.data, sent, sort.key]);
   const cats = useAsync(() => (c?.installed ? api.catalogCategories() : Promise.resolve([])), [c?.installed, c?.downloaded]);
   const groups = useMemo(() => groupCategories(cats.data ?? [], catFilter, inStock), [cats.data, catFilter, inStock]);
 
   useEffect(() => {
     api.uiContext({ view: 'catalog', selection: sub || text }).catch(() => {});
   }, [sub, text]);
-  useEffect(() => setPage(0), [text, sub, inStock, basic, sort]);
+  useEffect(() => setPage(0), [text, sub, inStock, basic, sort, sent]);
+  // Parameters belong to a category: switching category drops its filters.
+  useEffect(() => {
+    setFilters([]);
+    setSort((x) => (x.key.startsWith('attr:') ? { key: '', desc: false } : x));
+  }, [sub]);
   useEffect(() => {
     if (!c?.installed) return;
     if (!text.trim() && !sub) {
@@ -65,7 +97,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
     const t = setTimeout(() => {
       setLoading(true);
       api
-        .catalogSearch({ text, subcategory: sub || undefined, inStock, basic, sort: sort.key || undefined, desc: sort.desc, limit: pageSize, offset: page * pageSize })
+        .catalogSearch({ text, subcategory: sub || undefined, inStock, basic, attrs: sent.length ? sent : undefined, sort: sort.key || undefined, desc: sort.desc, limit: pageSize, offset: page * pageSize })
         .then((r) => {
           setItems(r);
           setError(undefined);
@@ -73,7 +105,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [text, sub, inStock, basic, sort, page, c?.installed, c?.downloaded, s.libraryVersion]);
+  }, [text, sub, inStock, basic, sent, sort, page, c?.installed, c?.downloaded, s.libraryVersion]);
 
   if (!c?.installed) {
     return (
@@ -190,6 +222,60 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
             <FileDown size={13} /> Import {picked.size || ''} datasheet{picked.size === 1 ? '' : 's'}
           </button>
         </div>
+        {sub && (
+          <div className="toolbar catalog-filters" style={{ flexWrap: 'wrap' }}>
+            <Filter size={13} className="faint" />
+            {filters.map((f, i) => {
+              const p = catParams.data?.find((x) => x.key === f.key);
+              const set = (patch: Partial<CatalogFilter>) => setFilters(filters.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+              return (
+                <span key={f.key + i} className="filter-chip">
+                  <b>{f.key}</b>
+                  {p?.kind === 'text' ? (
+                    <select className="input select" value={f.input} onChange={(e) => set({ input: e.target.value })}>
+                      <option value="">any</option>
+                      {p.values?.map((v) => (
+                        <option key={v.value} value={v.value}>
+                          {v.value} ({v.count.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      <select className="input select" value={f.op} onChange={(e) => set({ op: e.target.value as CatalogFilter['op'] })}>
+                        <option value=">=">≥</option>
+                        <option value="<=">≤</option>
+                      </select>
+                      <input className="input" style={{ width: 90 }} autoFocus={!f.input} placeholder={p?.unit ? `e.g. 10${p.unit}` : 'value'} title={p ? `Range in this category: ${paramRange(p)}` : ''} value={f.input} onChange={(e) => set({ input: e.target.value })} />
+                    </>
+                  )}
+                  <button className="btn ghost icon sm" onClick={() => setFilters(filters.filter((_, j) => j !== i))} aria-label={`Remove the ${f.key} filter`}>
+                    <X size={11} />
+                  </button>
+                </span>
+              );
+            })}
+            <Menu
+              width={340}
+              trigger={() => (
+                <button className="btn sm" disabled={!catParams.data?.length}>
+                  <Plus size={12} /> {catParams.loading ? 'Reading parameters…' : 'Filter on a parameter'}
+                </button>
+              )}
+              items={(catParams.data ?? []).map((p) => ({
+                key: p.key,
+                label: p.key,
+                hint: p.kind === 'number' ? paramRange(p) : `${p.values?.length ?? 0} values`,
+                onSelect: () => setFilters([...filters, { key: p.key, op: p.kind === 'text' ? '=' : '>=', input: '' }]),
+              }))}
+            />
+            {filters.length > 0 && (
+              <button className="btn sm ghost" onClick={() => setFilters([])}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
         <div className="catalog-body">
           <div className="scroll" style={{ flex: 1 }}>
             <ErrorBox error={error} />
@@ -208,6 +294,12 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                     <th className="sortable" onClick={() => sortBy('mpn')}>
                       Part{arrow('mpn')}
                     </th>
+                    {cols.map((k) => (
+                      <th key={k} className="sortable" style={{ textAlign: 'right' }} title={`Sort by ${k}`} onClick={() => sortBy(`attr:${k}`)}>
+                        {k}
+                        {arrow(`attr:${k}`)}
+                      </th>
+                    ))}
                     <th>Description</th>
                     <th>Package</th>
                     <th>JLC</th>
@@ -238,7 +330,12 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                           )}
                         </div>
                       </td>
-                      <td className="ellipsis" style={{ maxWidth: 360, fontSize: 12 }} title={it.description}>
+                      {cols.map((k) => (
+                        <td key={k} className="num mono" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                          {it.attributes?.[k] ?? '–'}
+                        </td>
+                      ))}
+                      <td className="ellipsis" style={{ maxWidth: cols.length ? 240 : 360, fontSize: 12 }} title={it.description}>
                         {it.description}
                       </td>
                       <td className="mono" style={{ fontSize: 12 }}>

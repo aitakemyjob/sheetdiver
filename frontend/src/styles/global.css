@@ -489,3 +489,7 @@ html { font-size: var(--ui-font-size, 13px); }
 .catalog-detail { width: 330px; flex: none; border-left: 1px solid var(--border); background: var(--bg-1); padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
 .ab-btn.dot { position: relative; }
 .ab-btn.dot::after { content: ''; position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.catalog-filters { gap: 8px; border-top: 0; padding-top: 0; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); font-size: 12px; }
+.filter-chip .input { height: 24px; font-size: 12px; }
+.filter-chip .select { width: auto; min-width: 54px; }

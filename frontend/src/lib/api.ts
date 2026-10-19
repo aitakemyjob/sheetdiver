@@ -3,7 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter,
 } from './types';
 
 /** Calls a backend method. */
@@ -48,8 +48,9 @@ export const api = {
   catalogStatus: () => call<CatalogStatus>('catalog.status'),
   catalogDownload: () => call<CatalogStatus>('catalog.download'),
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),
-  catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
+  catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; attrs?: CatalogFilter[]; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
     call<CatalogItem[]>('catalog.search', q),
+  catalogParams: (q: { text: string; subcategory?: string; inStock?: boolean; basic?: boolean }) => call<CatalogParam[]>('catalog.params', q),
   catalogCategories: () => call<CatalogCategory[]>('catalog.categories'),
   catalogSubcategories: () => call<string[]>('catalog.subcategories'),
   catalogImport: (lcsc: string[]) => call<ImportJob[]>('catalog.import', { lcsc }),
