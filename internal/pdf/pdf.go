@@ -152,9 +152,30 @@ func (e *Engine) getPool() (pdfium.Pool, error) {
 	if e.pool != nil || e.err != nil {
 		return e.pool, e.err
 	}
+	pool, err := e.startPool(true)
+	if err != nil && e.CacheDir != "" {
+		// The compilation cache only saves start-up time. Writing it can
+		// fail, e.g. on Windows when another SheetDiver process is
+		// writing the same cache file; compile without it then.
+		pool, err = e.startPool(false)
+	}
+	if err != nil {
+		e.err = fmt.Errorf("start PDF engine: %w", err)
+		return nil, e.err
+	}
+	e.pool = pool
+	return pool, nil
+}
+
+// initPool compiles PDFium and starts a pool (replaced in tests).
+var initPool = webassembly.Init
+
+// startPool compiles PDFium and starts the instance pool, using the
+// compilation cache in CacheDir when cached is set.
+func (e *Engine) startPool(cached bool) (pdfium.Pool, error) {
 	// PDFium's module needs exception handling on top of the core features.
 	rc := wazero.NewRuntimeConfig().WithCoreFeatures(api.CoreFeaturesV2 | experimental.CoreFeaturesExceptionHandling)
-	if e.CacheDir != "" {
+	if cached && e.CacheDir != "" {
 		if err := os.MkdirAll(e.CacheDir, 0o755); err == nil {
 			if cache, err := wazero.NewCompilationCacheWithDir(e.CacheDir); err == nil {
 				rc = rc.WithCompilationCache(cache)
@@ -162,7 +183,7 @@ func (e *Engine) getPool() (pdfium.Pool, error) {
 		}
 	}
 	workers := max(1, e.Workers)
-	pool, err := webassembly.Init(webassembly.Config{
+	return initPool(webassembly.Config{
 		MinIdle: 1, MaxIdle: workers, MaxTotal: workers,
 		// Keep instances warm between calls (page renders are frequent).
 		ReuseWorkers: true,
@@ -170,12 +191,6 @@ func (e *Engine) getPool() (pdfium.Pool, error) {
 		FSConfig:      wazero.NewFSConfig(),
 		RuntimeConfig: rc,
 	})
-	if err != nil {
-		e.err = fmt.Errorf("start PDF engine: %w", err)
-		return nil, e.err
-	}
-	e.pool = pool
-	return pool, nil
 }
 
 // Close releases the PDFium runtime.
