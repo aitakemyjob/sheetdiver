@@ -26,6 +26,7 @@ ROOT=$(pwd)
 WAILS_VERSION="v2.16.0"
 APP="SheetDiver"
 BIN="sheetdiver"
+BUNDLE_ID="io.github.aitakemyjob.sheetdiver"
 
 VERSION=""
 PLATFORM=""
@@ -181,6 +182,9 @@ case "$OS" in
     ;;
   darwin)
     app="build/bin/$APP.app"
+    # Wails' template uses com.wails.<name>; give the app its own identity
+    # (used by macOS for preferences and by code signing).
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$app/Contents/Info.plist"
     cp LICENSE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
     if [ -n "${CODESIGN_IDENTITY:-}" ]; then
       say "signing with $CODESIGN_IDENTITY"
