@@ -3,10 +3,13 @@ package mcpserver
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -268,4 +271,48 @@ func TestAlternativesReportAndUpdates(t *testing.T) {
 	if _, _, isErr := h.call("apply_datasheet_update", map[string]any{"part": "ZX7001"}); !isErr {
 		t.Error("nothing to apply without a check")
 	}
+}
+
+func TestCatalogueTools(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if out, _, isErr := h.call("search_catalog", map[string]any{"query": "ao3400"}); !isErr || !strings.Contains(out, "Settings") {
+		t.Errorf("before download: %v %s", isErr, out)
+	}
+	pdfSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(testutil.Mini("ZX7001", "Step-Down Converter"))
+	}))
+	defer pdfSrv.Close()
+	db, err := testutil.JLCDatabase(t.TempDir(), "source-db-v2", [][]any{
+		{1, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7001DBVR", "SOT-23-6", "Zed Semi", "base", 0, "2A 4.5V~28V Buck", pdfSrv.URL + "/zx7001.pdf", 1200, "1-:0.31", `{"Output Current":"2A"}`},
+		{2, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX9000", "SOT-23-6", "Zed Semi", "expand", 0, "1A 5V~12V Buck", "", 0, "", `{}`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := testutil.SplitZip(db, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, ok := files[strings.TrimPrefix(r.URL.Path, "/")]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		w.Write(b)
+	}))
+	defer pub.Close()
+	h.core.Catalog.Source = pub.URL + "/"
+	if err := h.core.Catalog.Download(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	h.must("search_catalog", map[string]any{"query": "buck 2A", "in_stock": true}, "1 parts", "| C1 | ZX7001DBVR | Zed Semi | SOT-23-6 | basic | 1200 | 0.31 | – |")
+	if out := h.must("search_catalog", map[string]any{"query": "buck"}); !strings.Contains(out, "ZX9000") {
+		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
+	}
+	h.must("import_datasheets", map[string]any{"lcsc": []string{"C1"}}, "1 imported", "ZX7001")
+	h.must("search_catalog", map[string]any{"query": "ZX7001"}, "| ZX7001 |")
+	h.must("get_part", map[string]any{"part": "ZX7001DBVR"}, "ZX7001")
 }
