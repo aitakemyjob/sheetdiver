@@ -69,6 +69,17 @@ func TestAttrFilterMatch(t *testing.T) {
 		{AttrFilter{Op: "=", Text: "n-channel"}, "N-Channel", true},
 		{AttrFilter{Op: "=", Text: "Hiccup current limiting"}, "Overcurrent Protection, Hiccup current limiting", true},
 		{AttrFilter{Op: "=", Text: "Buck"}, "Buck-Boost", false},
+		// Numbers compare by value; ranges contain; a typed unit must match.
+		{AttrFilter{Op: "=", Text: "10k"}, "10kΩ", true},
+		{AttrFilter{Op: "=", Text: "10kΩ"}, "10.0kΩ", true},
+		{AttrFilter{Op: "=", Text: "10000"}, "10kΩ", true},
+		{AttrFilter{Op: "=", Text: "10k"}, "10.2kΩ", false},
+		{AttrFilter{Op: "=", Text: "100n"}, "100nF", true},
+		{AttrFilter{Op: "=", Text: "3.3V"}, "600mV~5.5V", true},
+		{AttrFilter{Op: "=", Text: "6V"}, "600mV~5.5V", false},
+		{AttrFilter{Op: "=", Text: "10V"}, "10Ω", false},
+		{AttrFilter{Op: "=", Values: []string{"4.7k", "10k"}}, "4.7kΩ", true},
+		{AttrFilter{Op: "=", Text: "1"}, "1 N-channel", false},
 	}
 	for _, c := range cases {
 		if got := c.f.match(c.v); got != c.want {
@@ -259,5 +270,36 @@ func TestParamsAreFacetedByTheOtherFilters(t *testing.T) {
 	}
 	if got := values(facet([]AttrFilter{sot}, "Type")); got != "N-Channel:1 P-Channel:1" {
 		t.Errorf("types in SOT-23 = %q", got)
+	}
+}
+
+func TestNumericEqualsAndCommonValues(t *testing.T) {
+	ctx := context.Background()
+	rows := [][]any{
+		{1, 1, "R", "Chip Resistor - Surface Mount", "R10K", "0402", "U", "base", 0, "", "", 100, "1-:0.001", `{"Resistance":"10kΩ","Tolerance":"±1%"}`},
+		{2, 1, "R", "Chip Resistor - Surface Mount", "R10K0", "0603", "U", "base", 0, "", "", 90, "1-:0.001", `{"Resistance":"10.0kΩ","Tolerance":"±0.1%"}`},
+		{3, 1, "R", "Chip Resistor - Surface Mount", "R4K7", "0402", "U", "base", 0, "", "", 80, "1-:0.001", `{"Resistance":"4.7kΩ","Tolerance":"±1%"}`},
+		{4, 1, "R", "Chip Resistor - Surface Mount", "R10K2", "0402", "U", "base", 0, "", "", 70, "1-:0.001", `{"Resistance":"10.2kΩ","Tolerance":"±1%"}`},
+	}
+	c := installed(t, rows)
+	items, err := c.Search(ctx, Query{Subcategory: "Chip Resistor - Surface Mount", Attrs: []AttrFilter{
+		{Key: "Resistance", Op: "=", Input: "10k"},
+		{Key: "Tolerance", Op: "<=", Input: "1%"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, it := range items {
+		got = append(got, it.MPN)
+	}
+	if strings.Join(got, " ") != "R10K R10K0" {
+		t.Errorf("10k ±≤1%% = %v", got)
+	}
+	ps, _ := c.Params(ctx, Query{Subcategory: "Chip Resistor - Surface Mount"})
+	for _, p := range ps {
+		if p.Key == "Resistance" && (p.Kind != "number" || len(p.Values) != 4) {
+			t.Errorf("resistance suggests its values: %+v", p)
+		}
 	}
 }

@@ -312,8 +312,8 @@ type updateArgs struct {
 
 type catalogFilter struct {
 	Parameter string `json:"parameter" jsonschema:"a parameter name from catalog_parameters, such as 'Drain to Source Voltage', 'RDS(on)' or 'Package'"`
-	Op        string `json:"op" jsonschema:"one of >=, <= (numbers) or = (text values and Package)"`
-	Value     string `json:"value" jsonschema:"for numbers a value with unit like 30V, 10mΩ, 4.7u, 3A; for text and Package one or more values separated by |, like N-Channel or SOT-23|SOT-23-3"`
+	Op        string `json:"op" jsonschema:"one of >=, <= (numbers) or = (an exact value: text, Package, or a number such as 10k or 3.3V, which also matches ranges that contain it)"`
+	Value     string `json:"value" jsonschema:"a number with unit like 30V, 10mΩ, 4.7u, 3A, or text like N-Channel; for = several values separated by |, like SOT-23|SOT-23-3 or 4.7k|10k"`
 }
 
 type catalogArgs struct {
@@ -419,7 +419,15 @@ func (s *Server) registerDesign() {
 			fmt.Fprintf(&b, "parameters of %s (how many parts have each):\n", a.Subcategory)
 			for _, p := range ps {
 				if p.Kind == "number" {
-					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s\n", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))
+					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))
+					var common []string
+					for _, v := range p.Values[:min(8, len(p.Values))] {
+						common = append(common, fmt.Sprintf("%s (%d)", v.Value, v.Count))
+					}
+					if len(common) > 0 {
+						fmt.Fprintf(&b, "; common: %s", strings.Join(common, ", "))
+					}
+					b.WriteString("\n")
 					continue
 				}
 				var vs []string

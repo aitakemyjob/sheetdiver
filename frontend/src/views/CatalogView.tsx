@@ -32,7 +32,8 @@ export function groupCategories(cats: CatalogCategory[], filter: string, inStock
 
 /** The filters that are complete enough to send. */
 export function activeFilters(fs: CatalogFilter[]): CatalogFilter[] {
-  return fs.filter((f) => (f.op === '=' ? (f.values?.length ?? 0) > 0 : f.input.trim() !== ''));
+  // Text filters pick values; number filters (≥, ≤ or =) are typed.
+  return fs.filter((f) => (f.values !== undefined ? f.values.length > 0 : f.input.trim() !== ''));
 }
 
 /** Summarizes a text filter's picked values for its chip. */
@@ -307,15 +308,34 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
               return (
                 <span key={f.key + i} className="filter-chip">
                   <b>{f.key}</b>
-                  {f.op === '=' ? (
-                    <ValuePicker param={p} picked={f.values ?? []} onChange={(values) => set({ values })} />
+                  {f.values !== undefined ? (
+                    <ValuePicker param={p} picked={f.values} onChange={(values) => set({ values })} />
                   ) : (
                     <>
-                      <select className="input select" value={f.op} onChange={(e) => set({ op: e.target.value as CatalogFilter['op'] })}>
+                      <select className="input select" value={f.op} onChange={(e) => set({ op: e.target.value as CatalogFilter['op'] })} title="≥ at least, ≤ at most, = exactly (or a range containing it)">
                         <option value=">=">≥</option>
                         <option value="<=">≤</option>
+                        <option value="=">=</option>
                       </select>
-                      <input className="input" style={{ width: 90 }} autoFocus={!f.input} placeholder={p?.unit ? `e.g. 10${p.unit}` : 'value'} title={p ? `Range in this category: ${paramRange(p)}` : ''} value={f.input} onChange={(e) => set({ input: e.target.value })} />
+                      <input
+                        className="input"
+                        style={{ width: 96 }}
+                        autoFocus={!f.input}
+                        list={f.op === '=' ? `values-${i}` : undefined}
+                        placeholder={f.op === '=' ? 'e.g. 10k|4.7k' : p?.unit ? `e.g. 10${p.unit}` : 'value'}
+                        title={p ? `Range in this category: ${paramRange(p)}${f.op === '=' ? '. Several values: separate with |' : ''}` : ''}
+                        value={f.input}
+                        onChange={(e) => set({ input: e.target.value })}
+                      />
+                      {f.op === '=' && (
+                        <datalist id={`values-${i}`}>
+                          {p?.values?.map((v) => (
+                            <option key={v.value} value={v.value}>
+                              {v.count.toLocaleString()} parts
+                            </option>
+                          ))}
+                        </datalist>
+                      )}
                     </>
                   )}
                   <button className="btn ghost icon sm" onClick={() => setFilters(filters.filter((_, j) => j !== i))} aria-label={`Remove the ${f.key} filter`}>

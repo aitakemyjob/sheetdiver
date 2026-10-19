@@ -12,7 +12,11 @@ every merged pull request.
 - **Package filter in the parts catalogue:** every category can be filtered
   by package, picking several at once (SOT-23, SOT-23-3, SOT-23(TO-236)…),
   alongside its parameters. Text filters (package, channel type, topology…)
-  take several values. Each filter's list of values and ranges follows the
+  take several values. Number parameters take = as well as ≥ and ≤
+  (Resistance = 10k, Output Voltage = 3.3V): values compare by value within
+  0.1% (10k matches 10.0kΩ, not 10.2kΩ), ranges match when they contain
+  it, and the category's common values are suggested. Each filter's list
+  of values and ranges follows the
   other filters, so after "V<sub>DS</sub> ≥ 30 V" the package list shows only
   packages that still have matching parts, with their counts. Agents get
   the same (`Package = SOT-23|SOT-23-3`, faceted `catalog_parameters`).

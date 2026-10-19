@@ -160,6 +160,9 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 		units    map[string]int
 		min, max map[string]float64
 		texts    map[string]int
+		// nums counts numeric values as written ("10kΩ", "3.3V"), for
+		// suggesting values to an "=" filter.
+		nums map[string]int
 	}
 	all := map[string]*acc{}
 	packages := map[string]int{}
@@ -204,7 +207,7 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 			}
 			a := all[k]
 			if a == nil {
-				a = &acc{units: map[string]int{}, min: map[string]float64{}, max: map[string]float64{}, texts: map[string]int{}}
+				a = &acc{units: map[string]int{}, min: map[string]float64{}, max: map[string]float64{}, texts: map[string]int{}, nums: map[string]int{}}
 				all[k] = a
 			}
 			a.count++
@@ -216,6 +219,7 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 					a.max[pv.Unit] = pv.Hi
 				}
 				a.units[pv.Unit]++
+				a.nums[strings.TrimSpace(v)]++
 				continue
 			}
 			for _, t := range splitValues(v) {
@@ -240,6 +244,19 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 		p := Param{Key: k, Count: a.count}
 		if best*10 >= a.count*8 {
 			p.Kind, p.Unit, p.Min, p.Max = "number", unit, a.min[unit], a.max[unit]
+			// The commonest values, to pick for "=".
+			for v, c := range a.nums {
+				p.Values = append(p.Values, ValueCount{v, c})
+			}
+			sort.Slice(p.Values, func(i, j int) bool {
+				if p.Values[i].Count != p.Values[j].Count {
+					return p.Values[i].Count > p.Values[j].Count
+				}
+				return p.Values[i].Value < p.Values[j].Value
+			})
+			if len(p.Values) > maxNumberValues {
+				p.Values = p.Values[:maxNumberValues]
+			}
 		} else {
 			p.Kind = "text"
 			for v, c := range a.texts {
@@ -287,6 +304,9 @@ func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 	return out, nil
 }
 
+// maxNumberValues bounds the common values listed for a numeric parameter.
+const maxNumberValues = 40
+
 // maxPackages bounds the packages listed for a package filter.
 const maxPackages = 150
 
@@ -331,7 +351,7 @@ func (f AttrFilter) match(v string) bool {
 					return true
 				}
 			}
-			if strings.EqualFold(strings.TrimSpace(v), want) {
+			if strings.EqualFold(strings.TrimSpace(v), want) || equalNumber(v, want) {
 				return true
 			}
 		}
@@ -348,6 +368,32 @@ func (f AttrFilter) match(v string) bool {
 		return pv.Lo <= f.Value+eps
 	}
 	return false
+}
+
+// equalTolerance is how close numbers must be to count as equal (relative):
+// 10k matches 10kΩ and 10.0kΩ but not 10.2kΩ.
+const equalTolerance = 1e-3
+
+// equalNumber reports whether an attribute value equals a typed number:
+// the same value within equalTolerance, or a range that contains it
+// ("3.3V" is in "600mV~5.5V"). A unit, when typed, must match.
+func equalNumber(v, want string) bool {
+	pv, ok := ParseValue(v)
+	if !ok {
+		return false
+	}
+	x, err := ParseQuantity(want)
+	if err != nil {
+		return false
+	}
+	if wv, ok := ParseValue(strings.ReplaceAll(want, " ", "")); ok && wv.Unit != "" && wv.Unit != pv.Unit {
+		return false
+	}
+	eps := equalTolerance * math.Max(math.Abs(x), 1e-30)
+	if pv.Lo == pv.Hi {
+		return math.Abs(pv.Lo-x) <= eps
+	}
+	return x >= pv.Lo-eps && x <= pv.Hi+eps
 }
 
 // wanted lists the values an "=" filter accepts.

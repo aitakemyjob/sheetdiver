@@ -313,7 +313,10 @@ func TestCatalogueTools(t *testing.T) {
 		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
 	}
 	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)")
-	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A")
+	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A; common: ")
+	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": "=", "value": "1A"}}}, "ZX9000"); strings.Contains(out, "ZX7001DBVR") {
+		t.Errorf("output current = 1 A: %s", out)
+	}
 	out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "1.5A"}}},
 		"| Output Current |", "| ZX7001DBVR |", "| 2A |")
 	if strings.Contains(out, "ZX9000") {

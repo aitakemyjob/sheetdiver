@@ -80,6 +80,9 @@ describe('catalogue parameters', () => {
       { key: 'Package', op: '=' as const, input: '', values: [] },
     ];
     expect(activeFilters(fs)).toEqual([fs[0]]);
+    // A number filter with = is typed, like ≥ and ≤.
+    const eq = { key: 'Resistance', op: '=' as const, input: '10k' };
+    expect(activeFilters([eq, { ...eq, input: ' ' }])).toEqual([eq]);
     expect(paramColumns(params, activeFilters(fs), 'attr:Gate Charge(Qg)').slice(0, 2)).toEqual(['Type', 'Gate Charge(Qg)']);
     // The package has its own column.
     expect(paramColumns(params, [{ key: 'Package', op: '=', input: '', values: ['SOT-23'] }], '')).not.toContain('Package');
