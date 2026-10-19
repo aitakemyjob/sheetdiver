@@ -510,3 +510,10 @@ html { font-size: var(--ui-font-size, 13px); }
 .catalog-table td { vertical-align: middle; }
 .catalog-detail .dtable td { vertical-align: top; }
 .catalog-detail .dtable td:first-child { width: 55%; }
+
+/* Multi-value picker for text filters */
+.value-picker { position: relative; display: inline-flex; }
+.value-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 260px; padding: 8px; border-radius: 10px; background: var(--bg-1); border: 1px solid var(--border-strong); box-shadow: 0 10px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; gap: 6px; }
+.value-list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; }
+.value-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.value-row:hover { background: var(--bg-2); }

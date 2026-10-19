@@ -320,6 +320,11 @@ func TestCatalogueTools(t *testing.T) {
 		t.Errorf("filtered out: %s", out)
 	}
 	h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "sort": "Output Current"}, "ZX9000")
+	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Package [text] 2 parts: SOT-23-6 (2)")
+	h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Package", "op": "=", "value": "SOT-23-6|SOT-23"}}}, "ZX7001DBVR", "ZX9000")
+	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Package", "op": "=", "value": "TO-252"}}}); strings.Contains(out, "ZX7001DBVR") {
+		t.Errorf("package filter: %s", out)
+	}
 	if out, _, isErr := h.call("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": ">=", "value": "lots"}}}); !isErr || !strings.Contains(out, "can't read") {
 		t.Errorf("bad value: %s", out)
 	}

@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -78,7 +79,7 @@ func TestAttrFilterMatch(t *testing.T) {
 		t.Error("bad op")
 	}
 	fs := []AttrFilter{{Key: "a", Op: ">=", Input: "10mΩ"}, {Key: "b", Op: "=", Input: "Buck"}}
-	if err := checkFilters(fs); err != nil || fs[0].Value != 0.01 || fs[1].Text != "Buck" {
+	if err := checkFilters(fs); err != nil || fs[0].Value != 0.01 || len(fs[1].Values) != 1 || fs[1].Values[0] != "Buck" {
 		t.Errorf("typed values = %+v %v", fs, err)
 	}
 	if err := checkFilters([]AttrFilter{{Key: "a", Op: "<=", Input: "lots"}}); err == nil {
@@ -150,5 +151,113 @@ func TestParamsAndAttributeSearch(t *testing.T) {
 	}
 	if _, err := c.Search(ctx, Query{Attrs: []AttrFilter{{Key: "x", Op: ">=", Value: 1}}}); err == nil {
 		t.Error("attribute filters need a category")
+	}
+}
+
+func TestPackageFilterAndMultipleValues(t *testing.T) {
+	ctx := context.Background()
+	rows := [][]any{
+		{1, 1, "T", "MOSFETs", "N30A", "SOT-23", "M", "base", 0, "", "", 100, "1-:0.05", `{"Drain to Source Voltage":"30V","Type":"N-Channel"}`},
+		{2, 1, "T", "MOSFETs", "N60B", "SOT-23-3", "M", "expand", 0, "", "", 50, "1-:0.08", `{"Drain to Source Voltage":"60V","Type":"N-Channel"}`},
+		{3, 1, "T", "MOSFETs", "P20C", "SOT-23", "M", "expand", 0, "", "", 70, "1-:0.06", `{"Drain to Source Voltage":"20V","Type":"P-Channel"}`},
+		{4, 1, "T", "MOSFETs", "N100D", "TO-252", "M", "expand", 0, "", "", 9, "1-:0.30", `{"Drain to Source Voltage":"100V","Type":"N-Channel + P-Channel"}`},
+	}
+	c := installed(t, rows)
+	ps, err := c.Params(ctx, Query{Subcategory: "MOSFETs"})
+	if err != nil || ps[0].Key != PackageKey || ps[0].Kind != "text" || ps[0].Values[0] != (ValueCount{"SOT-23", 2}) || len(ps[0].Values) != 3 {
+		t.Fatalf("package param first = %+v %v", ps[0], err)
+	}
+	mpns := func(q Query) string {
+		t.Helper()
+		items, err := c.Search(ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var s []string
+		for _, it := range items {
+			s = append(s, it.MPN)
+		}
+		return strings.Join(s, " ")
+	}
+	pkg := func(input string) AttrFilter { return AttrFilter{Key: PackageKey, Op: "=", Input: input} }
+	// One package, several packages (any of), case-insensitive.
+	if got := mpns(Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{pkg("sot-23")}}); got != "N30A P20C" {
+		t.Errorf("SOT-23 = %q", got)
+	}
+	if got := mpns(Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{pkg("SOT-23|SOT-23-3")}}); got != "N30A P20C N60B" {
+		t.Errorf("SOT-23 or SOT-23-3 = %q", got)
+	}
+	// Package with a parameter filter, and a multi-value text filter.
+	q := Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{pkg("SOT-23|SOT-23-3"), {Key: "Drain to Source Voltage", Op: ">=", Input: "30V"}}}
+	if got := mpns(q); got != "N30A N60B" {
+		t.Errorf("SOT-23(-3) and VDS ≥ 30 V = %q", got)
+	}
+	if got := mpns(Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{{Key: "Type", Op: "=", Values: []string{"P-Channel", "N-Channel + P-Channel"}}}}); got != "P20C N100D" {
+		t.Errorf("type is P or complementary = %q", got)
+	}
+	// A package filter works across categories too (plain SQL).
+	if got := mpns(Query{Attrs: []AttrFilter{pkg("TO-252")}}); got != "N100D" {
+		t.Errorf("TO-252 anywhere = %q", got)
+	}
+	if _, err := c.Search(ctx, Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{{Key: PackageKey, Op: ">=", Input: "3"}}}); err == nil {
+		t.Error("the package filter only takes =")
+	}
+	if _, err := c.Search(ctx, Query{Subcategory: "MOSFETs", Attrs: []AttrFilter{{Key: "Type", Op: "="}}}); err == nil {
+		t.Error("a text filter needs a value")
+	}
+	// Filters are checked twice (Search, then searchAttrs) without doubling values.
+	fs := []AttrFilter{pkg("A|B")}
+	checkFilters(fs)
+	checkFilters(fs)
+	if len(fs[0].Values) != 2 {
+		t.Errorf("values = %v", fs[0].Values)
+	}
+}
+
+func TestParamsAreFacetedByTheOtherFilters(t *testing.T) {
+	ctx := context.Background()
+	rows := [][]any{
+		{1, 1, "T", "MOSFETs", "N30A", "SOT-23", "M", "base", 0, "", "", 100, "1-:0.05", `{"Drain to Source Voltage":"30V","Type":"N-Channel"}`},
+		{2, 1, "T", "MOSFETs", "N60B", "SOT-23-3", "M", "expand", 0, "", "", 50, "1-:0.08", `{"Drain to Source Voltage":"60V","Type":"N-Channel"}`},
+		{3, 1, "T", "MOSFETs", "P20C", "SOT-23", "M", "expand", 0, "", "", 70, "1-:0.06", `{"Drain to Source Voltage":"20V","Type":"P-Channel"}`},
+		{4, 1, "T", "MOSFETs", "N100D", "TO-252", "M", "expand", 0, "", "", 9, "1-:0.30", `{"Drain to Source Voltage":"100V","Type":"N-Channel"}`},
+	}
+	c := installed(t, rows)
+	facet := func(attrs []AttrFilter, key string) Param {
+		t.Helper()
+		ps, err := c.Params(ctx, Query{Subcategory: "MOSFETs", Attrs: attrs})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range ps {
+			if p.Key == key {
+				return p
+			}
+		}
+		return Param{}
+	}
+	values := func(p Param) string {
+		var s []string
+		for _, v := range p.Values {
+			s = append(s, fmt.Sprintf("%s:%d", v.Value, v.Count))
+		}
+		return strings.Join(s, " ")
+	}
+	vds30 := AttrFilter{Key: "Drain to Source Voltage", Op: ">=", Input: "30V"}
+	// After VDS ≥ 30 V only the packages of N30A, N60B and N100D remain.
+	if got := values(facet([]AttrFilter{vds30}, PackageKey)); got != "SOT-23:1 SOT-23-3:1 TO-252:1" {
+		t.Errorf("packages after VDS ≥ 30 V = %q", got)
+	}
+	// Picking a package keeps its alternatives listed (its own filter is
+	// left out), while the other parameters narrow to the picked package.
+	sot := AttrFilter{Key: PackageKey, Op: "=", Input: "SOT-23"}
+	if got := values(facet([]AttrFilter{vds30, sot}, PackageKey)); got != "SOT-23:1 SOT-23-3:1 TO-252:1" {
+		t.Errorf("packages with SOT-23 picked = %q", got)
+	}
+	if p := facet([]AttrFilter{sot}, "Drain to Source Voltage"); p.Min != 20 || p.Max != 30 || p.Count != 2 {
+		t.Errorf("VDS range in SOT-23 = %+v", p)
+	}
+	if got := values(facet([]AttrFilter{sot}, "Type")); got != "N-Channel:1 P-Channel:1" {
+		t.Errorf("types in SOT-23 = %q", got)
 	}
 }

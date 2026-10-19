@@ -75,12 +75,25 @@ describe('catalogue parameters', () => {
     ];
     expect(paramColumns(params, [], '')).toEqual(['Drain to Source Voltage', 'RDS(on)', 'Pd - Power Dissipation', 'Gate Charge(Qg)']);
     const fs = [
-      { key: 'Type', op: '=' as const, input: 'N-Channel' },
+      { key: 'Type', op: '=' as const, input: '', values: ['N-Channel'] },
       { key: 'RDS(on)', op: '<=' as const, input: '' },
+      { key: 'Package', op: '=' as const, input: '', values: [] },
     ];
     expect(activeFilters(fs)).toEqual([fs[0]]);
     expect(paramColumns(params, activeFilters(fs), 'attr:Gate Charge(Qg)').slice(0, 2)).toEqual(['Type', 'Gate Charge(Qg)']);
+    // The package has its own column.
+    expect(paramColumns(params, [{ key: 'Package', op: '=', input: '', values: ['SOT-23'] }], '')).not.toContain('Package');
     expect(paramRange(params[0])).toBe('8 V … 2.5 kV');
     expect(paramRange(params[1])).toBe('');
+  });
+});
+
+describe('value picker labels', () => {
+  it('summarizes picked values', async () => {
+    const { valuesLabel } = await import('../views/CatalogView');
+    expect(valuesLabel([])).toBe('any');
+    expect(valuesLabel(['SOT-23'])).toBe('SOT-23');
+    expect(valuesLabel(['SOT-23', 'SOT-23-3'])).toBe('SOT-23, SOT-23-3');
+    expect(valuesLabel(['SOT-23', 'SOT-23-3', 'TSOT-23-6'])).toBe('SOT-23 +2');
   });
 });

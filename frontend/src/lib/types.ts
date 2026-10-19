@@ -640,4 +640,6 @@ export interface CatalogFilter {
   key: string;
   op: '>=' | '<=' | '=';
   input: string;
+  /** For "=": the values to accept (any of them), e.g. several packages. */
+  values?: string[];
 }

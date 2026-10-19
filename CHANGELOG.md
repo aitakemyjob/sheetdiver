@@ -8,6 +8,15 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Added
+- **Package filter in the parts catalogue:** every category can be filtered
+  by package, picking several at once (SOT-23, SOT-23-3, SOT-23(TO-236)…),
+  alongside its parameters. Text filters (package, channel type, topology…)
+  take several values. Each filter's list of values and ranges follows the
+  other filters, so after "V<sub>DS</sub> ≥ 30 V" the package list shows only
+  packages that still have matching parts, with their counts. Agents get
+  the same (`Package = SOT-23|SOT-23-3`, faceted `catalog_parameters`).
+
 ## [0.1.0] - 2026-10-19
 
 The first release: a datasheet library for electronics design, shared with

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -268,7 +269,11 @@ func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
-	if len(q.Attrs) > 0 || attrSort(q.Sort) != "" {
+	if err := checkFilters(q.Attrs); err != nil {
+		return nil, err
+	}
+	// Package filters are plain SQL; other attributes are checked in Go.
+	if attrSort(q.Sort) != "" || slices.ContainsFunc(q.Attrs, func(f AttrFilter) bool { return f.Key != PackageKey }) {
 		return c.searchAttrs(ctx, q, limit)
 	}
 	where, args := q.where()
@@ -314,6 +319,19 @@ func (q Query) where() (string, []any) {
 	if q.Subcategory != "" {
 		where = append(where, "subcategory = ?")
 		args = append(args, q.Subcategory)
+	}
+	for _, f := range q.Attrs {
+		if f.Key != PackageKey || f.Op != "=" {
+			continue
+		}
+		vals := f.wanted()
+		if len(vals) == 0 {
+			continue
+		}
+		where = append(where, "package COLLATE NOCASE IN ("+strings.TrimSuffix(strings.Repeat("?,", len(vals)), ",")+")")
+		for _, v := range vals {
+			args = append(args, v)
+		}
 	}
 	return strings.Join(where, " AND "), args
 }
