@@ -24,6 +24,8 @@ Conventions:
 | `library_overview` | Datasheets, parts by category, projects, and what the user has open. |
 | `get_ui_context` | The part, page, figure or project the user is looking at, and any selected text. |
 | `search` | Full-text search across parts, page text, sections, figure captions and descriptions, parameters, pins, registers, recommendations and notes. |
+| `list_categories` | Component types with part counts and the key parameters compared for each. |
+| `compare_parts` | One type's parts side by side on key parameters (min/typ/max in SI), filtered by requirements such as `vin >= 24 V`, `iout >= 3 A`, `iq <= 1 µA` and sorted. A `>=` filter tests the highest the part can do (max), `<=` tests typ. |
 | `list_parts` | Parts filtered by part number/variant/description, category or manufacturer. |
 | `get_part` | Overview: datasheet, sibling parts, orderable variants, best value per key parameter (with page), sections, figure counts, recommended components, projects, notes. |
 | `get_parameters` | Spec parameters (min/typ/max, unit, conditions, section, page), filtered by key, section or text. |

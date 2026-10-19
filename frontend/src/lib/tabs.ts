@@ -2,7 +2,7 @@
 // unit tested.
 import type { Focus } from './types';
 
-export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings';
+export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category';
 
 export interface Tab {
   id: string;
@@ -28,6 +28,8 @@ export function tabKey(kind: TabKind, params: Record<string, unknown>): string {
       return `calc:${params.kind ?? ''}:${params.part ?? ''}:${params.project ?? ''}`;
     case 'search':
       return 'search';
+    case 'category':
+      return `category:${params.category ?? ''}`;
     case 'settings':
       return 'settings';
   }
@@ -79,6 +81,9 @@ export function focusToTab(f: Focus): Omit<Tab, 'id'> | undefined {
       return { kind: 'calc', title: `${f.calc.kind} ${f.calc.part ?? ''}`.trim(), params: { kind: f.calc.kind, part: f.calc.part, project: f.calc.project, result: f.calc } };
     case 'search':
       return { kind: 'search', title: 'Search', params: { query: f.query ?? '' } };
+    case 'category':
+      if (!f.query) return undefined;
+      return { kind: 'category', title: f.query, params: { category: f.query } };
   }
   return undefined;
 }

@@ -232,6 +232,115 @@ func (s *Server) registerProjects() {
 		})
 }
 
+type filterArg struct {
+	Key   string `json:"key" jsonschema:"parameter key, e.g. vin, iout, fsw, rdson, iq"`
+	Op    string `json:"op" jsonschema:"one of >=, <=, > or <"`
+	Value string `json:"value" jsonschema:"a number with an optional unit or SI prefix: '24 V', '3 A', '1 µA', '650k', '30m'"`
+	Stat  string `json:"stat,omitempty" jsonschema:"min, typ or max; default: >= tests the highest the part can do (max), <= tests typ"`
+}
+
+type compareArgs struct {
+	Category string      `json:"category" jsonschema:"component type: buck, boost, ldo, mosfet-n, charger, mcu… (see list_categories)"`
+	Keys     []string    `json:"keys,omitempty" jsonschema:"columns to show; default: the type's key parameters"`
+	Filters  []filterArg `json:"filters,omitempty" jsonschema:"requirements, all must hold, e.g. [{key: vin, op: '>=', value: '24 V'}, {key: iout, op: '>=', value: '3 A'}]"`
+	Query    string      `json:"query,omitempty" jsonschema:"part number, manufacturer or description fragment"`
+	Sort     string      `json:"sort,omitempty" jsonschema:"a key to sort by (typ value), or mpn"`
+	Desc     bool        `json:"desc,omitempty"`
+	Show     bool        `json:"show,omitempty" jsonschema:"also open the comparison in SheetDiver"`
+}
+
+// registerCompare adds the component-type tools.
+func (s *Server) registerCompare() {
+	c := s.core
+	addTool(s, &mcp.Tool{Name: "list_categories", Description: "Component types in the library with their part counts and the key parameters compared for each.", Annotations: readOnly("List categories")},
+		read, func(noArgs) string { return "categories" }, func(ctx context.Context, _ noArgs) (result, error) {
+			cs, err := c.Categories(ctx)
+			if err != nil {
+				return result{}, err
+			}
+			var b strings.Builder
+			for _, x := range cs {
+				fmt.Fprintf(&b, "%s: %d parts", firstNonEmpty(x.Category, "(uncategorized)"), x.Count)
+				if len(x.Keys) > 0 {
+					fmt.Fprintf(&b, " — compares %s", strings.Join(x.Keys, ", "))
+				}
+				b.WriteString("\n")
+			}
+			return text(b.String()), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "compare_parts", Description: "Compare the parts of one component type side by side on their key parameters (SI values with min/typ/max), filtered by requirements (vin >= 24 V, iout >= 3 A, iq <= 1 µA…) and sorted. Use it to pick a part for a design from the library.", Annotations: readOnly("Compare parts")},
+		read, func(a compareArgs) string { return "compare " + a.Category }, func(ctx context.Context, a compareArgs) (result, error) {
+			req := core.CompareRequest{Category: a.Category, Keys: a.Keys, Query: a.Query, Sort: a.Sort, Desc: a.Desc}
+			for _, f := range a.Filters {
+				v, err := core.ParseQuantity(f.Value)
+				if err != nil {
+					return result{}, fmt.Errorf("filter %s: %w", f.Key, err)
+				}
+				req.Filters = append(req.Filters, core.Filter{Key: f.Key, Op: f.Op, Value: v, Stat: f.Stat})
+			}
+			res, err := c.Compare(ctx, req)
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "category", Query: a.Category})
+			}
+			return text(compareText(res)), nil
+		})
+}
+
+// compareText renders a comparison as a markdown table.
+func compareText(r core.CompareResult) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s: %d of %d parts match\n", r.Category, len(r.Rows), r.Total)
+	for k, n := range r.Unknown {
+		fmt.Fprintf(&b, "(%d parts excluded only because they have no %s value)\n", n, k)
+	}
+	b.WriteString("\n| part | manufacturer |")
+	for _, col := range r.Columns {
+		fmt.Fprintf(&b, " %s |", col.Key)
+	}
+	b.WriteString("\n|---|---|" + strings.Repeat("---|", len(r.Columns)) + "\n")
+	for _, row := range r.Rows {
+		fmt.Fprintf(&b, "| %s | %s |", row.Part.MPN, row.Part.Manufacturer)
+		for _, col := range r.Columns {
+			v, ok := row.Values[col.Key]
+			if !ok {
+				b.WriteString(" – |")
+				continue
+			}
+			fmt.Fprintf(&b, " %s |", rangeText(v))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\nValues are min/typ/max in SI with prefixes; (r) marks absolute-maximum ratings. get_parameters shows conditions and pages.")
+	return b.String()
+}
+
+// rangeText renders a compared value compactly.
+func rangeText(v core.CompareValue) string {
+	e := func(x *float64) string {
+		if x == nil {
+			return "–"
+		}
+		return calc.Eng(*x, v.Unit)
+	}
+	s := ""
+	switch {
+	case v.Min != nil && v.Max != nil && v.Typ == nil:
+		s = e(v.Min) + " … " + e(v.Max)
+	case v.Min == nil && v.Max == nil:
+		s = e(v.Typ)
+	default:
+		s = e(v.Min) + " / " + e(v.Typ) + " / " + e(v.Max)
+	}
+	if v.Rating {
+		s += " (r)"
+	}
+	return s
+}
+
 // registerCalc adds the calculator tools.
 func (s *Server) registerCalc() {
 	c := s.core

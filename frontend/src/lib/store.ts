@@ -8,7 +8,7 @@ import { closeTab, focusToTab, openTab, type Tab } from './tabs';
 import { applyTheme, themeById, type Theme } from './themes';
 import type { Activity, AppState, BusEvent, Config, Focus, ImportProgress, ImportResult, MCPStatus, Settings } from './types';
 
-export type SidebarMode = 'library' | 'projects' | 'agent';
+export type SidebarMode = 'library' | 'types' | 'projects' | 'agent';
 
 export interface Toast {
   id: number;

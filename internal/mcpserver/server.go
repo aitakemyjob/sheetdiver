@@ -24,7 +24,8 @@ registers. Projects group the parts of a board with their supply rails.
 
 - Missing a part? import_datasheet downloads it: by part_number (manufacturer URLs), url (PDF or product page),
   path, or data_base64 if you fetched the PDF yourself because the site blocks scripted downloads.
-- Find things with search (full text across everything) and list_parts. Any part reference may be a base MPN, an
+- Find things with search (full text across everything) and list_parts. To choose a part, list_categories then
+  compare_parts with requirements (vin >= 24 V, iout >= 3 A) compares a type's parts on their key parameters. Any part reference may be a base MPN, an
   orderable code (TPS563200DDCR) or a family member; SheetDiver resolves it.
 - Read with get_part (overview and key parameters), get_parameters, get_section (pin description, register map,
   layout guidelines, design procedure… by kind or title), get_pins, get_registers, read_pages and get_tables.
@@ -72,6 +73,7 @@ func New(c *core.Service) *Server {
 	s.registerWrite()
 	s.registerProjects()
 	s.registerCalc()
+	s.registerCompare()
 	return s
 }
 

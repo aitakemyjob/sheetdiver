@@ -352,6 +352,35 @@
           "TP4056"
         ]
       }
+    },
+    {
+      "file": "max77801.pdf",
+      "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/MAX77801.pdf",
+      "manual": true,
+      "sha256": "f8df74e51d13ca2b58ff0c20640862446789433fdb158263129e453c0e9d2c1e",
+      "why": "Maxim/ADI layout: pin table with one number column per package (20-bump WLP, 20-pin TQFN) under a larger title, multi-pin entries (\"A3, B3\"), subscripted pin names (VSYS, VIO).",
+      "expect": {
+        "manufacturer": "Analog Devices",
+        "category": "buck-boost",
+        "partNumbers": [
+          "MAX77801"
+        ],
+        "pins": 28,
+        "pinNames": [
+          "VSYS",
+          "AGND",
+          "SDA",
+          "VIO",
+          "PGND"
+        ],
+        "pinPackages": [
+          "20-BUMP WLP",
+          "20-PIN TQFN"
+        ],
+        "variants": {
+          "MAX77801EWP+T": "MAX77801"
+        }
+      }
     }
   ]
 }

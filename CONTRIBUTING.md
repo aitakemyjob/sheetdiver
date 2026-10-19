@@ -105,11 +105,11 @@ Point a development build at a scratch library with
 
 ## Branding
 
-The mark is drawn in code, twice: `frontend/src/components/Logo.tsx` (the
-UI) and `scripts/brand/main.go` (raster assets). After changing it, update
-both and run `make icon` to regenerate `build/appicon.png` (desktop icons and
-Linux packages), `frontend/public/logo.png`, `frontend/public/favicon.png`
-and `docs/assets/logo.png` (README).
+The source logo is `sheetdiver.png` at the repo root. After changing it, run
+`make icon` to regenerate `build/appicon.png` (desktop icons and Linux
+packages), `frontend/public/logo.png` (title bar, welcome screen),
+`frontend/public/favicon.png` and `docs/assets/logo.png` (README). The tool
+removes a baked-in checkerboard background automatically.
 
 ## Releases
 

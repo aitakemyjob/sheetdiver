@@ -46,6 +46,7 @@ maps, notes), so the library gets better every time it's used.
 | **Page viewer** | Pages with figure and table boxes overlaid, the exact region of any parameter highlighted, and drag-to-select to read a region or define a missed figure. |
 | **Projects** | BOM with designators, rails and currents; per-rail load with regulator input currents derived from their output loads; checks against absolute-maximum and recommended limits and regulator capacity. |
 | **Calculators** | Buck, boost, LDO, gate drive, gate divider and divider: outputs with formulas, checks (minimum on/off time, current limit, thermal), suggestions, and the datasheet page behind every input. |
+| **Compare by type** | Pick a component type and see its parts side by side on the parameters that matter for it, sorted and filtered ("VIN ≥ 24 V, IOUT ≥ 3 A, IQ ≤ 1 µA"), with every value linked to its page. |
 | **Search** | Full text over parts, pages, sections, figure descriptions, parameters, pins, registers, recommendations and notes. |
 | **Themes** | The same themes as CodeDiver: Deep Dive (default), Abyss, Obsidian, Tokyo Night, Nord, Dracula, Gruvbox, Synthwave, Paper and Solarized Light. |
 

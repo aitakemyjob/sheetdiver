@@ -253,3 +253,105 @@ func TestSpecTableBandsAndSplitRows(t *testing.T) {
 		t.Errorf("rows = %+v", ps)
 	}
 }
+
+// tspan builds a span for table tests (4 pt per character).
+func tspan(x, y, size float64, s string) pdf.Span {
+	return pdf.Span{Text: s, Size: size, Box: pdf.Rect{X0: x, Y0: y - size/2, X1: x + float64(len([]rune(s)))*size*0.5, Y1: y + size/2}}
+}
+
+// trow builds a row from spans.
+func trow(spans ...pdf.Span) Row {
+	r := Row{Y: centerY(spans[0].Box), Box: spans[0].Box, Spans: spans}
+	for _, s := range spans {
+		r.Box = r.Box.Union(s.Box)
+	}
+	return r
+}
+
+func TestMultiPackagePinTable(t *testing.T) {
+	// Maxim layout: a larger "Pin Description" title, then a stacked
+	// header with one number column per package, pins listed per package.
+	rows := []Row{
+		trow(tspan(55, 50, 12, "Pin Description")),
+		trow(tspan(60, 70, 8, "20-BUMP"), tspan(120, 70, 8, "20-PIN")),
+		trow(tspan(200, 76, 8, "NAME"), tspan(330, 76, 8, "FUNCTION")),
+		trow(tspan(66, 82, 8, "WLP"), tspan(124, 82, 8, "TQFN")),
+		trow(tspan(66, 96, 8, "A1"), tspan(126, 96, 8, "5"), tspan(200, 96, 8, "VSYS"), tspan(250, 96, 8, "System voltage input.")),
+		trow(tspan(60, 110, 8, "A3, B3"), tspan(120, 110, 8, "8, 9"), tspan(200, 110, 8, "AGND"), tspan(250, 110, 8, "Analog ground.")),
+		trow(tspan(60, 118, 8, ","), tspan(120, 118, 8, ",")),
+		trow(tspan(66, 126, 8, "B1"), tspan(126, 126, 8, "4"), tspan(200, 126, 8, "FB"), tspan(250, 126, 8, "Output voltage sense.")),
+	}
+	if _, _, ok := pinHeader(rows, 0); ok {
+		t.Fatal("a larger title above the table is not its header")
+	}
+	cols, last, ok := pinHeader(rows, 1)
+	if !ok || last != 3 {
+		t.Fatalf("header: ok %v last %d", ok, last)
+	}
+	var names []string
+	for _, c := range cols {
+		names = append(names, c.name)
+	}
+	if strings.Join(names, "|") != "20-BUMP WLP|20-PIN TQFN|NAME|DESCRIPTION" {
+		t.Fatalf("columns = %v", names)
+	}
+	_, pins := pinTable(cols, rows[3], rows[4:], 9, "Pin Description")
+	if len(pins) != 6 {
+		t.Fatalf("one pin per package, no comma rows: %+v", pins)
+	}
+	want := []Pin{
+		{Package: "20-BUMP WLP", Number: "A1", Name: "VSYS"},
+		{Package: "20-PIN TQFN", Number: "5", Name: "VSYS"},
+		{Package: "20-BUMP WLP", Number: "A3, B3", Name: "AGND"},
+		{Package: "20-PIN TQFN", Number: "8, 9", Name: "AGND"},
+	}
+	for i, w := range want {
+		p := pins[i]
+		if p.Package != w.Package || p.Number != w.Number || p.Name != w.Name {
+			t.Errorf("pin %d = %+v, want %+v", i, p, w)
+		}
+	}
+	if pins[2].Description != "Analog ground." {
+		t.Errorf("description = %q", pins[2].Description)
+	}
+}
+
+func TestCellsJoinSubscripts(t *testing.T) {
+	cols := []column{{role: "name", x0: -1, x1: 1e9}}
+	base := pdf.Span{Text: "V", Size: 8, Box: pdf.Rect{X0: 60, Y0: 100, X1: 65, Y1: 108}}
+	sub := pdf.Span{Text: "SYS", Size: 6, Box: pdf.Rect{X0: 65.3, Y0: 103, X1: 75, Y1: 109}}
+	word := pdf.Span{Text: "input", Size: 8, Box: pdf.Rect{X0: 79, Y0: 100, X1: 95, Y1: 108}}
+	if got := cells(cols, []pdf.Span{base, sub, word})[0]; got != "VSYS input" {
+		t.Errorf("cells = %q", got)
+	}
+}
+
+func TestIrregularityAndProse(t *testing.T) {
+	header := trow(tspan(60, 10, 8, "VOUT"), tspan(200, 10, 8, "CURRENT LIMIT"))
+	matrix := []Row{
+		trow(tspan(110, 20, 8, "RCFG1"), tspan(300, 20, 8, "0 Ohm")),
+		trow(tspan(110, 30, 8, "RCFG2"), tspan(170, 30, 8, "0"), tspan(230, 30, 8, "511"), tspan(290, 30, 8, "1.15k"), tspan(350, 30, 8, "1.87k")),
+		trow(tspan(110, 40, 8, "RCFG1"), tspan(300, 40, 8, "511 Ohm")),
+		trow(tspan(110, 50, 8, "RCFG2"), tspan(170, 50, 8, "0"), tspan(230, 50, 8, "511"), tspan(290, 50, 8, "1.15k"), tspan(350, 50, 8, "1.87k")),
+	}
+	if irregularity(header, matrix) == "" {
+		t.Error("a selection matrix is irregular")
+	}
+	grid := []Row{
+		trow(tspan(60, 20, 8, "2.2"), tspan(200, 20, 8, "XFL4020")),
+		trow(tspan(60, 30, 8, "1.5"), tspan(200, 30, 8, "XFL4020-152")),
+	}
+	if r := irregularity(header, grid); r != "" {
+		t.Errorf("a plain grid is regular: %s", r)
+	}
+	if irregularity(header, nil) == "" {
+		t.Error("a table with no rows read is flagged")
+	}
+	prose := trow(pdf.Span{Text: "If the output is prebiased, the start-up behaves as follows in every case", Size: 9, Box: pdf.Rect{X0: 60, Y0: 0, X1: 400, Y1: 9}})
+	if !isProse(prose) || isProse(grid[0]) {
+		t.Error("prose detection")
+	}
+	if tidyConditions("V I = 3.6 V , , unlimited setting ,") != "V I = 3.6 V, unlimited setting" {
+		t.Errorf("tidy = %q", tidyConditions("V I = 3.6 V , , unlimited setting ,"))
+	}
+}

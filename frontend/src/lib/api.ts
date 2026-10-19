@@ -3,6 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
+  CategoryInfo, CompareFilter, CompareResult,
 } from './types';
 
 /** Calls a backend method. */
@@ -21,12 +22,15 @@ export const api = {
   datasheets: () => call<Datasheet[]>('datasheets.list'),
   datasheet: (id: number) => call<{ datasheet: Datasheet; pages: Page[]; parts: Part[] }>('datasheet.get', { id }),
   updateDatasheet: (d: Datasheet) => call<void>('datasheet.update', d),
+  openDatasheet: (id: number) => call<{ path: string }>('datasheet.open', { id }),
   deleteDatasheet: (id: number) => call<void>('datasheet.delete', { id }),
   reextract: (id: number) => call<ImportResult>('datasheet.reextract', { id }),
   page: (datasheetId: number, page: number) => call<Page>('page.get', { datasheetId, page }),
 
   parts: (f: { query?: string; category?: string; manufacturer?: string; limit?: number } = {}) => call<Part[]>('parts.list', f),
   categories: () => call<Record<string, number>>('parts.categories'),
+  categoryList: () => call<CategoryInfo[]>('categories.list'),
+  compare: (req: { category: string; keys?: string[]; filters?: CompareFilter[]; query?: string; sort?: string; desc?: boolean }) => call<CompareResult>('compare', req),
   part: (part: string) => call<PartDetail>('part.detail', { part }),
   updatePart: (id: number, u: Partial<Pick<Part, 'mpn' | 'manufacturer' | 'description' | 'category' | 'package' | 'tags'>>) => call<Part>('part.update', { id, ...u }),
   addPart: (p: Partial<Part>) => call<Part>('part.add', p),
@@ -92,6 +96,19 @@ export function tableImageURL(id: number, dpi = 110, version = ''): string {
 /** URL of a datasheet's original PDF. */
 export function datasheetURL(id: number): string {
   return `/api/datasheet.pdf?sd=1&ds=${id}`;
+}
+
+/**
+ * Opens a datasheet's original PDF: in the system PDF viewer in the
+ * desktop app (its webview can't open windows), in a new tab in the
+ * browser.
+ */
+export async function openPDF(id: number, desktop: boolean): Promise<void> {
+  if (desktop) {
+    await api.openDatasheet(id);
+    return;
+  }
+  window.open(datasheetURL(id), '_blank', 'noopener');
 }
 
 /** Uploads a PDF file into the library. */

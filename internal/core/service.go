@@ -150,7 +150,8 @@ type Activity struct {
 // Focus asks the UI to show something: a part, a page region, a figure,
 // a project or a calculation.
 type Focus struct {
-	// Kind is part, page, figure, section, project, calc or search.
+	// Kind is part, page, figure, section, project, calc, search or
+	// category (Query names the category).
 	Kind        string    `json:"kind"`
 	Part        string    `json:"part,omitempty"`
 	DatasheetID int64     `json:"datasheetId,omitempty"`

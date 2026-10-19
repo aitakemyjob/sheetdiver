@@ -44,6 +44,13 @@ every merged pull request.
   pins, registers, recommended components and notes, manage projects and
   run calculators. Settings switch agents off, make them read-only, or
   forbid imports.
+- **Component types:** a Types panel lists the library's categories;
+  each opens a side-by-side comparison of its parts on the type's key
+  parameters (bucks: VIN, VOUT, IOUT, fSW, ILIM, IQ, RDS(on)…; MOSFETs:
+  VDS, ID, RDS(on), VGS(th), Qg…), with sortable columns, ≥/≤ filters that
+  take units ("24 V", "1µ"), a column picker, text search, CSV export,
+  and cells that open the datasheet page. Agents get `list_categories`
+  and `compare_parts` for picking a part from the library.
 - **Tables as images:** every table renders as an image (`get_tables`,
   the Tables tab). Selection matrices and other irregular tables are
   flagged, and the agent saves a clean transcription with `record_table`
@@ -54,5 +61,14 @@ every merged pull request.
   half a line from min/max is merged; ±% limits become a tolerance around
   typ. Current limits are told apart: `ilim` (normal operation),
   `ilim_startup` and `ilim_in` (average input).
+- **Pin tables with package columns** (Maxim/ADI "20-BUMP WLP" /
+  "20-PIN TQFN"): each pin is recorded per package, multi-pin entries
+  ("A3, B3") stay intact, and subscripted names read as one word (VSYS,
+  I2C).
+- Punctuation no longer splits off the text line (stray "," rows in pin
+  tables and ", ," in conditions).
+- The **PDF** button opens the datasheet in your PDF viewer in the
+  desktop app (the webview can't open tabs); the page viewer has one too.
+- The SheetDiver badge (`sheetdiver.png`) as app icon and logo.
 - `sheetdiver inspect` prints what extraction finds in a PDF; a corpus of
   real datasheets (`make corpus`, `make test-corpus`) guards extraction.

@@ -61,7 +61,11 @@ func runInspect(files []string) error {
 	if len(r.Pins) > 0 {
 		fmt.Printf("\npins (%d):\n", len(r.Pins))
 		for _, p := range r.Pins {
-			fmt.Printf("  %-4s %-8s %-4s %s\n", p.Number, p.Name, p.Type, p.Description)
+			pkg := ""
+			if p.Package != "" {
+				pkg = "[" + p.Package + "] "
+			}
+			fmt.Printf("  %s%-6s %-8s %-4s %s\n", pkg, p.Number, p.Name, p.Type, p.Description)
 		}
 	}
 	fmt.Printf("\ntables (%d):\n", len(r.Tables))

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -253,5 +254,72 @@ func TestTablesRecommendationsAndTranscription(t *testing.T) {
 	hits, _ := s.Search(ctx, "511", library.SearchOptions{Kinds: []string{"table"}})
 	if len(hits) == 0 {
 		t.Error("transcribed cells are searchable")
+	}
+}
+
+func TestCompareCategory(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	cs, err := s.Categories(ctx)
+	if err != nil || len(cs) != 1 || cs[0].Category != "buck" || cs[0].Count != 2 {
+		t.Fatalf("categories = %+v %v", cs, err)
+	}
+	res, err := s.Compare(ctx, CompareRequest{Category: "buck"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols := map[string]bool{}
+	for _, c := range res.Columns {
+		cols[c.Key] = true
+	}
+	for _, k := range []string{"vin", "iout", "fsw", "vref", "ilim"} {
+		if !cols[k] {
+			t.Errorf("no %s column in %+v", k, res.Columns)
+		}
+	}
+	if len(res.Rows) != 2 || res.Total != 2 {
+		t.Fatalf("rows = %+v", res.Rows)
+	}
+	if v := res.Rows[0].Values["fsw"]; v.Typ == nil || *v.Typ != 650e3 || v.Unit != "Hz" {
+		t.Errorf("fsw in SI = %+v", v)
+	}
+	// ILIM is only given for the SD1235; a filter on it excludes the
+	// SD1234 as unknown, not as failing.
+	res, _ = s.Compare(ctx, CompareRequest{Category: "buck", Filters: []Filter{{Key: "ilim", Op: ">=", Value: 4}}})
+	if len(res.Rows) != 1 || res.Rows[0].Part.MPN != "SD1235" || res.Unknown["ilim"] != 1 {
+		t.Errorf("ilim >= 4 A (max 5.3) = %+v unknown %v", res.Rows, res.Unknown)
+	}
+	// >= tests the highest the part can do: VIN 4.5–17 V reaches 12 V but not 24 V.
+	if res, _ := s.Compare(ctx, CompareRequest{Category: "buck", Filters: []Filter{{Key: "vin", Op: ">=", Value: 12}}}); len(res.Rows) != 2 {
+		t.Errorf("vin >= 12 V: %d rows", len(res.Rows))
+	}
+	if res, _ := s.Compare(ctx, CompareRequest{Category: "buck", Filters: []Filter{{Key: "vin", Op: ">=", Value: 24}}}); len(res.Rows) != 0 {
+		t.Errorf("vin >= 24 V: %d rows", len(res.Rows))
+	}
+	if res, _ := s.Compare(ctx, CompareRequest{Category: "buck", Query: "sd1235"}); len(res.Rows) != 1 {
+		t.Errorf("query: %d rows", len(res.Rows))
+	}
+	res, _ = s.Compare(ctx, CompareRequest{Category: "buck", Sort: "ilim", Desc: true})
+	if res.Rows[0].Part.MPN != "SD1235" {
+		t.Errorf("parts without a value sort last")
+	}
+	if _, err := s.Compare(ctx, CompareRequest{Category: "ldo"}); err == nil || !strings.Contains(err.Error(), "buck") {
+		t.Errorf("unknown categories list the known ones: %v", err)
+	}
+	if _, err := s.Compare(ctx, CompareRequest{Category: "buck", Filters: []Filter{{Key: "vin", Op: "=="}}}); err == nil {
+		t.Error("bad operators are rejected")
+	}
+}
+
+func TestParseQuantity(t *testing.T) {
+	cases := map[string]float64{"24 V": 24, "3A": 3, "650k": 650e3, "650 kHz": 650e3, "1 µA": 1e-6, "1uA": 1e-6, "68 mΩ": 0.068, "30m": 0.03, "2.2u": 2.2e-6, "12": 12}
+	for in, want := range cases {
+		got, err := ParseQuantity(in)
+		if err != nil || math.Abs(got-want) > want*1e-9 {
+			t.Errorf("ParseQuantity(%q) = %v, %v; want %v", in, got, err, want)
+		}
+	}
+	if _, err := ParseQuantity("lots"); err == nil {
+		t.Error("garbage is rejected")
 	}
 }

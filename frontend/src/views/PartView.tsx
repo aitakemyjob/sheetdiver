@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calculator, ExternalLink, FileText, FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
-import { api, datasheetURL, figureImageURL, tableImageURL } from '../lib/api';
+import { api, figureImageURL, openPDF, tableImageURL } from '../lib/api';
 import { categories, figureKinds, headline, relTime, sectionLabels, sig3 } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { Figure, Parameter, PartDetail, Section } from '../lib/types';
@@ -54,7 +54,11 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
       <div className="part-head">
         <h1>
           {d.part.mpn}
-          <CategoryBadge category={d.part.category} label={categories[d.part.category]} />
+          {d.part.category && (
+            <button className="btn ghost sm" style={{ padding: 0, height: 'auto' }} title={`Compare all ${categories[d.part.category] ?? d.part.category} parts`} onClick={() => s.open({ kind: 'category', title: categories[d.part.category] ?? d.part.category, params: { category: d.part.category, highlight: d.part.mpn } })}>
+              <CategoryBadge category={d.part.category} label={categories[d.part.category]} />
+            </button>
+          )}
           {d.via !== 'mpn' && d.via !== 'id' && d.matched && <span className="badge violet">matched {d.matched} by {d.via}</span>}
         </h1>
         <div className="sub">
@@ -83,9 +87,13 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               <button className="btn sm" onClick={() => s.open({ kind: 'page', title: `${d.part.mpn} p1`, params: { ds: ds.id, page: 0, part: d.part.mpn } })}>
                 <FileText size={13} /> Pages
               </button>
-              <a className="btn sm" href={datasheetURL(ds.id)} target="_blank" rel="noreferrer">
+              <button
+                className="btn sm"
+                title={s.app?.canOpenFile ? 'Open the PDF in your PDF viewer' : 'Open the PDF in a new tab'}
+                onClick={() => openPDF(ds.id, !!s.app?.canOpenFile).catch((e) => s.toast({ kind: 'err', title: 'Could not open the PDF', body: (e as Error).message }))}
+              >
                 <ExternalLink size={13} /> PDF
-              </a>
+              </button>
             </>
           )}
           <AddToProject mpn={d.part.mpn} />

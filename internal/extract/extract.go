@@ -92,6 +92,9 @@ type Param struct {
 
 // Pin is one row of a pin-function table.
 type Pin struct {
+	// Package names the package column for multi-package tables
+	// ("20-BUMP WLP"), empty otherwise.
+	Package     string `json:"package,omitempty"`
 	Number      string `json:"number"`
 	Name        string `json:"name"`
 	Type        string `json:"type,omitempty"`

@@ -16,6 +16,13 @@ describe('tabs', () => {
     expect(tabs[0].params.page).toBe(6);
   });
 
+  it('keeps one tab per component type', () => {
+    let { tabs } = openTab([], { kind: 'category', title: 'Buck', params: { category: 'buck' } });
+    ({ tabs } = openTab(tabs, { kind: 'category', title: 'Buck', params: { category: 'buck', highlight: 'X' } }));
+    ({ tabs } = openTab(tabs, { kind: 'category', title: 'LDO', params: { category: 'ldo' } }));
+    expect(tabs.map((t) => t.id)).toEqual(['category:buck', 'category:ldo']);
+  });
+
   it('activates a neighbour when closing the active tab', () => {
     const tabs: Tab[] = [
       { id: 'a', kind: 'search', title: 'a', params: {} },
@@ -29,5 +36,7 @@ describe('tabs', () => {
     expect(focusToTab({ kind: 'figure', figureId: 9 })?.params.id).toBe(9);
     expect(focusToTab({ kind: 'page', datasheetId: 2, page: 4, part: 'X' })?.title).toBe('X p5');
     expect(focusToTab({ kind: 'part' })).toBeUndefined();
+    expect(focusToTab({ kind: 'category', query: 'buck' })?.params.category).toBe('buck');
+    expect(focusToTab({ kind: 'category' })).toBeUndefined();
   });
 });

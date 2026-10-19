@@ -1,5 +1,6 @@
 import { useActiveTab, useStore } from '../lib/store';
 import { CalcView } from './CalcView';
+import { CategoryView } from './CategoryView';
 import { FigureView } from './FigureView';
 import { PageView } from './PageView';
 import { PartView } from './PartView';
@@ -24,6 +25,7 @@ export function ViewHost() {
           {t.kind === 'calc' && <CalcView params={t.params} />}
           {t.kind === 'search' && <SearchView params={t.params} />}
           {t.kind === 'settings' && <SettingsView />}
+          {t.kind === 'category' && <CategoryView params={t.params} />}
         </div>
       ))}
     </>
