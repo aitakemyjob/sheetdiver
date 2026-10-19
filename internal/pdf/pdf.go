@@ -18,6 +18,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -121,28 +122,35 @@ type Document struct {
 	Bookmarks []Bookmark        `json:"bookmarks"`
 }
 
-// Engine owns the PDFium runtime. It is created lazily on first use (the
-// WebAssembly module takes a moment to compile) and serializes calls,
-// since one PDFium instance is not safe for concurrent use.
+// Engine owns a pool of PDFium instances (WebAssembly modules sharing
+// one compiled module). It starts lazily on first use, since compiling the
+// module takes a moment. Each call takes an instance from the pool, so up
+// to Workers documents are read or rendered at the same time; one PDFium
+// instance is never used by two goroutines at once.
 type Engine struct {
 	// CacheDir, when set, holds wazero's compilation cache so later
 	// starts skip compiling the module.
 	CacheDir string
+	// Workers is how many documents can be processed concurrently
+	// (default: the number of CPUs, at most 4).
+	Workers int
 
 	mu   sync.Mutex
 	pool pdfium.Pool
-	inst pdfium.Pdfium
 	err  error
 }
 
 // NewEngine creates an engine; nothing is loaded until the first call.
-func NewEngine(cacheDir string) *Engine { return &Engine{CacheDir: cacheDir} }
+func NewEngine(cacheDir string) *Engine {
+	return &Engine{CacheDir: cacheDir, Workers: min(4, max(1, runtime.NumCPU()))}
+}
 
-// instance returns the PDFium instance, starting it on first use. Callers
-// must hold e.mu.
-func (e *Engine) instance() (pdfium.Pdfium, error) {
-	if e.inst != nil || e.err != nil {
-		return e.inst, e.err
+// getPool returns the instance pool, starting it on first use.
+func (e *Engine) getPool() (pdfium.Pool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.pool != nil || e.err != nil {
+		return e.pool, e.err
 	}
 	// PDFium's module needs exception handling on top of the core features.
 	rc := wazero.NewRuntimeConfig().WithCoreFeatures(api.CoreFeaturesV2 | experimental.CoreFeaturesExceptionHandling)
@@ -153,8 +161,11 @@ func (e *Engine) instance() (pdfium.Pdfium, error) {
 			}
 		}
 	}
+	workers := max(1, e.Workers)
 	pool, err := webassembly.Init(webassembly.Config{
-		MinIdle: 1, MaxIdle: 1, MaxTotal: 1,
+		MinIdle: 1, MaxIdle: workers, MaxTotal: workers,
+		// Keep instances warm between calls (page renders are frequent).
+		ReuseWorkers: true,
 		// No filesystem mounts: documents always arrive as bytes.
 		FSConfig:      wazero.NewFSConfig(),
 		RuntimeConfig: rc,
@@ -163,14 +174,8 @@ func (e *Engine) instance() (pdfium.Pdfium, error) {
 		e.err = fmt.Errorf("start PDF engine: %w", err)
 		return nil, e.err
 	}
-	inst, err := pool.GetInstance(time.Minute)
-	if err != nil {
-		_ = pool.Close()
-		e.err = fmt.Errorf("start PDF engine: %w", err)
-		return nil, e.err
-	}
-	e.pool, e.inst = pool, inst
-	return inst, nil
+	e.pool = pool
+	return pool, nil
 }
 
 // Close releases the PDFium runtime.
@@ -180,11 +185,8 @@ func (e *Engine) Close() error {
 	if e.pool == nil {
 		return nil
 	}
-	if e.inst != nil {
-		_ = e.inst.Close()
-	}
 	err := e.pool.Close()
-	e.pool, e.inst = nil, nil
+	e.pool = nil
 	return err
 }
 
@@ -206,12 +208,15 @@ func (e *Engine) withDoc(data []byte, fn func(p pdfium.Pdfium, doc references.FP
 	if !IsPDF(data) {
 		return ErrNotPDF
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	p, err := e.instance()
+	pool, err := e.getPool()
 	if err != nil {
 		return err
 	}
+	p, err := pool.GetInstance(5 * time.Minute)
+	if err != nil {
+		return fmt.Errorf("PDF engine busy: %w", err)
+	}
+	defer p.Close() //nolint:errcheck // returns the instance to the pool
 	d, err := p.OpenDocument(&requests.OpenDocument{File: &data})
 	if err != nil {
 		return fmt.Errorf("open PDF: %w", err)

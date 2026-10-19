@@ -98,6 +98,10 @@ func tokenize(text string) []string {
 	})
 }
 
+// IsPartNumber reports whether a token looks like a manufacturer part
+// number (letters and digits, not a package, unit or document number).
+func IsPartNumber(tok string) bool { return isPartToken(tok) }
+
 // isPartToken reports whether tok looks like a part number.
 func isPartToken(tok string) bool {
 	tok = strings.TrimRight(tok, ".:")

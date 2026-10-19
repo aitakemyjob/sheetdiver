@@ -3,6 +3,7 @@ import { AlertOctagon, AlertTriangle, Calculator, CheckCircle2, Plus, Trash2, Za
 import { api } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
 import { useStore } from '../lib/store';
+import { StatusBadge } from '../components/PartStatus';
 import type { Check, ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
 import { CategoryBadge, Empty, ErrorBox, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
@@ -240,7 +241,7 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
       <h3>BOM</h3>
       {d.parts.length === 0 ? (
         <Empty icon={<Plus size={24} />} title="No parts yet">
-          Add parts below, from a part's “Add to project” button, or ask your agent to build the BOM.
+          Add parts below, import a BOM (Import → BOM), use a part's “Add to project” button, or ask your agent to build it.
         </Empty>
       ) : (
         <table className="dtable">
@@ -269,7 +270,12 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                     <a style={{ cursor: 'pointer' }} onClick={() => s.open({ kind: 'part', title: pp.mpn, params: { part: pp.mpn } })}>
                       {pp.mpn}
                     </a>{' '}
-                    {pp.variant && <span className="faint">({pp.variant})</span>} <CategoryBadge category={pp.category} label={categories[pp.category]} />
+                    {pp.variant && <span className="faint">({pp.variant})</span>} <CategoryBadge category={pp.category} label={categories[pp.category]} /> <StatusBadge status={pp.status} />
+                    {!pp.hasDatasheet && (
+                      <span className="badge warn" title="Not imported yet, so its limits aren't checked">
+                        no datasheet
+                      </span>
+                    )}
                   </td>
                   <td className="num">
                     <input className="cell" defaultValue={pp.qty} onBlur={(e) => Number(e.target.value) !== pp.qty && update(pp, { qty: Number(e.target.value) || 1 })} />

@@ -86,6 +86,12 @@ func figureDetail(f library.Figure) string {
 // partHeader renders a part's identity line.
 func partHeader(p library.Part) string {
 	s := p.MPN
+	if p.Favorite {
+		s = "★ " + s
+	}
+	if p.Status != "" {
+		s += " [" + strings.ToUpper(p.Status) + "]"
+	}
 	if p.Manufacturer != "" {
 		s += " · " + p.Manufacturer
 	}

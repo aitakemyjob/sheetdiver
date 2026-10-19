@@ -40,6 +40,7 @@ export interface AppState {
   canOpenFile: boolean;
   canSaveFile: boolean;
   keys: Record<string, string>;
+  statuses: Record<string, string>;
   calculators: Record<string, string>;
 }
 
@@ -67,6 +68,9 @@ export interface Part {
   package?: string;
   datasheetId: number;
   tags: string[];
+  favorite: boolean;
+  /** preferred, approved, avoid, nrnd or eol. */
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -302,6 +306,9 @@ export interface ProjectPart {
   partId: number;
   mpn: string;
   category: string;
+  status?: string;
+  /** False for BOM placeholders whose datasheet isn't imported. */
+  hasDatasheet: boolean;
   designator?: string;
   qty: number;
   role?: string;
@@ -396,11 +403,40 @@ export interface ImportResult {
   took: string;
 }
 
-export interface ImportProgress {
-  filename: string;
-  stage: string;
+/** One import in the import queue. */
+export interface ImportJob {
+  id: number;
+  name: string;
+  source: string;
+  status: 'queued' | 'running' | 'done' | 'existing' | 'failed';
+  stage?: string;
   done: number;
   total: number;
+  error?: string;
+  datasheetId?: number;
+  parts?: string[];
+  batch?: string;
+  started: string;
+  finished: string;
+}
+
+export interface BOMRow {
+  line: number;
+  designators: string[];
+  mpn?: string;
+  manufacturer?: string;
+  value?: string;
+  description?: string;
+  qty: number;
+  part?: string;
+  status: 'in library' | 'imported' | 'no datasheet' | 'skipped';
+  note?: string;
+}
+
+export interface BOMResult {
+  project: string;
+  rows: BOMRow[];
+  counts: Record<string, number>;
 }
 
 export interface Activity {

@@ -25,7 +25,7 @@ Conventions:
 | `get_ui_context` | The part, page, figure or project the user is looking at, and any selected text. |
 | `search` | Full-text search across parts, page text, sections, figure captions and descriptions, parameters, pins, registers, recommendations and notes. |
 | `list_categories` | Component types with part counts and the key parameters compared for each. |
-| `compare_parts` | One type's parts side by side on key parameters (min/typ/max in SI), filtered by requirements such as `vin >= 24 V`, `iout >= 3 A`, `iq <= 1 µA` and sorted. A `>=` filter tests the highest the part can do (max), `<=` tests typ. |
+| `compare_parts` | (Optionally only starred parts or one status.) One type's parts side by side on key parameters (min/typ/max in SI), filtered by requirements such as `vin >= 24 V`, `iout >= 3 A`, `iq <= 1 µA` and sorted. A `>=` filter tests the highest the part can do (max), `<=` tests typ. |
 | `list_parts` | Parts filtered by part number/variant/description, category or manufacturer. |
 | `get_part` | Overview: datasheet, sibling parts, orderable variants, best value per key parameter (with page), sections, figure counts, recommended components, projects, notes. |
 | `get_parameters` | Spec parameters (min/typ/max, unit, conditions, section, page), filtered by key, section or text. |
@@ -44,7 +44,9 @@ Conventions:
 | Tool | What it does |
 |---|---|
 | `import_datasheet` | Download and import a datasheet: by `part_number` (tries TI, ST, ADI, onsemi, Nexperia and Diodes datasheet URLs), from a `url` (a PDF, or a product page linking to one), a local `path`, or `data_base64` for a PDF the agent fetched itself because the site blocks scripted downloads. `reextract` redoes extraction. |
-| `update_part` | Correct part number, manufacturer, description, category, package, tags; add orderable variants or more part numbers on the same datasheet; set family patterns (`STM32U545xx`). |
+| `import_datasheets` | Import many datasheets at once, in parallel: part numbers, URLs, paths or a folder (optionally recursive). One line per import with its outcome. |
+| `import_bom` | Build a project from a BOM (CSV/TSV text or file from KiCad, Altium, JLCPCB…): parts found in the library or fetched by part number; unfetchable parts join as "no datasheet"; lines without a part number are skipped. |
+| `update_part` | Correct part number, manufacturer, description, category, package, tags; add orderable variants or more part numbers on the same datasheet; set family patterns (`STM32U545xx`); star it (`favorite`) or set its `status` (preferred, approved, avoid, nrnd, eol). |
 | `record_parameters` | Add or update parameters with key, section and page; `replace_auto` drops automatic rows for the same key; `delete` removes wrong rows. |
 | `describe_figure` | Record what a figure shows: kind, title, axes with ranges, conditions, description, curves. |
 | `record_table` | Save a clean transcription of a table read from its image (header with units, one row per entry; matrices flattened to one row per combination). Replaces the automatic cells, makes them searchable, survives re-extraction. Can also add a table the extractor missed (page + region). |

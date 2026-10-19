@@ -6,7 +6,7 @@ import { api, uploadPDF } from './api';
 import { getTransport } from './transport';
 import { closeTab, focusToTab, openTab, type Tab } from './tabs';
 import { applyTheme, themeById, type Theme } from './themes';
-import type { Activity, AppState, BusEvent, Config, Focus, ImportProgress, ImportResult, MCPStatus, Settings } from './types';
+import type { Activity, AppState, BusEvent, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings } from './types';
 
 export type SidebarMode = 'library' | 'types' | 'projects' | 'agent';
 
@@ -31,7 +31,9 @@ interface State {
   activity: Activity[];
   connectOpen: boolean;
   importOpen: boolean;
-  imports: Record<string, ImportProgress>;
+  queueOpen: boolean;
+  /** The import queue by job id. */
+  jobs: Record<number, ImportJob>;
   /** Bumped when library data changes, so views refetch. */
   libraryVersion: number;
   projectVersion: number;
@@ -48,8 +50,13 @@ interface State {
   saveSettings: (patch: Partial<Settings>) => Promise<void>;
   setConnectOpen: (v: boolean) => void;
   setImportOpen: (v: boolean) => void;
+  setQueueOpen: (v: boolean) => void;
   importFiles: (files: File[], opts?: { mpns?: string; manufacturer?: string; category?: string }) => Promise<void>;
   importPaths: (paths: string[], opts?: { mpns?: string[]; manufacturer?: string; category?: string; url?: boolean }) => Promise<void>;
+  /** Queues many imports at once; progress arrives as import events. */
+  queueImports: (req: { paths?: string[]; urls?: string[]; mpns?: string[]; folder?: string; recursive?: boolean }) => Promise<void>;
+  setFavorite: (p: Part, on: boolean) => Promise<void>;
+  setStatus: (p: Part, status: string) => Promise<void>;
   handleEvent: (ev: BusEvent) => void;
   refreshLibrary: () => void;
 }
@@ -66,7 +73,8 @@ export const useStore = create<State>((set, get) => ({
   activity: [],
   connectOpen: false,
   importOpen: false,
-  imports: {},
+  queueOpen: false,
+  jobs: {},
   libraryVersion: 0,
   projectVersion: 0,
 
@@ -77,7 +85,8 @@ export const useStore = create<State>((set, get) => ({
       applyTheme(theme);
       document.documentElement.style.setProperty('--ui-font-size', `${app.config.settings.fontSize}px`);
       const activity = await api.activity().catch(() => []);
-      set({ app, theme, ready: true, activity });
+      const jobs = Object.fromEntries((await api.importJobs().catch(() => [] as ImportJob[])).map((j) => [j.id, j]));
+      set({ app, theme, ready: true, activity, jobs });
       const t = await getTransport();
       t.subscribe((ev) => get().handleEvent(ev));
     } catch (e) {
@@ -129,21 +138,30 @@ export const useStore = create<State>((set, get) => ({
   setImportOpen(v) {
     set({ importOpen: v });
   },
+  setQueueOpen(v) {
+    set({ queueOpen: v });
+  },
 
   async importFiles(files, opts) {
-    for (const f of files) {
-      if (!/\.pdf$/i.test(f.name)) {
-        get().toast({ kind: 'warn', title: `${f.name} is not a PDF` });
-        continue;
-      }
+    const pdfs = files.filter((f) => /\.pdf$/i.test(f.name));
+    for (const f of files) if (!pdfs.includes(f)) get().toast({ kind: 'warn', title: `${f.name} is not a PDF` });
+    if (pdfs.length > 1) set({ queueOpen: true });
+    // Upload a few at a time; the backend extracts them in parallel.
+    const one = async (f: File) => {
       try {
-        announce(await uploadPDF(f, opts));
+        const r = await uploadPDF(f, opts);
+        if (pdfs.length === 1) announce(r);
       } catch (e) {
-        get().toast({ kind: 'err', title: `Could not import ${f.name}`, body: (e as Error).message });
+        if (pdfs.length === 1) get().toast({ kind: 'err', title: `Could not import ${f.name}`, body: (e as Error).message });
       }
-    }
+    };
+    await pool(pdfs, 3, one);
   },
   async importPaths(paths, opts = {}) {
+    // Several paths without overrides go through the queue.
+    if (paths.length > 1 && !opts.mpns && !opts.manufacturer && !opts.category) {
+      return get().queueImports(opts.url ? { urls: paths } : { paths });
+    }
     for (const p of paths) {
       try {
         const req = opts.url ? { url: p } : { path: p };
@@ -151,6 +169,31 @@ export const useStore = create<State>((set, get) => ({
       } catch (e) {
         get().toast({ kind: 'err', title: `Could not import ${p.split(/[\\/]/).pop()}`, body: (e as Error).message });
       }
+    }
+  },
+  async queueImports(req) {
+    try {
+      const jobs = await api.startImports(req);
+      set({ queueOpen: true });
+      get().toast({ kind: 'info', title: `Importing ${jobs.length} datasheet${jobs.length === 1 ? '' : 's'}`, body: 'Follow them in the import queue.' });
+    } catch (e) {
+      get().toast({ kind: 'err', title: 'Could not start the imports', body: (e as Error).message });
+    }
+  },
+  async setFavorite(p, on) {
+    try {
+      await api.updatePart(p.id, { favorite: on });
+      get().refreshLibrary();
+    } catch (e) {
+      get().toast({ kind: 'err', title: 'Could not update the part', body: (e as Error).message });
+    }
+  },
+  async setStatus(p, status) {
+    try {
+      await api.updatePart(p.id, { status });
+      get().refreshLibrary();
+    } catch (e) {
+      get().toast({ kind: 'err', title: 'Could not update the part', body: (e as Error).message });
     }
   },
 
@@ -183,11 +226,29 @@ export const useStore = create<State>((set, get) => ({
         break;
       }
       case 'import': {
-        const p = ev.data as ImportProgress;
-        const imports = { ...s.imports };
-        if (p.stage === 'done') delete imports[p.filename];
-        else imports[p.filename] = p;
-        set({ imports });
+        if ((ev.data as { cleared?: boolean }).cleared) {
+          set({ jobs: Object.fromEntries(Object.values(s.jobs).filter((j) => !finished(j)).map((j) => [j.id, j])) });
+          break;
+        }
+        const j = ev.data as ImportJob;
+        const was = s.jobs[j.id];
+        const jobs = { ...s.jobs, [j.id]: j };
+        set({ jobs });
+        if (finished(j) && was && !finished(was)) {
+          if (j.status === 'done') set({ libraryVersion: get().libraryVersion + 1 });
+          // When a batch drains, summarize it.
+          const batch = j.batch ? Object.values(jobs).filter((x) => x.batch === j.batch) : [];
+          if (batch.length > 1 && batch.every(finished)) {
+            const failed = batch.filter((x) => x.status === 'failed').length;
+            const done = batch.filter((x) => x.status === 'done').length;
+            s.toast({
+              kind: failed ? 'warn' : 'ok',
+              title: `Imported ${done} of ${batch.length} datasheets`,
+              body: [failed && `${failed} failed`, batch.length - done - failed && `${batch.length - done - failed} already in the library`].filter(Boolean).join(', ') || undefined,
+              action: { label: 'Show', run: () => get().setQueueOpen(true) },
+            });
+          }
+        }
         break;
       }
       case 'library':
@@ -197,8 +258,12 @@ export const useStore = create<State>((set, get) => ({
         set({ projectVersion: s.projectVersion + 1 });
         break;
       case 'drop': {
-        const paths = ((ev.data as { paths?: string[] }).paths ?? []).filter((p) => /\.pdf$/i.test(p));
+        const all = (ev.data as { paths?: string[] }).paths ?? [];
+        const paths = all.filter((p) => /\.pdf$/i.test(p));
+        // Dropped folders (no extension) are imported recursively.
+        const folders = all.filter((p) => !/\.[a-z0-9]{1,5}$/i.test(p.split(/[\\/]/).pop() ?? ''));
         if (paths.length) s.importPaths(paths);
+        for (const f of folders) s.queueImports({ folder: f, recursive: true });
         break;
       }
     }
@@ -207,6 +272,20 @@ export const useStore = create<State>((set, get) => ({
     set({ libraryVersion: get().libraryVersion + 1 });
   },
 }));
+
+/** Reports whether an import job has ended. */
+export function finished(j: ImportJob): boolean {
+  return j.status === 'done' || j.status === 'existing' || j.status === 'failed';
+}
+
+/** Runs fn over items with at most n in flight. */
+export async function pool<T>(items: T[], n: number, fn: (t: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  const worker = async () => {
+    for (let t = queue.shift(); t !== undefined; t = queue.shift()) await fn(t);
+  };
+  await Promise.all(Array.from({ length: Math.min(n, queue.length) }, worker));
+}
 
 /** Tells the user what an import produced and opens the first part. */
 function announce(r: ImportResult) {

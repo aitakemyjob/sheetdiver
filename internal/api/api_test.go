@@ -3,12 +3,15 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
+	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
 )
 
@@ -114,4 +117,62 @@ func TestRecordTableFromUI(t *testing.T) {
 	if saved.Source != "user" || saved.Irregular != "" {
 		t.Errorf("saved = %+v", saved)
 	}
+}
+
+func TestImportQueueAndBOM(t *testing.T) {
+	a, _ := newAPI(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "zx7001.pdf"), testutil.Mini("ZX7001", "Step-Down Converter"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var jobs []core.ImportJob
+	if err := invoke(t, a, "imports.start", map[string]any{"folder": dir}, &jobs); err != nil || len(jobs) != 1 {
+		t.Fatalf("start = %+v %v", jobs, err)
+	}
+	if err := invoke(t, a, "imports.start", map[string]any{"folder": t.TempDir()}, nil); err == nil {
+		t.Error("an empty folder is reported")
+	}
+	// Wait for the background import.
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var list []core.ImportJob
+		if err := invoke(t, a, "imports.list", nil, &list); err != nil {
+			t.Fatal(err)
+		}
+		if len(list) > 0 && list[0].Status == core.JobDone {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("import didn't finish: %+v", list)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	var bom core.BOMResult
+	if err := invoke(t, a, "bom.import", map[string]any{"text": "Ref,MPN\nU1,ZX7001\nU2,NOPE123\n", "filename": "b.csv", "fetch": false}, &bom); err != nil {
+		t.Fatal(err)
+	}
+	if bom.Project != "b" || bom.Counts[core.BOMInLibrary] != 1 || bom.Counts[core.BOMNoDatasheet] != 1 {
+		t.Errorf("bom = %+v", bom)
+	}
+	var p library.Part
+	if err := invoke(t, a, "part.update", map[string]any{"id": jobsPart(t, a, "ZX7001"), "favorite": true, "status": "approved"}, &p); err != nil || !p.Favorite || p.Status != "approved" {
+		t.Errorf("update = %+v %v", p, err)
+	}
+	var st AppState
+	if err := invoke(t, a, "app.state", nil, &st); err != nil || len(st.Statuses) != 5 {
+		t.Errorf("statuses = %v %v", st.Statuses, err)
+	}
+	if err := invoke(t, a, "imports.clear", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// jobsPart returns a part's id.
+func jobsPart(t *testing.T, a *API, mpn string) int64 {
+	t.Helper()
+	var d core.PartDetail
+	if err := invoke(t, a, "part.detail", map[string]any{"part": mpn}, &d); err != nil {
+		t.Fatal(err)
+	}
+	return d.Part.ID
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Columns3, Download, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Columns3, Download, Star, X } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, eng, parseSI } from '../lib/format';
 import { useStore } from '../lib/store';
+import { FavoriteStar, StatusBadge, statusInfo } from '../components/PartStatus';
 import type { CompareFilter, CompareResult, CompareValue } from '../lib/types';
 import { Menu } from '../components/Menu';
 import { ErrorBox, SourceBadge } from '../components/ui';
@@ -39,9 +40,9 @@ export function toFilters(f: Record<string, FilterText>): CompareFilter[] {
 function toCSV(r: CompareResult): string {
   const cols = r.columns ?? [];
   const esc = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-  const lines = [['part', 'manufacturer', ...cols.flatMap((c) => [`${c.key} min`, `${c.key} typ`, `${c.key} max`, `${c.key} unit`])].join(',')];
+  const lines = [['part', 'manufacturer', 'status', ...cols.flatMap((c) => [`${c.key} min`, `${c.key} typ`, `${c.key} max`, `${c.key} unit`])].join(',')];
   for (const row of r.rows) {
-    const cells = [row.part.mpn, row.part.manufacturer];
+    const cells = [row.part.mpn, row.part.manufacturer, row.part.status ?? ''];
     for (const c of cols) {
       const v = row.values[c.key];
       cells.push(...[v?.min, v?.typ, v?.max].map((x) => (x === null || x === undefined ? '' : String(x))), v?.unit ?? '');
@@ -64,6 +65,8 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
   const [keys, setKeys] = useState<string[] | undefined>();
   const [filters, setFilters] = useState<Record<string, FilterText>>({});
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: 'mpn', desc: false });
+  const [favorite, setFavorite] = useState(false);
+  const [status, setStatus] = useState('');
   const [res, setRes] = useState<CompareResult>();
   const [error, setError] = useState<unknown>();
   const parsed = useMemo(() => toFilters(filters), [filters]);
@@ -74,7 +77,7 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
   useEffect(() => {
     const t = setTimeout(() => {
       api
-        .compare({ category, keys, filters: parsed, query, sort: sort.key, desc: sort.desc })
+        .compare({ category, keys, filters: parsed, query, sort: sort.key, desc: sort.desc, favorite, status: status || undefined })
         .then((r) => {
           setRes(r);
           setError(undefined);
@@ -83,7 +86,7 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
         .catch(setError);
     }, 200);
     return () => clearTimeout(t);
-  }, [category, keys, parsed, query, sort, s.libraryVersion]);
+  }, [category, keys, parsed, query, sort, favorite, status, s.libraryVersion]);
 
   const allKeys = Object.keys(s.app?.keys ?? {}).sort();
   const cols = res?.columns ?? [];
@@ -111,6 +114,17 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
           </span>
         )}
         <input className="input" style={{ width: 260 }} placeholder="Filter by part number, maker, description" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button className={`btn sm ${favorite ? 'on' : ''}`} aria-pressed={favorite} title="Only starred parts" onClick={() => setFavorite(!favorite)}>
+          <Star size={13} fill={favorite ? 'currentColor' : 'none'} style={favorite ? { color: 'var(--warn)' } : undefined} /> Favorites
+        </button>
+        <select className="input select" style={{ width: 130, height: 26 }} value={status} onChange={(e) => setStatus(e.target.value)} title="Only parts with this status">
+          <option value="">Any status</option>
+          {Object.entries(statusInfo).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v.label}
+            </option>
+          ))}
+        </select>
         <div className="grow" />
         {Object.values(filters).some((f) => f.text.trim()) && (
           <button className="btn sm ghost" onClick={() => setFilters({})}>
@@ -184,9 +198,13 @@ export function CategoryView({ params }: { params: Record<string, unknown> }) {
             {res?.rows.map((row) => (
               <tr key={row.part.id} className={row.part.mpn.toUpperCase() === highlight ? 'hl' : ''}>
                 <td>
-                  <a style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', fontWeight: 600 }} onClick={() => s.open({ kind: 'part', title: row.part.mpn, params: { part: row.part.mpn } })}>
-                    {row.part.mpn}
-                  </a>
+                  <div className="row" style={{ gap: 6 }}>
+                    <FavoriteStar part={row.part} size={12} />
+                    <a style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)', fontWeight: 600 }} onClick={() => s.open({ kind: 'part', title: row.part.mpn, params: { part: row.part.mpn } })}>
+                      {row.part.mpn}
+                    </a>
+                    <StatusBadge status={row.part.status} />
+                  </div>
                   <div className="faint ellipsis" style={{ fontSize: 11, maxWidth: 260 }} title={row.part.description}>
                     {row.part.manufacturer}
                   </div>

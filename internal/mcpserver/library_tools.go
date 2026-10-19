@@ -28,6 +28,8 @@ type listPartsArgs struct {
 	Query        string `json:"query,omitempty" jsonschema:"part number, variant or description fragment"`
 	Category     string `json:"category,omitempty" jsonschema:"buck, boost, ldo, mosfet-n, mcu, charger, …"`
 	Manufacturer string `json:"manufacturer,omitempty"`
+	Favorite     bool   `json:"favorite,omitempty" jsonschema:"only starred parts"`
+	Status       string `json:"status,omitempty" jsonschema:"only parts with this status: preferred, approved, avoid, nrnd, eol"`
 	Limit        int    `json:"limit,omitempty" jsonschema:"max results (default 100)"`
 }
 
@@ -195,7 +197,7 @@ func (s *Server) registerLibrary() {
 			if a.Limit == 0 {
 				a.Limit = 100
 			}
-			ps, err := c.Lib.Parts(ctx, library.PartFilter{Query: a.Query, Category: a.Category, Manufacturer: a.Manufacturer, Limit: a.Limit})
+			ps, err := c.Lib.Parts(ctx, library.PartFilter{Query: a.Query, Category: a.Category, Manufacturer: a.Manufacturer, Favorite: a.Favorite, Status: a.Status, Limit: a.Limit})
 			if err != nil {
 				return result{}, err
 			}

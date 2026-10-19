@@ -23,7 +23,10 @@ STM32U545xx), sections, figures (graphs, schematics, waveforms…), spec paramet
 registers. Projects group the parts of a board with their supply rails.
 
 - Missing a part? import_datasheet downloads it: by part_number (manufacturer URLs), url (PDF or product page),
-  path, or data_base64 if you fetched the PDF yourself because the site blocks scripted downloads.
+  path, or data_base64 if you fetched the PDF yourself because the site blocks scripted downloads. import_datasheets
+  takes many at once (or a folder); import_bom builds a whole project from a CSV/KiCad BOM.
+- Parts can be starred and have a status (preferred, approved, avoid, nrnd, eol). When suggesting parts, prefer
+  preferred/approved ones and flag avoid/nrnd/eol; compare_parts and list_parts filter by both.
 - Find things with search (full text across everything) and list_parts. To choose a part, list_categories then
   compare_parts with requirements (vin >= 24 V, iout >= 3 A) compares a type's parts on their key parameters. Any part reference may be a base MPN, an
   orderable code (TPS563200DDCR) or a family member; SheetDiver resolves it.

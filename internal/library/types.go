@@ -25,16 +25,45 @@ type Datasheet struct {
 
 // Part is a base manufacturer part number covered by a datasheet.
 type Part struct {
-	ID           int64     `json:"id"`
-	MPN          string    `json:"mpn"`
-	Manufacturer string    `json:"manufacturer"`
-	Description  string    `json:"description"`
-	Category     string    `json:"category"`
-	Package      string    `json:"package,omitempty"`
-	DatasheetID  int64     `json:"datasheetId"`
-	Tags         []string  `json:"tags"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID           int64    `json:"id"`
+	MPN          string   `json:"mpn"`
+	Manufacturer string   `json:"manufacturer"`
+	Description  string   `json:"description"`
+	Category     string   `json:"category"`
+	Package      string   `json:"package,omitempty"`
+	DatasheetID  int64    `json:"datasheetId"`
+	Tags         []string `json:"tags"`
+	// Favorite marks a part the user starred.
+	Favorite bool `json:"favorite"`
+	// Status is the part's standing in the user's designs: preferred,
+	// approved, avoid, nrnd (not recommended for new designs), eol, or
+	// empty.
+	Status    string    `json:"status,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// Part statuses.
+const (
+	StatusPreferred = "preferred"
+	StatusApproved  = "approved"
+	StatusAvoid     = "avoid"
+	StatusNRND      = "nrnd"
+	StatusEOL       = "eol"
+)
+
+// Statuses lists the valid part statuses with a description.
+var Statuses = map[string]string{
+	StatusPreferred: "first choice for new designs",
+	StatusApproved:  "qualified and fine to use",
+	StatusAvoid:     "do not use (problems, cost, supply)",
+	StatusNRND:      "not recommended for new designs",
+	StatusEOL:       "end of life / obsolete",
+}
+
+// Discouraged reports whether a status warns against using the part.
+func Discouraged(status string) bool {
+	return status == StatusAvoid || status == StatusNRND || status == StatusEOL
 }
 
 // Variant is an orderable code (or other alias) of a part.

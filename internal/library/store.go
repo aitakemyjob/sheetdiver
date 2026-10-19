@@ -293,6 +293,9 @@ ALTER TABLE doc_tables ADD COLUMN source TEXT NOT NULL DEFAULT 'auto';
 ALTER TABLE doc_tables ADD COLUMN title TEXT NOT NULL DEFAULT '';
 ALTER TABLE doc_tables ADD COLUMN description TEXT NOT NULL DEFAULT '';
 ALTER TABLE doc_tables ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+`, `
+ALTER TABLE parts ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE parts ADD COLUMN status TEXT NOT NULL DEFAULT '';
 `}
 
 // migrate applies pending schema migrations.

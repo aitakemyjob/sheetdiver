@@ -13,13 +13,13 @@ import (
 )
 
 // partCols is the column list scanPart reads.
-const partCols = `id, mpn, manufacturer, description, category, package, COALESCE(datasheet_id, 0), tags, created_at, updated_at`
+const partCols = `id, mpn, manufacturer, description, category, package, COALESCE(datasheet_id, 0), tags, favorite, status, created_at, updated_at`
 
 // scanPart reads a part row.
 func scanPart(sc interface{ Scan(...any) error }) (Part, error) {
 	var p Part
 	var tags, c, u string
-	err := sc.Scan(&p.ID, &p.MPN, &p.Manufacturer, &p.Description, &p.Category, &p.Package, &p.DatasheetID, &tags, &c, &u)
+	err := sc.Scan(&p.ID, &p.MPN, &p.Manufacturer, &p.Description, &p.Category, &p.Package, &p.DatasheetID, &tags, &p.Favorite, &p.Status, &c, &u)
 	if err != nil {
 		return p, err
 	}
@@ -170,7 +170,10 @@ type PartFilter struct {
 	Query        string `json:"query,omitempty"`
 	Category     string `json:"category,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
-	Limit        int    `json:"limit,omitempty"`
+	// Favorite keeps only starred parts; Status only parts with that status.
+	Favorite bool   `json:"favorite,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Limit    int    `json:"limit,omitempty"`
 }
 
 // Parts lists parts, filtered by MPN/variant/description substring,
@@ -191,7 +194,14 @@ func (s *Store) Parts(ctx context.Context, f PartFilter) ([]Part, error) {
 		q += ` AND manufacturer LIKE ?`
 		args = append(args, "%"+f.Manufacturer+"%")
 	}
-	q += ` ORDER BY mpn`
+	if f.Favorite {
+		q += ` AND favorite = 1`
+	}
+	if f.Status != "" {
+		q += ` AND status = ?`
+		args = append(args, f.Status)
+	}
+	q += ` ORDER BY favorite DESC, mpn`
 	if f.Limit > 0 {
 		q += fmt.Sprintf(" LIMIT %d", f.Limit)
 	}
@@ -237,6 +247,8 @@ type PartUpdate struct {
 	Category     *string   `json:"category,omitempty"`
 	Package      *string   `json:"package,omitempty"`
 	Tags         *[]string `json:"tags,omitempty"`
+	Favorite     *bool     `json:"favorite,omitempty"`
+	Status       *string   `json:"status,omitempty"`
 }
 
 // UpdatePart applies a partial update to a part.
@@ -258,12 +270,22 @@ func (s *Store) UpdatePart(ctx context.Context, id int64, u PartUpdate) (Part, e
 	if u.Tags != nil {
 		p.Tags = *u.Tags
 	}
+	if u.Favorite != nil {
+		p.Favorite = *u.Favorite
+	}
+	if u.Status != nil {
+		st := strings.ToLower(strings.TrimSpace(*u.Status))
+		if _, ok := Statuses[st]; !ok && st != "" {
+			return p, fmt.Errorf("status must be one of preferred, approved, avoid, nrnd, eol (or empty), got %q", *u.Status)
+		}
+		p.Status = st
+	}
 	if p.MPN == "" {
 		return p, errors.New("a part needs a part number")
 	}
 	tags, _ := json.Marshal(nonNil(p.Tags))
-	_, err = s.db.ExecContext(ctx, `UPDATE parts SET mpn = ?, manufacturer = ?, description = ?, category = ?, package = ?, tags = ?, updated_at = ? WHERE id = ?`,
-		p.MPN, p.Manufacturer, p.Description, p.Category, p.Package, string(tags), now(), id)
+	_, err = s.db.ExecContext(ctx, `UPDATE parts SET mpn = ?, manufacturer = ?, description = ?, category = ?, package = ?, tags = ?, favorite = ?, status = ?, updated_at = ? WHERE id = ?`,
+		p.MPN, p.Manufacturer, p.Description, p.Category, p.Package, string(tags), p.Favorite, p.Status, now(), id)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			return p, fmt.Errorf("another part is already %s", p.MPN)

@@ -215,3 +215,34 @@ func TestToolsAreDocumented(t *testing.T) {
 		}
 	}
 }
+
+func TestBatchImportBOMAndFavorites(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	dir := t.TempDir()
+	for _, m := range []string{"ZX7001", "ZX7002"} {
+		if err := os.WriteFile(filepath.Join(dir, strings.ToLower(m)+".pdf"), testutil.Mini(m, "Step-Down Converter"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.must("import_datasheets", map[string]any{"folder": dir, "paths": []string{filepath.Join(dir, "missing.pdf")}},
+		"2 imported, 0 already in the library, 1 failed", "done "+filepath.Join(dir, "zx7001.pdf")+" → ZX7001", "FAILED "+filepath.Join(dir, "missing.pdf"))
+	if _, _, isErr := h.call("import_datasheets", map[string]any{}); !isErr {
+		t.Error("an empty batch is an error")
+	}
+
+	bom := "Designator,Manufacturer Part Number,Quantity\nU1,ZX7001,1\nU2,SD1235DDCR,1\nR1,,1\n"
+	h.must("import_bom", map[string]any{"csv": bom, "project": "board", "fetch": false},
+		"project board: 2 in library, 0 imported, 0 without datasheet, 1 skipped", "U2 ×1 SD1235DDCR → SD1235 [in library]")
+	h.must("get_project", map[string]any{"project": "board"}, "ZX7001", "SD1235")
+
+	h.must("update_part", map[string]any{"part": "ZX7002", "favorite": true, "status": "preferred"}, "★ ZX7002 [PREFERRED]")
+	if out, _, isErr := h.call("update_part", map[string]any{"part": "ZX7002", "status": "best"}); !isErr {
+		t.Errorf("bad status accepted: %s", out)
+	}
+	out := h.must("list_parts", map[string]any{"favorite": true}, "ZX7002")
+	if strings.Contains(out, "ZX7001") {
+		t.Errorf("favorite filter: %s", out)
+	}
+	h.must("compare_parts", map[string]any{"category": "buck", "status": "preferred"}, "| ZX7002 |", "★ preferred")
+}

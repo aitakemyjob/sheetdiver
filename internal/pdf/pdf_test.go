@@ -109,3 +109,28 @@ func TestPunctuationStaysInItsSpan(t *testing.T) {
 		t.Errorf("spans = %q", texts)
 	}
 }
+
+func TestConcurrentExtraction(t *testing.T) {
+	e := NewEngine(DefaultCacheDir())
+	e.Workers = 3
+	defer e.Close()
+	data := testutil.Datasheet()
+	errs := make(chan error, 8)
+	for range 8 {
+		go func() {
+			doc, err := e.Extract(context.Background(), data, nil)
+			if err == nil && len(doc.Pages) != 3 {
+				err = ErrNotPDF
+			}
+			if err == nil {
+				_, err = e.Render(data, 0, nil, 30)
+			}
+			errs <- err
+		}()
+	}
+	for range 8 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
