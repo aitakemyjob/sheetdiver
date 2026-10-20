@@ -3,7 +3,7 @@ import { getTransport } from './transport';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
 } from './types';
 
 /** Calls a backend method. */
@@ -45,6 +45,8 @@ export const api = {
   applyUpdate: (id: number) => call<ImportResult>('datasheet.applyUpdate', { id }),
   checkAllUpdates: () => call<UpdateCheck[]>('datasheets.checkUpdates'),
   saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
+  deletePreview: (part: string) => call<DeletePlan>('delete.preview', { part }),
+  deleteApply: (part: string, keepInProjects: boolean) => call<DeleteResult>('delete.apply', { part, keepInProjects }),
   catalogStatus: () => call<CatalogStatus>('catalog.status'),
   catalogDownload: () => call<CatalogStatus>('catalog.download'),
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),

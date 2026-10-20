@@ -519,3 +519,7 @@ html { font-size: var(--ui-font-size, 13px); }
 .value-row:hover { background: var(--bg-2); }
 .shop-link { color: var(--text-2); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 .shop-link:hover { color: var(--accent); }
+.btn.danger-solid { background: var(--err); color: #fff; border-color: transparent; font-weight: 600; }
+.btn.danger-solid:hover:not(:disabled) { filter: brightness(1.08); }
+.delete-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.delete-list li { display: flex; align-items: center; gap: 8px; }

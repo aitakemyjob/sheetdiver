@@ -115,3 +115,21 @@ func (s *Store) DeleteNote(ctx context.Context, id int64) error {
 		return err
 	})
 }
+
+// DeleteNotesOf removes the notes on one target (a part by MPN, a
+// datasheet by id) and returns how many there were.
+func (s *Store) DeleteNotesOf(ctx context.Context, kind, id string) (int, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM notes WHERE target_kind = ? AND target_id = ? COLLATE NOCASE`, kind, id)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// CountNotesOf counts the notes on one target.
+func (s *Store) CountNotesOf(ctx context.Context, kind, id string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notes WHERE target_kind = ? AND target_id = ? COLLATE NOCASE`, kind, id).Scan(&n)
+	return n, err
+}

@@ -643,3 +643,18 @@ export interface CatalogFilter {
   /** For "=": the values to accept (any of them), e.g. several packages. */
   values?: string[];
 }
+
+/** What deleting a part would remove (shown for confirmation). */
+export interface DeletePlan {
+  datasheet?: Datasheet;
+  parts: { part: Part; projects?: string[] }[];
+  recorded: Record<string, number>;
+  notes: number;
+  inProjects: boolean;
+}
+
+export interface DeleteResult {
+  datasheet?: string;
+  deleted: string[];
+  kept?: string[];
+}

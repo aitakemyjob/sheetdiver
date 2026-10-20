@@ -513,3 +513,24 @@ func (s *Store) SetExtractor(ctx context.Context, id int64, version string) erro
 	_, err := s.db.ExecContext(ctx, `UPDATE datasheets SET extractor = ? WHERE id = ?`, version, id)
 	return err
 }
+
+// RecordedCounts counts what agents and users recorded for a datasheet
+// (rows whose source isn't the extractor), by kind: parameters, figures,
+// tables, pins, registers, recommendations. Deleting the datasheet loses
+// them.
+func (s *Store) RecordedCounts(ctx context.Context, dsID int64) (map[string]int, error) {
+	out := map[string]int{}
+	for kind, table := range map[string]string{
+		"parameters": "parameters", "figures": "figures", "tables": "doc_tables", "pins": "pins",
+		"registers": "registers", "recommendations": "recommendations",
+	} {
+		var n int
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE datasheet_id = ? AND source <> 'auto'`, dsID).Scan(&n); err != nil { //nolint:gosec // table names are constants
+			return nil, err
+		}
+		if n > 0 {
+			out[kind] = n
+		}
+	}
+	return out, nil
+}
