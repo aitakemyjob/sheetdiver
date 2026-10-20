@@ -331,7 +331,7 @@ func (a *API) registerLibrary() {
 	}) (any, error) {
 		return c.DeletePart(ctx, in.Part, in.KeepInProjects)
 	})
-		a.methods["part.delete"] = method(func(ctx context.Context, in idReq) (any, error) {
+	a.methods["part.delete"] = method(func(ctx context.Context, in idReq) (any, error) {
 		err := c.Lib.DeletePart(ctx, in.ID)
 		c.Changed("part", 0)
 		return nil, err
