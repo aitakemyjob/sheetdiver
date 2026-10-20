@@ -45,8 +45,9 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
   if (detail.error) return <ErrorBox error={detail.error} />;
   if (!d) return null;
   const bump = () => useStore.setState({ projectVersion: useStore.getState().projectVersion + 1 });
-  const errors = d.checks.filter((c) => c.level === 'error').length;
-  const warns = d.checks.filter((c) => c.level === 'warn').length;
+  const checks = d.checks ?? [];
+  const errors = checks.filter((c) => c.level === 'error').length;
+  const warns = checks.filter((c) => c.level === 'warn').length;
   return (
     <div className="view">
       <div className="part-head" style={{ paddingBottom: 12 }}>
@@ -89,10 +90,10 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
       <div className="scroll pad col" style={{ flex: 1, gap: 16 }}>
         <Rails d={d} onChange={bump} />
         <Bom d={d} onChange={bump} />
-        {d.checks.length > 0 && (
+        {checks.length > 0 && (
           <div className="card">
             <h3>Checks against the datasheets</h3>
-            <Checks checks={d.checks} />
+            <Checks checks={checks} />
           </div>
         )}
         <div className="card">

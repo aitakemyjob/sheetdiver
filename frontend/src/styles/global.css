@@ -432,6 +432,17 @@ html { font-size: var(--ui-font-size, 13px); }
 
 /* Section text */
 .sec-text { white-space: pre-wrap; font-size: 12.5px; line-height: 1.6; user-select: text; color: var(--text); }
+.sec-doc { white-space: normal; max-width: 820px; }
+.sec-doc h4 { margin: 14px 0 4px; font-size: 13px; font-weight: 600; color: var(--text); }
+.sec-doc h4:first-child { margin-top: 0; }
+.sec-doc p { margin: 0 0 8px; }
+.sec-doc ul { margin: 0 0 8px; padding-left: 20px; }
+.sec-doc li { margin: 2px 0; }
+.sec-doc .sec-ref { margin: 4px 0 10px; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--bg-2); color: var(--text-2); font-size: 12px; border-radius: 4px; }
+.sec-doc .sec-table { overflow-x: auto; margin: 4px 0 12px; }
+.sec-doc table { border-collapse: collapse; font-size: 12px; }
+.sec-doc th, .sec-doc td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; vertical-align: top; }
+.sec-doc th { background: var(--bg-2); font-weight: 600; }
 .toc a { display: block; padding: 3px 8px; border-radius: 6px; color: var(--text-2); cursor: pointer; font-size: 12px; }
 .toc a:hover { background: var(--bg-2); color: var(--text); text-decoration: none; }
 .toc a.on { background: var(--accent-soft); color: var(--text); }

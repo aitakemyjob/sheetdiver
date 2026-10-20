@@ -119,6 +119,29 @@ func fence(b *bytes.Buffer, s string) {
 	fmt.Fprintf(b, "%stext\n%s\n%s\n\n", f, strings.TrimRight(strings.ReplaceAll(s, "\r\n", "\n"), "\n"), f)
 }
 
+// vendoredTexts are the licences kept in packaging/licenses/npm/<name>
+// (a scope's "/" as "__") for a package published without them, such as
+// @browsermt/bergamot-translator and the libraries in its WebAssembly.
+// SOURCES.md there records where each came from and isn't a licence.
+func vendoredTexts(name string) []text {
+	dir := filepath.Join("packaging", "licenses", "npm", strings.ReplaceAll(name, "/", "__"))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []text
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "SOURCES.md" {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err == nil && len(bytes.TrimSpace(body)) > 0 {
+			out = append(out, text{e.Name(), string(body)})
+		}
+	}
+	return out
+}
+
 // licenseTexts reads the licence files at the top of dir.
 func licenseTexts(dir string) []text {
 	var out []text
@@ -204,7 +227,11 @@ func npmPackages(root string) ([]dep, error) {
 		if _, ok := seen[key]; ok {
 			return nil
 		}
-		seen[key] = dep{name: p.Name, version: p.Version, license: licenseString(p.License), texts: licenseTexts(dir)}
+		texts := licenseTexts(dir)
+		if len(texts) == 0 {
+			texts = vendoredTexts(p.Name)
+		}
+		seen[key] = dep{name: p.Name, version: p.Version, license: licenseString(p.License), texts: texts}
 		for d := range p.Dependencies {
 			if err := walk(d, dir); err != nil {
 				return err

@@ -296,6 +296,14 @@ ALTER TABLE doc_tables ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
 `, `
 ALTER TABLE parts ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE parts ADD COLUMN status TEXT NOT NULL DEFAULT '';
+`, `
+CREATE TABLE translations (
+	lang TEXT NOT NULL,
+	source TEXT NOT NULL,
+	text TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	PRIMARY KEY (lang, source)
+);
 `}
 
 // migrate applies pending schema migrations.

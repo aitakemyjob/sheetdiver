@@ -16,6 +16,7 @@ import (
 	"github.com/aitakemyjob/sheetdiver/internal/events"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/pdf"
+	"github.com/aitakemyjob/sheetdiver/internal/translate"
 )
 
 // Event types published on the bus.
@@ -30,6 +31,8 @@ const (
 	EvMCP      = "mcp"
 	EvCalc     = "calc"
 	EvCatalog  = "catalog"
+	// EvTranslate reports translation model downloads.
+	EvTranslate = "translate"
 )
 
 // Errors returned to agents when the user has switched something off.
@@ -42,6 +45,8 @@ var (
 // Service is the application: configuration, library, PDF engine, event
 // bus and this session's collaboration state.
 type Service struct {
+	// Translate manages the offline translation models.
+	Translate *translate.Manager
 	// Catalog is the optional downloaded parts catalogue (JLCPCB/LCSC).
 	Catalog *catalog.Catalog
 	Config  *config.Store
@@ -59,6 +64,9 @@ type Service struct {
 	// catalogProgress and catalogErr describe the last catalogue download.
 	catalogProgress *catalog.Progress
 	catalogErr      string
+	// translateProgress and translateErr describe the last model download.
+	translateProgress *translate.Progress
+	translateErr      string
 	// catalogCats caches the catalogue categories of one download.
 	catalogCats    []catalog.Category
 	catalogCatsKey time.Time
@@ -82,6 +90,7 @@ func New(cfg *config.Store, version string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	tr := translate.NewManager(filepath.Join(cfg.LibraryDir(), "translate"))
 	cat, err := catalog.Open(filepath.Join(cfg.LibraryDir(), "catalog"))
 	if err != nil {
 		_ = lib.Close()
@@ -89,13 +98,14 @@ func New(cfg *config.Store, version string) (*Service, error) {
 	}
 	engine := pdf.NewEngine(pdf.DefaultCacheDir())
 	return &Service{
-		Config:  cfg,
-		Lib:     lib,
-		Catalog: cat,
-		Engine:  engine,
-		Bus:     events.NewBus(),
-		Version: version,
-		slots:   make(chan struct{}, engine.Workers),
+		Config:    cfg,
+		Lib:       lib,
+		Catalog:   cat,
+		Translate: tr,
+		Engine:    engine,
+		Bus:       events.NewBus(),
+		Version:   version,
+		slots:     make(chan struct{}, engine.Workers),
 	}, nil
 }
 

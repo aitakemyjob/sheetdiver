@@ -446,3 +446,25 @@ func TestRangeKeysAndPinRatings(t *testing.T) {
 		}
 	}
 }
+
+func TestChineseHeadings(t *testing.T) {
+	for in, want := range map[string]string{
+		"极限参数 （注 1）":  KindAbsMax,
+		"电气参数（注 2，3）": KindElectrical,
+		"3. 电气特性":     KindElectrical,
+		"二、管脚描述":      KindPins,
+		"内部框图":        KindBlock,
+		"典型应用电路":      KindTypicalApp,
+		"封装尺寸":        KindPackage,
+		"订购信息：":       KindOrdering,
+	} {
+		if !isPlainHeading(in) || SectionKind(in) != want {
+			t.Errorf("%q: heading %v, kind %q, want %q", in, isPlainHeading(in), SectionKind(in), want)
+		}
+	}
+	for _, in := range []string{"TP4056是一款充电器", "极限参数很重要", "管脚1"} {
+		if isPlainHeading(in) {
+			t.Errorf("%q isn't a heading", in)
+		}
+	}
+}

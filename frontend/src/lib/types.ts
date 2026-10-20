@@ -423,6 +423,8 @@ export interface ImportJob {
   datasheetId?: number;
   parts?: string[];
   batch?: string;
+  language?: string;
+  translated?: boolean;
   started: string;
   finished: string;
 }
@@ -657,4 +659,22 @@ export interface DeleteResult {
   datasheet?: string;
   deleted: string[];
   kept?: string[];
+}
+
+/** An offline translation model (see internal/translate). */
+export interface TranslationModel {
+  from: string;
+  to: string;
+  label: string;
+  version: string;
+  installed: boolean;
+  downloading: boolean;
+  sizeBytes: number;
+}
+
+/** The translation models, and the progress or error of a download. */
+export interface TranslateStatus {
+  models: TranslationModel[];
+  progress?: { model: string; done: number; total: number };
+  error?: string;
 }

@@ -27,19 +27,24 @@ const (
 // ImportJob tracks one datasheet import for the import queue: what is
 // being imported, how far it got and how it ended.
 type ImportJob struct {
-	ID          int       `json:"id"`
-	Name        string    `json:"name"`
-	Source      string    `json:"source"`
-	Status      string    `json:"status"`
-	Stage       string    `json:"stage,omitempty"`
-	Done        int       `json:"done"`
-	Total       int       `json:"total"`
-	Error       string    `json:"error,omitempty"`
-	DatasheetID int64     `json:"datasheetId,omitempty"`
-	Parts       []string  `json:"parts,omitempty"`
-	Batch       string    `json:"batch,omitempty"`
-	Started     time.Time `json:"started"`
-	Finished    time.Time `json:"finished"`
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Source      string   `json:"source"`
+	Status      string   `json:"status"`
+	Stage       string   `json:"stage,omitempty"`
+	Done        int      `json:"done"`
+	Total       int      `json:"total"`
+	Error       string   `json:"error,omitempty"`
+	DatasheetID int64    `json:"datasheetId,omitempty"`
+	Parts       []string `json:"parts,omitempty"`
+	Batch       string   `json:"batch,omitempty"`
+	// Language is the datasheet's language, and Translated whether it
+	// was extracted from its English translation; the UI translates and
+	// re-extracts non-English imports when the model is installed.
+	Language   string    `json:"language,omitempty"`
+	Translated bool      `json:"translated,omitempty"`
+	Started    time.Time `json:"started"`
+	Finished   time.Time `json:"finished"`
 
 	req ImportRequest
 }
@@ -129,6 +134,8 @@ func (s *Service) runJob(ctx context.Context, j *ImportJob, data []byte) (Import
 		if err == nil {
 			j.DatasheetID = res.Datasheet.ID
 			j.Name = res.Datasheet.Filename
+			j.Language = res.Datasheet.Meta["language"]
+			j.Translated = res.Datasheet.Meta["translated"] != ""
 			j.Parts = nil
 			for _, p := range res.Parts {
 				j.Parts = append(j.Parts, p.MPN)
@@ -251,7 +258,7 @@ func (s *Service) ReextractOutdated(ctx context.Context) ([]ImportJob, error) {
 	var reqs []ImportRequest
 	for _, d := range sheets {
 		if d.Extractor != extract.Version {
-			reqs = append(reqs, ImportRequest{Path: s.Lib.DatasheetPath(d.File), Filename: d.Filename, Force: true})
+			reqs = append(reqs, ImportRequest{Path: s.Lib.DatasheetPath(d.File), Filename: d.Filename, Force: true, Translated: d.Meta["translated"] != ""})
 		}
 	}
 	if len(reqs) == 0 {

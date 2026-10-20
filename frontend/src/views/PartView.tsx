@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, CloudDownload, ExternalLink, FileText, FolderPlus, RefreshCw, Trash2 } from 'lucide-react';
+import { Calculator, CloudDownload, ExternalLink, FileText, FolderPlus, Languages, RefreshCw, Trash2 } from 'lucide-react';
+import { ReextractDialog } from '../components/ReextractDialog';
+import { SectionText } from '../components/SectionText';
+import { T, TranslateProvider } from '../components/Translated';
+import { needsTranslation } from '../lib/translate';
 import { api, figureImageURL, openPDF, tableImageURL } from '../lib/api';
 import { categories, figureKinds, headline, plural, relTime, sectionLabels, sig3 } from '../lib/format';
 import { useStore } from '../lib/store';
@@ -30,11 +34,18 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
   const [sub, setSub] = useState<Sub>((params.tab as Sub) || 'overview');
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [reextracting, setReextracting] = useState(false);
   useEffect(() => {
     if (params.tab) setSub(params.tab as Sub);
   }, [params.tab, params.nonce]);
   const detail = useAsync(() => api.part(ref), [ref, s.libraryVersion]);
   const d = detail.data;
+  // Datasheets extracted from their translation open translated.
+  const translatedDs = d?.datasheet?.meta?.translated ? d.datasheet.id : 0;
+  useEffect(() => {
+    if (translatedDs) setTranslating(true);
+  }, [translatedDs]);
   useEffect(() => {
     if (d) api.uiContext({ view: `part/${sub}`, part: d.part.mpn, datasheetId: d.datasheet?.id }).catch(() => {});
   }, [d, sub]);
@@ -56,7 +67,11 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
     ['variants', 'Variants', d.variants?.length],
   ];
   const calc = calcFor(d.part.category);
+  // Datasheets imported before languages were recorded: guess from the text.
+  const lang = ds?.meta?.language ?? (needsTranslation(`${ds?.title ?? ''} ${d.part.description}`, 'zh') ? 'zh' : 'en');
+  const model = s.translation?.models.find((m) => m.from === lang && m.to === 'en');
   return (
+    <TranslateProvider lang={lang} on={translating} onError={(e) => (setTranslating(false), s.toast({ kind: 'err', title: 'Could not translate', body: e.message }))}>
     <div className="view">
       <div className="part-head">
         <h1>
@@ -72,7 +87,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
         </h1>
         <div className="sub">
           {d.part.manufacturer && <b>{d.part.manufacturer} · </b>}
-          {d.part.description || ds?.title}
+          <T text={d.part.description || ds?.title} />
         </div>
         <div className="row" style={{ flexWrap: 'wrap' }}>
           {d.siblings.length > 0 && (
@@ -127,6 +142,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               className="btn sm ghost"
               title="Redo automatic extraction (what you and the agent recorded is kept)"
               onClick={async () => {
+                if (lang !== 'en') return setReextracting(true);
                 try {
                   await api.reextract(ds.id);
                   s.toast({ kind: 'ok', title: `Re-extracted ${ds.filename}` });
@@ -137,6 +153,15 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               }}
             >
               <RefreshCw size={13} />
+            </button>
+          )}
+          {model && (
+            <button
+              className={`btn sm ${translating ? 'primary' : 'ghost'}`}
+              title={model.installed ? (translating ? 'Show the original text' : `Translate this datasheet into English on this computer (${model.label})`) : 'Download the translation model in Settings → Translation'}
+              onClick={() => (model.installed ? setTranslating(!translating) : s.open({ kind: 'settings', title: 'Settings', params: {} }))}
+            >
+              <Languages size={13} /> {translating ? 'Original' : 'Translate'}
             </button>
           )}
           <button className="btn sm ghost danger" title={ds ? 'Delete this datasheet and its parts from the library…' : 'Delete this part from the library…'} onClick={() => setDeleting(true)}>
@@ -176,6 +201,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
         {sub === 'variants' && <Variants d={d} />}
         {sub === 'alternatives' && <Alternatives d={d} />}
       </div>
+      {reextracting && ds && <ReextractDialog ds={ds} lang={lang} onClose={() => setReextracting(false)} onDone={(tr) => (setReextracting(false), setTranslating(tr))} />}
       {updating && ds && <UpdateDialog ds={ds} onClose={() => setUpdating(false)} />}
       {deleting && (
         <DeleteDialog
@@ -191,6 +217,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
         />
       )}
     </div>
+    </TranslateProvider>
   );
 }
 
@@ -316,7 +343,7 @@ function Overview({ d, onSub }: { d: PartDetail; onSub: (s: Sub) => void }) {
             <dt>File</dt>
             <dd>{ds.filename}</dd>
             <dt>Title</dt>
-            <dd style={{ fontFamily: 'var(--font-ui)' }}>{ds.title}</dd>
+            <dd style={{ fontFamily: 'var(--font-ui)' }}><T text={ds.title} /></dd>
             <dt>Pages</dt>
             <dd>{ds.pages}</dd>
             <dt>Imported</dt>
@@ -352,7 +379,7 @@ function Overview({ d, onSub }: { d: PartDetail; onSub: (s: Sub) => void }) {
               .filter((x) => x.level <= 2)
               .map((x) => (
                 <a key={x.id} style={{ paddingLeft: 8 + (x.level - 1) * 14 }} onClick={() => s.open({ kind: 'page', title: `${d.part.mpn} p${x.page + 1}`, params: { ds: ds.id, page: x.page, part: d.part.mpn, nonce: Date.now() } })}>
-                  {x.num} {x.title} <span className="faint">p{x.page + 1}</span>
+                  {x.num} <T text={x.title} /> <span className="faint">p{x.page + 1}</span>
                 </a>
               ))}
           </div>
@@ -388,7 +415,7 @@ export function FigureGrid({ figures }: { figures: Figure[] }) {
           <div className="cap">
             <b>
               {f.number && `${f.number} · `}
-              {f.title || f.caption}
+              <T text={f.title || f.caption} />
             </b>
             <div className="row faint" style={{ fontSize: 11 }}>
               <span>{figureKinds[f.kind] ?? f.kind}</span>
@@ -603,7 +630,7 @@ function Pins({ d }: { d: PartDetail }) {
                 <b>{p.name}</b>
               </td>
               <td className="mono">{p.type}</td>
-              <td>{p.description}</td>
+              <td><T text={p.description} /></td>
               <td>{p.page + 1}</td>
               <td>
                 <SourceBadge source={p.source} />
@@ -626,7 +653,7 @@ function Sections({ d }: { d: PartDetail }) {
       <div className="side toc" style={{ padding: 8 }}>
         {(d.sections ?? []).map((x) => (
           <a key={x.id} className={sel?.id === x.id ? 'on' : ''} style={{ paddingLeft: 8 + (x.level - 1) * 12 }} onClick={() => setSel(x)}>
-            {x.num} {x.title}
+            {x.num} <T text={x.title} />
           </a>
         ))}
       </div>
@@ -635,7 +662,7 @@ function Sections({ d }: { d: PartDetail }) {
           <>
             <div className="row" style={{ marginBottom: 10 }}>
               <h3 style={{ margin: 0 }}>
-                {sel.num} {sel.title}
+                {sel.num} <T text={sel.title} />
               </h3>
               <span className="badge">{sel.kind}</span>
               <div className="grow" />
@@ -643,7 +670,7 @@ function Sections({ d }: { d: PartDetail }) {
                 <FileText size={13} /> Page {sel.page + 1}
               </button>
             </div>
-            {text.data && <div className="sec-text">{text.data.text || <span className="faint">(no text under this heading; see its subsections)</span>}</div>}
+            {text.data && (text.data.text ? <SectionText text={text.data.text} /> : <div className="sec-text faint">(no text under this heading; see its subsections)</div>)}
           </>
         )}
       </div>
@@ -674,7 +701,7 @@ function Registers({ d }: { d: PartDetail }) {
               <SourceBadge source={r.source} />
             </span>
           </h3>
-          {r.description && <div className="muted">{r.description}</div>}
+          {r.description && <div className="muted"><T text={r.description} /></div>}
           {(r.fields?.length ?? 0) > 0 && (
             <table className="dtable" style={{ marginTop: 8 }}>
               <thead>
@@ -693,7 +720,7 @@ function Registers({ d }: { d: PartDetail }) {
                     <td className="mono">{f.name}</td>
                     <td className="mono">{f.access}</td>
                     <td className="mono">{f.reset}</td>
-                    <td>{f.description}</td>
+                    <td><T text={f.description} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -758,7 +785,7 @@ function Tables({ d }: { d: PartDetail }) {
           <summary style={{ cursor: 'pointer' }}>
             <b>
               {t.number ? `Table ${t.number} ` : ''}
-              {t.title || t.caption || t.section}
+              <T text={t.title || t.caption || t.section} />
             </b>{' '}
             <span className="badge">{t.kind}</span> {t.irregular && <span className="badge warn" title={t.irregular}>irregular</span>}{' '}
             {t.source !== 'auto' && <SourceBadge source={t.source} />} <span className="faint">p{t.page + 1} · {t.rows?.length ?? 0} rows</span>
@@ -772,7 +799,7 @@ function Tables({ d }: { d: PartDetail }) {
               show on page
             </a>
           </summary>
-          {t.description && <div className="muted" style={{ marginTop: 8 }}>{t.description}</div>}
+          {t.description && <div className="muted" style={{ marginTop: 8 }}><T text={t.description} /></div>}
           {(t.irregular || t.source === 'auto') && (
             <div className="fig-image" style={{ marginTop: 8 }}>
               <img src={tableImageURL(t.id, 110, t.updatedAt)} alt={t.caption} loading="lazy" />

@@ -99,6 +99,7 @@ export const categories: Record<string, string> = {
   'gate-driver': 'Gate driver',
   mcu: 'MCU / SoC',
   'current-monitor': 'Current monitor',
+  'battery-protection': 'Battery protection',
   'load-switch': 'Load switch',
   amplifier: 'Amplifier',
   adc: 'ADC',

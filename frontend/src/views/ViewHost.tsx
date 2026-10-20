@@ -1,3 +1,4 @@
+import { ViewBoundary } from '../components/ViewBoundary';
 import { useActiveTab, useStore } from '../lib/store';
 import { CalcView } from './CalcView';
 import { CategoryView } from './CategoryView';
@@ -19,6 +20,7 @@ export function ViewHost() {
     <>
       {tabs.map((t) => (
         <div key={t.id} className="view" style={{ display: t.id === active.id ? 'flex' : 'none' }}>
+          <ViewBoundary>
           {t.kind === 'part' && <PartView params={t.params} />}
           {t.kind === 'page' && <PageView params={t.params} />}
           {t.kind === 'figure' && <FigureView params={t.params} />}
@@ -28,6 +30,7 @@ export function ViewHost() {
           {t.kind === 'settings' && <SettingsView />}
           {t.kind === 'category' && <CategoryView params={t.params} />}
           {t.kind === 'catalog' && <CatalogView params={t.params} />}
+          </ViewBoundary>
         </div>
       ))}
     </>

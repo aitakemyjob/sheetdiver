@@ -18,19 +18,20 @@ import (
 // type, in column order. Types without an entry use whatever keys their
 // parts have.
 var categoryKeys = map[string][]string{
-	"buck":            {"vin", "vout", "iout", "fsw", "ilim", "vref", "iq", "ton_min", "rdson_hs", "rdson_ls", "rth_ja"},
-	"boost":           {"vin", "vout", "iout", "ilim", "fsw", "vref", "iq", "rdson_ls", "rth_ja"},
-	"buck-boost":      {"vin", "vout", "iout", "ilim", "ilim_in", "fsw", "iq", "rth_ja"},
-	"power":           {"vin", "vout", "iout", "fsw", "ilim", "iq", "rth_ja"},
-	"ldo":             {"vin", "vout", "iout", "vdropout", "iq", "ilim", "rth_ja"},
-	"charger":         {"vin", "ichg", "vreg", "iq", "isd", "rth_ja"},
-	"mosfet-n":        {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "qgd", "ciss", "rth_ja"},
-	"mosfet-p":        {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "qgd", "ciss", "rth_ja"},
-	"mosfet":          {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "ciss", "rth_ja"},
-	"gate-driver":     {"vin", "iout", "iq", "vih", "vil", "rth_ja"},
-	"load-switch":     {"vin", "iout", "rdson", "iq", "ilim", "rth_ja"},
-	"mcu":             {"vin", "iq", "isd", "fsw", "vih", "vil", "tj"},
-	"current-monitor": {"vin", "iq", "isd", "tj"},
+	"buck":               {"vin", "vout", "iout", "fsw", "ilim", "vref", "iq", "ton_min", "rdson_hs", "rdson_ls", "rth_ja"},
+	"boost":              {"vin", "vout", "iout", "ilim", "fsw", "vref", "iq", "rdson_ls", "rth_ja"},
+	"buck-boost":         {"vin", "vout", "iout", "ilim", "ilim_in", "fsw", "iq", "rth_ja"},
+	"power":              {"vin", "vout", "iout", "fsw", "ilim", "iq", "rth_ja"},
+	"ldo":                {"vin", "vout", "iout", "vdropout", "iq", "ilim", "rth_ja"},
+	"charger":            {"vin", "ichg", "vreg", "iq", "isd", "rth_ja"},
+	"mosfet-n":           {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "qgd", "ciss", "rth_ja"},
+	"mosfet-p":           {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "qgd", "ciss", "rth_ja"},
+	"mosfet":             {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "ciss", "rth_ja"},
+	"gate-driver":        {"vin", "iout", "iq", "vih", "vil", "rth_ja"},
+	"load-switch":        {"vin", "iout", "rdson", "iq", "ilim", "rth_ja"},
+	"mcu":                {"vin", "iq", "isd", "fsw", "vih", "vil", "tj"},
+	"current-monitor":    {"vin", "iq", "isd", "tj"},
+	"battery-protection": {"vocp", "vodp", "iq", "isd"},
 }
 
 // CategoryInfo is a component type with its parts count and comparison

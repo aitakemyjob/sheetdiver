@@ -5,6 +5,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,6 +76,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("/api/figure.png", s.guard(s.figureImage))
 		mux.HandleFunc("/api/table.png", s.guard(s.tableImage))
 		mux.HandleFunc("/api/datasheet.pdf", s.guard(s.datasheetPDF))
+		mux.HandleFunc("/api/translation/", s.guard(s.translationFile))
 		mux.Handle("/", spa(s.opts.UI))
 	}
 	return localOnly(mux)
@@ -86,6 +89,7 @@ func (s *Server) AssetHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/upload", s.upload)
 	mux.HandleFunc("/api/page.png", s.pageImage)
+	mux.HandleFunc("/api/translation/", s.translationFile)
 	mux.HandleFunc("/api/figure.png", s.figureImage)
 	mux.HandleFunc("/api/table.png", s.tableImage)
 	mux.HandleFunc("/api/datasheet.pdf", s.datasheetPDF)
@@ -238,14 +242,24 @@ func floatParam(r *http.Request, name string) float64 {
 	return v
 }
 
-// sendPNG writes a cacheable PNG response.
-func sendPNG(w http.ResponseWriter, png []byte, err error) {
+// sendPNG writes a rendered image. The browser must revalidate it by its
+// content hash (an ETag): figure and table IDs are reused after
+// re-extraction or a delete, so caching an image by its URL could show
+// another figure's picture.
+func sendPNG(w http.ResponseWriter, r *http.Request, png []byte, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	sum := sha256.Sum256(png)
+	tag := `"` + hex.EncodeToString(sum[:12]) + `"`
+	w.Header().Set("ETag", tag)
+	w.Header().Set("Cache-Control", "private, no-cache")
+	if r.Header.Get("If-None-Match") == tag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "private, max-age=86400")
 	w.Write(png)
 }
 
@@ -256,19 +270,46 @@ func (s *Server) pageImage(w http.ResponseWriter, r *http.Request) {
 		box = &pdf.Rect{X0: floatParam(r, "x0"), Y0: floatParam(r, "y0"), X1: floatParam(r, "x1"), Y1: floatParam(r, "y1")}
 	}
 	png, err := s.core.RenderPage(r.Context(), intParam(r, "ds"), int(intParam(r, "page")), box, int(intParam(r, "dpi")))
-	sendPNG(w, png, err)
+	sendPNG(w, r, png, err)
 }
 
 // figureImage serves GET /api/figure.png?id=&dpi=.
 func (s *Server) figureImage(w http.ResponseWriter, r *http.Request) {
 	_, png, err := s.core.RenderFigure(r.Context(), intParam(r, "id"), int(intParam(r, "dpi")))
-	sendPNG(w, png, err)
+	sendPNG(w, r, png, err)
 }
 
 // tableImage serves GET /api/table.png?id=&dpi=.
 func (s *Server) tableImage(w http.ResponseWriter, r *http.Request) {
 	_, png, err := s.core.RenderTable(r.Context(), intParam(r, "id"), int(intParam(r, "dpi")))
-	sendPNG(w, png, err)
+	sendPNG(w, r, png, err)
+}
+
+// translationFile serves the offline translation engine its model
+// registry (/api/translation/registry.json) and the installed model files
+// (/api/translation/zhen/vocab.zhen.spm). Only pinned model files are
+// served.
+func (s *Server) translationFile(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/translation/")
+	if name == "registry.json" {
+		b, err := s.core.Translate.Registry("/api/translation/", "?sd=1")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(b)
+		return
+	}
+	f, err := s.core.Translate.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeContent(w, r, "", time.Time{}, f)
 }
 
 // datasheetPDF serves GET /api/datasheet.pdf?ds=: the original PDF.

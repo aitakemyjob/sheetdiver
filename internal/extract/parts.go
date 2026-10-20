@@ -214,6 +214,7 @@ var categoryRules = []struct {
 	cat string
 }{
 	{regexp.MustCompile(`(?i)microcontroller|\bMCU\b|arm.*cortex|risc-v|\bSoC\b|wi-?fi.*bluetooth`), "mcu"},
+	{regexp.MustCompile(`(?i)battery protection|protection IC for .{0,30}(lithium|li-ion)|overcharge.{0,40}overdischarge|电池保护|锂电保护`), "battery-protection"},
 	{regexp.MustCompile(`(?i)n[- ]channel.*(mosfet|power|fet)|nexfet|n-ch`), "mosfet-n"},
 	{regexp.MustCompile(`(?i)p[- ]channel.*(mosfet|power|fet)|p-ch`), "mosfet-p"},
 	{regexp.MustCompile(`(?i)\bmosfet|\bhexfet|power fet`), "mosfet"},
@@ -258,21 +259,41 @@ var titleSuffix = regexp.MustCompile(`(?i)\s*(datasheet|data sheet)\s*(\(rev\.?\
 var tagRe = regexp.MustCompile(`</?[A-Za-z]+>`)
 
 // titleAndDescription returns a short title and a one-line description
-// from the metadata title or the first page's largest text.
+// from the metadata title or the first page's largest text. Section
+// headings don't count: when they are the largest text, the page header
+// ("TP4056 1A Lithium Battery Charger") is used instead.
 func titleAndDescription(doc *pdf.Document, lines [][]Line) (string, string) {
 	title := strings.TrimSpace(titleSuffix.ReplaceAllString(tagRe.ReplaceAllString(doc.Meta["Title"], ""), ""))
-	var big []Line
+	// A metadata title that page 1 never mentions is a template's
+	// leftover ("FSXXXX Datasheet"), not this document's.
+	if len(lines) > 0 && title != "" {
+		var page []string
+		for _, l := range lines[0] {
+			page = append(page, l.Text)
+		}
+		if first := strings.Fields(title)[0]; !strings.Contains(squash(strings.Join(page, " ")), squash(first)) {
+			title = ""
+		}
+	}
+	var big, header []Line
 	if len(lines) > 0 {
 		maxSize := 0.0
 		for _, l := range lines[0] {
-			if l.Box.Y1 > l.PageH*0.09 && l.Size > maxSize {
+			if l.Box.Y1 > l.PageH*0.09 && l.Size > maxSize && !headingLine(l) {
 				maxSize = l.Size
+			}
+			if l.Box.Y1 <= l.PageH*0.09 && strings.TrimSpace(l.Text) != "" {
+				header = append(header, l)
 			}
 		}
 		for _, l := range lines[0] {
-			if l.Size >= maxSize-0.6 && l.Box.Y1 > l.PageH*0.09 {
+			if l.Size >= maxSize-0.6 && l.Box.Y1 > l.PageH*0.09 && !headingLine(l) {
 				big = append(big, l)
 			}
+		}
+		// Body text isn't a title either.
+		if len(big) > 3 || maxSize < 11 {
+			big = header
 		}
 	}
 	var heading []string
@@ -291,6 +312,20 @@ func titleAndDescription(doc *pdf.Document, lines [][]Line) (string, string) {
 		title = title[:160]
 	}
 	return strings.TrimSpace(title), strings.TrimSpace(desc)
+}
+
+// headingLine reports whether a line's largest text is a section heading
+// (a line can join a heading with text from the other column).
+func headingLine(l Line) bool {
+	if isPlainHeading(l.Text) {
+		return true
+	}
+	for _, sp := range l.Spans {
+		if sp.Size >= l.Size-0.6 && isPlainHeading(sp.Text) {
+			return true
+		}
+	}
+	return false
 }
 
 // Variant is a part number found in a datasheet that belongs to one of its

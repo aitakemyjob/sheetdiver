@@ -89,14 +89,19 @@ func (s *Service) ProjectDetail(ctx context.Context, ref string) (ProjectDetail,
 		}
 		params[pp.PartID], _ = s.Lib.Parameters(ctx, part.DatasheetID, library.ParamFilter{MPN: part.MPN})
 	}
-	out.Rails, out.InputPower = railStatus(rails, out.Parts, params)
-	out.Checks = projectChecks(out.Rails, out.Parts, params)
+	var loops []string
+	out.Rails, out.InputPower, loops = railStatus(rails, out.Parts, params)
+	out.Checks = projectChecks(out.Rails, out.Parts, params, loops)
 	return out, nil
 }
 
 // railStatus computes each rail's load, propagating regulator input
-// currents up the power tree.
-func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[int64][]library.Parameter) ([]RailStatus, float64) {
+// currents up the power tree. A part with the same supply and output rail
+// is in line on that rail (a protection switch): a load, not a source. A
+// regulator whose output feeds back to its own supply (a loop in the tree)
+// can't be propagated; it counts as a plain load and is returned in loops.
+// A charger's input current includes its charge current.
+func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[int64][]library.Parameter) ([]RailStatus, float64, []string) {
 	st := make([]RailStatus, len(rails))
 	idx := map[string]int{}
 	for i, r := range rails {
@@ -104,8 +109,15 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 		idx[strings.ToLower(r.Name)] = i
 	}
 	name := func(pp library.ProjectPart) string { return firstNonEmpty(pp.Designator, pp.MPN) }
+	inLoop := railLoops(parts, idx)
+	var loops []string
 	for _, pp := range parts {
-		if i, ok := idx[strings.ToLower(pp.OutputRail)]; ok && pp.OutputRail != "" {
+		if inLoop[pp.ID] {
+			loops = append(loops, name(pp))
+		}
+	}
+	for _, pp := range parts {
+		if i, ok := idx[strings.ToLower(pp.OutputRail)]; ok && pp.OutputRail != "" && !inLine(pp) {
 			st[i].SourcePart = name(pp) + " " + pp.MPN
 			if st[i].Source == "" {
 				st[i].Source = name(pp)
@@ -142,21 +154,35 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 			if pp.IMax != nil {
 				im = *pp.IMax
 			}
-			if oi, ok := idx[strings.ToLower(pp.OutputRail)]; ok && pp.OutputRail != "" && pp.ITyp == nil && pp.IMax == nil {
-				// A regulator: input current from its output load.
+			oi, regulates := idx[strings.ToLower(pp.OutputRail)]
+			regulates = regulates && pp.OutputRail != "" && !inLine(pp) && !inLoop[pp.ID]
+			switch {
+			case pp.ITyp != nil || pp.IMax != nil:
+				// The currents entered for the part.
+			case regulates:
+				// A regulator: input current from its output load (and, for
+				// a charger, the battery's charge current).
 				eff, isReg := regulatorCats[pp.Category]
 				if !isReg {
 					eff = 0.85
+				}
+				outTyp, outMax := st[oi].LoadTyp, st[oi].LoadMax
+				if pp.Category == "charger" {
+					ct, cm, _ := chargeCurrent(params[pp.PartID])
+					outTyp, outMax = outTyp+ct, outMax+cm
 				}
 				vin := railNominal(st[si].Rail)
 				vout := railNominal(st[oi].Rail)
 				iq := quiescent(params[pp.PartID])
 				if eff == 0 || vin == 0 || vout == 0 {
-					it, im = st[oi].LoadTyp+iq, st[oi].LoadMax+iq
+					it, im = outTyp+iq, outMax+iq
 				} else {
-					it = vout*st[oi].LoadTyp/(vin*eff) + iq
-					im = vout*st[oi].LoadMax/(vin*eff) + iq
+					it = vout*outTyp/(vin*eff) + iq
+					im = vout*outMax/(vin*eff) + iq
 				}
+			case pp.OutputRail != "":
+				// In line on its rail, or in a loop: its own quiescent current.
+				it = quiescent(params[pp.PartID])
 			}
 			if im == 0 {
 				im = it
@@ -182,7 +208,78 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 			input += st[i].Power
 		}
 	}
-	return st, input
+	return st, input, loops
+}
+
+// inLine reports whether a part's supply and output are the same rail: it
+// sits in line on the rail (a battery protection IC, a load switch).
+func inLine(pp library.ProjectPart) bool {
+	return pp.OutputRail != "" && strings.EqualFold(pp.SupplyRail, pp.OutputRail)
+}
+
+// railLoops finds the parts whose output rail powers, through other
+// regulators, their own supply rail: the power tree loops through them.
+func railLoops(parts []library.ProjectPart, idx map[string]int) map[int64]bool {
+	next := map[int][]int{}
+	type edge struct {
+		id       int64
+		from, to int
+	}
+	var edges []edge
+	for _, pp := range parts {
+		si, ok1 := idx[strings.ToLower(pp.SupplyRail)]
+		oi, ok2 := idx[strings.ToLower(pp.OutputRail)]
+		if ok1 && ok2 && pp.SupplyRail != "" && pp.OutputRail != "" && !inLine(pp) {
+			next[si] = append(next[si], oi)
+			edges = append(edges, edge{pp.ID, si, oi})
+		}
+	}
+	reaches := func(from, to int) bool {
+		seen := map[int]bool{from: true}
+		todo := []int{from}
+		for len(todo) > 0 {
+			r := todo[0]
+			todo = todo[1:]
+			if r == to {
+				return true
+			}
+			for _, n := range next[r] {
+				if !seen[n] {
+					seen[n] = true
+					todo = append(todo, n)
+				}
+			}
+		}
+		return false
+	}
+	out := map[int64]bool{}
+	for _, e := range edges {
+		if reaches(e.to, e.from) {
+			out[e.id] = true
+		}
+	}
+	return out
+}
+
+// chargeCurrent is a charger's largest charge current from its datasheet
+// (typical and maximum, in amps) and the page it's on; absolute maximum
+// ratings don't count. The actual current is set on the board (a
+// programming resistor), so this is the worst case.
+func chargeCurrent(ps []library.Parameter) (typ, max float64, page int) {
+	for _, p := range ps {
+		if p.Key != "ichg" || p.Section == extract.KindAbsMax {
+			continue
+		}
+		v, _, ok := paramSI([]library.Parameter{p}, "ichg", nil, "max", "typ")
+		if ok && v > max {
+			max, page = v, p.Page
+			typ = v
+			if t, _, ok := paramSI([]library.Parameter{p}, "ichg", nil, "typ"); ok {
+				typ = t
+			}
+		}
+	}
+	return typ, max, page
 }
 
 // railNominal is a rail's nominal voltage (the midpoint if only a range
@@ -248,14 +345,28 @@ func quiescent(ps []library.Parameter) float64 {
 }
 
 // projectChecks compares rails against the parts on them.
-func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[int64][]library.Parameter) []ProjectCheck {
-	var out []ProjectCheck
+func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[int64][]library.Parameter, loops []string) []ProjectCheck {
+	out := []ProjectCheck{}
 	add := func(level, part, rail string, page int, format string, a ...any) {
 		out = append(out, ProjectCheck{Level: level, Part: part, Rail: rail, Page: page, Message: fmt.Sprintf(format, a...)})
 	}
 	byName := map[string]*RailStatus{}
 	for i := range rails {
 		byName[strings.ToLower(rails[i].Name)] = &rails[i]
+	}
+	if len(loops) > 0 {
+		add(calc.Error, strings.Join(loops, ", "), "", 0, "%s power each other's supply: the power tree loops, so their currents aren't passed upstream; check their supply and output rails", strings.Join(loops, " and "))
+	}
+	for _, pp := range parts {
+		label := firstNonEmpty(pp.Designator, pp.MPN)
+		if inLine(pp) && pp.Category != "battery-protection" && pp.Category != "load-switch" {
+			add(calc.Warn, label, pp.SupplyRail, 0, "%s (%s) has %s as both supply and output, so it's counted as a load on %s, not as its source; if it converts the voltage, set its output to another rail", label, pp.MPN, pp.SupplyRail, pp.SupplyRail)
+		}
+		if pp.Category == "charger" && pp.ITyp == nil && pp.IMax == nil && pp.OutputRail != "" && !inLine(pp) {
+			if _, m, page := chargeCurrent(params[pp.PartID]); m > 0 {
+				add(calc.OK, label, pp.SupplyRail, page, "%s's input current includes its charge current, up to %s (%s p%d); enter the part's current if your programming resistor sets less", label, calc.Eng(m, "A"), pp.MPN, page+1)
+			}
+		}
 	}
 	for _, pp := range parts {
 		label := firstNonEmpty(pp.Designator, pp.MPN)

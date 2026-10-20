@@ -2,6 +2,7 @@ import { useStore } from '../lib/store';
 import { themes } from '../lib/themes';
 import { Switch } from '../components/ui';
 import { CatalogSettings } from '../components/CatalogPanel';
+import { TranslationSettings } from '../components/TranslationSettings';
 
 /** Settings: appearance, agent access, server and library. */
 export function SettingsView() {
@@ -53,16 +54,17 @@ export function SettingsView() {
         </div>
         <div className="card">
           <h3>Agent access</h3>
-          {row('Allow agents', 'Serve the library over MCP. Off refuses every tool call.', <Switch on={st.mcpEnabled} onChange={(v) => s.saveSettings({ mcpEnabled: v })} />)}
+          {row('Allow agents', 'Serve the library over MCP. Off refuses every tool call.', <Switch label="Allow agents" on={st.mcpEnabled} onChange={(v) => s.saveSettings({ mcpEnabled: v })} />)}
           {row(
             'Allow changes',
             'Let agents record parameters, describe figures, add notes and edit projects. Their changes are marked “agent”.',
-            <Switch on={st.agentWrites} onChange={(v) => s.saveSettings({ agentWrites: v })} />,
+            <Switch label="Allow changes" on={st.agentWrites} onChange={(v) => s.saveSettings({ agentWrites: v })} />,
           )}
-          {row('Allow imports', 'Let agents import datasheets from a URL or a local PDF.', <Switch on={st.agentImport} onChange={(v) => s.saveSettings({ agentImport: v })} />)}
-          {row('Follow agent', 'Open what the agent shows automatically (otherwise you get a notification).', <Switch on={st.followAgent} onChange={(v) => s.saveSettings({ followAgent: v })} />)}
+          {row('Allow imports', 'Let agents import datasheets from a URL or a local PDF.', <Switch label="Allow imports" on={st.agentImport} onChange={(v) => s.saveSettings({ agentImport: v })} />)}
+          {row('Follow agent', 'Open what the agent shows automatically (otherwise you get a notification).', <Switch label="Follow agent" on={st.followAgent} onChange={(v) => s.saveSettings({ followAgent: v })} />)}
         </div>
         <CatalogSettings />
+        <TranslationSettings />
         <div className="card">
           <h3>Server & library</h3>
           {row(

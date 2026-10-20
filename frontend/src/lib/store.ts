@@ -4,9 +4,10 @@
 import { create } from 'zustand';
 import { api, uploadPDF } from './api';
 import { getTransport } from './transport';
+import { resetEngine, translateDatasheet } from './translate';
 import { closeTab, focusToTab, openTab, type Tab } from './tabs';
 import { applyTheme, themeById, type Theme } from './themes';
-import type { Activity, AppState, BusEvent, CatalogStatus, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings } from './types';
+import type { Activity, AppState, BusEvent, CatalogStatus, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings, TranslateStatus } from './types';
 
 export type SidebarMode = 'library' | 'types' | 'projects' | 'agent';
 
@@ -36,6 +37,7 @@ interface State {
   jobs: Record<number, ImportJob>;
   /** The JLCPCB parts catalogue. */
   catalog?: CatalogStatus;
+  translation?: TranslateStatus;
   /** Bumped when library data changes, so views refetch. */
   libraryVersion: number;
   projectVersion: number;
@@ -90,7 +92,8 @@ export const useStore = create<State>((set, get) => ({
       const activity = await api.activity().catch(() => []);
       const jobs = Object.fromEntries((await api.importJobs().catch(() => [] as ImportJob[])).map((j) => [j.id, j]));
       const catalog = await api.catalogStatus().catch(() => undefined);
-      set({ app, theme, ready: true, activity, jobs, catalog });
+      const translation = await api.translateStatus().catch(() => undefined);
+      set({ app, theme, ready: true, activity, jobs, catalog, translation });
       if (catalog?.stale) remindCatalog(catalog);
       const t = await getTransport();
       t.subscribe((ev) => get().handleEvent(ev));
@@ -248,6 +251,7 @@ export const useStore = create<State>((set, get) => ({
         set({ jobs });
         if (finished(j) && was && !finished(was)) {
           if (j.status === 'done') set({ libraryVersion: get().libraryVersion + 1 });
+          if (j.status === 'done' && j.datasheetId && j.language && j.language !== 'en' && !j.translated) translateImport(j);
           // When a batch drains, summarize it.
           const batch = j.batch ? Object.values(jobs).filter((x) => x.batch === j.batch) : [];
           if (batch.length > 1 && batch.every(finished)) {
@@ -273,6 +277,17 @@ export const useStore = create<State>((set, get) => ({
         if (was?.updating && !c.updating) {
           if (c.error) s.toast({ kind: 'err', title: 'Catalogue download failed', body: c.error });
           else s.toast({ kind: 'ok', title: 'Parts catalogue ready', body: `${c.parts.toLocaleString()} parts, ${c.inStock.toLocaleString()} in stock` });
+        }
+        break;
+      }
+      case 'translate': {
+        const t = ev.data as TranslateStatus;
+        const was = s.translation;
+        set({ translation: t });
+        if (was?.progress && !t.progress) {
+          resetEngine();
+          if (t.error) s.toast({ kind: 'err', title: 'Translation model download failed', body: t.error });
+          else s.toast({ kind: 'ok', title: 'Offline translation ready', body: 'Chinese datasheets now have a Translate button.' });
         }
         break;
       }
@@ -359,4 +374,38 @@ function announce(r: ImportResult) {
 /** The active tab, if any. */
 export function useActiveTab(): Tab | undefined {
   return useStore((s) => s.tabs.find((t) => t.id === s.active));
+}
+
+/** Imports waiting to be translated and re-extracted, one at a time. */
+let translating: Promise<void> = Promise.resolve();
+
+/**
+ * Translates a datasheet that was imported in another language and
+ * re-extracts it from the English, so its sections, tables, figures and
+ * parameters are found as in English datasheets. Without the model, says
+ * how to get it.
+ */
+function translateImport(j: ImportJob) {
+  const s = useStore.getState();
+  const model = s.translation?.models.find((m) => m.from === j.language && m.to === 'en');
+  if (!model) return;
+  if (!model.installed) {
+    s.toast({
+      kind: 'warn',
+      title: `${j.name} is in ${model.label.split(' ')[0]}`,
+      body: 'Download the translation model to extract it from an English translation (made on this computer).',
+      action: { label: 'Settings', run: () => useStore.getState().open({ kind: 'settings', title: 'Settings', params: {} }) },
+    });
+    return;
+  }
+  const id = j.datasheetId!;
+  translating = translating.then(async () => {
+    try {
+      await translateDatasheet(id, () => {});
+      await api.reextract(id, true);
+      useStore.getState().toast({ kind: 'ok', title: `Translated ${j.parts?.[0] ?? j.name}`, body: 'Extracted from its English translation' });
+    } catch (e) {
+      useStore.getState().toast({ kind: 'err', title: `Could not translate ${j.name}`, body: (e as Error).message });
+    }
+  });
 }

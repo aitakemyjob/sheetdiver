@@ -378,11 +378,65 @@
       "url": "",
       "manual": true,
       "sha256": "21da38db9ab8233cf6485296f4bc4b18cc1041934a4cd65079e3e7e63bdb8e19",
-      "why": "Chinese-language datasheet with no outline: the part number must still come through.",
+      "why": "Chinese-language datasheet with no outline, no figure captions, pins described in prose (\"TEMP(PIN1)：…\") and Chinese table headers (最小/典型/最大, a single 额定值 column with \"-0.3~7\" ranges): it must import fully without translation.",
       "expect": {
         "partNumbers": [
           "TP4056"
-        ]
+        ],
+        "language": "zh",
+        "category": "charger",
+        "minSections": 10,
+        "minFigures": 4,
+        "pins": 8,
+        "pinNames": [
+          "TEMP",
+          "PROG",
+          "GND",
+          "VCC",
+          "BAT",
+          "STDBY",
+          "CHRG",
+          "CE"
+        ],
+        "sectionKinds": [
+          "typical_application",
+          "pins",
+          "ordering",
+          "abs_max",
+          "electrical",
+          "block_diagram",
+          "package"
+        ],
+        "keys": [
+          "vin",
+          "iq",
+          "isd",
+          "vreg",
+          "ichg",
+          "iprechg",
+          "uvlo",
+          "iterm",
+          "rdson",
+          "tss"
+        ],
+        "values": {
+          "vreg": {
+            "min": 4.158,
+            "typ": 4.2,
+            "max": 4.242
+          },
+          "uvlo": {
+            "min": 3.5,
+            "typ": 3.7,
+            "max": 3.9
+          },
+          "iterm": {
+            "min": 50,
+            "typ": 60,
+            "max": 80,
+            "unit": "mA"
+          }
+        }
       }
     },
     {
@@ -413,6 +467,56 @@
           "MAX77801EWP+T": "MAX77801"
         },
         "revision": "19-7515 rev 8 (6/23)"
+      }
+    },
+    {
+      "file": "dw01a.pdf",
+      "url": "https://jlcpcb.com/api/file/downloadByFileSystemAccessId/8588911190571827200",
+      "manual": true,
+      "sha256": "37348f602e5e5d50fd60ea868b05e5c552bd965b0a94fcf937800f9b49d4c1b1",
+      "why": "Small-vendor battery protection IC (PUOLOP DW01A, from the JLCPCB catalogue): a stale outline (missing and misplaced bookmarks), a template metadata title (\"FSXXXX\"), Wingdings bullets extracted as \"z\", uncaptioned figures including numbered timing diagrams, a pin table beside a pinout drawing, and a one-column Rating table.",
+      "expect": {
+        "category": "battery-protection",
+        "partNumbers": [
+          "DW01A"
+        ],
+        "minSections": 12,
+        "minFigures": 6,
+        "pins": 6,
+        "pinNames": [
+          "OD",
+          "VM",
+          "OC",
+          "TD",
+          "VCC",
+          "GND"
+        ],
+        "sectionKinds": [
+          "abs_max",
+          "electrical",
+          "pins",
+          "block_diagram",
+          "typical_application",
+          "timing"
+        ],
+        "keys": [
+          "vocp",
+          "vodp",
+          "iq",
+          "isd"
+        ],
+        "values": {
+          "vocp": {
+            "min": 4.25,
+            "typ": 4.3,
+            "max": 4.35
+          },
+          "vodp": {
+            "min": 2.4,
+            "typ": 2.5,
+            "max": 2.6
+          }
+        }
       }
     }
   ]

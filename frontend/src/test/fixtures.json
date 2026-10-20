@@ -1,0 +1,3768 @@
+[
+ {
+  "method": "app.state",
+  "args": null,
+  "result": {
+   "version": "test",
+   "platform": "linux",
+   "config": {
+    "settings": {
+     "theme": "deepdive",
+     "fontSize": 13,
+     "mcpPort": 47480,
+     "mcpEnabled": true,
+     "followAgent": true,
+     "agentWrites": true,
+     "agentImport": true,
+     "libraryDir": "",
+     "catalogRemindDays": 0
+    },
+    "activeProject": ""
+   },
+   "libraryDir": "/tmp/sheetdiver/lib",
+   "mcp": {
+    "running": false,
+    "url": ""
+   },
+   "canPickFile": false,
+   "canOpenFile": false,
+   "canSaveFile": false,
+   "keys": {
+    "ciss": "Input capacitance",
+    "coss": "Output capacitance",
+    "dmax": "Maximum duty cycle",
+    "efficiency": "Efficiency",
+    "fsw": "Switching or oscillator frequency",
+    "ichg": "Charge current",
+    "id": "Continuous drain current",
+    "id_on": "On-state drain current",
+    "idss": "Zero-gate-voltage drain (leakage) current",
+    "ilim": "Current limit in normal operation (peak/valley switch or output)",
+    "ilim_in": "Input current limit (average)",
+    "ilim_startup": "Current limit during start-up",
+    "iout": "Output / load current",
+    "iprechg": "Pre-charge (trickle) current",
+    "iq": "Quiescent / operating supply current",
+    "isc": "Output short-circuit current",
+    "isd": "Shutdown current",
+    "iterm": "Charge termination current",
+    "qg": "Total gate charge",
+    "qgd": "Gate-drain (Miller) charge",
+    "qgs": "Gate-source charge",
+    "rdson": "MOSFET on-resistance RDS(on)",
+    "rdson_hs": "High-side switch on-resistance",
+    "rdson_ls": "Low-side switch on-resistance",
+    "rg": "Internal gate resistance",
+    "rth_ja": "Junction-to-ambient thermal resistance",
+    "rth_jc": "Junction-to-case thermal resistance",
+    "tj": "Junction temperature",
+    "toff_min": "Minimum off-time",
+    "ton_min": "Minimum on-time",
+    "tss": "Soft-start time",
+    "uvlo": "Under-voltage lockout threshold",
+    "vdropout": "Dropout voltage",
+    "vds": "Drain-source voltage rating",
+    "ven": "Enable threshold",
+    "vf": "Diode forward voltage",
+    "vgs": "Gate-source voltage rating",
+    "vgs_th": "Gate threshold voltage VGS(th)",
+    "vih": "Logic input high threshold",
+    "vil": "Logic input low threshold",
+    "vin": "Input / supply voltage (VIN, VCC, VDD)",
+    "vocp": "Overcharge protection (detection) voltage",
+    "vodp": "Overdischarge protection (detection) voltage",
+    "vout": "Output voltage, or adjustable output range",
+    "vplateau": "Gate plateau voltage",
+    "vref": "Feedback / reference voltage (VFB, VREF)",
+    "vreg": "Charge regulation voltage"
+   },
+   "statuses": {
+    "approved": "qualified and fine to use",
+    "avoid": "do not use (problems, cost, supply)",
+    "eol": "end of life / obsolete",
+    "nrnd": "not recommended for new designs",
+    "preferred": "first choice for new designs"
+   },
+   "calculators": {
+    "boost": "Step-up converter: duty, inductor, peak switch current vs limit, output capacitance, RHP zero, feedback divider",
+    "buck": "Step-down converter: duty, inductor, ripple, peak/RMS currents, capacitors, feedback divider, on/off-time and current-limit checks",
+    "divider": "Resistor divider from standard values (E24/E48/E96)",
+    "gate_divider": "Gate bias divider for a high-side P-FET (or N-FET from a higher rail): R1/R2 keeping Vgs between the on voltage and a safe fraction of VGS max, or a zener recommendation",
+    "gate_drive": "MOSFET gate drive: gate resistor, Miller times, gate power, conduction/switching loss, junction temperature",
+    "ldo": "Linear regulator: headroom vs dropout, dissipation and junction temperature"
+   }
+  }
+ },
+ {
+  "method": "activity.list",
+  "args": null,
+  "result": []
+ },
+ {
+  "method": "imports.list",
+  "args": null,
+  "result": [
+   {
+    "id": 2,
+    "name": "tpx5430.pdf",
+    "source": "upload",
+    "status": "done",
+    "done": 1,
+    "total": 1,
+    "datasheetId": 2,
+    "parts": [
+     "TPX5430"
+    ],
+    "language": "en",
+    "started": "2026-01-01T00:00:00Z",
+    "finished": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 1,
+    "name": "sd.pdf",
+    "source": "upload",
+    "status": "done",
+    "done": 3,
+    "total": 3,
+    "datasheetId": 1,
+    "parts": [
+     "SD1234",
+     "SD1235"
+    ],
+    "language": "en",
+    "started": "2026-01-01T00:00:00Z",
+    "finished": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "catalog.status",
+  "args": null,
+  "result": {
+   "installed": false,
+   "updating": false,
+   "parts": 0,
+   "inStock": 0,
+   "published": "2026-01-01T00:00:00Z",
+   "downloaded": "2026-01-01T00:00:00Z",
+   "sizeBytes": 0,
+   "source": "https://yaqwsx.github.io/jlcparts/data/",
+   "ageDays": 0,
+   "remindDays": 14,
+   "stale": false
+  }
+ },
+ {
+  "method": "translate.status",
+  "args": null,
+  "result": {
+   "models": [
+    {
+     "from": "zh",
+     "to": "en",
+     "label": "Chinese → English",
+     "version": "2.1",
+     "files": [
+      {
+       "part": "model",
+       "name": "model.zhen.intgemm.alphas.bin",
+       "sha256": "5cd149601802fc8a18124a1c1306144dbbedc058630c4ddb2d53aa76fa9c7c06",
+       "size": 43977787
+      },
+      {
+       "part": "lex",
+       "name": "lex.50.50.zhen.s2t.bin",
+       "sha256": "8524dd4c93ffd7f0ae7be32f77a7c14fea7cdbbebe34ea6ad0ec368d5ddd8b13",
+       "size": 9219192
+      },
+      {
+       "part": "vocab",
+       "name": "vocab.zhen.spm",
+       "sha256": "dff594318ab7d8b7b60b844ab98ebe6b932ae8045fab15235404c787715965b3",
+       "size": 1359697
+      }
+     ],
+     "installed": false,
+     "downloading": false,
+     "sizeBytes": 54556676
+    }
+   ]
+  }
+ },
+ {
+  "method": "datasheets.list",
+  "args": null,
+  "result": [
+   {
+    "id": 2,
+    "sha256": "55e5747b27903889cd1ba6394b4919584623f05d081c1fe99f10b3c20e602b92",
+    "file": "55e5747b27903889-tpx5430.pdf",
+    "filename": "tpx5430.pdf",
+    "title": "TPX5430 buck",
+    "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+    "manufacturer": "",
+    "pages": 1,
+    "families": [],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "TPX5430 buck datasheet",
+     "language": "en"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 1,
+    "sha256": "55dbbae319a0bb4a1c616458fc6f40d6a56960cb5f4ec7681057221448f36cf6",
+    "file": "55dbbae319a0bb4a-sd.pdf",
+    "filename": "sd.pdf",
+    "title": "SD123x 3-A Synchronous Step-Down Converter",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "manufacturer": "Coilcraft",
+    "pages": 3,
+    "families": [
+     "SD123x"
+    ],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "SD123x 3-A Synchronous Step-Down Converter datasheet (Rev. A)",
+     "language": "en",
+     "revision": "rev A",
+     "revisionDate": "",
+     "revisionDoc": "",
+     "revisionRev": "A"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "parts.list",
+  "args": {},
+  "result": [
+   {
+    "id": 1,
+    "mpn": "SD1234",
+    "manufacturer": "Coilcraft",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "category": "buck",
+    "datasheetId": 1,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 2,
+    "mpn": "SD1235",
+    "manufacturer": "Coilcraft",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "category": "buck",
+    "datasheetId": 1,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 3,
+    "mpn": "TPX5430",
+    "manufacturer": "",
+    "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+    "category": "buck",
+    "datasheetId": 2,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "parts.categories",
+  "args": null,
+  "result": {
+   "buck": 3
+  }
+ },
+ {
+  "method": "categories.list",
+  "args": null,
+  "result": [
+   {
+    "category": "buck",
+    "count": 3,
+    "keys": [
+     "vin",
+     "vout",
+     "iout",
+     "fsw",
+     "ilim",
+     "vref",
+     "iq",
+     "ton_min",
+     "rdson_hs",
+     "rdson_ls",
+     "rth_ja"
+    ]
+   }
+  ]
+ },
+ {
+  "method": "compare",
+  "args": {
+   "category": "buck"
+  },
+  "result": {
+   "category": "buck",
+   "columns": [
+    {
+     "key": "vin",
+     "label": "Input / supply voltage (VIN, VCC, VDD)",
+     "unit": "V",
+     "have": 3
+    },
+    {
+     "key": "iout",
+     "label": "Output / load current",
+     "unit": "A",
+     "have": 3
+    },
+    {
+     "key": "fsw",
+     "label": "Switching or oscillator frequency",
+     "unit": "Hz",
+     "have": 2
+    },
+    {
+     "key": "ilim",
+     "label": "Current limit in normal operation (peak/valley switch or output)",
+     "unit": "A",
+     "have": 1
+    },
+    {
+     "key": "vref",
+     "label": "Feedback / reference voltage (VFB, VREF)",
+     "unit": "V",
+     "have": 2
+    },
+    {
+     "key": "ton_min",
+     "label": "Minimum on-time",
+     "unit": "s",
+     "have": 2
+    },
+    {
+     "key": "tj",
+     "label": "Junction temperature",
+     "unit": "°C",
+     "have": 2
+    }
+   ],
+   "rows": [
+    {
+     "part": {
+      "id": 1,
+      "mpn": "SD1234",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "values": {
+      "fsw": {
+       "typ": 650000,
+       "unit": "Hz",
+       "conditions": "VIN = 12 V",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 120.5040283203125,
+        "x1": 513.5280151367188,
+        "y1": 128.15203857421875
+       },
+       "paramId": 6,
+       "source": "auto"
+      },
+      "iout": {
+       "min": 0,
+       "max": 3,
+       "unit": "A",
+       "page": 0,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 520.5039978027344,
+        "x1": 505.23199462890625,
+        "y1": 528.0480041503906
+       },
+       "paramId": 4,
+       "source": "auto"
+      },
+      "tj": {
+       "min": -40,
+       "max": 150,
+       "unit": "°C",
+       "rating": true,
+       "page": 0,
+       "box": {
+        "x0": 60.13600158691406,
+        "y0": 430.5039978027344,
+        "x1": 508.64801025390625,
+        "y1": 438.0480041503906
+       },
+       "paramId": 2,
+       "source": "auto"
+      },
+      "ton_min": {
+       "typ": 6.000000000000001e-8,
+       "max": 9.000000000000001e-8,
+       "unit": "s",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 148.5040283203125,
+        "x1": 508.1600036621094,
+        "y1": 156.04803466796875
+       },
+       "paramId": 8,
+       "source": "auto"
+      },
+      "vin": {
+       "min": 4.5,
+       "max": 17,
+       "unit": "V",
+       "page": 0,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 506.5039978027344,
+        "x1": 505.1759948730469,
+        "y1": 514.1520080566406
+       },
+       "paramId": 3,
+       "source": "auto"
+      },
+      "vref": {
+       "min": 0.758,
+       "typ": 0.765,
+       "max": 0.772,
+       "unit": "V",
+       "conditions": "TA = 25°C",
+       "page": 1,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 106.5040283203125,
+        "x1": 505.1759948730469,
+        "y1": 114.15203857421875
+       },
+       "paramId": 5,
+       "source": "auto"
+      }
+     }
+    },
+    {
+     "part": {
+      "id": 2,
+      "mpn": "SD1235",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "values": {
+      "fsw": {
+       "typ": 650000,
+       "unit": "Hz",
+       "conditions": "VIN = 12 V",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 120.5040283203125,
+        "x1": 513.5280151367188,
+        "y1": 128.15203857421875
+       },
+       "paramId": 6,
+       "source": "auto"
+      },
+      "ilim": {
+       "min": 3.5,
+       "typ": 4.2,
+       "max": 5.3,
+       "unit": "A",
+       "conditions": "SD1235",
+       "page": 1,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 134.5040283203125,
+        "x1": 505.23199462890625,
+        "y1": 140.54400634765625
+       },
+       "paramId": 7,
+       "source": "auto"
+      },
+      "iout": {
+       "min": 0,
+       "max": 3,
+       "unit": "A",
+       "page": 0,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 520.5039978027344,
+        "x1": 505.23199462890625,
+        "y1": 528.0480041503906
+       },
+       "paramId": 4,
+       "source": "auto"
+      },
+      "tj": {
+       "min": -40,
+       "max": 150,
+       "unit": "°C",
+       "rating": true,
+       "page": 0,
+       "box": {
+        "x0": 60.13600158691406,
+        "y0": 430.5039978027344,
+        "x1": 508.64801025390625,
+        "y1": 438.0480041503906
+       },
+       "paramId": 2,
+       "source": "auto"
+      },
+      "ton_min": {
+       "typ": 6.000000000000001e-8,
+       "max": 9.000000000000001e-8,
+       "unit": "s",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 148.5040283203125,
+        "x1": 508.1600036621094,
+        "y1": 156.04803466796875
+       },
+       "paramId": 8,
+       "source": "auto"
+      },
+      "vin": {
+       "min": 4.5,
+       "max": 17,
+       "unit": "V",
+       "page": 0,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 506.5039978027344,
+        "x1": 505.1759948730469,
+        "y1": 514.1520080566406
+       },
+       "paramId": 3,
+       "source": "auto"
+      },
+      "vref": {
+       "min": 0.758,
+       "typ": 0.765,
+       "max": 0.772,
+       "unit": "V",
+       "conditions": "TA = 25°C",
+       "page": 1,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 106.5040283203125,
+        "x1": 505.1759948730469,
+        "y1": 114.15203857421875
+       },
+       "paramId": 5,
+       "source": "auto"
+      }
+     }
+    },
+    {
+     "part": {
+      "id": 3,
+      "mpn": "TPX5430",
+      "manufacturer": "",
+      "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+      "category": "buck",
+      "datasheetId": 2,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "values": {
+      "iout": {
+       "min": 0,
+       "max": 2,
+       "unit": "A",
+       "page": 0,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 190.5040283203125,
+        "x1": 505.23199462890625,
+        "y1": 198.04803466796875
+       },
+       "paramId": 11,
+       "source": "auto"
+      },
+      "vin": {
+       "min": 4.5,
+       "max": 28,
+       "unit": "V",
+       "page": 0,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 176.5040283203125,
+        "x1": 505.1759948730469,
+        "y1": 184.15203857421875
+       },
+       "paramId": 10,
+       "source": "auto"
+      }
+     }
+    }
+   ],
+   "total": 3
+  }
+ },
+ {
+  "method": "part.detail",
+  "args": {
+   "part": "SD1234"
+  },
+  "result": {
+   "part": {
+    "id": 1,
+    "mpn": "SD1234",
+    "manufacturer": "Coilcraft",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "category": "buck",
+    "datasheetId": 1,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   "via": "mpn",
+   "datasheet": {
+    "id": 1,
+    "sha256": "55dbbae319a0bb4a1c616458fc6f40d6a56960cb5f4ec7681057221448f36cf6",
+    "file": "55dbbae319a0bb4a-sd.pdf",
+    "filename": "sd.pdf",
+    "title": "SD123x 3-A Synchronous Step-Down Converter",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "manufacturer": "Coilcraft",
+    "pages": 3,
+    "families": [
+     "SD123x"
+    ],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "SD123x 3-A Synchronous Step-Down Converter datasheet (Rev. A)",
+     "language": "en",
+     "revision": "rev A",
+     "revisionDate": "",
+     "revisionDoc": "",
+     "revisionRev": "A"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   },
+   "siblings": [
+    "SD1235"
+   ],
+   "variants": [
+    {
+     "mpn": "SD1234DDCR",
+     "partId": 1,
+     "source": "auto"
+    }
+   ],
+   "keyParameters": [
+    {
+     "key": "vin",
+     "label": "Input / supply voltage (VIN, VCC, VDD)",
+     "param": {
+      "id": 3,
+      "datasheetId": 1,
+      "key": "vin",
+      "symbol": "VIN",
+      "name": "Supply input voltage",
+      "min": 4.5,
+      "max": 17,
+      "unit": "V",
+      "section": "recommended",
+      "page": 0,
+      "box": {
+       "x0": 60.15999984741211,
+       "y0": 506.5039978027344,
+       "x1": 505.1759948730469,
+       "y1": 514.1520080566406
+      },
+      "raw": "VIN Supply input voltage | 4.5 | 17 | V",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "iout",
+     "label": "Output / load current",
+     "param": {
+      "id": 4,
+      "datasheetId": 1,
+      "key": "iout",
+      "symbol": "IOUT",
+      "name": "Output current",
+      "min": 0,
+      "max": 3,
+      "unit": "A",
+      "section": "recommended",
+      "page": 0,
+      "box": {
+       "x0": 60.72800064086914,
+       "y0": 520.5039978027344,
+       "x1": 505.23199462890625,
+       "y1": 528.0480041503906
+      },
+      "raw": "IOUT Output current | 0 | 3 | A",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "fsw",
+     "label": "Switching or oscillator frequency",
+     "param": {
+      "id": 6,
+      "datasheetId": 1,
+      "key": "fsw",
+      "symbol": "fSW",
+      "name": "Switching frequency",
+      "conditions": "VIN = 12 V",
+      "typ": 650,
+      "unit": "kHz",
+      "section": "electrical",
+      "page": 1,
+      "box": {
+       "x0": 60.11199951171875,
+       "y0": 120.5040283203125,
+       "x1": 513.5280151367188,
+       "y1": 128.15203857421875
+      },
+      "raw": "fSW Switching frequency | VIN = 12 V | 650 | kHz",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "vref",
+     "label": "Feedback / reference voltage (VFB, VREF)",
+     "param": {
+      "id": 5,
+      "datasheetId": 1,
+      "key": "vref",
+      "symbol": "VFB",
+      "name": "Feedback voltage",
+      "conditions": "TA = 25°C",
+      "min": 0.758,
+      "typ": 0.765,
+      "max": 0.772,
+      "unit": "V",
+      "section": "electrical",
+      "page": 1,
+      "box": {
+       "x0": 60.15999984741211,
+       "y0": 106.5040283203125,
+       "x1": 505.1759948730469,
+       "y1": 114.15203857421875
+      },
+      "raw": "VFB Feedback voltage | TA = 25°C | 0.758 | 0.765 | 0.772 | V",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "ton_min",
+     "label": "Minimum on-time",
+     "param": {
+      "id": 8,
+      "datasheetId": 1,
+      "key": "ton_min",
+      "symbol": "tON(MIN)",
+      "name": "Minimum on time",
+      "typ": 60,
+      "max": 90,
+      "unit": "ns",
+      "section": "electrical",
+      "page": 1,
+      "box": {
+       "x0": 60.11199951171875,
+       "y0": 148.5040283203125,
+       "x1": 508.1600036621094,
+       "y1": 156.04803466796875
+      },
+      "raw": "tON(MIN) Minimum on time | 60 | 90 | ns",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "tj",
+     "label": "Junction temperature",
+     "param": {
+      "id": 2,
+      "datasheetId": 1,
+      "key": "tj",
+      "name": "Junction temperature TJ",
+      "min": -40,
+      "max": 150,
+      "unit": "°C",
+      "section": "abs_max",
+      "page": 0,
+      "box": {
+       "x0": 60.13600158691406,
+       "y0": 430.5039978027344,
+       "x1": 508.64801025390625,
+       "y1": 438.0480041503906
+      },
+      "raw": "Junction temperature TJ | -40 | 150 | °C",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "rating": true
+    }
+   ],
+   "sections": [
+    {
+     "id": 1,
+     "datasheetId": 1,
+     "ord": 0,
+     "num": "1",
+     "title": "Features",
+     "level": 1,
+     "kind": "features",
+     "page": 0,
+     "y": 120.98394775390625,
+     "endPage": 0,
+     "endY": 200.7559814453125
+    },
+    {
+     "id": 2,
+     "datasheetId": 1,
+     "ord": 1,
+     "num": "5",
+     "title": "Pin Configuration and Functions",
+     "level": 1,
+     "kind": "pins",
+     "page": 0,
+     "y": 200.7559814453125,
+     "endPage": 0,
+     "endY": 360.7560119628906
+    },
+    {
+     "id": 3,
+     "datasheetId": 1,
+     "ord": 2,
+     "num": "6",
+     "title": "Specifications",
+     "level": 1,
+     "kind": "electrical",
+     "page": 0,
+     "y": 360.7560119628906,
+     "endPage": 0,
+     "endY": 380.8249816894531
+    },
+    {
+     "id": 4,
+     "datasheetId": 1,
+     "ord": 3,
+     "num": "6.1",
+     "title": "Absolute Maximum Ratings",
+     "level": 1,
+     "kind": "abs_max",
+     "page": 0,
+     "y": 380.8249816894531,
+     "endPage": 0,
+     "endY": 470.6929931640625
+    },
+    {
+     "id": 5,
+     "datasheetId": 1,
+     "ord": 4,
+     "num": "6.3",
+     "title": "Recommended Operating Conditions",
+     "level": 1,
+     "kind": "recommended",
+     "page": 0,
+     "y": 470.6929931640625,
+     "endPage": 1,
+     "endY": 70.6929931640625
+    },
+    {
+     "id": 6,
+     "datasheetId": 1,
+     "ord": 5,
+     "num": "6.5",
+     "title": "Electrical Characteristics",
+     "level": 1,
+     "kind": "electrical",
+     "page": 1,
+     "y": 70.6929931640625,
+     "endPage": 1,
+     "endY": 200.6929931640625
+    },
+    {
+     "id": 7,
+     "datasheetId": 1,
+     "ord": 6,
+     "num": "6.7",
+     "title": "Typical Characteristics",
+     "level": 1,
+     "kind": "typical_characteristics",
+     "page": 1,
+     "y": 200.6929931640625,
+     "endPage": 2,
+     "endY": 70.8759765625
+    },
+    {
+     "id": 8,
+     "datasheetId": 1,
+     "ord": 7,
+     "num": "10",
+     "title": "Mechanical, Packaging, and Orderable Information",
+     "level": 1,
+     "kind": "package",
+     "page": 2,
+     "y": 70.8759765625,
+     "endPage": 2,
+     "endY": 1000000000
+    }
+   ],
+   "figureKinds": {
+    "graph": 1
+   },
+   "counts": {
+    "figures": 1,
+    "pages": 3,
+    "parameters": 8,
+    "pins": 4,
+    "recommended": 2,
+    "registers": 0,
+    "sections": 8,
+    "tables": 6
+   },
+   "notes": [
+    {
+     "id": 1,
+     "targetKind": "part",
+     "targetId": "SD1234",
+     "body": "Use the **SD1234** for the 3V3 rail.",
+     "author": "user",
+     "createdAt": "2026-01-01T00:00:00Z",
+     "updatedAt": "2026-01-01T00:00:00Z"
+    }
+   ],
+   "projects": [],
+   "recommended": [
+    {
+     "id": 1,
+     "datasheetId": 1,
+     "role": "inductor",
+     "value": "2.2 µH",
+     "mpn": "XFL4020-222ME",
+     "manufacturer": "Coilcraft",
+     "conditions": "SATURATION CURRENT [A]: 3.5",
+     "notes": "from Table 8-1",
+     "page": 2,
+     "source": "auto"
+    },
+    {
+     "id": 2,
+     "datasheetId": 1,
+     "role": "inductor",
+     "value": "1.5 µH",
+     "mpn": "XFL4020-152ME",
+     "manufacturer": "Coilcraft",
+     "conditions": "SATURATION CURRENT [A]: 4.1",
+     "notes": "from Table 8-1",
+     "page": 2,
+     "source": "auto"
+    }
+   ]
+  }
+ },
+ {
+  "method": "part.detail",
+  "args": {
+   "part": "TPX5430"
+  },
+  "result": {
+   "part": {
+    "id": 3,
+    "mpn": "TPX5430",
+    "manufacturer": "",
+    "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+    "category": "buck",
+    "datasheetId": 2,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   "via": "mpn",
+   "datasheet": {
+    "id": 2,
+    "sha256": "55e5747b27903889cd1ba6394b4919584623f05d081c1fe99f10b3c20e602b92",
+    "file": "55e5747b27903889-tpx5430.pdf",
+    "filename": "tpx5430.pdf",
+    "title": "TPX5430 buck",
+    "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+    "manufacturer": "",
+    "pages": 1,
+    "families": [],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "TPX5430 buck datasheet",
+     "language": "en"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   },
+   "siblings": [],
+   "variants": [],
+   "keyParameters": [
+    {
+     "key": "vin",
+     "label": "Input / supply voltage (VIN, VCC, VDD)",
+     "param": {
+      "id": 10,
+      "datasheetId": 2,
+      "key": "vin",
+      "symbol": "VIN",
+      "name": "Supply input voltage",
+      "min": 4.5,
+      "max": 28,
+      "unit": "V",
+      "section": "recommended",
+      "page": 0,
+      "box": {
+       "x0": 60.15999984741211,
+       "y0": 176.5040283203125,
+       "x1": 505.1759948730469,
+       "y1": 184.15203857421875
+      },
+      "raw": "VIN Supply input voltage | 4.5 | 28 | V",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "key": "iout",
+     "label": "Output / load current",
+     "param": {
+      "id": 11,
+      "datasheetId": 2,
+      "key": "iout",
+      "symbol": "IOUT",
+      "name": "Output current",
+      "min": 0,
+      "max": 2,
+      "unit": "A",
+      "section": "recommended",
+      "page": 0,
+      "box": {
+       "x0": 60.72800064086914,
+       "y0": 190.5040283203125,
+       "x1": 505.23199462890625,
+       "y1": 198.04803466796875
+      },
+      "raw": "IOUT Output current | 0 | 2 | A",
+      "source": "auto",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    }
+   ],
+   "sections": [
+    {
+     "id": 9,
+     "datasheetId": 2,
+     "ord": 0,
+     "num": "6.3",
+     "title": "Recommended Operating Conditions",
+     "level": 2,
+     "kind": "recommended",
+     "page": 0,
+     "y": 140.6929931640625,
+     "endPage": 0,
+     "endY": 1000000000
+    }
+   ],
+   "figureKinds": {},
+   "counts": {
+    "figures": 0,
+    "pages": 1,
+    "parameters": 2,
+    "pins": 0,
+    "recommended": 0,
+    "registers": 0,
+    "sections": 1,
+    "tables": 1
+   },
+   "notes": [],
+   "projects": [
+    {
+     "id": 1,
+     "name": "Sensor board",
+     "description": "",
+     "createdAt": "2026-01-01T00:00:00Z",
+     "updatedAt": "2026-01-01T00:00:00Z",
+     "parts": 0,
+     "rails": 0
+    }
+   ],
+   "recommended": []
+  }
+ },
+ {
+  "method": "part.alternatives",
+  "args": {
+   "part": "SD1234"
+  },
+  "result": {
+   "part": {
+    "id": 1,
+    "mpn": "SD1234",
+    "manufacturer": "Coilcraft",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "category": "buck",
+    "datasheetId": 1,
+    "tags": [],
+    "favorite": false,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   "category": "buck",
+   "keys": [
+    "vin",
+    "iout",
+    "fsw",
+    "vref",
+    "ton_min"
+   ],
+   "alternatives": [
+    {
+     "part": {
+      "id": 2,
+      "mpn": "SD1235",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "checks": [
+      {
+       "key": "vin",
+       "direction": "cover",
+       "original": "4.5 V … 17 V",
+       "candidate": "4.5 V … 17 V",
+       "verdict": "same",
+       "page": 0
+      },
+      {
+       "key": "iout",
+       "direction": "higher",
+       "original": "0 A … 3 A",
+       "candidate": "0 A … 3 A",
+       "verdict": "same",
+       "page": 0
+      },
+      {
+       "key": "fsw",
+       "direction": "close",
+       "original": "650 kHz typ",
+       "candidate": "650 kHz typ",
+       "verdict": "same",
+       "page": 1
+      },
+      {
+       "key": "vref",
+       "direction": "close",
+       "original": "758 mV … 772 mV",
+       "candidate": "758 mV … 772 mV",
+       "verdict": "same",
+       "page": 1
+      },
+      {
+       "key": "ton_min",
+       "direction": "lower",
+       "original": "60 ns typ",
+       "candidate": "60 ns typ",
+       "verdict": "same",
+       "page": 1
+      }
+     ],
+     "better": 0,
+     "same": 5,
+     "worse": 0,
+     "unknown": 0,
+     "samePackage": false,
+     "sameDatasheet": true,
+     "dropIn": true,
+     "distance": 0
+    },
+    {
+     "part": {
+      "id": 3,
+      "mpn": "TPX5430",
+      "manufacturer": "",
+      "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+      "category": "buck",
+      "datasheetId": 2,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "checks": [
+      {
+       "key": "vin",
+       "direction": "cover",
+       "original": "4.5 V … 17 V",
+       "candidate": "4.5 V … 28 V",
+       "verdict": "better",
+       "page": 0
+      },
+      {
+       "key": "iout",
+       "direction": "higher",
+       "original": "0 A … 3 A",
+       "candidate": "0 A … 2 A",
+       "verdict": "worse",
+       "page": 0
+      },
+      {
+       "key": "fsw",
+       "direction": "close",
+       "original": "650 kHz typ",
+       "candidate": "–",
+       "verdict": "unknown",
+       "page": -1
+      },
+      {
+       "key": "vref",
+       "direction": "close",
+       "original": "758 mV … 772 mV",
+       "candidate": "–",
+       "verdict": "unknown",
+       "page": -1
+      },
+      {
+       "key": "ton_min",
+       "direction": "lower",
+       "original": "60 ns typ",
+       "candidate": "–",
+       "verdict": "unknown",
+       "page": -1
+      }
+     ],
+     "better": 1,
+     "same": 0,
+     "worse": 1,
+     "unknown": 3,
+     "samePackage": false,
+     "sameDatasheet": false,
+     "dropIn": false,
+     "distance": 0.9044562742271522
+    }
+   ],
+   "considered": 2
+  }
+ },
+ {
+  "method": "datasheet.get",
+  "args": {
+   "id": 1
+  },
+  "result": {
+   "datasheet": {
+    "id": 1,
+    "sha256": "55dbbae319a0bb4a1c616458fc6f40d6a56960cb5f4ec7681057221448f36cf6",
+    "file": "55dbbae319a0bb4a-sd.pdf",
+    "filename": "sd.pdf",
+    "title": "SD123x 3-A Synchronous Step-Down Converter",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "manufacturer": "Coilcraft",
+    "pages": 3,
+    "families": [
+     "SD123x"
+    ],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "SD123x 3-A Synchronous Step-Down Converter datasheet (Rev. A)",
+     "language": "en",
+     "revision": "rev A",
+     "revisionDate": "",
+     "revisionDoc": "",
+     "revisionRev": "A"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   },
+   "pages": [
+    {
+     "datasheetId": 1,
+     "page": 0,
+     "width": 612,
+     "height": 792,
+     "text": ""
+    },
+    {
+     "datasheetId": 1,
+     "page": 1,
+     "width": 612,
+     "height": 792,
+     "text": ""
+    },
+    {
+     "datasheetId": 1,
+     "page": 2,
+     "width": 612,
+     "height": 792,
+     "text": ""
+    }
+   ],
+   "parts": [
+    {
+     "id": 1,
+     "mpn": "SD1234",
+     "manufacturer": "Coilcraft",
+     "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+     "category": "buck",
+     "datasheetId": 1,
+     "tags": [],
+     "favorite": false,
+     "createdAt": "2026-01-01T00:00:00Z",
+     "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+     "id": 2,
+     "mpn": "SD1235",
+     "manufacturer": "Coilcraft",
+     "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+     "category": "buck",
+     "datasheetId": 1,
+     "tags": [],
+     "favorite": false,
+     "createdAt": "2026-01-01T00:00:00Z",
+     "updatedAt": "2026-01-01T00:00:00Z"
+    }
+   ]
+  }
+ },
+ {
+  "method": "page.get",
+  "args": {
+   "datasheetId": 1,
+   "page": 0
+  },
+  "result": {
+   "datasheetId": 1,
+   "page": 0,
+   "width": 612,
+   "height": 792,
+   "text": "SD1234, SD1235\nSD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter\n1 Features\n4.5-V to 17-V input voltage range for the SD1234 and SD1235.\n5 Pin Configuration and Functions\nTable 5-1. Pin Functions\nNAME\nNO.\nI/O\nDESCRIPTION\nGND\n1\nG\nGround pin.\nSW\n2\nO\nSwitch node.\nVIN\n3\nP\nInput supply.\nVFB\n4\nI\nFeedback input.\n6 Specifications\n6.1 Absolute Maximum Ratings\nPARAMETER\nMIN\nMAX\nUNIT\nInput voltage\nVIN\n-0.3\n20\nV\nJunction temperature\nTJ\n-40\n150\n°C\n6.3 Recommended Operating Conditions\nPARAMETER\nMIN\nMAX\nUNIT\nVIN Supply input voltage\n4.5\n17\nV\nIOUT Output current\n0\n3\nA",
+   "lines": [
+    {
+     "t": "SD1234, SD1235",
+     "b": {
+      "x0": 60.441001892089844,
+      "y0": 30.5670166015625,
+      "x1": 129.66000366210938,
+      "y1": 37.36199951171875
+     },
+     "s": 9
+    },
+    {
+     "t": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+     "b": {
+      "x0": 60.70199966430664,
+      "y0": 81.134033203125,
+      "x1": 634.829833984375,
+      "y1": 98.2340087890625
+     },
+     "s": 18
+    },
+    {
+     "t": "1 Features",
+     "b": {
+      "x0": 60.827999114990234,
+      "y0": 120.98394775390625,
+      "x1": 119.58000183105469,
+      "y1": 129.7559814453125
+     },
+     "s": 12
+    },
+    {
+     "t": "4.5-V to 17-V input voltage range for the SD1234 and SD1235.",
+     "b": {
+      "x0": 60.25,
+      "y0": 140.6300048828125,
+      "x1": 337.0699462890625,
+      "y1": 150.19000244140625
+     },
+     "s": 10
+    },
+    {
+     "t": "5 Pin Configuration and Functions",
+     "b": {
+      "x0": 60.32400131225586,
+      "y0": 200.7559814453125,
+      "x1": 255.57598876953125,
+      "y1": 212.19195556640625
+     },
+     "s": 12
+    },
+    {
+     "t": "Table 5-1. Pin Functions",
+     "b": {
+      "x0": 60.13999938964844,
+      "y0": 220.82000732421875,
+      "x1": 168.01998901367188,
+      "y1": 228.17999267578125
+     },
+     "s": 10
+    },
+    {
+     "t": "NAME",
+     "b": {
+      "x0": 60.608001708984375,
+      "y0": 240.656005859375,
+      "x1": 82.44000244140625,
+      "y1": 246.4000244140625
+     },
+     "s": 8
+    },
+    {
+     "t": "NO.",
+     "b": {
+      "x0": 120.60800170898438,
+      "y0": 240.5040283203125,
+      "x1": 133.5279998779297,
+      "y1": 246.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "I/O",
+     "b": {
+      "x0": 160.72799682617188,
+      "y0": 240.5040283203125,
+      "x1": 170.36000061035156,
+      "y1": 246.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "DESCRIPTION",
+     "b": {
+      "x0": 220.6479949951172,
+      "y0": 240.5040283203125,
+      "x1": 274.0639953613281,
+      "y1": 246.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "GND",
+     "b": {
+      "x0": 60.38399887084961,
+      "y0": 256.5040283203125,
+      "x1": 77.39199829101562,
+      "y1": 262.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "1",
+     "b": {
+      "x0": 120.80799865722656,
+      "y0": 256.7760009765625,
+      "x1": 122.87200164794922,
+      "y1": 262.4000244140625
+     },
+     "s": 8
+    },
+    {
+     "t": "G",
+     "b": {
+      "x0": 160.38400268554688,
+      "y0": 256.5040283203125,
+      "x1": 165.6320037841797,
+      "y1": 262.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "Ground pin.",
+     "b": {
+      "x0": 220.38400268554688,
+      "y0": 256.5040283203125,
+      "x1": 261.10400390625,
+      "y1": 264.04803466796875
+     },
+     "s": 8
+    },
+    {
+     "t": "SW",
+     "b": {
+      "x0": 60.391998291015625,
+      "y0": 270.5040283203125,
+      "x1": 72.76000213623047,
+      "y1": 276.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "2",
+     "b": {
+      "x0": 120.20800018310547,
+      "y0": 270.7760009765625,
+      "x1": 124.05599975585938,
+      "y1": 276.4000244140625
+     },
+     "s": 8
+    },
+    {
+     "t": "O",
+     "b": {
+      "x0": 160.31199645996094,
+      "y0": 270.5040283203125,
+      "x1": 165.91200256347656,
+      "y1": 276.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "Switch node.",
+     "b": {
+      "x0": 220.39199829101562,
+      "y0": 270.5040283203125,
+      "x1": 265.10400390625,
+      "y1": 276.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "VIN",
+     "b": {
+      "x0": 60.15999984741211,
+      "y0": 284.656005859375,
+      "x1": 72.72799682617188,
+      "y1": 290.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "3",
+     "b": {
+      "x0": 120.27200317382812,
+      "y0": 284.7760009765625,
+      "x1": 124.1760025024414,
+      "y1": 290.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "P",
+     "b": {
+      "x0": 160.68800354003906,
+      "y0": 284.656005859375,
+      "x1": 164.9759979248047,
+      "y1": 290.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "Input supply.",
+     "b": {
+      "x0": 220.72799682617188,
+      "y0": 284.656005859375,
+      "x1": 264.66400146484375,
+      "y1": 292.10400390625
+     },
+     "s": 8
+    },
+    {
+     "t": "VFB",
+     "b": {
+      "x0": 60.15999984741211,
+      "y0": 298.656005859375,
+      "x1": 75.23999786376953,
+      "y1": 304.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "4",
+     "b": {
+      "x0": 120.19999694824219,
+      "y0": 298.7760009765625,
+      "x1": 124.18399810791016,
+      "y1": 304.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "I",
+     "b": {
+      "x0": 160.72799682617188,
+      "y0": 298.656005859375,
+      "x1": 161.50399780273438,
+      "y1": 304.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "Feedback input.",
+     "b": {
+      "x0": 220.68800354003906,
+      "y0": 298.656005859375,
+      "x1": 276.2239990234375,
+      "y1": 306.0480041503906
+     },
+     "s": 8
+    },
+    {
+     "t": "6 Specifications",
+     "b": {
+      "x0": 60.37200164794922,
+      "y0": 360.7560119628906,
+      "x1": 150.9239959716797,
+      "y1": 372.072021484375
+     },
+     "s": 12
+    },
+    {
+     "t": "6.1 Absolute Maximum Ratings",
+     "b": {
+      "x0": 60.340999603271484,
+      "y0": 380.8249816894531,
+      "x1": 222.1839599609375,
+      "y1": 391.1759948730469
+     },
+     "s": 11
+    },
+    {
+     "t": "PARAMETER",
+     "b": {
+      "x0": 60.6879997253418,
+      "y0": 400.656005859375,
+      "x1": 109.47999572753906,
+      "y1": 406.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "MIN",
+     "b": {
+      "x0": 340.5840148925781,
+      "y0": 400.656005859375,
+      "x1": 354.0559997558594,
+      "y1": 406.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "MAX",
+     "b": {
+      "x0": 450.5840148925781,
+      "y0": 400.656005859375,
+      "x1": 467.1839904785156,
+      "y1": 406.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "UNIT",
+     "b": {
+      "x0": 500.6319885253906,
+      "y0": 400.656005859375,
+      "x1": 518.552001953125,
+      "y1": 406.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "Input voltage",
+     "b": {
+      "x0": 60.72800064086914,
+      "y0": 416.656005859375,
+      "x1": 105.48799133300781,
+      "y1": 424.1520080566406
+     },
+     "s": 8
+    },
+    {
+     "t": "VIN",
+     "b": {
+      "x0": 200.16000366210938,
+      "y0": 416.656005859375,
+      "x1": 212.72799682617188,
+      "y1": 422.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "-0.3",
+     "b": {
+      "x0": 340.35198974609375,
+      "y0": 416.7760009765625,
+      "x1": 353.5119934082031,
+      "y1": 422.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "20",
+     "b": {
+      "x0": 450.2080078125,
+      "y0": 416.7760009765625,
+      "x1": 458.5920104980469,
+      "y1": 422.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "V",
+     "b": {
+      "x0": 500.1600036621094,
+      "y0": 416.656005859375,
+      "x1": 505.1759948730469,
+      "y1": 422.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "Junction temperature",
+     "b": {
+      "x0": 60.13600158691406,
+      "y0": 430.656005859375,
+      "x1": 134.82398986816406,
+      "y1": 438.0480041503906
+     },
+     "s": 8
+    },
+    {
+     "t": "TJ",
+     "b": {
+      "x0": 200.11199951171875,
+      "y0": 430.656005859375,
+      "x1": 208.31199645996094,
+      "y1": 436.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "-40",
+     "b": {
+      "x0": 340.35198974609375,
+      "y0": 430.7760009765625,
+      "x1": 351.2560119628906,
+      "y1": 436.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "150",
+     "b": {
+      "x0": 450.8080139160156,
+      "y0": 430.7760009765625,
+      "x1": 463.0400085449219,
+      "y1": 436.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "°C",
+     "b": {
+      "x0": 500.4320068359375,
+      "y0": 430.5039978027344,
+      "x1": 508.64801025390625,
+      "y1": 436.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "6.3 Recommended Operating Conditions",
+     "b": {
+      "x0": 60.340999603271484,
+      "y0": 470.6929931640625,
+      "x1": 272.2999267578125,
+      "y1": 481.1759948730469
+     },
+     "s": 11
+    },
+    {
+     "t": "PARAMETER",
+     "b": {
+      "x0": 60.6879997253418,
+      "y0": 490.656005859375,
+      "x1": 109.47999572753906,
+      "y1": 496.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "MIN",
+     "b": {
+      "x0": 340.5840148925781,
+      "y0": 490.656005859375,
+      "x1": 354.0559997558594,
+      "y1": 496.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "MAX",
+     "b": {
+      "x0": 450.5840148925781,
+      "y0": 490.656005859375,
+      "x1": 467.1839904785156,
+      "y1": 496.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "UNIT",
+     "b": {
+      "x0": 500.6319885253906,
+      "y0": 490.656005859375,
+      "x1": 518.552001953125,
+      "y1": 496.54400634765625
+     },
+     "s": 8
+    },
+    {
+     "t": "VIN Supply input voltage",
+     "b": {
+      "x0": 60.15999984741211,
+      "y0": 506.5039978027344,
+      "x1": 147.2799835205078,
+      "y1": 514.1520080566406
+     },
+     "s": 8
+    },
+    {
+     "t": "4.5",
+     "b": {
+      "x0": 340.20001220703125,
+      "y0": 506.7760009765625,
+      "x1": 350.78399658203125,
+      "y1": 512.5440063476562
+     },
+     "s": 8
+    },
+    {
+     "t": "17",
+     "b": {
+      "x0": 450.8080139160156,
+      "y0": 506.7760009765625,
+      "x1": 458.6319885253906,
+      "y1": 512.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "V",
+     "b": {
+      "x0": 500.1600036621094,
+      "y0": 506.656005859375,
+      "x1": 505.1759948730469,
+      "y1": 512.3999938964844
+     },
+     "s": 8
+    },
+    {
+     "t": "IOUT Output current",
+     "b": {
+      "x0": 60.72800064086914,
+      "y0": 520.5039978027344,
+      "x1": 132.30398559570312,
+      "y1": 528.0480041503906
+     },
+     "s": 8
+    },
+    {
+     "t": "0",
+     "b": {
+      "x0": 340.3039855957031,
+      "y0": 520.7760009765625,
+      "x1": 344.1440124511719,
+      "y1": 526.5440063476562
+     },
+     "s": 8
+    },
+    {
+     "t": "3",
+     "b": {
+      "x0": 450.2720031738281,
+      "y0": 520.7760009765625,
+      "x1": 454.1759948730469,
+      "y1": 526.5440063476562
+     },
+     "s": 8
+    },
+    {
+     "t": "A",
+     "b": {
+      "x0": 500.11199951171875,
+      "y0": 520.656005859375,
+      "x1": 505.23199462890625,
+      "y1": 526.3999938964844
+     },
+     "s": 8
+    }
+   ]
+  }
+ },
+ {
+  "method": "parameters.list",
+  "args": {
+   "datasheetId": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "key": "vin",
+    "name": "Input voltage VIN",
+    "min": -0.3,
+    "max": 20,
+    "unit": "V",
+    "section": "abs_max",
+    "page": 0,
+    "box": {
+     "x0": 60.72800064086914,
+     "y0": 416.656005859375,
+     "x1": 505.1759948730469,
+     "y1": 424.1520080566406
+    },
+    "raw": "Input voltage VIN | -0.3 | 20 | V",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 2,
+    "datasheetId": 1,
+    "key": "tj",
+    "name": "Junction temperature TJ",
+    "min": -40,
+    "max": 150,
+    "unit": "°C",
+    "section": "abs_max",
+    "page": 0,
+    "box": {
+     "x0": 60.13600158691406,
+     "y0": 430.5039978027344,
+     "x1": 508.64801025390625,
+     "y1": 438.0480041503906
+    },
+    "raw": "Junction temperature TJ | -40 | 150 | °C",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 3,
+    "datasheetId": 1,
+    "key": "vin",
+    "symbol": "VIN",
+    "name": "Supply input voltage",
+    "min": 4.5,
+    "max": 17,
+    "unit": "V",
+    "section": "recommended",
+    "page": 0,
+    "box": {
+     "x0": 60.15999984741211,
+     "y0": 506.5039978027344,
+     "x1": 505.1759948730469,
+     "y1": 514.1520080566406
+    },
+    "raw": "VIN Supply input voltage | 4.5 | 17 | V",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 4,
+    "datasheetId": 1,
+    "key": "iout",
+    "symbol": "IOUT",
+    "name": "Output current",
+    "min": 0,
+    "max": 3,
+    "unit": "A",
+    "section": "recommended",
+    "page": 0,
+    "box": {
+     "x0": 60.72800064086914,
+     "y0": 520.5039978027344,
+     "x1": 505.23199462890625,
+     "y1": 528.0480041503906
+    },
+    "raw": "IOUT Output current | 0 | 3 | A",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 5,
+    "datasheetId": 1,
+    "key": "vref",
+    "symbol": "VFB",
+    "name": "Feedback voltage",
+    "conditions": "TA = 25°C",
+    "min": 0.758,
+    "typ": 0.765,
+    "max": 0.772,
+    "unit": "V",
+    "section": "electrical",
+    "page": 1,
+    "box": {
+     "x0": 60.15999984741211,
+     "y0": 106.5040283203125,
+     "x1": 505.1759948730469,
+     "y1": 114.15203857421875
+    },
+    "raw": "VFB Feedback voltage | TA = 25°C | 0.758 | 0.765 | 0.772 | V",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 6,
+    "datasheetId": 1,
+    "key": "fsw",
+    "symbol": "fSW",
+    "name": "Switching frequency",
+    "conditions": "VIN = 12 V",
+    "typ": 650,
+    "unit": "kHz",
+    "section": "electrical",
+    "page": 1,
+    "box": {
+     "x0": 60.11199951171875,
+     "y0": 120.5040283203125,
+     "x1": 513.5280151367188,
+     "y1": 128.15203857421875
+    },
+    "raw": "fSW Switching frequency | VIN = 12 V | 650 | kHz",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 7,
+    "datasheetId": 1,
+    "appliesTo": [
+     "SD1235"
+    ],
+    "key": "ilim",
+    "symbol": "ILIM",
+    "name": "Current limit",
+    "conditions": "SD1235",
+    "min": 3.5,
+    "typ": 4.2,
+    "max": 5.3,
+    "unit": "A",
+    "section": "electrical",
+    "page": 1,
+    "box": {
+     "x0": 60.72800064086914,
+     "y0": 134.5040283203125,
+     "x1": 505.23199462890625,
+     "y1": 140.54400634765625
+    },
+    "raw": "ILIM Current limit | SD1235 | 3.5 | 4.2 | 5.3 | A",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 8,
+    "datasheetId": 1,
+    "key": "ton_min",
+    "symbol": "tON(MIN)",
+    "name": "Minimum on time",
+    "typ": 60,
+    "max": 90,
+    "unit": "ns",
+    "section": "electrical",
+    "page": 1,
+    "box": {
+     "x0": 60.11199951171875,
+     "y0": 148.5040283203125,
+     "x1": 508.1600036621094,
+     "y1": 156.04803466796875
+    },
+    "raw": "tON(MIN) Minimum on time | 60 | 90 | ns",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 9,
+    "datasheetId": 1,
+    "symbol": "RSET",
+    "name": "setting #1",
+    "conditions": "(min -3%) (max +3%)",
+    "min": 4.9567,
+    "typ": 5.11,
+    "max": 5.2633,
+    "unit": "kΩ",
+    "section": "electrical",
+    "page": 1,
+    "box": {
+     "x0": 60.70399856567383,
+     "y0": 162.5040283203125,
+     "x1": 520.823974609375,
+     "y1": 170.15203857421875
+    },
+    "raw": "RSET setting #1 | -3% | 5.11 | +3% | kOhm",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "sections.list",
+  "args": {
+   "id": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "ord": 0,
+    "num": "1",
+    "title": "Features",
+    "level": 1,
+    "kind": "features",
+    "page": 0,
+    "y": 120.98394775390625,
+    "endPage": 0,
+    "endY": 200.7559814453125
+   },
+   {
+    "id": 2,
+    "datasheetId": 1,
+    "ord": 1,
+    "num": "5",
+    "title": "Pin Configuration and Functions",
+    "level": 1,
+    "kind": "pins",
+    "page": 0,
+    "y": 200.7559814453125,
+    "endPage": 0,
+    "endY": 360.7560119628906
+   },
+   {
+    "id": 3,
+    "datasheetId": 1,
+    "ord": 2,
+    "num": "6",
+    "title": "Specifications",
+    "level": 1,
+    "kind": "electrical",
+    "page": 0,
+    "y": 360.7560119628906,
+    "endPage": 0,
+    "endY": 380.8249816894531
+   },
+   {
+    "id": 4,
+    "datasheetId": 1,
+    "ord": 3,
+    "num": "6.1",
+    "title": "Absolute Maximum Ratings",
+    "level": 1,
+    "kind": "abs_max",
+    "page": 0,
+    "y": 380.8249816894531,
+    "endPage": 0,
+    "endY": 470.6929931640625
+   },
+   {
+    "id": 5,
+    "datasheetId": 1,
+    "ord": 4,
+    "num": "6.3",
+    "title": "Recommended Operating Conditions",
+    "level": 1,
+    "kind": "recommended",
+    "page": 0,
+    "y": 470.6929931640625,
+    "endPage": 1,
+    "endY": 70.6929931640625
+   },
+   {
+    "id": 6,
+    "datasheetId": 1,
+    "ord": 5,
+    "num": "6.5",
+    "title": "Electrical Characteristics",
+    "level": 1,
+    "kind": "electrical",
+    "page": 1,
+    "y": 70.6929931640625,
+    "endPage": 1,
+    "endY": 200.6929931640625
+   },
+   {
+    "id": 7,
+    "datasheetId": 1,
+    "ord": 6,
+    "num": "6.7",
+    "title": "Typical Characteristics",
+    "level": 1,
+    "kind": "typical_characteristics",
+    "page": 1,
+    "y": 200.6929931640625,
+    "endPage": 2,
+    "endY": 70.8759765625
+   },
+   {
+    "id": 8,
+    "datasheetId": 1,
+    "ord": 7,
+    "num": "10",
+    "title": "Mechanical, Packaging, and Orderable Information",
+    "level": 1,
+    "kind": "package",
+    "page": 2,
+    "y": 70.8759765625,
+    "endPage": 2,
+    "endY": 1000000000
+   }
+  ]
+ },
+ {
+  "method": "section.get",
+  "args": {
+   "id": 1
+  },
+  "result": {
+   "id": 1,
+   "datasheetId": 1,
+   "ord": 0,
+   "num": "1",
+   "title": "Features",
+   "level": 1,
+   "kind": "features",
+   "page": 0,
+   "y": 120.98394775390625,
+   "endPage": 0,
+   "endY": 200.7559814453125,
+   "text": "4.5-V to 17-V input voltage range for the SD1234 and SD1235."
+  }
+ },
+ {
+  "method": "figures.list",
+  "args": {
+   "datasheetId": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "page": 1,
+    "number": "6-1",
+    "caption": "Efficiency vs Output Current",
+    "kind": "graph",
+    "box": {
+     "x0": 66,
+     "y0": 225,
+     "x1": 305,
+     "y1": 418.1710205078125
+    },
+    "section": "6.7 Typical Characteristics",
+    "xAxis": "Output Current",
+    "yAxis": "Efficiency",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "figure.get",
+  "args": {
+   "id": 1
+  },
+  "result": {
+   "figure": {
+    "id": 1,
+    "datasheetId": 1,
+    "page": 1,
+    "number": "6-1",
+    "caption": "Efficiency vs Output Current",
+    "kind": "graph",
+    "box": {
+     "x0": 66,
+     "y0": 225,
+     "x1": 305,
+     "y1": 418.1710205078125
+    },
+    "section": "6.7 Typical Characteristics",
+    "xAxis": "Output Current",
+    "yAxis": "Efficiency",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   "notes": [],
+   "text": "Eff (%)\nOutput Current (A)\nFigure 6-1. Efficiency vs Output Current"
+  }
+ },
+ {
+  "method": "tables.list",
+  "args": {
+   "id": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "page": 0,
+    "number": "5-1",
+    "caption": "Pin Functions",
+    "kind": "pins",
+    "section": "5 Pin Configuration and Functions",
+    "box": {
+     "x0": 60.13999938964844,
+     "y0": 220.82000732421875,
+     "x1": 276.2239990234375,
+     "y1": 306.0480041503906
+    },
+    "header": [
+     "NAME",
+     "NUMBER",
+     "TYPE",
+     "DESCRIPTION"
+    ],
+    "rows": [
+     [
+      "GND",
+      "1",
+      "G",
+      "Ground pin."
+     ],
+     [
+      "SW",
+      "2",
+      "O",
+      "Switch node."
+     ],
+     [
+      "VIN",
+      "3",
+      "P",
+      "Input supply."
+     ],
+     [
+      "VFB",
+      "4",
+      "I",
+      "Feedback input."
+     ]
+    ],
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 2,
+    "datasheetId": 1,
+    "page": 0,
+    "kind": "spec",
+    "section": "6.1 Absolute Maximum Ratings",
+    "box": {
+     "x0": 60.13600158691406,
+     "y0": 400.656005859375,
+     "x1": 518.552001953125,
+     "y1": 438.0480041503906
+    },
+    "header": [
+     "NAME",
+     "MIN",
+     "MAX",
+     "UNIT"
+    ],
+    "rows": [
+     [
+      "Input voltage VIN",
+      "-0.3",
+      "20",
+      "V"
+     ],
+     [
+      "Junction temperature TJ",
+      "-40",
+      "150",
+      "°C"
+     ]
+    ],
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 3,
+    "datasheetId": 1,
+    "page": 0,
+    "kind": "spec",
+    "section": "6.3 Recommended Operating Conditions",
+    "box": {
+     "x0": 60.15999984741211,
+     "y0": 490.656005859375,
+     "x1": 518.552001953125,
+     "y1": 528.0480041503906
+    },
+    "header": [
+     "NAME",
+     "MIN",
+     "MAX",
+     "UNIT"
+    ],
+    "rows": [
+     [
+      "VIN Supply input voltage",
+      "4.5",
+      "17",
+      "V"
+     ],
+     [
+      "IOUT Output current",
+      "0",
+      "3",
+      "A"
+     ]
+    ],
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 4,
+    "datasheetId": 1,
+    "page": 1,
+    "kind": "spec",
+    "section": "6.5 Electrical Characteristics",
+    "box": {
+     "x0": 60.11199951171875,
+     "y0": 90.5040283203125,
+     "x1": 520.823974609375,
+     "y1": 170.15203857421875
+    },
+    "header": [
+     "NAME",
+     "CONDITIONS",
+     "MIN",
+     "TYP",
+     "MAX",
+     "UNIT"
+    ],
+    "rows": [
+     [
+      "VFB Feedback voltage",
+      "TA = 25°C",
+      "0.758",
+      "0.765",
+      "0.772",
+      "V"
+     ],
+     [
+      "fSW Switching frequency",
+      "VIN = 12 V",
+      "",
+      "650",
+      "",
+      "kHz"
+     ],
+     [
+      "ILIM Current limit",
+      "SD1235",
+      "3.5",
+      "4.2",
+      "5.3",
+      "A"
+     ],
+     [
+      "tON(MIN) Minimum on time",
+      "",
+      "",
+      "60",
+      "90",
+      "ns"
+     ],
+     [
+      "RSET setting #1",
+      "",
+      "-3%",
+      "5.11",
+      "+3%",
+      "kOhm"
+     ]
+    ],
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 5,
+    "datasheetId": 1,
+    "page": 2,
+    "number": "7-1",
+    "caption": "Output Voltage Settings",
+    "kind": "table",
+    "section": "10 Mechanical, Packaging, and Orderable Information",
+    "box": {
+     "x0": 60.13999938964844,
+     "y0": 200.6300048828125,
+     "x1": 388.6159973144531,
+     "y1": 310.54400634765625
+    },
+    "header": [
+     "VOUT",
+     "CURRENT LIMIT"
+    ],
+    "rows": [
+     [
+      "RSET1",
+      "0 Ohm"
+     ],
+     [
+      "1.8 V",
+      ""
+     ],
+     [
+      "RSET2",
+      "0 Ohm 511 Ohm 1.15 kOhm 1.87 kOhm"
+     ],
+     [
+      "RSET1",
+      "511 Ohm"
+     ],
+     [
+      "2.5 V",
+      ""
+     ],
+     [
+      "RSET2",
+      "0 Ohm 511 Ohm 1.15 kOhm 1.87 kOhm"
+     ],
+     [
+      "RSET1",
+      "1.15 kOhm"
+     ],
+     [
+      "3.3 V",
+      ""
+     ],
+     [
+      "RSET2",
+      "0 Ohm 511 Ohm 1.15 kOhm 1.87 kOhm"
+     ]
+    ],
+    "irregular": "rows have more cells than the header (merged or multi-row header)",
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   },
+   {
+    "id": 6,
+    "datasheetId": 1,
+    "page": 2,
+    "number": "8-1",
+    "caption": "List of Recommended Inductors",
+    "kind": "table",
+    "section": "10 Mechanical, Packaging, and Orderable Information",
+    "box": {
+     "x0": 60.13999938964844,
+     "y0": 360.7200012207031,
+     "x1": 486.79998779296875,
+     "y1": 422.54400634765625
+    },
+    "header": [
+     "INDUCTOR",
+     "SATURATION CURRENT",
+     "PART NUMBER",
+     "MANUFACTURER"
+    ],
+    "rows": [
+     [
+      "VALUE [uH]",
+      "[A]",
+      "",
+      ""
+     ],
+     [
+      "2.2",
+      "3.5",
+      "XFL4020-222ME",
+      "Coilcraft"
+     ],
+     [
+      "1.5",
+      "4.1",
+      "XFL4020-152ME",
+      "Coilcraft"
+     ]
+    ],
+    "source": "auto",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "pins.list",
+  "args": {
+   "id": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "number": "1",
+    "name": "GND",
+    "type": "G",
+    "description": "Ground pin.",
+    "page": 0,
+    "source": "auto"
+   },
+   {
+    "id": 2,
+    "datasheetId": 1,
+    "number": "2",
+    "name": "SW",
+    "type": "O",
+    "description": "Switch node.",
+    "page": 0,
+    "source": "auto"
+   },
+   {
+    "id": 3,
+    "datasheetId": 1,
+    "number": "3",
+    "name": "VIN",
+    "type": "P",
+    "description": "Input supply.",
+    "page": 0,
+    "source": "auto"
+   },
+   {
+    "id": 4,
+    "datasheetId": 1,
+    "number": "4",
+    "name": "VFB",
+    "type": "I",
+    "description": "Feedback input.",
+    "page": 0,
+    "source": "auto"
+   }
+  ]
+ },
+ {
+  "method": "registers.list",
+  "args": {
+   "id": 1
+  },
+  "result": []
+ },
+ {
+  "method": "recommendations.list",
+  "args": {
+   "datasheetId": 1
+  },
+  "result": [
+   {
+    "id": 1,
+    "datasheetId": 1,
+    "role": "inductor",
+    "value": "2.2 µH",
+    "mpn": "XFL4020-222ME",
+    "manufacturer": "Coilcraft",
+    "conditions": "SATURATION CURRENT [A]: 3.5",
+    "notes": "from Table 8-1",
+    "page": 2,
+    "source": "auto"
+   },
+   {
+    "id": 2,
+    "datasheetId": 1,
+    "role": "inductor",
+    "value": "1.5 µH",
+    "mpn": "XFL4020-152ME",
+    "manufacturer": "Coilcraft",
+    "conditions": "SATURATION CURRENT [A]: 4.1",
+    "notes": "from Table 8-1",
+    "page": 2,
+    "source": "auto"
+   }
+  ]
+ },
+ {
+  "method": "search",
+  "args": {
+   "query": "switching frequency"
+  },
+  "result": [
+   {
+    "kind": "parameter",
+    "ref": "6",
+    "datasheetId": 1,
+    "page": 1,
+    "title": "fSW Switching frequency",
+    "snippet": "fsw VIN = 12 V kHz electrical",
+    "score": 10.077391828409539,
+    "parts": [
+     "SD1234",
+     "SD1235"
+    ]
+   },
+   {
+    "kind": "page",
+    "ref": "1",
+    "datasheetId": 1,
+    "page": 1,
+    "title": "Page 2",
+    "snippet": " … 0.765\n0.772\nV\nfSW «Switching» «frequency»\nVIN = 12 V\n650\nkHz\nILIM … ",
+    "score": 2.556791215827797,
+    "parts": [
+     "SD1234",
+     "SD1235"
+    ]
+   }
+  ]
+ },
+ {
+  "method": "notes.list",
+  "args": {
+   "id": "SD1234",
+   "kind": "part"
+  },
+  "result": [
+   {
+    "id": 1,
+    "targetKind": "part",
+    "targetId": "SD1234",
+    "body": "Use the **SD1234** for the 3V3 rail.",
+    "author": "user",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "projects.list",
+  "args": null,
+  "result": [
+   {
+    "id": 1,
+    "name": "Sensor board",
+    "description": "Battery sensor node",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 2,
+    "rails": 2
+   },
+   {
+    "id": 2,
+    "name": "Empty board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   }
+  ]
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "Sensor board"
+  },
+  "result": {
+   "project": {
+    "id": 1,
+    "name": "Sensor board",
+    "description": "Battery sensor node",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [
+    {
+     "id": 1,
+     "projectId": 1,
+     "partId": 3,
+     "mpn": "TPX5430",
+     "category": "buck",
+     "hasDatasheet": true,
+     "designator": "U1",
+     "qty": 1,
+     "supplyRail": "VIN",
+     "outputRail": "3V3"
+    },
+    {
+     "id": 2,
+     "projectId": 1,
+     "partId": 2,
+     "mpn": "SD1235",
+     "category": "buck",
+     "hasDatasheet": true,
+     "designator": "U2",
+     "qty": 1,
+     "supplyRail": "3V3",
+     "iMax": 0.5
+    }
+   ],
+   "rails": [
+    {
+     "id": 2,
+     "projectId": 1,
+     "name": "3V3",
+     "vNom": 3.3,
+     "source": "U1",
+     "loadTyp": 0,
+     "loadMax": 0.5,
+     "capacity": 2,
+     "capacityFrom": "TPX5430 rated output (p1)",
+     "sourcePart": "U1 TPX5430",
+     "consumers": [
+      "U2"
+     ],
+     "power": 1.65
+    },
+    {
+     "id": 1,
+     "projectId": 1,
+     "name": "VIN",
+     "vNom": 12,
+     "loadTyp": 0,
+     "loadMax": 0.15277777777777776,
+     "consumers": [
+      "U1"
+     ],
+     "power": 1.833333333333333
+    }
+   ],
+   "checks": [
+    {
+     "level": "error",
+     "message": "U2: 3V3 can drop to 3.3 V, below the minimum operating input 4.5 V (SD1235 p1)",
+     "part": "U2",
+     "rail": "3V3"
+    },
+    {
+     "level": "ok",
+     "message": "U1: VIN maximum 12 V is within the recommended 28 V",
+     "part": "U1",
+     "rail": "VIN"
+    },
+    {
+     "level": "ok",
+     "message": "U2: 3V3 maximum 3.3 V is within the recommended 17 V",
+     "part": "U2",
+     "rail": "3V3"
+    },
+    {
+     "level": "ok",
+     "message": "3V3 load 500 mA is 25% of 2 A",
+     "part": "U1 TPX5430",
+     "rail": "3V3"
+    }
+   ],
+   "calculations": [
+    {
+     "id": 1,
+     "projectId": 1,
+     "kind": "divider",
+     "title": "ADC divider",
+     "inputs": {
+      "vin": 3.3,
+      "vout": 1.8
+     },
+     "outputs": {
+      "kind": "divider",
+      "inputs": {
+       "vin": 3.3,
+       "vout": 1.8
+      },
+      "filled": [],
+      "result": {
+       "kind": "divider",
+       "summary": "Divider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)",
+       "outputs": [
+        {
+         "name": "Top resistor",
+         "symbol": "Rtop",
+         "value": 88700,
+         "unit": "Ω",
+         "formula": "E96"
+        },
+        {
+         "name": "Bottom resistor",
+         "symbol": "Rbottom",
+         "value": 107000,
+         "unit": "Ω",
+         "formula": "E96"
+        },
+        {
+         "name": "Tap voltage",
+         "symbol": "Vtap",
+         "value": 1.804292284108329,
+         "unit": "V",
+         "formula": "Vin·Rbottom / (Rtop + Rbottom)"
+        },
+        {
+         "name": "Error",
+         "symbol": "err",
+         "value": 0.23846022824050264,
+         "unit": "%"
+        },
+        {
+         "name": "Divider current",
+         "symbol": "I",
+         "value": 0.000016862544711292794,
+         "unit": "A",
+         "formula": "Vin / (Rtop + Rbottom)"
+        },
+        {
+         "name": "Ideal ratio",
+         "symbol": "k",
+         "value": 0.5454545454545455,
+         "unit": "",
+         "formula": "Vout / Vin"
+        }
+       ],
+       "checks": [],
+       "suggestions": [
+        "Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V",
+        "Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V",
+        "Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V",
+        "Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V"
+       ]
+      }
+     },
+     "createdAt": "2026-01-01T00:00:00Z"
+    }
+   ],
+   "notes": [],
+   "inputPower": 1.833333333333333
+  }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "Empty board"
+  },
+  "result": {
+   "project": {
+    "id": 2,
+    "name": "Empty board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [],
+   "rails": [],
+   "checks": [],
+   "calculations": [],
+   "notes": [],
+   "inputPower": 0
+  }
+ },
+ {
+  "method": "project.report",
+  "args": {
+   "project": "Sensor board"
+  },
+  "result": {
+   "markdown": "# Sensor board — design review\n\nBattery sensor node\n\nGenerated by SheetDiver test on 2026-01-01. 2 BOM lines (2 parts), 2 rails, input power 1.83 W at maximum load.\n\n**Checks:** 1 errors, 0 warnings, 3 passed.\n\n## Findings\n\n- **❌ Error** (U2 · 3V3): U2: 3V3 can drop to 3.3 V, below the minimum operating input 4.5 V (SD1235 p1)\n\n\u003cdetails\u003e\u003csummary\u003ePassed checks\u003c/summary\u003e\n\n- ✅ U1: VIN maximum 12 V is within the recommended 28 V\n- ✅ U2: 3V3 maximum 3.3 V is within the recommended 17 V\n- ✅ 3V3 load 500 mA is 25% of 2 A\n\n\u003c/details\u003e\n\n## Rails\n\n| Rail | Voltage | Source | Load typ | Load max | Capacity | Use | Power | Feeds |\n|---|---|---|---:|---:|---|---:|---:|---|\n| 3V3 | 3.3 V | U1 TPX5430 | 0 A | 500 mA | 2 A (TPX5430 rated output (p1)) | 25% | 1.65 W | U2 |\n| VIN | 12 V | external | 0 A | 153 mA | – | – | 1.83 W | U1 |\n\n## Parts\n\n| Ref | Qty | Part | Manufacturer | Type | Status | Supply → output | Key parameters | Datasheet |\n|---|---:|---|---|---|---|---|---|---|\n| U1 | 1 | TPX5430 |  | buck |  | VIN → 3V3 | vin 4.5 V … 28 V · iout 0 A … 2 A | tpx5430.pdf |\n| U2 | 1 | SD1235 | Coilcraft | buck |  | 3V3 | vin 4.5 V … 17 V · iout 0 A … 3 A · fsw 650 kHz typ | sd.pdf |\n\n## Calculations\n\n### ADC divider\n\nDivider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)\n\nInputs: vin = 3.3, vout = 1.8\n\n| Output | Value | Formula |\n|---|---:|---|\n| Top resistor | 88.7 kΩ | E96 |\n| Bottom resistor | 107 kΩ | E96 |\n| Tap voltage | 1.8 V | Vin·Rbottom / (Rtop + Rbottom) |\n| Error | 0.238% |  |\n| Divider current | 16.9 µA | Vin / (Rtop + Rbottom) |\n| Ideal ratio | 0.545 | Vout / Vin |\n\n- Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V\n- Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V\n- Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V\n- Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V\n\n"
+  }
+ },
+ {
+  "method": "calc.list",
+  "args": {
+   "projectId": 0
+  },
+  "result": [
+   {
+    "id": 1,
+    "projectId": 1,
+    "kind": "divider",
+    "title": "ADC divider",
+    "inputs": {
+     "vin": 3.3,
+     "vout": 1.8
+    },
+    "outputs": {
+     "kind": "divider",
+     "inputs": {
+      "vin": 3.3,
+      "vout": 1.8
+     },
+     "filled": [],
+     "result": {
+      "kind": "divider",
+      "summary": "Divider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)",
+      "outputs": [
+       {
+        "name": "Top resistor",
+        "symbol": "Rtop",
+        "value": 88700,
+        "unit": "Ω",
+        "formula": "E96"
+       },
+       {
+        "name": "Bottom resistor",
+        "symbol": "Rbottom",
+        "value": 107000,
+        "unit": "Ω",
+        "formula": "E96"
+       },
+       {
+        "name": "Tap voltage",
+        "symbol": "Vtap",
+        "value": 1.804292284108329,
+        "unit": "V",
+        "formula": "Vin·Rbottom / (Rtop + Rbottom)"
+       },
+       {
+        "name": "Error",
+        "symbol": "err",
+        "value": 0.23846022824050264,
+        "unit": "%"
+       },
+       {
+        "name": "Divider current",
+        "symbol": "I",
+        "value": 0.000016862544711292794,
+        "unit": "A",
+        "formula": "Vin / (Rtop + Rbottom)"
+       },
+       {
+        "name": "Ideal ratio",
+        "symbol": "k",
+        "value": 0.5454545454545455,
+        "unit": "",
+        "formula": "Vout / Vin"
+       }
+      ],
+      "checks": [],
+      "suggestions": [
+       "Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V",
+       "Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V",
+       "Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V",
+       "Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V"
+      ]
+     }
+    },
+    "createdAt": "2026-01-01T00:00:00Z"
+   }
+  ]
+ },
+ {
+  "method": "delete.preview",
+  "args": {
+   "part": "SD1234"
+  },
+  "result": {
+   "datasheet": {
+    "id": 1,
+    "sha256": "55dbbae319a0bb4a1c616458fc6f40d6a56960cb5f4ec7681057221448f36cf6",
+    "file": "55dbbae319a0bb4a-sd.pdf",
+    "filename": "sd.pdf",
+    "title": "SD123x 3-A Synchronous Step-Down Converter",
+    "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+    "manufacturer": "Coilcraft",
+    "pages": 3,
+    "families": [
+     "SD123x"
+    ],
+    "meta": {
+     "Producer": "SheetDiver tests",
+     "Title": "SD123x 3-A Synchronous Step-Down Converter datasheet (Rev. A)",
+     "language": "en",
+     "revision": "rev A",
+     "revisionDate": "",
+     "revisionDoc": "",
+     "revisionRev": "A"
+    },
+    "extractor": "4",
+    "importedAt": "2026-01-01T00:00:00Z"
+   },
+   "parts": [
+    {
+     "part": {
+      "id": 1,
+      "mpn": "SD1234",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     }
+    },
+    {
+     "part": {
+      "id": 2,
+      "mpn": "SD1235",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "projects": [
+      "Sensor board"
+     ]
+    }
+   ],
+   "recorded": {},
+   "notes": 1,
+   "inProjects": true
+  }
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "boost"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz)",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "inductor ripple / average inductor current, default 0.3",
+    "name": "rippleRatio",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "expected efficiency 0..1, default 0.85",
+    "name": "efficiency",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
+    "name": "voutRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen inductance (H)",
+    "name": "l",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback reference voltage (V)",
+    "name": "vref",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback bottom resistor (Ω), default 10 kΩ",
+    "name": "rBottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum switch current limit (A)",
+    "name": "ilimSwitch",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum output voltage (V)",
+    "name": "voutLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum input voltage (V)",
+    "name": "vinMinDevice",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum duty cycle (0..1)",
+    "name": "dmax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "buck"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz)",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "inductor ripple current / Iout, default 0.3",
+    "name": "rippleRatio",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "expected efficiency 0..1, default 0.9",
+    "name": "efficiency",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
+    "name": "voutRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed input ripple, peak-peak (V), default 2% of VinMin",
+    "name": "vinRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen inductance (H); default: next E12 value above the calculated one",
+    "name": "l",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback reference voltage (V) for the divider",
+    "name": "vref",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback bottom resistor (Ω), default 10 kΩ",
+    "name": "rBottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum operating input voltage (V)",
+    "name": "vinLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum operating input voltage (V)",
+    "name": "vinMinDevice",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device rated output current (A)",
+    "name": "ioutLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum current limit (A)",
+    "name": "ilim",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum on-time (s)",
+    "name": "tonMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum off-time (s)",
+    "name": "toffMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "datasheet minimum recommended inductance (H)",
+    "name": "lMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "datasheet maximum recommended inductance (H)",
+    "name": "lMax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "divider"
+  },
+  "result": [
+   {
+    "description": "voltage across the divider (V)",
+    "name": "vin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "wanted tap voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "target Rtop+Rbottom (Ω), default 100 kΩ",
+    "name": "rtotal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "fix the bottom resistor (Ω) instead of searching",
+    "name": "rbottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "E24, E48 or E96 (default E96)",
+    "name": "series",
+    "required": "false",
+    "type": "string"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "gate_divider"
+  },
+  "result": [
+   {
+    "description": "minimum supply across the divider (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum supply across the divider (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "gate voltage needed for full enhancement (V), e.g. the RDS(on) rating voltage",
+    "name": "vgsOn",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source rating (V)",
+    "name": "vgsMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "fraction of VgsMax to stay under, default 0.8",
+    "name": "margin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "target R1+R2 (Ω), default 47 kΩ (sets divider current and turn-off speed)",
+    "name": "rtotal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "MOSFET input capacitance (F) for timing",
+    "name": "ciss",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "resistor series, default E24",
+    "name": "series",
+    "required": "false",
+    "type": "string"
+   },
+   {
+    "description": "voltage lost in the pull-down transistor (V), default 0.2",
+    "name": "vpulldown",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "gate_drive"
+  },
+  "result": [
+   {
+    "description": "n or p, default n",
+    "name": "channel",
+    "required": "false",
+    "type": "string"
+   },
+   {
+    "description": "gate drive voltage swing (V), e.g. 3.3 from an MCU or 12 from a driver",
+    "name": "vdrive",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "driver output resistance (Ω); MCU pins are roughly 25–50 Ω",
+    "name": "rdriver",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "driver peak current (A), used if rdriver is not given",
+    "name": "idrive",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen external gate resistor (Ω); default: computed for tswitch",
+    "name": "rg",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "target switching (Miller) time (s), default 50 ns",
+    "name": "tswitch",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate threshold voltage, max (V)",
+    "name": "vgsTh",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source voltage rating (V)",
+    "name": "vgsMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "Vgs at which RDS(on) is specified (V), e.g. 4.5 or 10",
+    "name": "vgsRated",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "Miller plateau voltage (V); default VgsTh + 1 V",
+    "name": "vplateau",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "total gate charge (C)",
+    "name": "qg",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-drain charge (C)",
+    "name": "qgd",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source charge (C)",
+    "name": "qgs",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "input capacitance (F)",
+    "name": "ciss",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "internal gate resistance (Ω)",
+    "name": "rgInternal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "on-resistance at the drive voltage (Ω)",
+    "name": "rdson",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "drain-source voltage when off (V)",
+    "name": "vds",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "drain-source rating (V)",
+    "name": "vdsMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "load current (A)",
+    "name": "iload",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "continuous drain current rating (A)",
+    "name": "idMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz); 0 for a static switch",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "junction-to-ambient thermal resistance (°C/W)",
+    "name": "rthJA",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "ambient (°C), default 25",
+    "name": "ta",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "maximum junction temperature (°C), default 150",
+    "name": "tjMax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "ldo"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "quiescent/ground current (A)",
+    "name": "iq",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "dropout voltage at this load (V)",
+    "name": "dropout",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "junction-to-ambient thermal resistance (°C/W)",
+    "name": "rthJA",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "ambient temperature (°C), default 25",
+    "name": "ta",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "maximum junction temperature (°C), default 125",
+    "name": "tjMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device rated output current (A)",
+    "name": "ioutMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum input voltage (V)",
+    "name": "vinLimit",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.run",
+  "args": {
+   "inputs": {
+    "vin": 3.3,
+    "vout": 1.8
+   },
+   "kind": "divider"
+  },
+  "result": {
+   "kind": "divider",
+   "inputs": {
+    "vin": 3.3,
+    "vout": 1.8
+   },
+   "filled": [],
+   "result": {
+    "kind": "divider",
+    "summary": "Divider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)",
+    "outputs": [
+     {
+      "name": "Top resistor",
+      "symbol": "Rtop",
+      "value": 88700,
+      "unit": "Ω",
+      "formula": "E96"
+     },
+     {
+      "name": "Bottom resistor",
+      "symbol": "Rbottom",
+      "value": 107000,
+      "unit": "Ω",
+      "formula": "E96"
+     },
+     {
+      "name": "Tap voltage",
+      "symbol": "Vtap",
+      "value": 1.804292284108329,
+      "unit": "V",
+      "formula": "Vin·Rbottom / (Rtop + Rbottom)"
+     },
+     {
+      "name": "Error",
+      "symbol": "err",
+      "value": 0.23846022824050264,
+      "unit": "%"
+     },
+     {
+      "name": "Divider current",
+      "symbol": "I",
+      "value": 0.000016862544711292794,
+      "unit": "A",
+      "formula": "Vin / (Rtop + Rbottom)"
+     },
+     {
+      "name": "Ideal ratio",
+      "symbol": "k",
+      "value": 0.5454545454545455,
+      "unit": "",
+      "formula": "Vout / Vin"
+     }
+    ],
+    "checks": [],
+    "suggestions": [
+     "Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V",
+     "Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V",
+     "Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V",
+     "Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V"
+    ]
+   }
+  }
+ }
+]
