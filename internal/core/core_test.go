@@ -1154,13 +1154,27 @@ func TestRailLoadsInLineLoopsAndChargers(t *testing.T) {
 	if r := get("4.2V"); math.Abs(r.LoadMax-want42) > 1e-9 {
 		t.Errorf("4.2V max = %v, want %v", r.LoadMax, want42)
 	}
-	// 5V: the linear charger passes its load plus the largest charge
-	// current (1.2 A; the 1.2 A absolute maximum rating doesn't count).
-	if r := get("5V"); math.Abs(r.LoadMax-(want42+1.2)) > 1e-9 || math.Abs(r.LoadTyp-(get("4.2V").LoadTyp+1.1)) > 1e-9 {
+	// 5V: a linear charger limits battery and system together to its
+	// charge current, so it draws the larger of the load and the largest
+	// charge current (1.2 A; the absolute maximum rating doesn't count).
+	if r := get("5V"); math.Abs(r.LoadMax-1.2) > 1e-9 || math.Abs(r.LoadTyp-1.1) > 1e-9 {
 		t.Errorf("5V = %v / %v", r.LoadTyp, r.LoadMax)
 	}
-	if math.Abs(input-5*(want42+1.2)) > 1e-9 {
+	if math.Abs(input-5*1.2) > 1e-9 {
 		t.Errorf("input power = %v", input)
+	}
+	// A load above the charge current is served beyond it (from the battery
+	// in practice; the input is what the charger passes).
+	if typ, max := chargerOutput(params[1], 1.5, 2); typ != 1.5 || max != 2 {
+		t.Errorf("load above the charge current = %v / %v", typ, max)
+	}
+	// A power-path charger charges on top of the load, up to its input limit.
+	pathParams := append(append([]library.Parameter(nil), params[1]...), library.Parameter{Key: "ilim_in", Section: extract.KindElectrical, Max: v(1.5), Unit: "A"})
+	if typ, max := chargerOutput(pathParams, 0.084, 0.084); math.Abs(typ-1.184) > 1e-9 || math.Abs(max-1.284) > 1e-9 {
+		t.Errorf("power path = %v / %v", typ, max)
+	}
+	if _, max := chargerOutput(pathParams, 0.084, 0.5); max != 1.5 {
+		t.Errorf("power path at its input limit = %v", max)
 	}
 	// Entering the charger's current overrides the charge current.
 	charger.ITyp, charger.IMax = ma(300), ma(450)

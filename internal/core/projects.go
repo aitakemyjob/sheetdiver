@@ -189,8 +189,7 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 				}
 				outTyp, outMax := st[oi].LoadTyp, st[oi].LoadMax
 				if pp.Category == "charger" {
-					ct, cm, _ := chargeCurrent(params[pp.PartID])
-					outTyp, outMax = outTyp+ct, outMax+cm
+					outTyp, outMax = chargerOutput(params[pp.PartID], outTyp, outMax)
 				}
 				vin := railNominal(st[si].Rail)
 				vout := railNominal(st[oi].Rail)
@@ -333,6 +332,20 @@ func railLoops(parts []library.ProjectPart, idx map[string]int) map[int64]bool {
 	return out
 }
 
+// chargerOutput is what a charger delivers while charging, given the
+// load on its output rail. A simple linear charger (TP4056) limits its
+// total output, battery and system together, to the charge current, so
+// it delivers the larger of the two. A power-path charger (it has an
+// input current limit, ilim_in) charges on top of the system load, up to
+// that limit.
+func chargerOutput(ps []library.Parameter, loadTyp, loadMax float64) (float64, float64) {
+	ct, cm, _ := chargeCurrent(ps)
+	if lim, _, ok := paramSI(ps, "ilim_in", nil, "max", "typ"); ok && lim > 0 {
+		return math.Min(loadTyp+ct, lim), math.Min(loadMax+cm, lim)
+	}
+	return math.Max(loadTyp, ct), math.Max(loadMax, cm)
+}
+
 // chargeCurrent is a charger's largest charge current from its datasheet
 // (typical and maximum, in amps) and the page it's on; absolute maximum
 // ratings don't count. The actual current is set on the board (a
@@ -457,7 +470,7 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 		}
 		if pp.Category == "charger" && pp.ITyp == nil && pp.IMax == nil && pp.OutputRail != "" && !inLine(pp) {
 			if _, m, page := chargeCurrent(params[pp.PartID]); m > 0 {
-				add(calc.OK, label, pp.SupplyRail, page, "%s's input current includes its charge current, up to %s (%s p%d); enter the part's current if your programming resistor sets less", label, calc.Eng(m, "A"), pp.MPN, page+1)
+				add(calc.OK, label, pp.SupplyRail, page, "%s is assumed to charge at up to %s (%s p%d) while its output's load is served from the same current; enter the part's current if your programming resistor sets less", label, calc.Eng(m, "A"), pp.MPN, page+1)
 			}
 		}
 	}
