@@ -83,7 +83,7 @@ func (s *Service) ProjectReport(ctx context.Context, name string) (string, error
 	b.WriteString("\n")
 
 	if len(d.Rails) > 0 {
-		b.WriteString("## Rails\n\n| Rail | Voltage | Source | Load typ | Load max | Capacity | Use | Power | Feeds |\n|---|---|---|---:|---:|---|---:|---:|---|\n")
+		b.WriteString("## Rails\n\n| Rail | Voltage | Source | Load typ | Load max | Capacity | Use | Power | Ripple budget | Feeds |\n|---|---|---|---:|---:|---|---:|---:|---|---|\n")
 		for _, r := range d.Rails {
 			capTxt, use := "–", "–"
 			switch {
@@ -93,8 +93,16 @@ func (s *Service) ProjectReport(ctx context.Context, name string) (string, error
 			case r.Ceiling > 0:
 				capTxt = "unknown; limit " + calc.Eng(r.Ceiling, "A")
 			}
-			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", mdCell(r.Name), railVoltage(r.Rail), mdCell(firstNonEmpty(r.SourcePart, r.Source, "external")),
-				calc.Eng(r.LoadTyp, "A"), calc.Eng(r.LoadMax, "A"), mdCell(capTxt), use, calc.Eng(r.Power, "W"), mdCell(strings.Join(r.Consumers, ", ")))
+			ripple := "–"
+			if r.Ripple != nil {
+				ripple = calc.Eng(*r.Ripple, "V") + " p-p (" + r.RippleLimit + ")"
+			}
+			feeds := r.Consumers
+			if r.OtherMax != nil || r.OtherTyp != nil {
+				feeds = append(append([]string(nil), feeds...), "other loads "+calc.Eng(firstPositive(r.OtherMax, r.OtherTyp), "A"))
+			}
+			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", mdCell(r.Name), railVoltage(r.Rail), mdCell(firstNonEmpty(r.SourcePart, r.Source, "external")),
+				calc.Eng(r.LoadTyp, "A"), calc.Eng(r.LoadMax, "A"), mdCell(capTxt), use, calc.Eng(r.Power, "W"), mdCell(ripple), mdCell(strings.Join(feeds, ", ")))
 		}
 		b.WriteString("\n")
 	}

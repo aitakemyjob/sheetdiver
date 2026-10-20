@@ -17,3 +17,5 @@
 .idea/
 .vscode/
 *.swp
+/frontend/public/bergamot/
+/frontend/coverage/

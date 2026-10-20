@@ -45,8 +45,9 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
   if (detail.error) return <ErrorBox error={detail.error} />;
   if (!d) return null;
   const bump = () => useStore.setState({ projectVersion: useStore.getState().projectVersion + 1 });
-  const errors = d.checks.filter((c) => c.level === 'error').length;
-  const warns = d.checks.filter((c) => c.level === 'warn').length;
+  const checks = d.checks ?? [];
+  const errors = checks.filter((c) => c.level === 'error').length;
+  const warns = checks.filter((c) => c.level === 'warn').length;
   return (
     <div className="view">
       <div className="part-head" style={{ paddingBottom: 12 }}>
@@ -89,10 +90,10 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
       <div className="scroll pad col" style={{ flex: 1, gap: 16 }}>
         <Rails d={d} onChange={bump} />
         <Bom d={d} onChange={bump} />
-        {d.checks.length > 0 && (
+        {checks.length > 0 && (
           <div className="card">
             <h3>Checks against the datasheets</h3>
-            <Checks checks={d.checks} />
+            <Checks checks={checks} />
           </div>
         )}
         <div className="card">
@@ -132,22 +133,57 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
   );
 }
 
+/** The placeholder of a BOM row's current cells: what an empty cell means. */
+export function currentHint(pp: ProjectPart): string {
+  if (!pp.outputRail || pp.outputRail.toLowerCase() === (pp.supplyRail ?? '').toLowerCase()) return '';
+  return pp.category === 'charger' ? 'charge A' : 'derived';
+}
+
+/** The tooltip of a BOM row's current cells. */
+export function currentTitle(pp: ProjectPart): string {
+  if (pp.category === 'charger' && pp.outputRail) return 'The charge current your board programs (e.g. with RPROG). Empty: charging is not counted.';
+  if (pp.outputRail && pp.outputRail.toLowerCase() !== (pp.supplyRail ?? '').toLowerCase()) return "This regulator's input current. Empty: derived from its output rail's load.";
+  return 'The current this part draws from its supply rail.';
+}
+
+/** Reads an "other loads" entry: one current, or typ/max ("100m/150m"). */
+export function parseLoad(text: string): [number | undefined, number | undefined] {
+  const [a, b] = text.split('/').map((x) => (x.trim() ? parseSI(x) : undefined));
+  return [a, b ?? a];
+}
+
+/** Writes typical and maximum loads as an "other loads" entry. */
+export function loadText(typ?: number | null, max?: number | null): string {
+  if (typ == null && max == null) return '';
+  if (typ == null || max == null || typ === max) return String(typ ?? max);
+  return `${typ}/${max}`;
+}
+
 /** Rail cards with load bars and an add/edit form. */
 function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
   const s = useStore();
-  const [form, setForm] = useState({ name: '', vNom: '', vMin: '', vMax: '', limit: '' });
+  const empty = { name: '', vNom: '', vMin: '', vMax: '', limit: '', other: '' };
+  const [form, setForm] = useState(empty);
   const n = (v: string) => (v.trim() ? parseSI(v) : undefined);
   const save = async () => {
     try {
-      await api.setRail({ projectId: d.project.id, name: form.name.trim(), vNom: n(form.vNom), vMin: n(form.vMin), vMax: n(form.vMax), currentLimit: n(form.limit) });
-      setForm({ name: '', vNom: '', vMin: '', vMax: '', limit: '' });
+      const [otherTyp, otherMax] = parseLoad(form.other);
+      await api.setRail({ projectId: d.project.id, name: form.name.trim(), vNom: n(form.vNom), vMin: n(form.vMin), vMax: n(form.vMax), currentLimit: n(form.limit), otherTyp, otherMax });
+      setForm(empty);
       onChange();
     } catch (e) {
       s.toast({ kind: 'err', title: 'Could not save rail', body: (e as Error).message });
     }
   };
   const edit = (r: RailStatus) =>
-    setForm({ name: r.name, vNom: r.vNom?.toString() ?? '', vMin: r.vMin?.toString() ?? '', vMax: r.vMax?.toString() ?? '', limit: r.currentLimit?.toString() ?? '' });
+    setForm({
+      name: r.name,
+      vNom: r.vNom?.toString() ?? '',
+      vMin: r.vMin?.toString() ?? '',
+      vMax: r.vMax?.toString() ?? '',
+      limit: r.currentLimit?.toString() ?? '',
+      other: loadText(r.otherTyp, r.otherMax),
+    });
   return (
     <div className="card col">
       <h3>
@@ -178,7 +214,8 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                   </button>
                 </div>
                 <div className="faint" style={{ fontSize: 11.5 }}>
-                  from {r.sourcePart || r.source || 'external'} · feeds {r.consumers.join(', ') || 'nothing yet'}
+                  from {r.sourcePart || r.source || 'external'} · feeds {r.consumers.join(', ') || (r.otherMax || r.otherTyp ? '' : 'nothing yet')}
+                  {r.otherMax || r.otherTyp ? `${r.consumers.length ? ', ' : ''}other loads ${eng(r.otherMax ?? r.otherTyp ?? undefined, 'A')}` : ''}
                 </div>
                 <div className="row mono" style={{ fontSize: 12 }}>
                   load {eng(r.loadTyp, 'A')} typ / {eng(r.loadMax, 'A')} max
@@ -192,6 +229,11 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                   <span className="grow" />
                   {eng(r.power, 'W')}
                 </div>
+                {r.ripple != null && (
+                  <div className={`faint ${r.ripple === 0 ? 'err-text' : ''}`} style={{ fontSize: 11.5 }} title={`Ripple the rail can carry before a part on it leaves its recommended input range (on top of the rail's DC tolerance): limited by ${r.rippleLimit}`}>
+                    ripple budget <span className="mono">{eng(r.ripple, 'V')} p-p</span> · {r.rippleLimit}
+                  </div>
+                )}
                 {r.capacity ? (
                   <div className={`bar ${u > 1 ? 'err' : u > 0.8 ? 'warn' : ''}`} title={r.capacityFrom}>
                     <i style={{ width: `${Math.min(100, u * 100)}%` }} />
@@ -208,6 +250,14 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
         <input className="input" style={{ width: 90 }} placeholder="V min" value={form.vMin} onChange={(e) => setForm({ ...form, vMin: e.target.value })} />
         <input className="input" style={{ width: 90 }} placeholder="V max" value={form.vMax} onChange={(e) => setForm({ ...form, vMax: e.target.value })} />
         <input className="input" style={{ width: 110 }} placeholder="Limit (A)" value={form.limit} onChange={(e) => setForm({ ...form, limit: e.target.value })} />
+        <input
+          className="input"
+          style={{ width: 150 }}
+          placeholder="Other loads (A)"
+          title="Loads on this rail that aren't in the BOM (a module, the sensors): one current, or typ/max such as 100m/150m"
+          value={form.other}
+          onChange={(e) => setForm({ ...form, other: e.target.value })}
+        />
         <button className="btn" disabled={!form.name.trim()} onClick={save}>
           <Plus size={13} /> {d.rails.some((r) => r.name.toLowerCase() === form.name.trim().toLowerCase()) ? 'Update rail' : 'Add rail'}
         </button>
@@ -299,10 +349,10 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                   <td>{railSelect(pp, 'supplyRail')}</td>
                   <td>{railSelect(pp, 'outputRail')}</td>
                   <td className="num">
-                    <input className="cell" placeholder={pp.outputRail ? 'derived' : ''} defaultValue={pp.iTyp ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iTyp ?? null) && update(pp, { iTyp: amps(e.target.value) })} />
+                    <input className="cell" placeholder={currentHint(pp)} title={currentTitle(pp)} defaultValue={pp.iTyp ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iTyp ?? null) && update(pp, { iTyp: amps(e.target.value) })} />
                   </td>
                   <td className="num">
-                    <input className="cell" placeholder={pp.outputRail ? 'derived' : ''} defaultValue={pp.iMax ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iMax ?? null) && update(pp, { iMax: amps(e.target.value) })} />
+                    <input className="cell" placeholder={currentHint(pp)} title={currentTitle(pp)} defaultValue={pp.iMax ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iMax ?? null) && update(pp, { iMax: amps(e.target.value) })} />
                   </td>
                   <td>
                     <div className="row" style={{ gap: 2 }}>
@@ -330,7 +380,7 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
         </table>
       )}
       <div className="muted" style={{ fontSize: 11.5 }}>
-        Currents are in amps (SI prefixes work: 120m, 5µ). Leave a regulator's currents empty to derive its input current from the load on its output rail.
+        Currents are in amps (SI prefixes work: 120m, 5µ): what each part draws from its supply rail. Leave a regulator's currents empty to derive its input current from the load on its output rail; for a charger, enter the charge current your board programs (none counts no charging).
       </div>
       <div className="row" style={{ position: 'relative' }}>
         <input className="input" style={{ width: 320 }} placeholder="Add a part: type a part number" value={part} onChange={(e) => setPart(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && part.trim() && add(part.trim())} />

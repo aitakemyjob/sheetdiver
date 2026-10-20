@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -107,7 +108,7 @@ func TestRecordedValuesSurviveReextraction(t *testing.T) {
 	if _, err := s.Lib.UpdateFigure(ctx, f.ID, library.FigureUpdate{Title: &title}, library.SourceAgent); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Reextract(ctx, d.ID); err != nil {
+	if _, err := s.Reextract(ctx, d.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	ps, _ := s.Lib.Parameters(ctx, d.ID, library.ParamFilter{Key: "fsw"})
@@ -249,7 +250,7 @@ func TestTablesRecommendationsAndTranscription(t *testing.T) {
 	if _, err := s.Lib.RecordTable(ctx, tb.ID, library.TableUpdate{Header: &header, Rows: &rows}, library.SourceAgent); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Reextract(ctx, d.ID); err != nil {
+	if _, err := s.Reextract(ctx, d.ID, false); err != nil {
 		t.Fatal(err)
 	}
 	again, err := s.Lib.Table(ctx, tb.ID)
@@ -555,14 +556,14 @@ func TestCurrentLimitIsACeilingNotACapacity(t *testing.T) {
 		}
 		return false
 	}
-	cs := projectChecks(rail(0.4), nil, nil)
+	cs := projectChecks(rail(0.4), nil, nil, nil)
 	if !find(cs, calc.Warn, "capacity is unknown") || find(cs, calc.OK, "% of") {
 		t.Errorf("under the limit, capacity is unknown, not OK: %+v", cs)
 	}
-	if cs := projectChecks(rail(1.5), nil, nil); !find(cs, calc.Error, "exceeds the regulator's current limit 1.33 A") {
+	if cs := projectChecks(rail(1.5), nil, nil, nil); !find(cs, calc.Error, "exceeds the regulator's current limit 1.33 A") {
 		t.Errorf("over the limit is an error: %+v", cs)
 	}
-	if cs := projectChecks(rail(0), nil, nil); find(cs, calc.Warn, "capacity is unknown") {
+	if cs := projectChecks(rail(0), nil, nil, nil); find(cs, calc.Warn, "capacity is unknown") {
 		t.Errorf("an unloaded rail needs no warning: %+v", cs)
 	}
 	ps := []library.Parameter{{Key: "ilim", Min: f64(1.33), Unit: "A", Page: 7}}
@@ -997,7 +998,7 @@ func TestReextractDatasheetWithDocumentNumber(t *testing.T) {
 	if err := s.Lib.SetExtractor(ctx, id, "0"); err != nil {
 		t.Fatal(err)
 	}
-	again, err := s.Reextract(ctx, id)
+	again, err := s.Reextract(ctx, id, false)
 	if err != nil || again.Existing || again.Datasheet.ID != id {
 		t.Fatalf("re-extract was skipped as a duplicate: %+v %v", again, err)
 	}
@@ -1080,5 +1081,214 @@ func TestDeletePartWithItsDatasheet(t *testing.T) {
 	}
 	if _, err := s.DeletePart(ctx, "nope", false); err == nil {
 		t.Error("unknown parts are an error")
+	}
+}
+
+func TestEmptyProjectDetailHasEmptyLists(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "Empty board", ""); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.ProjectDetail(ctx, "Empty board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The UI filters these lists; null crashed the project view.
+	b, _ := json.Marshal(d)
+	for _, field := range []string{`"parts":[]`, `"rails":[]`, `"checks":[]`, `"calculations":[]`, `"notes":[]`} {
+		if !strings.Contains(string(b), field) {
+			t.Errorf("want %s in %s", field, b)
+		}
+	}
+}
+
+// findCheck reports whether a check at a level mentions text.
+func findCheck(cs []ProjectCheck, level, text string) bool {
+	for _, c := range cs {
+		if c.Level == level && strings.Contains(c.Message, text) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestRailLoadsInLineLoopsAndChargers(t *testing.T) {
+	find := findCheck
+	v := func(f float64) *float64 { return &f }
+	rails := []library.Rail{{Name: "5V", VNom: v(5), CurrentLimit: v(2)}, {Name: "4.2V", VNom: v(4.2)}, {Name: "3V3", VNom: v(3.3)}}
+	ma := func(f float64) *float64 { return v(f / 1000) }
+	params := map[int64][]library.Parameter{
+		1: {{Key: "ichg", Section: extract.KindAbsMax, Max: v(1200), Unit: "mA"}, {Key: "ichg", Section: extract.KindElectrical, Min: v(500), Typ: v(550), Max: v(600), Unit: "mA", Page: 2}, {Key: "ichg", Section: extract.KindElectrical, Min: v(1000), Typ: v(1100), Max: v(1200), Unit: "mA", Page: 2}},
+		2: {{Key: "iq", Section: extract.KindElectrical, Typ: v(3), Unit: "µA"}},
+		3: {},
+		4: {},
+	}
+	charger := library.ProjectPart{ID: 1, PartID: 1, MPN: "TP4056", Category: "charger", Qty: 1, SupplyRail: "5V", OutputRail: "4.2V"}
+	protect := library.ProjectPart{ID: 2, PartID: 2, MPN: "DW01A", Category: "battery-protection", Qty: 1, SupplyRail: "4.2V", OutputRail: "4.2V"}
+	buck := library.ProjectPart{ID: 3, PartID: 3, MPN: "TPS63900", Category: "buck-boost", Qty: 1, SupplyRail: "4.2V", OutputRail: "3V3"}
+	load := library.ProjectPart{ID: 4, PartID: 4, MPN: "SENSOR", Qty: 1, SupplyRail: "3V3", ITyp: ma(100), IMax: ma(200)}
+	st, input, loops := railStatus(rails, []library.ProjectPart{charger, protect, buck, load}, params)
+	get := func(name string) RailStatus {
+		for _, r := range st {
+			if r.Name == name {
+				return r
+			}
+		}
+		t.Fatalf("no rail %s", name)
+		return RailStatus{}
+	}
+	if len(loops) != 0 {
+		t.Errorf("loops = %v", loops)
+	}
+	// The in-line protection IC is a load (its quiescent current), not
+	// the 4.2V rail's source, and doesn't feed back into the rail.
+	if r := get("4.2V"); r.SourcePart != "TP4056 TP4056" || !slices.Contains(r.Consumers, "DW01A") {
+		t.Errorf("4.2V = %+v", r)
+	}
+	// 3V3: 200 mA max; 4.2V: the buck-boost's input 3.3·0.2/(4.2·0.85) + 3 µA.
+	want42 := 3.3*0.2/(4.2*0.85) + 3e-6
+	if r := get("3V3"); math.Abs(r.LoadMax-0.2) > 1e-9 {
+		t.Errorf("3V3 max = %v", r.LoadMax)
+	}
+	if r := get("4.2V"); math.Abs(r.LoadMax-want42) > 1e-9 {
+		t.Errorf("4.2V max = %v, want %v", r.LoadMax, want42)
+	}
+	// 5V: without a charge current set, the linear charger passes just its
+	// output's load (charging isn't assumed).
+	if r := get("5V"); math.Abs(r.LoadMax-want42) > 1e-9 {
+		t.Errorf("5V = %v / %v, want the 4.2V load", r.LoadTyp, r.LoadMax)
+	}
+	if math.Abs(input-5*want42) > 1e-9 {
+		t.Errorf("input power = %v", input)
+	}
+	if cs := projectChecks(st, []library.ProjectPart{charger}, params, nil); !findCheck(cs, calc.Warn, "TP4056 has no charge current set, so charging isn't counted on 5V; enter the charge current your board programs as its current (the datasheet goes up to 1.2 A, TP4056 p3)") {
+		t.Errorf("no charge current: %+v", cs)
+	}
+	// The charger's entered current is its charge current: a linear
+	// charger serves its load from it, so it draws the larger of the two.
+	charger.ITyp, charger.IMax = ma(450), ma(500)
+	st, _, _ = railStatus(rails, []library.ProjectPart{charger, protect, buck, load}, params)
+	if r := get("5V"); math.Abs(r.LoadMax-0.5) > 1e-9 || math.Abs(r.LoadTyp-0.45) > 1e-9 {
+		t.Errorf("charging at 450/500 mA: 5V = %v / %v", r.LoadTyp, r.LoadMax)
+	}
+	if cs := projectChecks(st, []library.ProjectPart{charger}, params, nil); !findCheck(cs, calc.OK, "TP4056 charges at 500 mA (entered)") || findCheck(cs, calc.Warn, "has its own current entered") {
+		t.Errorf("charge current set: %+v", cs)
+	}
+	// A load above the charge current is served beyond it.
+	if typ, max := chargerOutput(params[1], ma(450), ma(500), 0.6, 0.7); typ != 0.6 || max != 0.7 {
+		t.Errorf("load above the charge current = %v / %v", typ, max)
+	}
+	// One value set serves as both.
+	if typ, max := chargerOutput(params[1], nil, ma(800), 0.1, 0.1); typ != 0.8 || max != 0.8 {
+		t.Errorf("max only = %v / %v", typ, max)
+	}
+	// A power-path charger charges on top of the load, up to its input limit.
+	pathParams := append(append([]library.Parameter(nil), params[1]...), library.Parameter{Key: "ilim_in", Section: extract.KindElectrical, Max: v(1.5), Unit: "A"})
+	if typ, max := chargerOutput(pathParams, ma(1000), ma(1200), 0.084, 0.084); math.Abs(typ-1.084) > 1e-9 || math.Abs(max-1.284) > 1e-9 {
+		t.Errorf("power path = %v / %v", typ, max)
+	}
+	if _, max := chargerOutput(pathParams, ma(1000), ma(1200), 0.084, 0.5); max != 1.5 {
+		t.Errorf("power path at its input limit = %v", max)
+	}
+	cs := projectChecks(st, []library.ProjectPart{protect}, params, nil)
+	for _, c := range cs {
+		if strings.Contains(c.Message, "both supply and output") {
+			t.Errorf("a protection IC in line is expected: %s", c.Message)
+		}
+	}
+
+	// A loop: two regulators powering each other's supply.
+	a := library.ProjectPart{ID: 5, PartID: 3, MPN: "A", Category: "buck", Qty: 1, SupplyRail: "4.2V", OutputRail: "3V3"}
+	b := library.ProjectPart{ID: 6, PartID: 3, MPN: "B", Category: "boost", Qty: 1, SupplyRail: "3V3", OutputRail: "4.2V"}
+	st, _, loops = railStatus(rails, []library.ProjectPart{a, b, load}, params)
+	if !slices.Equal(loops, []string{"A", "B"}) {
+		t.Errorf("loops = %v", loops)
+	}
+	for _, r := range st {
+		if r.LoadMax > 1 {
+			t.Errorf("a loop must not blow up the loads: %s = %v A", r.Name, r.LoadMax)
+		}
+	}
+	cs = projectChecks(st, []library.ProjectPart{a, b}, params, loops)
+	if !find(cs, calc.Error, "the power tree loops") {
+		t.Errorf("checks = %+v", cs)
+	}
+	// A converter wired to its own rail is flagged.
+	odd := library.ProjectPart{ID: 7, PartID: 3, MPN: "BUCK1", Category: "buck", Qty: 1, SupplyRail: "4.2V", OutputRail: "4.2V"}
+	if cs := projectChecks(st, []library.ProjectPart{odd}, params, nil); !find(cs, calc.Warn, "both supply and output") {
+		t.Errorf("checks = %+v", cs)
+	}
+}
+
+func TestRippleBudgetsAndOtherLoads(t *testing.T) {
+	v := func(f float64) *float64 { return &f }
+	params := map[int64][]library.Parameter{
+		// A buck-boost: recommended 1.8–5.5 V input.
+		1: {{Key: "vin", Section: extract.KindRecommended, Min: v(1.8), Max: v(5.5), Unit: "V", Page: 3}},
+		// A sensor: 3.0–3.6 V; its absolute maximum doesn't count.
+		2: {{Key: "vin", Section: extract.KindAbsMax, Max: v(4), Unit: "V"}, {Key: "vin", Section: extract.KindRecommended, Min: v(3.0), Max: v(3.6), Unit: "V", Page: 1}},
+	}
+	rails := []library.Rail{
+		{Name: "VBAT", VNom: v(3.7), VMin: v(3.0), VMax: v(4.2)},
+		{Name: "3V3", VNom: v(3.3), VMin: v(3.25), VMax: v(3.35), OtherTyp: v(0.1), OtherMax: v(0.15)},
+		{Name: "AUX", VNom: v(5)},
+	}
+	reg := library.ProjectPart{ID: 1, PartID: 1, MPN: "TPS63900", Category: "buck-boost", Qty: 1, SupplyRail: "VBAT", OutputRail: "3V3"}
+	sensor := library.ProjectPart{ID: 2, PartID: 2, MPN: "BME280", Qty: 1, SupplyRail: "3V3", ITyp: v(0.001)}
+	st, _, _ := railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	get := func(name string) RailStatus {
+		for _, r := range st {
+			if r.Name == name {
+				return r
+			}
+		}
+		return RailStatus{}
+	}
+	// Other loads add to the rail and pass up through the regulator.
+	if r := get("3V3"); math.Abs(r.LoadMax-0.151) > 1e-9 || math.Abs(r.LoadTyp-0.101) > 1e-9 {
+		t.Errorf("3V3 load = %v / %v", r.LoadTyp, r.LoadMax)
+	}
+	if r := get("VBAT"); math.Abs(r.LoadMax-3.3*0.151/(3.7*0.85)) > 1e-9 {
+		t.Errorf("VBAT load = %v", r.LoadMax)
+	}
+	// 3V3 at 3.25–3.35 V for a 3.0–3.6 V sensor: 0.25 V margin each way → 0.5 V p-p.
+	if r := get("3V3"); r.Ripple == nil || math.Abs(*r.Ripple-0.5) > 1e-9 || !strings.Contains(r.RippleLimit, "BME280") || r.RipplePage != 1 {
+		t.Errorf("3V3 ripple = %+v", r)
+	}
+	// VBAT 3.0–4.2 V for 1.8–5.5 V: the 1.2 V low margin is smaller → 2.4 V p-p.
+	if r := get("VBAT"); r.Ripple == nil || math.Abs(*r.Ripple-2.4) > 1e-9 || !strings.Contains(r.RippleLimit, "minimum input 1.8 V") {
+		t.Errorf("VBAT ripple = %+v", r)
+	}
+	if r := get("AUX"); r.Ripple != nil {
+		t.Errorf("no part on AUX, no budget: %+v", r)
+	}
+	cs := projectChecks(st, []library.ProjectPart{reg, sensor}, params, nil)
+	if !findCheck(cs, calc.OK, "3V3 can carry up to 500 mV p-p ripple; limited by BME280's") {
+		t.Errorf("checks = %+v", cs)
+	}
+
+	// A tight rail: 3.03–3.3 V for a 3.0 V minimum leaves 30 mV → 60 mV
+	// p-p, under 2% of 3.3 V.
+	rails[1].VMin, rails[1].VMax = v(3.03), v(3.3)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, nil, params, nil); !findCheck(cs, calc.Warn, "3V3 can carry only 60 mV p-p ripple") {
+		t.Errorf("tight: %+v", cs)
+	}
+	// No room at all: the DC range reaches the part's limit.
+	rails[1].VMin = v(2.9)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, nil, params, nil); !findCheck(cs, calc.Error, "3V3 has no room for ripple") {
+		t.Errorf("none: %+v", cs)
+	}
+
+	// Currents entered on a regulator's row stop its output load passing up.
+	reg.ITyp = v(0.1)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, []library.ProjectPart{reg}, params, nil); !findCheck(cs, calc.Warn, "TPS63900 has its own current entered (100 mA)") {
+		t.Errorf("entered regulator current: %+v", cs)
 	}
 }

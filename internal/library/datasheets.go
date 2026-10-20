@@ -34,6 +34,10 @@ type Import struct {
 	// Replaces, when set, is the datasheet this PDF is a newer revision
 	// of: it takes over that datasheet's ID, parts and recorded data.
 	Replaces int64
+	// Refresh replaces the title, description and category already
+	// stored (normally kept, as the user may have edited them): a
+	// re-extraction from a translation reads them anew.
+	Refresh bool
 }
 
 // SaveImport stores an import. If the datasheet (by SHA-256) is already in
@@ -75,11 +79,11 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 			return err
 		default:
 			if _, err := tx.ExecContext(ctx, `UPDATE datasheets SET pages = ?, meta = ?, extractor = ?,
-				title = CASE WHEN title = '' THEN ? ELSE title END,
-				description = CASE WHEN description = '' THEN ? ELSE description END,
+				title = CASE WHEN title = '' OR ? THEN ? ELSE title END,
+				description = CASE WHEN description = '' OR ? THEN ? ELSE description END,
 				manufacturer = CASE WHEN manufacturer = '' THEN ? ELSE manufacturer END,
 				families = CASE WHEN families = '[]' THEN ? ELSE families END
-				WHERE id = ?`, d.Pages, string(meta), d.Extractor, d.Title, d.Description, d.Manufacturer, string(fam), dsID); err != nil {
+				WHERE id = ?`, d.Pages, string(meta), d.Extractor, in.Refresh, d.Title, in.Refresh, d.Description, d.Manufacturer, string(fam), dsID); err != nil {
 				return err
 			}
 			for _, q := range []string{
@@ -96,7 +100,7 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 		}
 		partIDs := map[string]int64{}
 		for _, p := range in.Parts {
-			id, err := upsertPart(ctx, tx, p, dsID)
+			id, err := upsertPart(ctx, tx, p, dsID, in.Refresh)
 			if err != nil {
 				return err
 			}
@@ -125,34 +129,45 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 			}
 		}
 		// Figures keep their IDs across re-extraction (notes and open views
-		// refer to them): auto figures are updated in place by number, ones
-		// the agent or user described are left alone, and auto figures that
+		// refer to them): auto figures are updated in place, matched by
+		// number, or for uncaptioned figures by page and kind; ones the
+		// agent or user described are left alone, and auto figures that
 		// no longer exist are removed.
-		existing := map[string]struct {
-			id     int64
-			source string
-		}{}
-		rows, err := tx.QueryContext(ctx, `SELECT id, number, source FROM figures WHERE datasheet_id = ?`, dsID)
+		type oldFigure struct {
+			id           int64
+			number, kind string
+			source       string
+			page         int
+		}
+		var existing []oldFigure
+		rows, err := tx.QueryContext(ctx, `SELECT id, number, kind, source, page FROM figures WHERE datasheet_id = ?`, dsID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			var id int64
-			var n, src string
-			if err := rows.Scan(&id, &n, &src); err != nil {
+			var e oldFigure
+			if err := rows.Scan(&e.id, &e.number, &e.kind, &e.source, &e.page); err != nil {
 				rows.Close()
 				return err
 			}
-			existing[n] = struct {
-				id     int64
-				source string
-			}{id, src}
+			existing = append(existing, e)
 		}
 		rows.Close()
 		seen := map[int64]bool{}
+		match := func(f Figure) (oldFigure, bool) {
+			for _, e := range existing {
+				if seen[e.id] {
+					continue
+				}
+				if (f.Number != "" && e.number == f.Number) || (f.Number == "" && e.number == "" && e.page == f.Page && e.kind == f.Kind) {
+					return e, true
+				}
+			}
+			return oldFigure{}, false
+		}
 		for _, f := range in.Figures {
 			f.DatasheetID, f.Source = dsID, SourceAuto
-			if e, ok := existing[f.Number]; ok && f.Number != "" {
+			if e, ok := match(f); ok {
 				seen[e.id] = true
 				if e.source != SourceAuto {
 					continue // the agent or user already described this figure
@@ -294,8 +309,10 @@ func saveTables(ctx context.Context, tx *sql.Tx, dsID int64, tables []Table) err
 	return nil
 }
 
-// upsertPart inserts a part, or links and fills in an existing one.
-func upsertPart(ctx context.Context, tx *sql.Tx, p Part, dsID int64) (int64, error) {
+// upsertPart inserts a part, or links and fills in an existing one; with
+// refresh, a part of this datasheet also takes the new description and
+// category.
+func upsertPart(ctx context.Context, tx *sql.Tx, p Part, dsID int64, refresh bool) (int64, error) {
 	var id int64
 	var cur sql.NullInt64
 	err := tx.QueryRowContext(ctx, `SELECT id, datasheet_id FROM parts WHERE mpn = ?`, p.MPN).Scan(&id, &cur)
@@ -314,9 +331,9 @@ func upsertPart(ctx context.Context, tx *sql.Tx, p Part, dsID int64) (int64, err
 	_, err = tx.ExecContext(ctx, `UPDATE parts SET
 		datasheet_id = CASE WHEN datasheet_id IS NULL THEN ? ELSE datasheet_id END,
 		manufacturer = CASE WHEN manufacturer = '' THEN ? ELSE manufacturer END,
-		description = CASE WHEN description = '' THEN ? ELSE description END,
-		category = CASE WHEN category = '' THEN ? ELSE category END,
-		updated_at = ? WHERE id = ?`, dsID, p.Manufacturer, p.Description, p.Category, now(), id)
+		description = CASE WHEN description = '' OR (? AND datasheet_id = ?) THEN ? ELSE description END,
+		category = CASE WHEN category = '' OR (? AND datasheet_id = ?) THEN ? ELSE category END,
+		updated_at = ? WHERE id = ?`, dsID, p.Manufacturer, refresh, dsID, p.Description, refresh, dsID, p.Category, now(), id)
 	return id, err
 }
 

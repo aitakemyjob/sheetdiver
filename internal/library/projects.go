@@ -34,7 +34,11 @@ type Rail struct {
 	VMax         *float64 `json:"vMax,omitempty"`
 	Source       string   `json:"source,omitempty"`
 	CurrentLimit *float64 `json:"currentLimit,omitempty"`
-	Notes        string   `json:"notes,omitempty"`
+	// OtherTyp and OtherMax are loads on the rail that aren't in the BOM
+	// (a module, "the sensors"), in amps.
+	OtherTyp *float64 `json:"otherTyp,omitempty"`
+	OtherMax *float64 `json:"otherMax,omitempty"`
+	Notes    string   `json:"notes,omitempty"`
 }
 
 // ProjectPart is a part placed in a project: its designators, quantity,
@@ -159,7 +163,7 @@ func (s *Store) touch(ctx context.Context, id int64) {
 
 // Rails lists a project's rails by name.
 func (s *Store) Rails(ctx context.Context, projectID int64) ([]Rail, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, v_nom, v_min, v_max, source, current_limit, notes FROM project_rails WHERE project_id = ? ORDER BY name`, projectID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, v_nom, v_min, v_max, source, current_limit, other_typ, other_max, notes FROM project_rails WHERE project_id = ? ORDER BY name`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,11 +171,12 @@ func (s *Store) Rails(ctx context.Context, projectID int64) ([]Rail, error) {
 	out := []Rail{}
 	for rows.Next() {
 		r := Rail{ProjectID: projectID}
-		var nom, mn, mx, lim sql.NullFloat64
-		if err := rows.Scan(&r.ID, &r.Name, &nom, &mn, &mx, &r.Source, &lim, &r.Notes); err != nil {
+		var nom, mn, mx, lim, ot, om sql.NullFloat64
+		if err := rows.Scan(&r.ID, &r.Name, &nom, &mn, &mx, &r.Source, &lim, &ot, &om, &r.Notes); err != nil {
 			return nil, err
 		}
 		r.VNom, r.VMin, r.VMax, r.CurrentLimit = floatPtr(nom), floatPtr(mn), floatPtr(mx), floatPtr(lim)
+		r.OtherTyp, r.OtherMax = floatPtr(ot), floatPtr(om)
 		out = append(out, r)
 	}
 	return out, rows.Err()
@@ -187,9 +192,9 @@ func (s *Store) SetRail(ctx context.Context, r Rail) (Rail, error) {
 		v := (*r.VMin + *r.VMax) / 2
 		r.VNom = &v
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO project_rails (project_id, name, v_nom, v_min, v_max, source, current_limit, notes) VALUES (?,?,?,?,?,?,?,?)
-		ON CONFLICT(project_id, name) DO UPDATE SET v_nom = excluded.v_nom, v_min = excluded.v_min, v_max = excluded.v_max, source = excluded.source, current_limit = excluded.current_limit, notes = excluded.notes`,
-		r.ProjectID, r.Name, nullFloat(r.VNom), nullFloat(r.VMin), nullFloat(r.VMax), r.Source, nullFloat(r.CurrentLimit), r.Notes)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO project_rails (project_id, name, v_nom, v_min, v_max, source, current_limit, other_typ, other_max, notes) VALUES (?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(project_id, name) DO UPDATE SET v_nom = excluded.v_nom, v_min = excluded.v_min, v_max = excluded.v_max, source = excluded.source, current_limit = excluded.current_limit, other_typ = excluded.other_typ, other_max = excluded.other_max, notes = excluded.notes`,
+		r.ProjectID, r.Name, nullFloat(r.VNom), nullFloat(r.VMin), nullFloat(r.VMax), r.Source, nullFloat(r.CurrentLimit), nullFloat(r.OtherTyp), nullFloat(r.OtherMax), r.Notes)
 	if err != nil {
 		return r, err
 	}

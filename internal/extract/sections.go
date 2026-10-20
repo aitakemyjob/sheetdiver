@@ -51,7 +51,7 @@ var sectionKinds = []struct {
 	{regexp.MustCompile(`(?i)\bESD\b|electrostatic`), KindESD},
 	{regexp.MustCompile(`(?i)recommended operating|operating conditions|general operating`), KindRecommended},
 	{regexp.MustCompile(`(?i)thermal (information|characteristics|resistance|data)`), KindThermal},
-	{regexp.MustCompile(`(?i)electrical characteristics|electrical specifications|dc characteristics|static characteristics`), KindElectrical},
+	{regexp.MustCompile(`(?i)electrical (characteristics|specifications|parameters)|dc characteristics|static characteristics`), KindElectrical},
 	{regexp.MustCompile(`(?i)timing|switching characteristics|ac characteristics|dynamic characteristics`), KindTiming},
 	{regexp.MustCompile(`(?i)typical (performance )?characteristics|typical performance|performance curves|typical operating characteristics`), KindTypical},
 	{regexp.MustCompile(`(?i)register|memory map|bit description`), KindRegisters},
@@ -75,6 +75,9 @@ var sectionKinds = []struct {
 
 // SectionKind classifies a heading title.
 func SectionKind(title string) string {
+	if en := zhHeading(title); en != "" {
+		title = en
+	}
 	t := strings.TrimSpace(numPrefix.ReplaceAllString(title, ""))
 	for _, k := range sectionKinds {
 		if k.re.MatchString(t) {
@@ -100,45 +103,105 @@ var headingRe = regexp.MustCompile(`^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+([A-Z][A-Z
 
 // plainHeadings are unnumbered headings worth recognising when set in a
 // larger or bold font.
-var plainHeadings = regexp.MustCompile(`(?i)^(features|applications|description|general description|pin (configuration|description|functions?|assignments?)( and functions)?|absolute maximum ratings|recommended operating conditions|electrical characteristics|thermal (information|characteristics)|typical (performance )?characteristics|typical applications?( circuit)?|block diagram|functional block diagram|application information|detailed description|layout( guidelines)?|package (information|dimensions)|ordering information|register (map|description)s?)$`)
+var plainHeadings = regexp.MustCompile(`(?i)^(features|applications|description|general description|pin (configurations?|descriptions?|functions?|assignments?)( and functions)?|absolute maximum ratings|recommended operating conditions|electrical (characteristics|parameters)|thermal (information|characteristics)|typical (performance )?characteristics|typical applications?( circuit)?|block diagram|functional block diagram|application information|detailed description|layout( guidelines)?|package (information|dimensions)|ordering information|register (map|description)s?)( \(notes? [\d, ]+\))?$`)
 
 // Sections builds the section tree, preferring the PDF outline (exact and
 // already nested) and falling back to heading detection by font.
 func Sections(doc *pdf.Document, lines [][]Line, body float64, lay Layout) []Section {
 	var secs []Section
+	stale := false
 	if len(doc.Bookmarks) > 0 {
-		secs = fromBookmarks(doc.Bookmarks, lines, 1, lay)
+		secs = fromBookmarks(doc.Bookmarks, lines, 1, lay, KindOther, &stale)
 	}
-	if len(secs) < 3 {
+	switch {
+	case len(secs) < 3:
 		secs = fromHeadings(lines, body, lay)
+	case stale:
+		// An outline that doesn't match the pages (left over from an older
+		// version of the document) misses headings: add those it lacks.
+		have := map[string]bool{}
+		for _, s := range secs {
+			have[squash(s.Title)] = true
+		}
+		for _, h := range fromHeadings(lines, body+1.5, lay) {
+			if h.Num == "" && !have[squash(h.Title)] {
+				secs = append(secs, h)
+			}
+		}
 	}
-	fillSectionText(secs, lines, lay)
+	fillSectionText(secs, lines, lay, body, nil)
 	return secs
 }
 
 // fromBookmarks flattens the outline depth first, locating each heading
-// on its page so the section starts at the right line.
-func fromBookmarks(bms []pdf.Bookmark, lines [][]Line, level int, lay Layout) []Section {
+// on its page so the section starts at the right line. A heading that
+// isn't on its bookmark's page is looked for on the others (outlines go
+// stale when a document is revised); stale is set when one wasn't where
+// its bookmark said, and bookmarks whose heading is nowhere and that
+// have no destination are dropped. Untitled-kind sections under a
+// diagram section ("Timing Diagram" › "1. Overcharge condition") take
+// its kind.
+func fromBookmarks(bms []pdf.Bookmark, lines [][]Line, level int, lay Layout, parent string, stale *bool) []Section {
 	var out []Section
 	for _, b := range bms {
 		// Outlines often list every table and figure; those aren't sections.
 		if captionRe.MatchString(b.Title) || tableCaptionRe.MatchString(b.Title) {
-			out = append(out, fromBookmarks(b.Children, lines, level+1, lay)...)
+			out = append(out, fromBookmarks(b.Children, lines, level+1, lay, parent, stale)...)
 			continue
 		}
-		if b.Page >= 0 && b.Page < len(lines) && b.Title != "" {
-			num, title := splitNum(b.Title)
-			box := pdf.Rect{Y0: b.Y, Y1: b.Y + 1}
-			if l, ok := findHeading(lines[b.Page], b.Title); ok {
-				box = l.Box
-			} else if !b.HasY {
-				box = pdf.Rect{}
+		kind := parent
+		if b.Title != "" {
+			page, box, found := b.Page, pdf.Rect{Y0: b.Y, Y1: b.Y + 1}, false
+			title := b.Title
+			if page >= 0 && page < len(lines) {
+				var l Line
+				if l, found = findHeading(lines[page], b.Title); found {
+					// The page says it as printed ("1. Overcharge → Load"),
+					// the outline sometimes garbled ("Overcharge (Load").
+					box, title = l.Box, l.Text
+				}
 			}
-			out = append(out, Section{Num: num, Title: title, Level: level, Kind: SectionKind(title), Page: b.Page, Y: box.Y0, start: lay.Key(b.Page, box)})
+			if !found {
+				if p, l, ok := findHeadingAnywhere(lines, b.Title, page); ok {
+					page, box, found, title = p, l.Box, true, l.Text
+					*stale = true
+				} else if page < 0 || page >= len(lines) || !b.HasY {
+					*stale = true
+					out = append(out, fromBookmarks(b.Children, lines, level+1, lay, parent, stale)...)
+					continue
+				}
+			}
+			num, t := splitNum(title)
+			kind = SectionKind(t)
+			if kind == KindOther && diagramKinds[parent] {
+				kind = parent
+			}
+			out = append(out, Section{Num: num, Title: t, Level: level, Kind: kind, Page: page, Y: box.Y0, start: lay.Key(page, box)})
 		}
-		out = append(out, fromBookmarks(b.Children, lines, level+1, lay)...)
+		out = append(out, fromBookmarks(b.Children, lines, level+1, lay, kind, stale)...)
 	}
 	return out
+}
+
+// diagramKinds are section kinds whose sub-sections are diagrams too.
+var diagramKinds = map[string]bool{KindTiming: true, KindTypical: true, KindTypicalApp: true, KindBlock: true}
+
+// findHeadingAnywhere looks for a bookmark's heading on every page,
+// nearest the bookmark's own page first.
+func findHeadingAnywhere(lines [][]Line, title string, near int) (int, Line, bool) {
+	best, bestLine, bestDist := -1, Line{}, len(lines)+1
+	for p := range lines {
+		if l, ok := findHeading(lines[p], title); ok {
+			d := p - near
+			if d < 0 {
+				d = -d
+			}
+			if d < bestDist {
+				best, bestLine, bestDist = p, l, d
+			}
+		}
+	}
+	return best, bestLine, best >= 0
 }
 
 // findHeading finds the line on a page that matches a bookmark title,
@@ -190,7 +253,7 @@ func fromHeadings(lines [][]Line, body float64, lay Layout) []Section {
 			}
 			if m := headingRe.FindStringSubmatch(l.Text); m != nil {
 				out = append(out, Section{Num: m[1], Title: strings.TrimSpace(m[2]), Level: strings.Count(m[1], ".") + 1, Kind: SectionKind(m[2]), Page: p, Y: l.Box.Y0, start: lay.Key(p, l.Box)})
-			} else if plainHeadings.MatchString(strings.TrimSpace(l.Text)) {
+			} else if isPlainHeading(l.Text) {
 				out = append(out, Section{Title: strings.TrimSpace(l.Text), Level: 1, Kind: SectionKind(l.Text), Page: p, Y: l.Box.Y0, start: lay.Key(p, l.Box)})
 			}
 		}
@@ -200,8 +263,10 @@ func fromHeadings(lines [][]Line, body float64, lay Layout) []Section {
 
 // fillSectionText sets each section's end (the next section at the same
 // or a higher level, in reading order) and the text between.
-func fillSectionText(secs []Section, lines [][]Line, lay Layout) {
+func fillSectionText(secs []Section, lines [][]Line, lay Layout, bodySize float64, regions []region) {
 	sort.SliceStable(secs, func(i, j int) bool { return secs[i].start < secs[j].start })
+	running := runningLines(lines)
+	letters := letterBullets(lines)
 	for i := range secs {
 		secs[i].end = math.Inf(1)
 		secs[i].EndPage, secs[i].EndY = len(lines)-1, 1e9
@@ -212,14 +277,168 @@ func fillSectionText(secs []Section, lines [][]Line, lay Layout) {
 				break
 			}
 		}
-		secs[i].Text = textBetween(lines, lay, secs[i].Page, secs[i].EndPage, secs[i].start, secs[i].end)
+		var body []Line
+		var keys []float64
+		inRegion := map[int]bool{}
+		for _, l := range linesBetween(lines, lay, secs[i].Page, secs[i].EndPage, secs[i].start, secs[i].end) {
+			// Not the heading itself, nor running headers and footers.
+			if (l.Page == secs[i].Page && math.Abs(lay.Key(l.Page, l.Box)-secs[i].start) < 0.5) || (running[runningKey(l.Text)] && headerBand(l)) {
+				continue
+			}
+			// Text inside a figure or table is shown as that figure or
+			// table, not as loose words.
+			if k := regionOf(regions, l); k >= 0 {
+				inRegion[k] = true
+				continue
+			}
+			body = append(body, l)
+			keys = append(keys, lay.Key(l.Page, l.Box))
+		}
+		for k, rg := range regions {
+			key := lay.Key(rg.page, rg.box)
+			if !inRegion[k] && (key < secs[i].start || key >= secs[i].end-0.5) {
+				continue
+			}
+			// The figure or table goes where it sits in reading order.
+			at := sort.SearchFloat64s(keys, key)
+			marker := Line{Page: rg.page, Box: rg.box, Text: "\x00" + rg.text}
+			body = append(body[:at], append([]Line{marker}, body[at:]...)...)
+			keys = append(keys[:at], append([]float64{key}, keys[at:]...)...)
+		}
+		secs[i].Text = formatText(body, bodySize, letters)
 	}
 }
 
-// textBetween returns the body text whose reading-order key lies in
-// [start, end), skipping running headers and footers.
-func textBetween(lines [][]Line, lay Layout, page, endPage int, start, end float64) string {
+// region is a figure or table on a page and how section text shows it.
+type region struct {
+	page int
+	box  pdf.Rect
+	text string
+}
+
+// regionOf returns the region a line lies in, or -1.
+func regionOf(regions []region, l Line) int {
+	cx, cy := centerX(l.Box), centerY(l.Box)
+	for k, r := range regions {
+		if r.page == l.Page && cx >= r.box.X0 && cx <= r.box.X1 && cy >= r.box.Y0 && cy <= r.box.Y1 {
+			return k
+		}
+	}
+	return -1
+}
+
+// contentRegions lists figures and tables for section text: a figure as
+// "[Figure: caption]", a table as a markdown table (or a pointer to the
+// page image when its cells are unreliable).
+func contentRegions(figs []Figure, tables []Table) []region {
+	var out []region
+	for _, t := range tables {
+		out = append(out, region{page: t.Page, box: t.Box.Inset(1, 2), text: markdownTable(t)})
+	}
+	for _, f := range figs {
+		name := strings.TrimSpace(strings.TrimSpace("Figure " + f.Number))
+		if f.Caption != "" {
+			name += ": " + f.Caption
+		}
+		out = append(out, region{page: f.Page, box: f.Box, text: "[" + name + "]"})
+	}
+	return out
+}
+
+// headerNames are readable table header names for column roles.
+var headerNames = map[string]string{
+	"NAME": "Parameter", "SYMBOL": "Symbol", "CONDITIONS": "Conditions", "MIN": "Min", "TYP": "Typ", "MAX": "Max",
+	"UNIT": "Unit", "VALUE": "Value", "NUMBER": "Pin", "DESCRIPTION": "Description", "TYPE": "Type",
+}
+
+// markdownTable renders a table as a markdown table.
+func markdownTable(t Table) string {
+	label := "Table"
+	if t.Number != "" {
+		label += " " + t.Number
+	}
+	if t.Caption != "" {
+		label += ": " + t.Caption
+	}
+	if t.Irregular != "" || len(t.Header) == 0 || len(t.Rows) == 0 {
+		return "[" + label + " (see the page)]"
+	}
+	cell := func(s string) string {
+		return strings.ReplaceAll(strings.Join(strings.Fields(s), " "), "|", "\\|")
+	}
 	var b strings.Builder
+	b.WriteString("|")
+	for _, h := range t.Header {
+		name := headerNames[h]
+		if name == "" {
+			name = h
+		}
+		if t.Kind == TablePins && h == "NAME" {
+			name = "Name"
+		}
+		b.WriteString(" " + cell(name) + " |")
+	}
+	b.WriteString("\n|")
+	for range t.Header {
+		b.WriteString(" --- |")
+	}
+	for _, r := range t.Rows {
+		b.WriteString("\n|")
+		for i := range t.Header {
+			v := ""
+			if i < len(r) {
+				v = r[i]
+			}
+			b.WriteString(" " + cell(v) + " |")
+		}
+	}
+	return b.String()
+}
+
+// runningLines finds running headers and footers: texts in the top or
+// bottom eighth of at least half the pages (and three or more).
+func runningLines(lines [][]Line) map[string]bool {
+	pages := map[string]map[int]bool{}
+	for p, ls := range lines {
+		for _, l := range ls {
+			if !headerBand(l) {
+				continue
+			}
+			t := runningKey(l.Text)
+			if pages[t] == nil {
+				pages[t] = map[int]bool{}
+			}
+			pages[t][p] = true
+		}
+	}
+	out := map[string]bool{}
+	for t, ps := range pages {
+		if len(ps) >= 3 && 2*len(ps) >= len(lines) {
+			out[t] = true
+		}
+	}
+	return out
+}
+
+// runningKey is a header or footer line without its page number
+// ("Submit Document Feedback 13", "10 Submit Document Feedback").
+func runningKey(text string) string {
+	return strings.Join(strings.Fields(digitsRe.ReplaceAllString(text, "")), " ")
+}
+
+// digitsRe matches a run of digits.
+var digitsRe = regexp.MustCompile(`\d+`)
+
+// headerBand reports whether a line is in the top or bottom of its page,
+// where running headers and footers are.
+func headerBand(l Line) bool {
+	return l.PageH > 0 && (l.Box.Y1 <= l.PageH*0.15 || l.Box.Y0 >= l.PageH*0.88)
+}
+
+// linesBetween returns the body lines whose reading-order key lies in
+// [start, end), skipping page headers and footers.
+func linesBetween(lines [][]Line, lay Layout, page, endPage int, start, end float64) []Line {
+	var out []Line
 	for p := page; p <= endPage && p < len(lines); p++ {
 		for _, l := range lines[p] {
 			k := lay.Key(p, l.Box)
@@ -229,13 +448,10 @@ func textBetween(lines [][]Line, lay Layout, page, endPage int, start, end float
 			if l.PageH > 0 && inMargin(l.Box, l.PageH) {
 				continue
 			}
-			if b.Len() > 0 {
-				b.WriteByte('\n')
-			}
-			b.WriteString(l.Text)
+			out = append(out, l)
 		}
 	}
-	return b.String()
+	return out
 }
 
 // SectionAt returns the innermost section containing a box on a page, or

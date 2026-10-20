@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -162,5 +163,94 @@ func TestFavoritesAndStatus(t *testing.T) {
 	}
 	if !Discouraged(StatusEOL) || Discouraged(StatusApproved) {
 		t.Error("discouraged statuses")
+	}
+}
+
+func TestReextractReplacesUncaptionedFigures(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	in := func(figs ...Figure) *Import {
+		return &Import{
+			Datasheet: Datasheet{SHA256: "zh", File: "z.pdf", Filename: "z.pdf", Pages: 4},
+			Parts:     []Part{{MPN: "TP4056"}},
+			Figures:   figs,
+		}
+	}
+	ds, err := s.SaveImport(ctx, in(
+		Figure{Page: 0, Caption: "典型应用电路", Kind: "schematic"},
+		Figure{Page: 1, Caption: "管脚", Kind: "pinout"},
+		Figure{Page: 3, Caption: "内部框图", Kind: "block_diagram"},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _ := s.Figures(ctx, ds, FigureFilter{})
+	// Re-extracted from the translation: same drawings, English captions,
+	// one more found, one gone.
+	if _, err := s.SaveImport(ctx, in(
+		Figure{Page: 0, Caption: "Typical application circuit", Kind: "schematic"},
+		Figure{Page: 1, Caption: "Pin configuration", Kind: "pinout"},
+		Figure{Page: 6, Caption: "Package dimensions", Kind: "package"},
+	)); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := s.Figures(ctx, ds, FigureFilter{})
+	if len(after) != 3 {
+		t.Fatalf("figures = %d, want 3: %+v", len(after), after)
+	}
+	ids := map[string]int64{}
+	for _, f := range after {
+		ids[f.Caption] = f.ID
+	}
+	if ids["Typical application circuit"] != before[0].ID || ids["Pin configuration"] != before[1].ID {
+		t.Errorf("figures should keep their IDs: before %+v, after %+v", before, after)
+	}
+}
+
+func TestTranslations(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	var items []Translation
+	var sources []string
+	for i := 0; i < 450; i++ {
+		src := fmt.Sprintf("参数%d", i)
+		items = append(items, Translation{Lang: "zh", Source: " " + src + " ", Text: fmt.Sprintf("Parameter %d", i)})
+		sources = append(sources, src)
+	}
+	items = append(items, Translation{Lang: "zh", Source: "空", Text: " "}, Translation{Lang: "", Source: "x", Text: "y"})
+	if err := s.SaveTranslations(ctx, items); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Translations(ctx, "zh", append(sources, "空", "未知"))
+	if err != nil || len(got) != 450 || got["参数449"] != "Parameter 449" {
+		t.Fatalf("got %d translations, %v", len(got), err)
+	}
+	// A later translation replaces the earlier one; languages are separate.
+	if err := s.SaveTranslations(ctx, []Translation{{Lang: "zh", Source: "参数0", Text: "Better"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Translations(ctx, "zh", []string{"参数0"}); got["参数0"] != "Better" {
+		t.Errorf("replace: %v", got)
+	}
+	if got, _ := s.Translations(ctx, "ja", []string{"参数0"}); len(got) != 0 {
+		t.Errorf("other language: %v", got)
+	}
+}
+
+func TestRailOtherLoads(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, "Board", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := func(f float64) *float64 { return &f }
+	r, err := s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3), OtherTyp: v(0.1), OtherMax: v(0.15)})
+	if err != nil || r.OtherTyp == nil || *r.OtherTyp != 0.1 || *r.OtherMax != 0.15 {
+		t.Fatalf("rail = %+v %v", r, err)
+	}
+	// Updating without them clears them.
+	if r, _ = s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3)}); r.OtherTyp != nil || r.OtherMax != nil {
+		t.Errorf("cleared = %+v", r)
 	}
 }

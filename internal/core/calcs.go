@@ -245,6 +245,13 @@ func (s *Service) Calc(ctx context.Context, req CalcRequest) (CalcResponse, erro
 		}
 		return resp, err
 	}
+	// Lists are [] for the UI and agents, never null.
+	if res.Checks == nil {
+		res.Checks = []calc.Check{}
+	}
+	if res.Outputs == nil {
+		res.Outputs = []calc.Output{}
+	}
 	resp.Result = res
 	if req.Save {
 		var projID int64

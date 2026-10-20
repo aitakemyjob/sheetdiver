@@ -90,6 +90,102 @@ func cells(cols []column, spans []pdf.Span) []string {
 	return out
 }
 
+// gapBoundaries moves the boundary between two text columns (symbol,
+// name, conditions) to where the right-hand column starts. Headers are
+// often centred over left-aligned cells ("Symbol | Parameter"), so
+// halfway between the header words can cut into a column's first words.
+// The new boundary is a gap no row's text crosses, chosen where the most
+// rows have a word starting just after it (a left-aligned column).
+func gapBoundaries(cols []column, body []Row) []column {
+	var rows [][]pdf.Rect
+	for _, b := range body {
+		// Only rows with a value: notes and labels under the table span
+		// every column.
+		value := false
+		for i, c := range cells(cols, b.Spans) {
+			if _, ok := ParseNumber(c); ok && limitRole(cols[i].role) {
+				value = true
+			}
+		}
+		if !value {
+			continue
+		}
+		var ws []pdf.Rect
+		for _, w := range words(b.Spans) {
+			ws = append(ws, w.box)
+		}
+		rows = append(rows, ws)
+	}
+	crossed := func(x float64) bool {
+		for _, ws := range rows {
+			for _, w := range ws {
+				if w.X0 < x && w.X1 > x {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// starts counts the rows with a word starting just right of x.
+	starts := func(x float64) int {
+		n := 0
+		for _, ws := range rows {
+			for _, w := range ws {
+				if w.X0 >= x-0.5 && w.X0 <= x+6 {
+					n++
+					break
+				}
+			}
+		}
+		return n
+	}
+	out := append([]column(nil), cols...)
+	for i := 0; i+1 < len(out); i++ {
+		a, b := out[i], out[i+1]
+		if limitRole(a.role) || limitRole(b.role) || a.role == "unit" || b.role == "unit" {
+			continue
+		}
+		at := a.x1
+		bestX, bestN := 0.0, 0
+		lo, hi := math.Max(at-60, a.x0+1), math.Min(at+60, b.x1-1)
+		runLo := math.NaN()
+		for x := lo; x <= hi+1; x++ {
+			free := x <= hi && !crossed(x)
+			switch {
+			case free && math.IsNaN(runLo):
+				runLo = x
+			case !free && !math.IsNaN(runLo):
+				// A run of at least 3 points with words on its left (not
+				// the margin before the table).
+				if x-runLo >= 3 && wordsLeftOf(rows, runLo, a.x0) {
+					if n := starts(x); n > bestN {
+						bestX, bestN = (runLo+x)/2, n
+					}
+				}
+				runLo = math.NaN()
+			}
+		}
+		// Most rows must start there: a column, not a gap between words.
+		if bestN*2 > len(rows) {
+			out[i].x1 = bestX
+			out[i+1].x0 = bestX
+		}
+	}
+	return out
+}
+
+// wordsLeftOf reports whether some row has a word between x0 and x.
+func wordsLeftOf(rows [][]pdf.Rect, x, x0 float64) bool {
+	for _, ws := range rows {
+		for _, w := range ws {
+			if w.X1 <= x && w.X0 >= x0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // headerToken normalizes a header word for matching.
 func headerToken(s string) string {
 	return strings.Trim(strings.ToUpper(s), " .:()*")
@@ -99,13 +195,71 @@ func headerToken(s string) string {
 var specRoles = map[string]string{
 	"MIN": "min", "MINIMUM": "min", "TYP": "typ", "TYPICAL": "typ", "NOM": "typ", "NOMINAL": "typ",
 	"MAX": "max", "MAXIMUM": "max", "UNIT": "unit", "UNITS": "unit",
+	// Chinese datasheets.
+	"最小": "min", "最小值": "min", "典型": "typ", "典型值": "typ", "最大": "max", "最大值": "max", "单位": "unit",
 }
 
 // textRoles maps the descriptive headers left of the numbers.
 var textRoles = map[string]string{
-	"PARAMETER": "name", "PARAMETERS": "name", "CHARACTERISTIC": "name", "CHARACTERISTICS": "name", "DESCRIPTION": "name", "RATING": "name",
+	"PARAMETER": "name", "PARAMETERS": "name", "ITEM": "name", "ITEMS": "name", "CHARACTERISTIC": "name", "CHARACTERISTICS": "name", "DESCRIPTION": "name", "RATING": "name",
 	"SYMBOL": "symbol", "SYM": "symbol",
 	"CONDITIONS": "conditions", "CONDITION": "conditions", "TEST": "conditions", "COMMENTS": "conditions", "NOTES": "conditions",
+	"参数": "name", "参数名称": "name", "项目": "name", "符号": "symbol", "测试条件": "conditions", "条件": "conditions",
+}
+
+// valueHeaders are the header words of a single value column.
+var valueHeaders = map[string]bool{"VALUE": true, "VALUES": true, "RATING": true, "RATINGS": true, "RATED": true, "LIMIT": true, "LIMITS": true, "额定值": true, "数值": true, "极限值": true}
+
+// textValue reports whether a row has text in a value column, other
+// than the dashes tables use for "none".
+func textValue(cells []string, cols []column) bool {
+	for i, c := range cols {
+		if v := strings.Trim(cells[i], " –—-"); limitRole(c.role) && v != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// conditionsOnly reports whether a row has text only in conditions
+// columns.
+func conditionsOnly(cells []string, cols []column) bool {
+	any := false
+	for i, c := range cols {
+		if strings.TrimSpace(cells[i]) == "" {
+			continue
+		}
+		if c.role != "conditions" {
+			return false
+		}
+		any = true
+	}
+	return any
+}
+
+// limitRole reports whether a column holds values.
+func limitRole(role string) bool {
+	return role == "min" || role == "typ" || role == "max" || role == "value"
+}
+
+// rangeRe matches a range in one cell, unit optional: "-0.3~7", "−40 to
+// 85", "-65～150", "-0.3 to 6V".
+var rangeRe = regexp.MustCompile(`^\s*([+\-–−]?\d+(?:[.,]\d+)?)\s*(?:~|～|to|\.\.\.?|…)\s*([+\-–−]?\d+(?:[.,]\d+)?)\s*(?:[a-zA-Zµμ°℃%Ω]{1,3})?\s*$`)
+
+// parseRange reads a value cell: two numbers for a range, one for a
+// single value; n says how many it found.
+func parseRange(s string) (lo, hi float64, n int) {
+	if m := rangeRe.FindStringSubmatch(s); m != nil {
+		a, ok1 := ParseNumber(m[1])
+		b, ok2 := ParseNumber(m[2])
+		if ok1 && ok2 {
+			return a, b, 2
+		}
+	}
+	if v, ok := ParseNumber(s); ok {
+		return v, v, 1
+	}
+	return 0, 0, 0
 }
 
 // specHeader recognises a MIN/TYP/MAX header row and returns its columns.
@@ -115,7 +269,7 @@ func specHeader(row Row) ([]column, bool) {
 		role string
 		w    word
 	}
-	var nums, texts []hw
+	var nums, texts, values []hw
 	limits := map[string]bool{}
 	for _, w := range ws {
 		// A header has no values: "tON_min Minimum on time 40 96 130 ns"
@@ -124,6 +278,9 @@ func specHeader(row Row) ([]column, bool) {
 			return nil, false
 		}
 		t := headerToken(w.text)
+		if valueHeaders[t] {
+			values = append(values, hw{"value", w})
+		}
 		if r, ok := specRoles[t]; ok {
 			nums = append(nums, hw{r, w})
 			if r != "unit" {
@@ -131,6 +288,28 @@ func specHeader(row Row) ([]column, bool) {
 			}
 		} else if r, ok := textRoles[t]; ok {
 			texts = append(texts, hw{r, w})
+		}
+	}
+	// A single value column ("Symbol | Parameter | Rating | Unit"), as in
+	// many absolute-maximum tables, stands for the limits.
+	if len(limits) == 0 && len(nums) == 1 && len(values) > 0 {
+		v := values[0]
+		for _, c := range values {
+			if !strings.HasPrefix(headerToken(c.w.text), "RAT") {
+				v = c // VALUE beats RATING, which then names the rows
+			}
+		}
+		kept := texts[:0]
+		for _, t := range texts {
+			if t.w != v.w {
+				kept = append(kept, t)
+			}
+		}
+		texts = kept
+		if len(texts) > 0 {
+			nums = append(nums, v)
+			limits["value"] = true
+			limits["unit"] = true
 		}
 	}
 	if len(limits) < 2 || len(nums) > 5 {
@@ -220,6 +399,34 @@ var pinRoles = map[string]string{
 var packageHeaderRe = regexp.MustCompile(`^(\d+-?(PIN|PINS|BUMP|BUMPS|BALL|BALLS|LEAD|LEADS)|WLP|WLCSP|WCSP|CSP|DSBGA|BGA|UFBGA|TQFN|QFN|VQFN|WQFN|UQFN|DFN|WDFN|SON|WSON|VSON|SOIC|TSSOP|MSOP|HTSSOP|QFP|LQFP|TQFP|SOT-?\d*|SC-?70|TO-?\d+|DPAK|D2PAK|DDC|DBV|DRL|DRV|DGK|DGN|RGT|RTE|YCH|DQN|YFF|YZF|PDIP|SO-?\d+)$`)
 
 // pinRole returns a pin-table header word's role; package names are
+// headerWordSpans are the spans of a row in the size of its first span.
+func headerWordSpans(r Row) []pdf.Span {
+	var out []pdf.Span
+	for _, sp := range r.Spans {
+		if len(r.Spans) > 0 && math.Abs(sp.Size-r.Spans[0].Size) <= 1.5 {
+			out = append(out, sp)
+		}
+	}
+	return out
+}
+
+// headerWords are a row's words in the size of its first word: a drawing
+// beside the table can put its labels ("6 5 4" over a SOT-23-6 pinout)
+// on the header's line.
+func headerWords(r Row) []word {
+	ws := words(r.Spans)
+	if len(ws) == 0 {
+		return nil
+	}
+	out := ws[:0:0]
+	for _, w := range ws {
+		if math.Abs(w.size-ws[0].size) <= 1.5 {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
 // pin-number columns.
 func pinRole(tok string) (string, bool) {
 	if r, ok := pinRoles[tok]; ok {
@@ -238,37 +445,13 @@ func pinRole(tok string) (string, bool) {
 // header words are merged and words stacked in one column form its label.
 // It returns the columns and the last header row's index.
 func pinHeader(rows []Row, i int) ([]column, int, bool) {
-	isHeader := func(r Row) bool {
-		ws := words(r.Spans)
-		if len(ws) == 0 {
-			return false
-		}
-		for _, w := range ws {
-			if _, ok := pinRole(headerToken(w.text)); !ok {
-				return false
-			}
-		}
-		return true
-	}
-	if !isHeader(rows[i]) {
+	lo, hi, ok := pinHeaderRows(rows, i)
+	if !ok {
 		return nil, i, false
-	}
-	// Header rows share a type size; a larger title above the table
-	// ("Pin Description") is not part of the header.
-	sameSize := func(a, b Row) bool { return math.Abs(rowSize(a)-rowSize(b)) <= 1.5 }
-	if i+1 < len(rows) && isHeader(rows[i+1]) && rowSize(rows[i]) > rowSize(rows[i+1])+1.5 {
-		return nil, i, false
-	}
-	lo, hi := i, i
-	for lo > 0 && isHeader(rows[lo-1]) && sameSize(rows[lo-1], rows[i]) && rows[lo].Box.Y0-rows[lo-1].Box.Y1 < 12 {
-		lo--
-	}
-	for hi+1 < len(rows) && isHeader(rows[hi+1]) && sameSize(rows[hi+1], rows[i]) && rows[hi+1].Box.Y0-rows[hi].Box.Y1 < 12 {
-		hi++
 	}
 	var ws []word
 	for k := lo; k <= hi; k++ {
-		ws = append(ws, words(rows[k].Spans)...)
+		ws = append(ws, headerWords(rows[k])...)
 	}
 	roles := map[string]bool{}
 	for _, w := range ws {
@@ -278,21 +461,76 @@ func pinHeader(rows []Row, i int) ([]column, int, bool) {
 	if !roles["description"] || (!roles["name"] && !roles["pin"]) {
 		return nil, i, false
 	}
-	// Stack words into columns by horizontal overlap. A lone "PIN" is the
-	// spanning label over NAME and NO. when there is a NAME column.
-	type group struct {
-		box   pdf.Rect
-		role  string
-		words []word
+	groups := stackPinWords(ws, roles["name"])
+	if len(groups) > 8 {
+		return nil, i, false
 	}
-	rank := map[string]int{"description": 4, "name": 3, "type": 2, "number": 1, "pin": 0}
-	var groups []*group
+	resolvePinLabels(groups, roles["number"])
+	return pinColumns(groups), hi, true
+}
+
+// isPinHeaderRow reports whether a row is made only of pin-table header
+// words.
+func isPinHeaderRow(r Row) bool {
+	ws := headerWords(r)
+	if len(ws) == 0 {
+		return false
+	}
+	for _, w := range ws {
+		if _, ok := pinRole(headerToken(w.text)); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// pinHeaderRows finds the rows of a header starting at row i: the header
+// rows around it in the same type size and less than 12 points apart. A
+// larger title just above the header ("Pin Description") isn't a header
+// row itself.
+func pinHeaderRows(rows []Row, i int) (lo, hi int, ok bool) {
+	if !isPinHeaderRow(rows[i]) {
+		return i, i, false
+	}
+	if i+1 < len(rows) && isPinHeaderRow(rows[i+1]) && rowSize(rows[i]) > rowSize(rows[i+1])+1.5 {
+		return i, i, false
+	}
+	// Header rows share the type size of row i.
+	fits := func(r Row) bool { return isPinHeaderRow(r) && math.Abs(rowSize(r)-rowSize(rows[i])) <= 1.5 }
+	lo, hi = i, i
+	for lo > 0 && fits(rows[lo-1]) && rows[lo].Box.Y0-rows[lo-1].Box.Y1 < 12 {
+		lo--
+	}
+	for hi+1 < len(rows) && fits(rows[hi+1]) && rows[hi+1].Box.Y0-rows[hi].Box.Y1 < 12 {
+		hi++
+	}
+	return lo, hi, true
+}
+
+// pinGroup is a pin-table column being built from the header words
+// stacked in it.
+type pinGroup struct {
+	box   pdf.Rect
+	role  string
+	words []word
+}
+
+// pinRank orders roles for a column with words of several: a column with
+// "PIN" and "NAME" is the name column.
+var pinRank = map[string]int{"description": 4, "name": 3, "type": 2, "number": 1, "pin": 0}
+
+// stackPinWords groups header words into columns by horizontal overlap,
+// left to right; a column takes the highest-ranked role of its words. A
+// lone "PIN" is the label spanning NAME and NO. when there is a NAME
+// column, so it's left out then.
+func stackPinWords(ws []word, hasName bool) []*pinGroup {
+	var groups []*pinGroup
 	for _, w := range ws {
 		r, _ := pinRole(headerToken(w.text))
-		if r == "pin" && roles["name"] {
+		if r == "pin" && hasName {
 			continue
 		}
-		var g *group
+		var g *pinGroup
 		for _, x := range groups {
 			if w.box.X0 < x.box.X1 && x.box.X0 < w.box.X1 {
 				g = x
@@ -300,64 +538,80 @@ func pinHeader(rows []Row, i int) ([]column, int, bool) {
 			}
 		}
 		if g == nil {
-			g = &group{box: w.box, role: r}
+			g = &pinGroup{box: w.box, role: r}
 			groups = append(groups, g)
 		}
 		g.box = g.box.Union(w.box)
 		g.words = append(g.words, w)
-		if rank[r] > rank[g.role] {
+		if pinRank[r] > pinRank[g.role] {
 			g.role = r
 		}
 	}
-	if len(groups) > 8 {
-		return nil, i, false
-	}
 	sort.Slice(groups, func(a, b int) bool { return groups[a].box.X0 < groups[b].box.X0 })
+	return groups
+}
+
+// resolvePinLabels gives a "PIN" column its meaning: the name when the
+// table has a number column, else the number.
+func resolvePinLabels(groups []*pinGroup, hasNumber bool) {
+	for _, g := range groups {
+		if g.role != "pin" {
+			continue
+		}
+		if hasNumber {
+			g.role = "name"
+		} else {
+			g.role = "number"
+		}
+	}
+}
+
+// pinColumns turns the groups into columns split halfway between their
+// centres. With several number columns (one per package), each is named
+// by its stacked label ("20-PIN TQFN"). The description column starts
+// just after the column before it: descriptions are long and
+// left-aligned.
+func pinColumns(groups []*pinGroup) []column {
 	numbers := 0
 	for _, g := range groups {
-		if g.role == "pin" {
-			if roles["number"] {
-				g.role = "name"
-			} else {
-				g.role = "number"
-			}
-		}
 		if g.role == "number" {
 			numbers++
 		}
 	}
 	var cols []column
 	for k, g := range groups {
-		x0 := -1.0
+		x0, x1 := -1.0, 1e9
 		if k > 0 {
 			x0 = (centerX(groups[k-1].box) + centerX(g.box)) / 2
 		}
-		x1 := 1e9
 		if k+1 < len(groups) {
 			x1 = (centerX(g.box) + centerX(groups[k+1].box)) / 2
 		}
-		sort.SliceStable(g.words, func(a, b int) bool { return g.words[a].box.Y0 < g.words[b].box.Y0 })
-		var label []string
-		for _, w := range g.words {
-			label = append(label, w.text)
-		}
 		name := strings.ToUpper(g.role)
 		if g.role == "number" && numbers > 1 {
-			// Each package column's label names the package.
-			name = strings.Join(label, " ")
+			name = stackedLabel(g.words)
 		}
 		cols = append(cols, column{name: name, role: g.role, x0: x0, x1: x1})
 	}
-	// Descriptions are long and left-aligned: start the column just after
-	// the column before it, not at the midpoint.
 	for k := 1; k < len(cols); k++ {
 		if cols[k].role == "description" {
-			start := groups[k-1].box.X1 + 6
-			cols[k].x0 = math.Min(cols[k].x0, start)
+			cols[k].x0 = math.Min(cols[k].x0, groups[k-1].box.X1+6)
 			cols[k-1].x1 = cols[k].x0
 		}
 	}
-	return cols, hi, true
+	return cols
+}
+
+// stackedLabel reads a column's header words top to bottom ("20-PIN" over
+// "TQFN").
+func stackedLabel(ws []word) string {
+	ws = append([]word(nil), ws...)
+	sort.SliceStable(ws, func(a, b int) bool { return ws[a].box.Y0 < ws[b].box.Y0 })
+	label := make([]string, 0, len(ws))
+	for _, w := range ws {
+		label = append(label, w.text)
+	}
+	return strings.Join(label, " ")
 }
 
 // footnoteRe matches table footnotes such as "(1) Stresses beyond…".
@@ -379,7 +633,7 @@ func tableRows(rows []Row, i int, pageH float64, headerSize float64) ([]Row, int
 		if r.Box.Y0-last > 28 {
 			break
 		}
-		if captionRe.MatchString(text) || tableCaptionRe.MatchString(text) || footnoteRe.MatchString(text) || headingRe.MatchString(text) && maxSize(r) > headerSize+1 {
+		if captionRe.MatchString(text) || tableCaptionRe.MatchString(text) || footnoteRe.MatchString(text) || (headingRe.MatchString(text) || isPlainHeading(text)) && maxSize(r) > headerSize+1 {
 			break
 		}
 		if _, ok := specHeader(r); ok {
@@ -620,17 +874,67 @@ func specTable(cols []column, header Row, body []Row, page int, secKind, secName
 	for _, c := range cols {
 		t.Header = append(t.Header, c.name)
 	}
+	idx := columnIndex(cols)
+	cols = gapBoundaries(cols, body)
+	rows := readSpecRows(cols, idx, body)
+	for _, r := range rows {
+		t.Box = t.Box.Union(r.row.Box)
+	}
+	band := bandsFor(rows, cols, idx, rules)
+	rows, band = mergeSplitRows(rows, band, cols)
+	extra, attached := attachTextRows(rows, band, cols)
+	if ui, ok := idx["unit"]; ok {
+		fillMergedUnits(rows, band, ui)
+	}
+	names := bandNames(rows, band, idx, rules)
+	var params []Param
+	prev := Param{}
+	for i, r := range rows {
+		if !r.value {
+			// Rows merged into a parameter's row are already in it.
+			if !attached[i] {
+				t.Rows = append(t.Rows, r.cells)
+			}
+			continue
+		}
+		cells, box := mergeGroup(r, extra[i], cols)
+		t.Rows = append(t.Rows, cells)
+		get := func(role string) string {
+			if k, ok := idx[role]; ok {
+				return strings.TrimSpace(cells[k])
+			}
+			return ""
+		}
+		p := Param{Section: secKind, Page: page, Box: box, Conditions: tidyConditions(get("conditions"))}
+		p.Name, p.Symbol, prev = nameRow(get("name"), get("symbol"), prev, names, band[i])
+		readLimits(&p, get, secKind)
+		p.Unit = timeUnit(symbolFontOhms(p.Unit, p.Symbol+" "+p.Name), p.Symbol+" "+p.Name)
+		p.Raw = strings.Join(nonEmpty(cells), " | ")
+		p.Key = modeKey(GuessKey(p.Symbol+" "+p.Name, p.Unit, secKind), p.Conditions)
+		params = append(params, p)
+	}
+	return t, params
+}
+
+// columnIndex maps each role to its first column.
+func columnIndex(cols []column) map[string]int {
 	idx := map[string]int{}
 	for i, c := range cols {
 		if _, dup := idx[c.role]; !dup {
 			idx[c.role] = i
 		}
 	}
-	var rows []specRow
+	return idx
+}
+
+// readSpecRows splits the body rows into cells and marks the rows that
+// hold a value in a min, typ, max or value column.
+func readSpecRows(cols []column, idx map[string]int, body []Row) []specRow {
+	rows := make([]specRow, 0, len(body))
 	for _, b := range body {
 		cs := cells(cols, b.Spans)
 		v := false
-		for _, role := range []string{"min", "typ", "max"} {
+		for _, role := range []string{"min", "typ", "max", "value"} {
 			if i, ok := idx[role]; ok {
 				if _, ok := ParseNumber(cs[i]); ok {
 					v = true
@@ -638,15 +942,23 @@ func specTable(cols []column, header Row, body []Row, page int, secKind, secName
 			}
 		}
 		rows = append(rows, specRow{row: b, cells: cs, value: v})
-		t.Box = t.Box.Union(b.Box)
 	}
-	band := bandsFor(rows, cols, idx, rules)
-	rows, band = mergeSplitRows(rows, band, cols)
-	// Attach text-only rows to the nearest value row. All-caps rows are
-	// group labels inside the table ("SUPPLY CURRENT") and are skipped.
+	return rows
+}
+
+// attachTextRows assigns each text-only row (a wrapped name or another
+// line of conditions) to the nearest value row in its band, within 30
+// points. All-caps group labels ("SUPPLY CURRENT") and rows with text in
+// a value column ("VDD-24 to VDD+0.3", a parameter of its own) stay
+// apart; a row with only conditions is never a label. It returns the rows attached to each value row, and which rows
+// were attached.
+func attachTextRows(rows []specRow, band []int, cols []column) (map[int][]specRow, map[int]bool) {
 	extra := map[int][]specRow{}
+	attached := map[int]bool{}
 	for i, r := range rows {
-		if r.value || isGroupLabel(r.cells) {
+		// A row with only conditions ("VCC = 2 V", "IOUT = 10 mA") is more
+		// conditions even in capitals; other all-caps rows are labels.
+		if r.value || (isGroupLabel(r.cells) && !conditionsOnly(r.cells, cols)) || textValue(r.cells, cols) {
 			continue
 		}
 		best, dist := -1, math.Inf(1)
@@ -660,116 +972,168 @@ func specTable(cols []column, header Row, body []Row, page int, secKind, secName
 		}
 		if best >= 0 && dist < 30 {
 			extra[best] = append(extra[best], r)
+			attached[i] = true
 		}
 	}
-	// A unit set once for several rows (a merged cell) applies to the rows
-	// around it: fill blanks from the nearest row that has one.
-	if ui, ok := idx["unit"]; ok {
-		for i := range rows {
-			if !rows[i].value || rows[i].cells[ui] != "" {
-				continue
-			}
-			best, dist := "", math.Inf(1)
-			for j, o := range rows {
-				if band[j] != band[i] {
-					continue
-				}
-				if o.cells[ui] != "" && math.Abs(o.row.Y-rows[i].row.Y) < dist {
-					best, dist = o.cells[ui], math.Abs(o.row.Y-rows[i].row.Y)
-				}
-			}
-			if dist < 60 {
-				rows[i].cells[ui] = best
-			}
-		}
-	}
-	// The name of each ruled group: TI centres a parameter's name across
-	// its condition rows, so the rows above the label belong to it too.
-	bandName := map[int]string{}
-	if ni, ok := idx["name"]; ok && len(rules) > 0 {
-		for i, r := range rows {
-			if c := strings.TrimSpace(r.cells[ni]); c != "" && !isGroupLabel(r.cells) {
-				bandName[band[i]] = strings.TrimSpace(bandName[band[i]] + " " + c)
-			}
-		}
-	}
-	var params []Param
-	prevName := ""
-	for i, r := range rows {
-		if !r.value {
-			t.Rows = append(t.Rows, r.cells)
+	return extra, attached
+}
+
+// fillMergedUnits gives value rows without a unit the unit of the
+// nearest row in their band that has one (within 60 points): a unit set
+// once for several rows is a merged cell.
+func fillMergedUnits(rows []specRow, band []int, ui int) {
+	for i := range rows {
+		if !rows[i].value || rows[i].cells[ui] != "" {
 			continue
 		}
-		merged := append([]string(nil), r.cells...)
-		box := r.row.Box
-		group := append([]specRow{r}, extra[i]...)
-		sort.Slice(group, func(a, b int) bool { return group[a].row.Y < group[b].row.Y })
-		for k := range merged {
-			if cols[k].role == "min" || cols[k].role == "typ" || cols[k].role == "max" || cols[k].role == "unit" {
+		best, dist := "", math.Inf(1)
+		for j, o := range rows {
+			if band[j] != band[i] {
 				continue
 			}
-			var parts []string
-			for _, g := range group {
-				if g.cells[k] != "" {
-					parts = append(parts, g.cells[k])
-				}
-				box = box.Union(g.row.Box)
-			}
-			merged[k] = strings.Join(parts, " ")
-		}
-		t.Rows = append(t.Rows, merged)
-		p := Param{Section: secKind, Page: page, Box: box}
-		get := func(role string) string {
-			if i, ok := idx[role]; ok {
-				return strings.TrimSpace(merged[i])
-			}
-			return ""
-		}
-		p.Name = get("name")
-		p.Symbol = get("symbol")
-		p.Conditions = tidyConditions(get("conditions"))
-		if p.Name == "" && p.Symbol == "" {
-			p.Name = prevName
-			if n, ok := bandName[band[i]]; ok {
-				p.Name = n
+			if o.cells[ui] != "" && math.Abs(o.row.Y-rows[i].row.Y) < dist {
+				best, dist = o.cells[ui], math.Abs(o.row.Y-rows[i].row.Y)
 			}
 		}
-		if p.Symbol == "" {
-			p.Symbol, p.Name = splitSymbol(p.Name)
+		if dist < 60 {
+			rows[i].cells[ui] = best
 		}
-		prevName = get("name")
-		if prevName == "" {
-			prevName = p.Name
-		}
-		if v, ok := ParseNumber(get("min")); ok {
-			p.Min = &v
-		}
-		if v, ok := ParseNumber(get("typ")); ok {
-			p.Typ = &v
-		}
-		if v, ok := ParseNumber(get("max")); ok {
-			p.Max = &v
-		}
-		p.Unit = NormalizeUnit(get("unit"))
-		// "–3% / 0.511 / +3%": limits given as a tolerance around typ.
-		if p.Typ != nil && p.Unit != "%" {
-			if strings.HasSuffix(get("min"), "%") && p.Min != nil {
-				v := sig6(*p.Typ * (1 + *p.Min/100))
-				p.Conditions = strings.TrimSpace(p.Conditions + fmt.Sprintf(" (min %s%%)", get("min")[:len(get("min"))-1]))
-				p.Min = &v
-			}
-			if strings.HasSuffix(get("max"), "%") && p.Max != nil {
-				v := sig6(*p.Typ * (1 + *p.Max/100))
-				p.Conditions = strings.TrimSpace(p.Conditions + fmt.Sprintf(" (max %s%%)", get("max")[:len(get("max"))-1]))
-				p.Max = &v
-			}
-		}
-		p.Unit = symbolFontOhms(p.Unit, p.Symbol+" "+p.Name)
-		p.Raw = strings.Join(nonEmpty(merged), " | ")
-		p.Key = GuessKey(p.Symbol+" "+p.Name, p.Unit, secKind)
-		params = append(params, p)
 	}
-	return t, params
+}
+
+// bandNames names each ruled group of rows by its name cells: TI centres
+// a parameter's name across its condition rows, so the rows above the
+// name belong to it too. Without rules there are no groups.
+func bandNames(rows []specRow, band []int, idx map[string]int, rules []pdf.Rect) map[int]string {
+	names := map[int]string{}
+	ni, ok := idx["name"]
+	if !ok || len(rules) == 0 {
+		return names
+	}
+	for i, r := range rows {
+		if c := strings.TrimSpace(r.cells[ni]); c != "" && !isGroupLabel(r.cells) {
+			names[band[i]] = strings.TrimSpace(names[band[i]] + " " + c)
+		}
+	}
+	return names
+}
+
+// mergeGroup joins a value row with the text rows attached to it, top to
+// bottom, column by column (values and units come from the value row
+// alone), and returns the cells and the region they cover.
+func mergeGroup(r specRow, extra []specRow, cols []column) ([]string, pdf.Rect) {
+	merged := append([]string(nil), r.cells...)
+	box := r.row.Box
+	group := append([]specRow{r}, extra...)
+	sort.Slice(group, func(a, b int) bool { return group[a].row.Y < group[b].row.Y })
+	for k := range merged {
+		if limitRole(cols[k].role) || cols[k].role == "unit" {
+			continue
+		}
+		var parts []string
+		for _, g := range group {
+			if g.cells[k] != "" {
+				parts = append(parts, g.cells[k])
+			}
+			box = box.Union(g.row.Box)
+		}
+		merged[k] = strings.Join(parts, " ")
+	}
+	return merged, box
+}
+
+// nameRow names a parameter row from its name and symbol cells. A row
+// with neither is another condition of the parameter above (or of its
+// ruled group, when the group has a name); a name without a symbol may
+// start with one ("VFB Feedback voltage"). It returns the name, the
+// symbol and what the next row inherits (the same).
+func nameRow(name, symbol string, prev Param, names map[int]string, band int) (string, string, Param) {
+	n, sym := name, symbol
+	if n == "" && sym == "" {
+		n, sym = prev.Name, prev.Symbol
+		if g, ok := names[band]; ok {
+			n = g
+		}
+	}
+	if sym == "" {
+		sym, n = splitSymbol(n)
+	}
+	return n, sym, Param{Name: n, Symbol: sym}
+}
+
+// readLimits reads a row's limits and unit: min, typ and max columns, or
+// a single value column (a range "-0.3~7" is min and max; a lone number
+// is the max of an absolute-maximum rating, else typical). Limits given
+// as a tolerance around typ ("–3% / 0.511 / +3%") become values, with the
+// tolerance kept in the conditions.
+func readLimits(p *Param, get func(string) string, secKind string) {
+	if lo, hi, n := parseRange(get("value")); n == 2 {
+		p.Min, p.Max = &lo, &hi
+	} else if n == 1 && secKind == KindAbsMax {
+		p.Max = &lo
+	} else if n == 1 {
+		p.Typ = &lo
+	}
+	if v, ok := ParseNumber(get("min")); ok {
+		p.Min = &v
+	}
+	if v, ok := ParseNumber(get("typ")); ok {
+		p.Typ = &v
+	}
+	if v, ok := ParseNumber(get("max")); ok {
+		p.Max = &v
+	}
+	p.Unit = NormalizeUnit(get("unit"))
+	if p.Typ == nil || p.Unit == "%" {
+		return
+	}
+	for _, lim := range []struct {
+		role string
+		v    **float64
+	}{{"min", &p.Min}, {"max", &p.Max}} {
+		cell := get(lim.role)
+		if !strings.HasSuffix(cell, "%") || *lim.v == nil {
+			continue
+		}
+		v := sig6(*p.Typ * (1 + **lim.v/100))
+		p.Conditions = strings.TrimSpace(p.Conditions + fmt.Sprintf(" (%s %s%%)", lim.role, cell[:len(cell)-1]))
+		*lim.v = &v
+	}
+}
+
+// lowPowerModeRe matches conditions that put a part in a low-power mode.
+var lowPowerModeRe = regexp.MustCompile(`(?i)\b(standby|shut-?down|sleep|stop) mode\b|\bmode of sleep\b|待机|停机|停止|关断|睡眠|休眠`)
+
+// shutdownRe matches a shutdown condition.
+var shutdownRe = regexp.MustCompile(`(?i)shut-?down|停机|关断`)
+
+// modeKey corrects a current's key for a row measured in a low-power
+// mode: the supply current in shutdown is the shutdown current, and
+// neither a standby supply current nor a battery current outside charging
+// is the quiescent or charge current.
+func modeKey(key, conditions string) string {
+	if (key != "iq" && key != "ichg") || !lowPowerModeRe.MatchString(conditions) {
+		return key
+	}
+	if key == "iq" && shutdownRe.MatchString(conditions) {
+		return "isd"
+	}
+	return ""
+}
+
+// timeRe recognises time parameters.
+var timeRe = regexp.MustCompile(`(?i)\btime\b|delay|period|duration|^\s*t\s*[A-Z]`)
+
+// timeUnit repairs seconds written with a capital S ("uS", "mS"), which
+// strictly are siemens, on time parameters.
+func timeUnit(unit, label string) string {
+	switch unit {
+	case "uS", "µS", "mS", "nS", "S":
+		if timeRe.MatchString(label) {
+			return NormalizeUnit(strings.TrimSuffix(unit, "S") + "s")
+		}
+	}
+	return unit
 }
 
 // resistanceRe recognises resistance parameters.
@@ -867,7 +1231,7 @@ func mergeSplitRows(rows []specRow, band []int, cols []column) ([]specRow, []int
 	limit := func(r specRow) map[int]bool {
 		m := map[int]bool{}
 		for k, c := range cols {
-			if (c.role == "min" || c.role == "typ" || c.role == "max") && strings.TrimSpace(r.cells[k]) != "" {
+			if limitRole(c.role) && strings.TrimSpace(r.cells[k]) != "" {
 				m[k] = true
 			}
 		}
@@ -995,6 +1359,25 @@ func hasAlnum(s string) bool {
 // (WLP and TQFN), each pin is recorded once per package.
 func pinTable(cols []column, header Row, body []Row, page int, secName string) (Table, []Pin) {
 	t := Table{Page: page, Kind: TablePins, Section: secName, Box: header.Box}
+	// Labels of a pinout drawing beside the table ("SOT-23-6", "TOP
+	// VIEW") are set in another size; subscripts are too, but touch the
+	// text they belong to.
+	size := rowSize(Row{Spans: headerWordSpans(header)})
+	kept := make([]Row, 0, len(body))
+	for _, b := range body {
+		var spans []pdf.Span
+		for _, sp := range b.Spans {
+			n := len(spans)
+			if math.Abs(sp.Size-size) <= 1.5 || (n > 0 && sp.Box.X0-spans[n-1].Box.X1 < 2) {
+				spans = append(spans, sp)
+			}
+		}
+		if len(spans) > 0 {
+			b.Spans = spans
+			kept = append(kept, b)
+		}
+	}
+	body = kept
 	for _, c := range cols {
 		t.Header = append(t.Header, c.name)
 	}
@@ -1097,4 +1480,36 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		}
 	}
 	return t, pins
+}
+
+// prosePin matches a pin described in prose, one heading per pin:
+// "TEMP(PIN1): Battery temperature detection input" or "V CC (PIN4): …".
+var prosePin = regexp.MustCompile(`^([A-Z][A-Za-z0-9_/ ]{0,14}?)\s*[(（]\s*(?i:pin)\s*(\d{1,3})\s*[)）]\s*[:：]?\s*(.*)$`)
+
+// ProsePins reads pins described in prose under a pin heading (common in
+// Chinese datasheets), one "NAME(PINn): function" line per pin.
+func ProsePins(lines [][]Line, secs []Section, lay Layout) []Pin {
+	var out []Pin
+	seen := map[string]bool{}
+	for pi, ls := range lines {
+		for _, l := range ls {
+			m := prosePin.FindStringSubmatch(strings.TrimSpace(l.Text))
+			if m == nil {
+				continue
+			}
+			if s := SectionAt(secs, lay, pi, l.Box); s == nil || s.Kind != KindPins {
+				continue
+			}
+			name := strings.ReplaceAll(m[1], " ", "")
+			if seen[m[2]] {
+				continue
+			}
+			seen[m[2]] = true
+			out = append(out, Pin{Number: m[2], Name: name, Description: strings.TrimSpace(m[3]), Page: pi})
+		}
+	}
+	if len(out) < 2 {
+		return nil
+	}
+	return out
 }

@@ -213,6 +213,36 @@ func (a *API) registerLibrary() {
 	}) (any, error) {
 		return c.ImportBOM(ctx, core.BOMRequest{Data: []byte(in.Text), Path: in.Path, Filename: in.Filename, Project: in.Project, Fetch: in.Fetch})
 	})
+	a.methods["translate.status"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.TranslateStatus(), nil })
+	a.methods["translate.download"] = method(func(ctx context.Context, in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}) (any, error) {
+		if err := c.StartTranslateDownload(in.From, in.To); err != nil {
+			return nil, err
+		}
+		return c.TranslateStatus(), nil
+	})
+	a.methods["translate.remove"] = method(func(ctx context.Context, in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}) (any, error) {
+		if err := c.Translate.Remove(in.From, in.To); err != nil {
+			return nil, err
+		}
+		return c.TranslateStatus(), nil
+	})
+	a.methods["translations.get"] = method(func(ctx context.Context, in struct {
+		Lang  string   `json:"lang"`
+		Texts []string `json:"texts"`
+	}) (any, error) {
+		return c.Translations(ctx, in.Lang, in.Texts)
+	})
+	a.methods["translations.save"] = method(func(ctx context.Context, in struct {
+		Items []library.Translation `json:"items"`
+	}) (any, error) {
+		return nil, c.SaveTranslations(ctx, in.Items)
+	})
 	a.methods["catalog.status"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CatalogStatus(ctx), nil })
 	a.methods["catalog.download"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		if err := c.StartCatalogDownload(); err != nil {
@@ -286,7 +316,13 @@ func (a *API) registerLibrary() {
 		return map[string]string{"path": p}, a.OpenFile(p)
 	})
 	a.methods["datasheet.delete"] = method(func(ctx context.Context, in idReq) (any, error) { return nil, c.DeleteDatasheet(ctx, in.ID) })
-	a.methods["datasheet.reextract"] = method(func(ctx context.Context, in idReq) (any, error) { return c.Reextract(ctx, in.ID) })
+	a.methods["datasheet.reextract"] = method(func(ctx context.Context, in struct {
+		ID         int64 `json:"id"`
+		Translated bool  `json:"translated"`
+	}) (any, error) {
+		return c.Reextract(ctx, in.ID, in.Translated)
+	})
+	a.methods["datasheet.translationSources"] = method(func(ctx context.Context, in idReq) (any, error) { return c.TranslationSources(ctx, in.ID) })
 	a.methods["page.get"] = method(func(ctx context.Context, in struct {
 		DatasheetID int64 `json:"datasheetId"`
 		Page        int   `json:"page"`

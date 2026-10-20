@@ -393,3 +393,102 @@ func graphAxes(caption string) (string, string) {
 	}
 	return y, x
 }
+
+// figureSections are the section kinds that are mostly a drawing, and
+// pinTables the pin sections that are a table rather than a pinout.
+var (
+	figureSections = map[string]string{KindTypicalApp: FigSchematic, KindBlock: FigBlock, KindPins: FigPinout, KindPackage: FigPackage, KindTiming: FigTiming}
+	pinTables      = regexp.MustCompile(`(?i)function|description|definition`)
+	orderable      = regexp.MustCompile(`(?i)orderable|ordering`)
+)
+
+// SectionFigures finds uncaptioned figures: the drawing under a heading
+// such as "Typical application circuit", "Pin configuration",
+// "Functional block diagram" or "Package dimensions" (many datasheets,
+// especially Chinese ones, caption none of their figures). The heading
+// names the figure. Sections that already have a captioned figure are
+// left alone.
+func SectionFigures(doc *pdf.Document, lines [][]Line, secs []Section, lay Layout, have []Figure) []Figure {
+	captioned := map[string]bool{}
+	for _, f := range have {
+		captioned[f.Section] = true
+	}
+	var out []Figure
+	// Deepest sections first, so "1. Overcharge condition" names its
+	// drawing rather than the "Timing Diagram" section around it.
+	order := append([]Section(nil), secs...)
+	sort.SliceStable(order, func(i, j int) bool { return order[i].Level > order[j].Level })
+	for _, s := range order {
+		kind, ok := figureSections[s.Kind]
+		name := joinNum(s.Num, s.Title)
+		if !ok || captioned[name] || (s.Kind == KindPins && pinTables.MatchString(s.Title)) || orderable.MatchString(s.Title) {
+			continue
+		}
+		for pi := s.Page; pi <= s.EndPage && pi < len(doc.Pages) && pi <= s.Page+1; pi++ {
+			p := doc.Pages[pi]
+			var box pdf.Rect
+			found := false
+			for _, g := range clusterGraphics(p, 0, p.Width) {
+				g = p.Ink.Trim(g)
+				if k := lay.Key(pi, g); k < s.start-0.5 || k >= s.end-0.5 || g.W() < 40 || g.H() < 30 {
+					continue
+				}
+				// A ruled table beside the drawing isn't part of it.
+				if textCover(g, lines[pi]) >= 0.12 {
+					continue
+				}
+				if found {
+					box = box.Union(g)
+				} else {
+					box, found = g, true
+				}
+			}
+			if !found {
+				continue
+			}
+			top, bottom := 0.0, p.Height
+			if pi == s.Page {
+				top = s.Y + 4
+			}
+			if pi == s.EndPage && s.EndY > top {
+				bottom = s.EndY
+			}
+			box = growWithLabels(box, lines[pi], pdf.Rect{}, nil, 0, p.Width, top, bottom)
+			// A region dense with text is a table (pin lists, orderable
+			// parts), not a drawing; a region already taken is a parent
+			// section's.
+			if textCover(box, lines[pi]) >= 0.12 || taken(out, pi, box) {
+				break
+			}
+			out = append(out, Figure{Page: pi, Caption: s.Title, Section: name, Kind: kind, Box: clampY(clampPage(box.Inset(4, 4), p), top, bottom)})
+			break
+		}
+	}
+	return out
+}
+
+// textCover is the share of a region covered by text lines.
+func textCover(r pdf.Rect, lines []Line) float64 {
+	var a float64
+	for _, l := range lines {
+		if r.Inset(1, 1).Contains(l.Box) {
+			a += l.Box.W() * l.Box.H()
+		}
+	}
+	return a / math.Max(1, r.W()*r.H())
+}
+
+// taken reports whether a figure on the page already covers most of a
+// region.
+func taken(figs []Figure, page int, r pdf.Rect) bool {
+	for _, f := range figs {
+		if f.Page != page || !f.Box.Intersects(r) {
+			continue
+		}
+		ov := pdf.Rect{X0: math.Max(f.Box.X0, r.X0), Y0: math.Max(f.Box.Y0, r.Y0), X1: math.Min(f.Box.X1, r.X1), Y1: math.Min(f.Box.Y1, r.Y1)}
+		if ov.W()*ov.H() > 0.6*r.W()*r.H() {
+			return true
+		}
+	}
+	return false
+}

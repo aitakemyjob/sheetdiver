@@ -15,7 +15,7 @@ import (
 
 // Version identifies the extractor; stored with each datasheet so
 // re-extraction can be offered when it changes.
-const Version = "3"
+const Version = "4"
 
 // Line is a run of spans on one baseline that belong together (spans are
 // split into separate lines at wide gaps, so two captions side by side
@@ -121,6 +121,8 @@ type Result struct {
 	Pins         []Pin       `json:"pins"`
 	BodySize     float64     `json:"bodySize"`
 	Pages        []PageShape `json:"pages"`
+	// Language is the datasheet's main language: en, zh, ja or ko.
+	Language string `json:"language"`
 }
 
 // PageShape is a page's size in points.
@@ -132,7 +134,7 @@ type PageShape struct {
 // Analyze extracts datasheet structure from a document. filename is used
 // as a last-resort part number.
 func Analyze(doc *pdf.Document, filename string) *Result {
-	r := &Result{Revision: DetectRevision(doc)}
+	r := &Result{Revision: DetectRevision(doc), Language: DetectLanguage(doc)}
 	for _, p := range doc.Pages {
 		r.Pages = append(r.Pages, PageShape{p.Width, p.Height})
 	}
@@ -150,8 +152,13 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	lay := NewLayout(doc, r.Lines)
 	r.Sections = Sections(doc, r.Lines, r.BodySize, lay)
 	r.Figures = Figures(doc, r.Lines, r.Sections, lay)
+	r.Figures = append(r.Figures, SectionFigures(doc, r.Lines, r.Sections, lay, r.Figures)...)
 	tables, params, pins := Tables(doc, r.Sections, lay)
 	r.Tables, r.Params, r.Pins = tables, params, pins
+	if len(r.Pins) == 0 {
+		r.Pins = ProsePins(r.Lines, r.Sections, lay)
+	}
+	fillSectionText(r.Sections, r.Lines, lay, r.BodySize, contentRegions(r.Figures, r.Tables))
 	r.Title, r.Description = titleAndDescription(doc, r.Lines)
 	r.Manufacturer = Manufacturer(doc, r.PageText)
 	r.Families = Families(doc, r.PageText)

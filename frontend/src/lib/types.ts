@@ -291,6 +291,9 @@ export interface Rail {
   vMax?: number | null;
   source?: string;
   currentLimit?: number | null;
+  /** Loads on the rail that aren't in the BOM (amps). */
+  otherTyp?: number | null;
+  otherMax?: number | null;
   notes?: string;
 }
 
@@ -305,6 +308,10 @@ export interface RailStatus extends Rail {
   sourcePart?: string;
   consumers: string[];
   power: number;
+  /** Peak-to-peak ripple (volts) the rail can carry before a part on it leaves its recommended input range. */
+  ripple?: number;
+  /** The part and limit that set the ripple budget. */
+  rippleLimit?: string;
 }
 
 export interface ProjectPart {
@@ -423,6 +430,8 @@ export interface ImportJob {
   datasheetId?: number;
   parts?: string[];
   batch?: string;
+  language?: string;
+  translated?: boolean;
   started: string;
   finished: string;
 }
@@ -657,4 +666,22 @@ export interface DeleteResult {
   datasheet?: string;
   deleted: string[];
   kept?: string[];
+}
+
+/** An offline translation model (see internal/translate). */
+export interface TranslationModel {
+  from: string;
+  to: string;
+  label: string;
+  version: string;
+  installed: boolean;
+  downloading: boolean;
+  sizeBytes: number;
+}
+
+/** The translation models, and the progress or error of a download. */
+export interface TranslateStatus {
+  models: TranslationModel[];
+  progress?: { model: string; done: number; total: number };
+  error?: string;
 }

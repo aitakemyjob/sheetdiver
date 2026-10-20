@@ -36,6 +36,8 @@ type railArgs struct {
 	VMin         *float64 `json:"v_min,omitempty" jsonschema:"minimum voltage incl. tolerance and sag (V)"`
 	VMax         *float64 `json:"v_max,omitempty" jsonschema:"maximum voltage incl. tolerance and transients (V)"`
 	CurrentLimit *float64 `json:"current_limit,omitempty" jsonschema:"what the source can deliver (A); regulators in the project are used if omitted"`
+	OtherTyp     *float64 `json:"other_typ,omitempty" jsonschema:"typical current (A) of loads on the rail that aren't in the BOM (a module, sensors)"`
+	OtherMax     *float64 `json:"other_max,omitempty" jsonschema:"maximum current (A) of loads on the rail that aren't in the BOM"`
 	Source       string   `json:"source,omitempty" jsonschema:"what supplies it (a designator, 'USB', 'battery')"`
 	Notes        string   `json:"notes,omitempty"`
 	Delete       bool     `json:"delete,omitempty" jsonschema:"remove the rail"`
@@ -49,8 +51,8 @@ type addPartArgs struct {
 	Role       string   `json:"role,omitempty" jsonschema:"what it does on the board, e.g. '3V3 buck', 'load switch'"`
 	SupplyRail string   `json:"supply_rail,omitempty" jsonschema:"rail it is powered from"`
 	OutputRail string   `json:"output_rail,omitempty" jsonschema:"rail it generates (regulators)"`
-	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current drawn from the supply rail (A); omit for regulators to derive it from their output load"`
-	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current drawn from the supply rail (A)"`
+	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current drawn from the supply rail (A); omit for regulators to derive it from their output load; for a charger, the charge current the board programs (omit: no charging counted)"`
+	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current drawn from the supply rail (A); for a charger, its maximum charge current"`
 	Notes      string   `json:"notes,omitempty"`
 }
 
@@ -62,10 +64,12 @@ type updateEntryArgs struct {
 	Role       *string  `json:"role,omitempty"`
 	SupplyRail *string  `json:"supply_rail,omitempty"`
 	OutputRail *string  `json:"output_rail,omitempty"`
-	ITyp       *float64 `json:"i_typ,omitempty"`
-	IMax       *float64 `json:"i_max,omitempty"`
+	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current from the supply rail (A); a charger's charge current"`
+	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current from the supply rail (A); a charger's maximum charge current"`
 	Notes      *string  `json:"notes,omitempty"`
-	Remove     bool     `json:"remove,omitempty" jsonschema:"take the part out of the project"`
+	// ClearCurrents unsets i_typ and i_max.
+	ClearCurrents bool `json:"clear_currents,omitempty" jsonschema:"unset i_typ and i_max: a regulator's input current is then derived from its output load, and a charger counts no charging"`
+	Remove        bool `json:"remove,omitempty" jsonschema:"take the part out of the project"`
 }
 
 type calcArgs struct {
@@ -132,7 +136,7 @@ func (s *Server) registerProjects() {
 			return text(projectText(d)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_rail", Description: "Add or update a supply rail of a project (voltage range, current limit, source), or delete it.", Annotations: writes("Set rail", true)},
+	addTool(s, &mcp.Tool{Name: "set_rail", Description: "Add or update a supply rail of a project (voltage range, current limit, source, loads not in the BOM), or delete it.", Annotations: writes("Set rail", true)},
 		write, func(a railArgs) string { return "rail " + a.Name }, func(ctx context.Context, a railArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -149,7 +153,7 @@ func (s *Server) registerProjects() {
 				c.ProjectChanged(p.Name, "rail")
 				return text("deleted rail " + a.Name), nil
 			}
-			r, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: a.Name, VNom: a.VNom, VMin: a.VMin, VMax: a.VMax, CurrentLimit: a.CurrentLimit, Source: a.Source, Notes: a.Notes})
+			r, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: a.Name, VNom: a.VNom, VMin: a.VMin, VMax: a.VMax, CurrentLimit: a.CurrentLimit, OtherTyp: a.OtherTyp, OtherMax: a.OtherMax, Source: a.Source, Notes: a.Notes})
 			if err != nil {
 				return result{}, err
 			}
@@ -216,6 +220,9 @@ func (s *Server) registerProjects() {
 			}
 			if a.OutputRail != nil {
 				e.OutputRail = *a.OutputRail
+			}
+			if a.ClearCurrents {
+				e.ITyp, e.IMax = nil, nil
 			}
 			if a.ITyp != nil {
 				e.ITyp = a.ITyp
@@ -747,7 +754,15 @@ func projectText(d core.ProjectDetail) string {
 		if r.Capacity > 0 {
 			fmt.Fprintf(&b, " of %s (%s, %.0f%%)", calc.Eng(r.Capacity, "A"), r.CapacityFrom, 100*r.LoadMax/r.Capacity)
 		}
-		fmt.Fprintf(&b, " | %s | consumers: %s\n", calc.Eng(r.Power, "W"), strings.Join(r.Consumers, ", "))
+		consumers := strings.Join(r.Consumers, ", ")
+		if r.OtherTyp != nil || r.OtherMax != nil {
+			consumers = strings.TrimPrefix(consumers+fmt.Sprintf(", other loads %s typ / %s max", calc.Eng(deref(r.OtherTyp), "A"), calc.Eng(deref(r.OtherMax), "A")), ", ")
+		}
+		fmt.Fprintf(&b, " | %s | consumers: %s", calc.Eng(r.Power, "W"), consumers)
+		if r.Ripple != nil {
+			fmt.Fprintf(&b, " | ripple budget %s p-p (limited by %s)", calc.Eng(*r.Ripple, "V"), r.RippleLimit)
+		}
+		b.WriteString("\n")
 	}
 	fmt.Fprintf(&b, "input power at max load: %s\n", calc.Eng(d.InputPower, "W"))
 	b.WriteString("\n## Checks\n")

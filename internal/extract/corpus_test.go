@@ -35,6 +35,8 @@ type corpusEntry struct {
 		RegularTables []string `json:"regularTables"`
 		// Revision as rendered by Revision.String.
 		Revision string `json:"revision"`
+		// Language as detected (en when omitted).
+		Language string `json:"language"`
 		// Values of the first parameter with each key.
 		Values map[string]struct {
 			Min *float64 `json:"min"`
@@ -97,6 +99,9 @@ func TestCorpus(t *testing.T) {
 			}
 			r := Analyze(doc, e.File)
 			x := e.Expect
+			if want := map[bool]string{true: x.Language, false: "en"}[x.Language != ""]; r.Language != want {
+				t.Errorf("language = %q, want %q", r.Language, want)
+			}
 			if x.Revision != "" && r.Revision.String() != x.Revision {
 				t.Errorf("revision = %q, want %q", r.Revision, x.Revision)
 			}

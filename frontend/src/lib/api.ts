@@ -4,6 +4,7 @@ import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
+  TranslateStatus,
 } from './types';
 
 /** Calls a backend method. */
@@ -24,7 +25,8 @@ export const api = {
   updateDatasheet: (d: Datasheet) => call<void>('datasheet.update', d),
   openDatasheet: (id: number) => call<{ path: string }>('datasheet.open', { id }),
   deleteDatasheet: (id: number) => call<void>('datasheet.delete', { id }),
-  reextract: (id: number) => call<ImportResult>('datasheet.reextract', { id }),
+  reextract: (id: number, translated = false) => call<ImportResult>('datasheet.reextract', { id, translated }),
+  translationSources: (id: number) => call<{ lang: string; texts: string[] }>('datasheet.translationSources', { id }),
   page: (datasheetId: number, page: number) => call<Page>('page.get', { datasheetId, page }),
 
   parts: (f: { query?: string; category?: string; manufacturer?: string; favorite?: boolean; status?: string; limit?: number } = {}) => call<Part[]>('parts.list', f),
@@ -47,6 +49,11 @@ export const api = {
   saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
   deletePreview: (part: string) => call<DeletePlan>('delete.preview', { part }),
   deleteApply: (part: string, keepInProjects: boolean) => call<DeleteResult>('delete.apply', { part, keepInProjects }),
+  translateStatus: () => call<TranslateStatus>('translate.status'),
+  translateDownload: (from: string, to: string) => call<TranslateStatus>('translate.download', { from, to }),
+  translateRemove: (from: string, to: string) => call<TranslateStatus>('translate.remove', { from, to }),
+  translations: (lang: string, texts: string[]) => call<Record<string, string>>('translations.get', { lang, texts }),
+  saveTranslations: (items: { lang: string; source: string; text: string }[]) => call<null>('translations.save', { items }),
   catalogStatus: () => call<CatalogStatus>('catalog.status'),
   catalogDownload: () => call<CatalogStatus>('catalog.download'),
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),

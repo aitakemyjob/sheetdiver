@@ -42,6 +42,9 @@ type ImportRequest struct {
 	Category     string   `json:"category,omitempty"`
 	// Force re-extracts a datasheet that is already in the library.
 	Force bool `json:"force,omitempty"`
+	// Translated extracts from the datasheet's English translation (made
+	// on this machine and saved in the library; see TranslationSources).
+	Translated bool `json:"translated,omitempty"`
 	// Orderable codes (from a BOM or the parts catalogue) to record as
 	// variants of the imported part.
 	Orderable []string `json:"orderable,omitempty"`
@@ -112,7 +115,10 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 		return ImportResult{}, fmt.Errorf("read %s: %w", name, err)
 	}
 	s.updateJob(job, func(j *ImportJob) { j.Stage = "analyzing" })
+	lang := extract.DetectLanguage(doc)
+	translated := req.Translated && s.translateDoc(ctx, doc, lang)
 	res := extract.Analyze(doc, name)
+	res.Language = lang
 	<-s.slots
 	// The same datasheet from another URL (TI and others serve slightly
 	// different files per site) is the one already in the library, or a
@@ -128,6 +134,10 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 		return ImportResult{}, err
 	}
 	in := buildImport(res, doc, req, sha, file, name, src)
+	if translated {
+		in.Datasheet.Meta["translated"] = "en"
+		in.Refresh = true
+	}
 	if replaces != nil {
 		in.Replaces = replaces.ID
 		in.Datasheet.Meta["previousRevision"] = firstNonEmpty(replaces.Meta["revision"], "unknown")
@@ -205,12 +215,12 @@ func (s *Service) addMPNs(ctx context.Context, d library.Datasheet, mpns []strin
 }
 
 // Reextract redoes the mechanical extraction of a stored datasheet.
-func (s *Service) Reextract(ctx context.Context, dsID int64) (ImportResult, error) {
+func (s *Service) Reextract(ctx context.Context, dsID int64, translated bool) (ImportResult, error) {
 	d, err := s.Lib.Datasheet(ctx, dsID)
 	if err != nil {
 		return ImportResult{}, err
 	}
-	return s.Import(ctx, ImportRequest{Path: s.Lib.DatasheetPath(d.File), Filename: d.Filename, Force: true})
+	return s.Import(ctx, ImportRequest{Path: s.Lib.DatasheetPath(d.File), Filename: d.Filename, Force: true, Translated: translated})
 }
 
 // loadPDF reads the request's PDF bytes and returns them with a display
@@ -453,6 +463,9 @@ func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha,
 		Manufacturer: mfr, Pages: len(doc.Pages), Families: res.Families, SourceURL: src, Meta: doc.Meta, Extractor: extract.Version,
 	}}
 	in.Datasheet.Meta = withRevision(doc.Meta, res.Revision)
+	if res.Language != "" {
+		in.Datasheet.Meta["language"] = res.Language
+	}
 	mpns := res.PartNumbers
 	if len(req.MPNs) > 0 {
 		mpns = req.MPNs

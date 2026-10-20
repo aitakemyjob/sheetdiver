@@ -29,7 +29,7 @@ Conventions:
 | `list_parts` | Parts filtered by part number/variant/description, category or manufacturer. |
 | `get_part` | Overview: datasheet, sibling parts, orderable variants, best value per key parameter (with page), sections, figure counts, recommended components, projects, notes. |
 | `get_parameters` | Spec parameters (min/typ/max, unit, conditions, section, page), filtered by key, section or text. |
-| `get_section` | A section's text by kind (`pins`, `registers`, `layout`, `design_procedure`, `component_selection`, `typical_application`, …), title or number; without one, the outline. |
+| `get_section` | A section's text by kind (`pins`, `registers`, `layout`, `design_procedure`, `component_selection`, `typical_application`, …), title or number; without one, the outline. The text is formatted as light markdown: paragraphs separated by blank lines, `### ` sub-headings and `• ` list items. |
 | `read_pages` | Plain text of up to 10 pages. |
 | `get_page_image` | A page or a region of it as a PNG image. |
 | `list_figures` | Figures with number, page, kind (`graph`, `schematic`, `waveform`, `block_diagram`, `pinout`, `timing`, `layout`, `package`), caption, axes and recorded description. |
@@ -68,10 +68,10 @@ Conventions:
 |---|---|
 | `list_projects` | Projects with part and rail counts. |
 | `create_project` | Create a project (optionally the active one, which project arguments default to). |
-| `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
-| `set_rail` | Add, update or delete a rail: nominal/min/max voltage, current limit, source. |
+| `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads, chargers drawing the charge current set as their current (none set: no charging; a linear charger draws the larger of that and its load, a power-path charger both, up to its input limit); a part with the same supply and output rail counts as a load on it, and loops in the power tree are reported), each rail's ripple budget (peak-to-peak ripple it can carry before a part on it leaves its recommended input range, and the limiting part), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
+| `set_rail` | Add, update or delete a rail: nominal/min/max voltage, current limit, source, and loads on it that aren't in the BOM. |
 | `add_to_project` | Place a part with designator, quantity, role, supply rail, output rail and load current. |
-| `update_project_part` | Change or remove a BOM entry by id or designator. |
+| `update_project_part` | Change or remove a BOM entry by id or designator; `clear_currents` unsets its currents (a regulator's input is then derived, a charger counts no charging). |
 
 ## Calculators
 

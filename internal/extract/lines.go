@@ -2,6 +2,7 @@ package extract
 
 import (
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -29,8 +30,9 @@ func Rows(spans []pdf.Span) []Row {
 			last := &rows[n-1]
 			lh := math.Max(1, last.Box.H())
 			// Subscripts and superscripts are set smaller and shifted; they
-			// belong to the row whose box they sit inside.
-			script := s.Size < rowSize(*last)*0.88 && c >= last.Box.Y0-1 && c <= last.Box.Y1+2
+			// belong to the row whose box they sit inside. They are short:
+			// a long smaller span is the next line under a heading.
+			script := s.Size < rowSize(*last)*0.88 && c >= last.Box.Y0-1 && c <= last.Box.Y1+2 && len([]rune(strings.TrimSpace(s.Text))) <= 12
 			if script || math.Abs(c-last.Y) <= math.Min(h, lh)*0.45 {
 				last.Spans = append(last.Spans, s)
 				last.Box = last.Box.Union(s.Box)
@@ -69,7 +71,7 @@ func Lines(p pdf.Page) []Line {
 		var cur *Line
 		flush := func() {
 			if cur != nil {
-				cur.Text = strings.TrimSpace(cur.Text)
+				cur.Text = symbolArrows(strings.TrimSpace(cur.Text))
 				if cur.Text != "" {
 					out = append(out, *cur)
 				}
@@ -78,7 +80,7 @@ func Lines(p pdf.Page) []Line {
 		}
 		for _, s := range row.Spans {
 			size := math.Max(s.Size, 4)
-			if cur != nil && (s.Box.X0-cur.Box.X1 > 2.5*size || startsCaption(s.Text)) {
+			if cur != nil && (s.Box.X0-cur.Box.X1 > 2.5*size || startsCaption(s.Text) || sizeJump(cur.Size, s.Size, s.Box.X0-cur.Box.X1)) {
 				flush()
 			}
 			if cur == nil {
@@ -97,6 +99,26 @@ func Lines(p pdf.Page) []Line {
 		flush()
 	}
 	return out
+}
+
+// symbolArrowRe matches the Symbol font's right arrow, which extracts as
+// "Æ": between words, not starting a word ("Æble").
+var symbolArrowRe = regexp.MustCompile(`\s*Æ(\s+|([A-Z]))`)
+
+// symbolArrows repairs Symbol-font arrows ("Overcharge ÆLoad" →
+// "Overcharge → Load").
+func symbolArrows(s string) string {
+	if !strings.Contains(s, "Æ") {
+		return s
+	}
+	return strings.TrimSpace(symbolArrowRe.ReplaceAllString(s, " → $2"))
+}
+
+// sizeJump reports whether a span set much larger or smaller than the
+// line so far, after a real gap, is separate text: a heading in the next
+// column level with body text. (Subscripts touch the text they follow.)
+func sizeJump(a, b, gap float64) bool {
+	return gap > 3 && math.Max(a, b) >= 1.5*math.Min(a, b)
 }
 
 // startsCaption reports whether a span begins a figure or table caption,

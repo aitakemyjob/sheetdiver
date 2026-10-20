@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Check, Copy, X } from 'lucide-react';
 import { renderMarkdown } from '../lib/markdown';
 
 /** Dialog that closes on Escape or a backdrop click. */
 export function Modal(props: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean; icon?: ReactNode }) {
+  const titleId = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose();
     window.addEventListener('keydown', onKey);
@@ -11,10 +12,12 @@ export function Modal(props: { title: ReactNode; onClose: () => void; children: 
   }, [props]);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div className={`modal ${props.wide ? 'wide' : ''}`} role="dialog" aria-modal="true">
+      <div className={`modal ${props.wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="modal-head">
           {props.icon}
-          <span className="grow">{props.title}</span>
+          <span className="grow" id={titleId}>
+            {props.title}
+          </span>
           <button className="btn ghost icon sm" onClick={props.onClose} aria-label="Close">
             <X size={15} />
           </button>
@@ -27,8 +30,8 @@ export function Modal(props: { title: ReactNode; onClose: () => void; children: 
 }
 
 /** Accessible on/off toggle. */
-export function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label?: string }) {
-  return <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} />;
+export function Switch({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
+  return <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)} />;
 }
 
 /** Centered loading spinner with an optional label. */
