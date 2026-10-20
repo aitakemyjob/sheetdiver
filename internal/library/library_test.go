@@ -254,3 +254,28 @@ func TestRailOtherLoads(t *testing.T) {
 		t.Errorf("cleared = %+v", r)
 	}
 }
+
+func TestZeroCurrentLimitIsNone(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, "Board", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := func(f float64) *float64 { return &f }
+	for _, lim := range []float64{0, -1} {
+		if r, err := s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3), CurrentLimit: v(lim)}); err != nil || r.CurrentLimit != nil {
+			t.Errorf("limit %v saved as %v (%v)", lim, r.CurrentLimit, err)
+		}
+	}
+	if r, _ := s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3), CurrentLimit: v(0.4)}); r.CurrentLimit == nil || *r.CurrentLimit != 0.4 {
+		t.Errorf("a real limit is kept: %v", r.CurrentLimit)
+	}
+	// Rails saved with 0 before this was fixed read as no limit.
+	if _, err := s.db.ExecContext(ctx, `UPDATE project_rails SET current_limit = 0 WHERE project_id = ?`, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if rails, _ := s.Rails(ctx, p.ID); len(rails) != 1 || rails[0].CurrentLimit != nil {
+		t.Errorf("stored 0 = %+v", rails)
+	}
+}

@@ -1321,3 +1321,33 @@ func TestCompareSpecificParts(t *testing.T) {
 		t.Error("an unknown key")
 	}
 }
+
+func TestZeroRailLimitFallsBackToTheRegulatorRating(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, err := s.Lib.CreateProject(ctx, "Board", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v12, v33, zero, load := 12.0, 3.3, 0.0, 0.5
+	for _, r := range []library.Rail{{ProjectID: p.ID, Name: "VIN", VNom: &v12}, {ProjectID: p.ID, Name: "3V3", VNom: &v33, CurrentLimit: &zero, OtherMax: &load}} {
+		if _, err := s.Lib.SetRail(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AddToProject(ctx, "Board", "SD1234", library.ProjectPart{SupplyRail: "VIN", OutputRail: "3V3"}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.ProjectDetail(ctx, "Board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range d.Rails {
+		if r.Name == "3V3" && (r.Capacity != 3 || !strings.Contains(r.CapacityFrom, "SD1234 rated output")) {
+			t.Errorf("3V3 capacity = %v (%s), want SD1234's 3 A rating", r.Capacity, r.CapacityFrom)
+		}
+	}
+	if !findCheck(d.Checks, calc.OK, "3V3 load 500 mA is 17% of 3 A") {
+		t.Errorf("the load check runs: %+v", d.Checks)
+	}
+}
