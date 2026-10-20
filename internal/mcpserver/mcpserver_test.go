@@ -156,6 +156,9 @@ func TestAgentWorkflow(t *testing.T) {
 	h.must("add_to_project", map[string]any{"part": "SD1234", "designator": "U1", "supply_rail": "VIN", "output_rail": "3V3"}, "Board A")
 	h.must("add_to_project", map[string]any{"part": "SD1235", "designator": "U9", "supply_rail": "3V3", "i_max": 0.5}, "U9")
 	h.must("get_project", map[string]any{}, "3V3: 3.3 V", "load", "600 mA max", "U1", "other loads 50 mA typ / 100 mA max", "ripple budget")
+	// Clearing a part's currents takes it out of the budget.
+	h.must("update_project_part", map[string]any{"entry": "U9", "clear_currents": true}, "U9")
+	h.must("get_project", map[string]any{}, "100 mA max", "U9 has no load current set")
 	h.must("update_project_part", map[string]any{"entry": "U9", "remove": true}, "removed")
 
 	calc := h.must("calculate", map[string]any{"kind": "buck", "part": "SD1234", "project": "Board A", "inputs": map[string]any{"iout": 2}, "save": true},

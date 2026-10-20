@@ -133,6 +133,19 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
   );
 }
 
+/** The placeholder of a BOM row's current cells: what an empty cell means. */
+export function currentHint(pp: ProjectPart): string {
+  if (!pp.outputRail || pp.outputRail.toLowerCase() === (pp.supplyRail ?? '').toLowerCase()) return '';
+  return pp.category === 'charger' ? 'charge A' : 'derived';
+}
+
+/** The tooltip of a BOM row's current cells. */
+export function currentTitle(pp: ProjectPart): string {
+  if (pp.category === 'charger' && pp.outputRail) return 'The charge current your board programs (e.g. with RPROG). Empty: charging is not counted.';
+  if (pp.outputRail && pp.outputRail.toLowerCase() !== (pp.supplyRail ?? '').toLowerCase()) return "This regulator's input current. Empty: derived from its output rail's load.";
+  return 'The current this part draws from its supply rail.';
+}
+
 /** Reads an "other loads" entry: one current, or typ/max ("100m/150m"). */
 export function parseLoad(text: string): [number | undefined, number | undefined] {
   const [a, b] = text.split('/').map((x) => (x.trim() ? parseSI(x) : undefined));
@@ -336,10 +349,10 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
                   <td>{railSelect(pp, 'supplyRail')}</td>
                   <td>{railSelect(pp, 'outputRail')}</td>
                   <td className="num">
-                    <input className="cell" placeholder={pp.outputRail ? 'derived' : ''} defaultValue={pp.iTyp ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iTyp ?? null) && update(pp, { iTyp: amps(e.target.value) })} />
+                    <input className="cell" placeholder={currentHint(pp)} title={currentTitle(pp)} defaultValue={pp.iTyp ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iTyp ?? null) && update(pp, { iTyp: amps(e.target.value) })} />
                   </td>
                   <td className="num">
-                    <input className="cell" placeholder={pp.outputRail ? 'derived' : ''} defaultValue={pp.iMax ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iMax ?? null) && update(pp, { iMax: amps(e.target.value) })} />
+                    <input className="cell" placeholder={currentHint(pp)} title={currentTitle(pp)} defaultValue={pp.iMax ?? ''} onBlur={(e) => amps(e.target.value) !== (pp.iMax ?? null) && update(pp, { iMax: amps(e.target.value) })} />
                   </td>
                   <td>
                     <div className="row" style={{ gap: 2 }}>
@@ -367,7 +380,7 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
         </table>
       )}
       <div className="muted" style={{ fontSize: 11.5 }}>
-        Currents are in amps (SI prefixes work: 120m, 5µ). Leave a regulator's currents empty to derive its input current from the load on its output rail.
+        Currents are in amps (SI prefixes work: 120m, 5µ): what each part draws from its supply rail. Leave a regulator's currents empty to derive its input current from the load on its output rail; for a charger, enter the charge current your board programs (none counts no charging).
       </div>
       <div className="row" style={{ position: 'relative' }}>
         <input className="input" style={{ width: 320 }} placeholder="Add a part: type a part number" value={part} onChange={(e) => setPart(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && part.trim() && add(part.trim())} />

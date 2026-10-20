@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend, type FakeBackend } from '../test/backend';
-import { loadText, parseLoad, ProjectView } from './ProjectView';
+import { currentHint, currentTitle, loadText, parseLoad, ProjectView } from './ProjectView';
+import type { ProjectPart } from '../lib/types';
 
 let b: FakeBackend;
 beforeEach(() => {
@@ -71,5 +72,18 @@ describe('rail loads and ripple', () => {
     expect(loadText(0.05, 0.05)).toBe('0.05');
     expect(loadText(undefined, 0.2)).toBe('0.2');
     expect(loadText(null, null)).toBe('');
+  });
+});
+
+describe('BOM current cells', () => {
+  const pp = (p: Partial<ProjectPart>) => ({ id: 1, projectId: 1, partId: 1, mpn: 'X', category: '', hasDatasheet: true, qty: 1, ...p }) as ProjectPart;
+  it('say what an empty cell means', () => {
+    expect(currentHint(pp({ supplyRail: '3V3' }))).toBe('');
+    expect(currentHint(pp({ supplyRail: '4.2V', outputRail: '3V3', category: 'buck-boost' }))).toBe('derived');
+    expect(currentHint(pp({ supplyRail: '5V', outputRail: '4.2V', category: 'charger' }))).toBe('charge A');
+    expect(currentHint(pp({ supplyRail: '4.2V', outputRail: '4.2V', category: 'battery-protection' }))).toBe('');
+    expect(currentTitle(pp({ supplyRail: '5V', outputRail: '4.2V', category: 'charger' }))).toMatch(/charge current your board programs/);
+    expect(currentTitle(pp({ supplyRail: '4.2V', outputRail: '3V3' }))).toMatch(/input current/);
+    expect(currentTitle(pp({ supplyRail: '3V3' }))).toMatch(/draws from its supply rail/);
   });
 });

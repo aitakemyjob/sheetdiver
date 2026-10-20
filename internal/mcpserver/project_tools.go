@@ -51,8 +51,8 @@ type addPartArgs struct {
 	Role       string   `json:"role,omitempty" jsonschema:"what it does on the board, e.g. '3V3 buck', 'load switch'"`
 	SupplyRail string   `json:"supply_rail,omitempty" jsonschema:"rail it is powered from"`
 	OutputRail string   `json:"output_rail,omitempty" jsonschema:"rail it generates (regulators)"`
-	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current drawn from the supply rail (A); omit for regulators to derive it from their output load"`
-	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current drawn from the supply rail (A)"`
+	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current drawn from the supply rail (A); omit for regulators to derive it from their output load; for a charger, the charge current the board programs (omit: no charging counted)"`
+	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current drawn from the supply rail (A); for a charger, its maximum charge current"`
 	Notes      string   `json:"notes,omitempty"`
 }
 
@@ -64,10 +64,12 @@ type updateEntryArgs struct {
 	Role       *string  `json:"role,omitempty"`
 	SupplyRail *string  `json:"supply_rail,omitempty"`
 	OutputRail *string  `json:"output_rail,omitempty"`
-	ITyp       *float64 `json:"i_typ,omitempty"`
-	IMax       *float64 `json:"i_max,omitempty"`
+	ITyp       *float64 `json:"i_typ,omitempty" jsonschema:"typical current from the supply rail (A); a charger's charge current"`
+	IMax       *float64 `json:"i_max,omitempty" jsonschema:"maximum current from the supply rail (A); a charger's maximum charge current"`
 	Notes      *string  `json:"notes,omitempty"`
-	Remove     bool     `json:"remove,omitempty" jsonschema:"take the part out of the project"`
+	// ClearCurrents unsets i_typ and i_max.
+	ClearCurrents bool `json:"clear_currents,omitempty" jsonschema:"unset i_typ and i_max: a regulator's input current is then derived from its output load, and a charger counts no charging"`
+	Remove        bool `json:"remove,omitempty" jsonschema:"take the part out of the project"`
 }
 
 type calcArgs struct {
@@ -218,6 +220,9 @@ func (s *Server) registerProjects() {
 			}
 			if a.OutputRail != nil {
 				e.OutputRail = *a.OutputRail
+			}
+			if a.ClearCurrents {
+				e.ITyp, e.IMax = nil, nil
 			}
 			if a.ITyp != nil {
 				e.ITyp = a.ITyp

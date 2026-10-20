@@ -68,10 +68,10 @@ Conventions:
 |---|---|
 | `list_projects` | Projects with part and rail counts. |
 | `create_project` | Create a project (optionally the active one, which project arguments default to). |
-| `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads, chargers drawing their charge current (a linear charger the larger of that and its load, a power-path charger both, up to its input limit); a part with the same supply and output rail counts as a load on it, and loops in the power tree are reported), each rail's ripple budget (peak-to-peak ripple it can carry before a part on it leaves its recommended input range, and the limiting part), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
+| `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads, chargers drawing the charge current set as their current (none set: no charging; a linear charger draws the larger of that and its load, a power-path charger both, up to its input limit); a part with the same supply and output rail counts as a load on it, and loops in the power tree are reported), each rail's ripple budget (peak-to-peak ripple it can carry before a part on it leaves its recommended input range, and the limiting part), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
 | `set_rail` | Add, update or delete a rail: nominal/min/max voltage, current limit, source, and loads on it that aren't in the BOM. |
 | `add_to_project` | Place a part with designator, quantity, role, supply rail, output rail and load current. |
-| `update_project_part` | Change or remove a BOM entry by id or designator. |
+| `update_project_part` | Change or remove a BOM entry by id or designator; `clear_currents` unsets its currents (a regulator's input is then derived, a charger counts no charging). |
 
 ## Calculators
 

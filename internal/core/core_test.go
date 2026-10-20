@@ -1154,33 +1154,42 @@ func TestRailLoadsInLineLoopsAndChargers(t *testing.T) {
 	if r := get("4.2V"); math.Abs(r.LoadMax-want42) > 1e-9 {
 		t.Errorf("4.2V max = %v, want %v", r.LoadMax, want42)
 	}
-	// 5V: a linear charger limits battery and system together to its
-	// charge current, so it draws the larger of the load and the largest
-	// charge current (1.2 A; the absolute maximum rating doesn't count).
-	if r := get("5V"); math.Abs(r.LoadMax-1.2) > 1e-9 || math.Abs(r.LoadTyp-1.1) > 1e-9 {
-		t.Errorf("5V = %v / %v", r.LoadTyp, r.LoadMax)
+	// 5V: without a charge current set, the linear charger passes just its
+	// output's load (charging isn't assumed).
+	if r := get("5V"); math.Abs(r.LoadMax-want42) > 1e-9 {
+		t.Errorf("5V = %v / %v, want the 4.2V load", r.LoadTyp, r.LoadMax)
 	}
-	if math.Abs(input-5*1.2) > 1e-9 {
+	if math.Abs(input-5*want42) > 1e-9 {
 		t.Errorf("input power = %v", input)
 	}
-	// A load above the charge current is served beyond it (from the battery
-	// in practice; the input is what the charger passes).
-	if typ, max := chargerOutput(params[1], 1.5, 2); typ != 1.5 || max != 2 {
+	if cs := projectChecks(st, []library.ProjectPart{charger}, params, nil); !findCheck(cs, calc.Warn, "TP4056 has no charge current set, so charging isn't counted on 5V; enter the charge current your board programs as its current (the datasheet goes up to 1.2 A, TP4056 p3)") {
+		t.Errorf("no charge current: %+v", cs)
+	}
+	// The charger's entered current is its charge current: a linear
+	// charger serves its load from it, so it draws the larger of the two.
+	charger.ITyp, charger.IMax = ma(450), ma(500)
+	st, _, _ = railStatus(rails, []library.ProjectPart{charger, protect, buck, load}, params)
+	if r := get("5V"); math.Abs(r.LoadMax-0.5) > 1e-9 || math.Abs(r.LoadTyp-0.45) > 1e-9 {
+		t.Errorf("charging at 450/500 mA: 5V = %v / %v", r.LoadTyp, r.LoadMax)
+	}
+	if cs := projectChecks(st, []library.ProjectPart{charger}, params, nil); !findCheck(cs, calc.OK, "TP4056 charges at 500 mA (entered)") || findCheck(cs, calc.Warn, "has its own current entered") {
+		t.Errorf("charge current set: %+v", cs)
+	}
+	// A load above the charge current is served beyond it.
+	if typ, max := chargerOutput(params[1], ma(450), ma(500), 0.6, 0.7); typ != 0.6 || max != 0.7 {
 		t.Errorf("load above the charge current = %v / %v", typ, max)
+	}
+	// One value set serves as both.
+	if typ, max := chargerOutput(params[1], nil, ma(800), 0.1, 0.1); typ != 0.8 || max != 0.8 {
+		t.Errorf("max only = %v / %v", typ, max)
 	}
 	// A power-path charger charges on top of the load, up to its input limit.
 	pathParams := append(append([]library.Parameter(nil), params[1]...), library.Parameter{Key: "ilim_in", Section: extract.KindElectrical, Max: v(1.5), Unit: "A"})
-	if typ, max := chargerOutput(pathParams, 0.084, 0.084); math.Abs(typ-1.184) > 1e-9 || math.Abs(max-1.284) > 1e-9 {
+	if typ, max := chargerOutput(pathParams, ma(1000), ma(1200), 0.084, 0.084); math.Abs(typ-1.084) > 1e-9 || math.Abs(max-1.284) > 1e-9 {
 		t.Errorf("power path = %v / %v", typ, max)
 	}
-	if _, max := chargerOutput(pathParams, 0.084, 0.5); max != 1.5 {
+	if _, max := chargerOutput(pathParams, ma(1000), ma(1200), 0.084, 0.5); max != 1.5 {
 		t.Errorf("power path at its input limit = %v", max)
-	}
-	// Entering the charger's current overrides the charge current.
-	charger.ITyp, charger.IMax = ma(300), ma(450)
-	st, _, _ = railStatus(rails, []library.ProjectPart{charger, protect, buck, load}, params)
-	if r := get("5V"); math.Abs(r.LoadMax-0.45) > 1e-9 {
-		t.Errorf("entered charger current: 5V = %v", r.LoadMax)
 	}
 	cs := projectChecks(st, []library.ProjectPart{protect}, params, nil)
 	for _, c := range cs {

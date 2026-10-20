@@ -177,8 +177,9 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 			}
 			oi, regulates := idx[strings.ToLower(pp.OutputRail)]
 			regulates = regulates && pp.OutputRail != "" && !inLine(pp) && !inLoop[pp.ID]
+			charger := pp.Category == "charger"
 			switch {
-			case pp.ITyp != nil || pp.IMax != nil:
+			case (pp.ITyp != nil || pp.IMax != nil) && (!charger || !regulates):
 				// The currents entered for the part.
 			case regulates:
 				// A regulator: input current from its output load (and, for
@@ -188,8 +189,10 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 					eff = 0.85
 				}
 				outTyp, outMax := st[oi].LoadTyp, st[oi].LoadMax
-				if pp.Category == "charger" {
-					outTyp, outMax = chargerOutput(params[pp.PartID], outTyp, outMax)
+				if charger {
+					// A charger's entered currents are the charge current
+					// set on the board; none set, no charging is counted.
+					outTyp, outMax = chargerOutput(params[pp.PartID], pp.ITyp, pp.IMax, outTyp, outMax)
 				}
 				vin := railNominal(st[si].Rail)
 				vout := railNominal(st[oi].Rail)
@@ -332,14 +335,27 @@ func railLoops(parts []library.ProjectPart, idx map[string]int) map[int64]bool {
 	return out
 }
 
-// chargerOutput is what a charger delivers while charging, given the
-// load on its output rail. A simple linear charger (TP4056) limits its
-// total output, battery and system together, to the charge current, so
-// it delivers the larger of the two. A power-path charger (it has an
-// input current limit, ilim_in) charges on top of the system load, up to
-// that limit.
-func chargerOutput(ps []library.Parameter, loadTyp, loadMax float64) (float64, float64) {
-	ct, cm, _ := chargeCurrent(ps)
+// chargerOutput is what a charger delivers while charging at the charge
+// current set for it (typ, max; one may be nil), given the load on its
+// output rail. Without a charge current set, charging isn't counted. A
+// simple linear charger (TP4056) limits its total output, battery and
+// system together, to the charge current, so it delivers the larger of
+// the two. A power-path charger (it has an input current limit, ilim_in)
+// charges on top of the system load, up to that limit.
+func chargerOutput(ps []library.Parameter, chgTyp, chgMax *float64, loadTyp, loadMax float64) (float64, float64) {
+	if chgTyp == nil && chgMax == nil {
+		return loadTyp, loadMax
+	}
+	ct, cm := 0.0, 0.0
+	if chgTyp != nil {
+		ct, cm = *chgTyp, *chgTyp
+	}
+	if chgMax != nil {
+		cm = *chgMax
+		if chgTyp == nil {
+			ct = cm
+		}
+	}
 	if lim, _, ok := paramSI(ps, "ilim_in", nil, "max", "typ"); ok && lim > 0 {
 		return math.Min(loadTyp+ct, lim), math.Min(loadMax+cm, lim)
 	}
@@ -463,14 +479,20 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 		}
 		// Currents entered on a regulator's row are its input current, so
 		// its output rail's loads aren't passed up.
-		if (pp.ITyp != nil || pp.IMax != nil) && pp.OutputRail != "" && !inLine(pp) {
+		if (pp.ITyp != nil || pp.IMax != nil) && pp.OutputRail != "" && !inLine(pp) && pp.Category != "charger" {
 			if r := byName[strings.ToLower(pp.OutputRail)]; r != nil && r.LoadMax > 0 {
 				add(calc.Warn, label, pp.SupplyRail, 0, "%s has its own current entered (%s), which is used as its input current instead of deriving it from %s's load (%s); clear it to pass %s's load up to %s", label, calc.Eng(firstPositive(pp.IMax, pp.ITyp), "A"), r.Name, calc.Eng(r.LoadMax, "A"), r.Name, pp.SupplyRail)
 			}
 		}
-		if pp.Category == "charger" && pp.ITyp == nil && pp.IMax == nil && pp.OutputRail != "" && !inLine(pp) {
-			if _, m, page := chargeCurrent(params[pp.PartID]); m > 0 {
-				add(calc.OK, label, pp.SupplyRail, page, "%s is assumed to charge at up to %s (%s p%d) while its output's load is served from the same current; enter the part's current if your programming resistor sets less", label, calc.Eng(m, "A"), pp.MPN, page+1)
+		if pp.Category == "charger" && pp.OutputRail != "" && !inLine(pp) {
+			if pp.ITyp == nil && pp.IMax == nil {
+				hint := ""
+				if _, m, page := chargeCurrent(params[pp.PartID]); m > 0 {
+					hint = fmt.Sprintf(" (the datasheet goes up to %s, %s p%d)", calc.Eng(m, "A"), pp.MPN, page+1)
+				}
+				add(calc.Warn, label, pp.SupplyRail, 0, "%s has no charge current set, so charging isn't counted on %s; enter the charge current your board programs as its current%s", label, pp.SupplyRail, hint)
+			} else {
+				add(calc.OK, label, pp.SupplyRail, 0, "%s charges at %s (entered); its input on %s covers that and its output's load", label, calc.Eng(firstPositive(pp.IMax, pp.ITyp), "A"), pp.SupplyRail)
 			}
 		}
 	}
