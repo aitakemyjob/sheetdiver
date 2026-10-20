@@ -20,6 +20,11 @@ every merged pull request.
   other filters, so after "V<sub>DS</sub> ≥ 30 V" the package list shows only
   packages that still have matching parts, with their counts. Agents get
   the same (`Package = SOT-23|SOT-23-3`, faceted `catalog_parameters`).
+- **Delete from the library:** the trash button on a part opens a
+  confirmation that lists what goes: the datasheet with all its parts,
+  what you and agents recorded for it, notes, and the projects that use
+  the parts (kept there without a datasheet, or removed with them, your
+  choice). Agents can't delete.
 - **Open a catalogue part at LCSC or JLCPCB:** buttons in the part's
   details pane, and its LCSC code in the results is a link. The desktop
   app opens your browser; only part pages built from the LCSC code can be

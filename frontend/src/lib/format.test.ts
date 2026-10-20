@@ -64,3 +64,12 @@ describe('plural', () => {
     expect(plural(2522372, 'part')).toBe(`${(2522372).toLocaleString()} parts`);
   });
 });
+
+describe('delete dialog', () => {
+  it('describes recorded data that would be lost', async () => {
+    const { recordedText } = await import('../components/DeleteDialog');
+    expect(recordedText({})).toBe('');
+    expect(recordedText({ parameters: 1 })).toBe('1 parameter');
+    expect(recordedText({ parameters: 3, figures: 1, tables: 2 })).toBe('3 parameters, 1 figure description, 2 table transcriptions');
+  });
+});

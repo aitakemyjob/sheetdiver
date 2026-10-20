@@ -10,6 +10,7 @@ import { CategoryBadge, Empty, ErrorBox, Markdown, SourceBadge, Spinner, useAsyn
 import { NotesPanel } from './NotesPanel';
 import { Alternatives } from './Alternatives';
 import { UpdateDialog } from '../components/UpdateDialog';
+import { DeleteDialog } from '../components/DeleteDialog';
 
 type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'sections' | 'registers' | 'tables' | 'alternatives' | 'notes' | 'variants';
 
@@ -28,6 +29,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
   const ref = String(params.part ?? '');
   const [sub, setSub] = useState<Sub>((params.tab as Sub) || 'overview');
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     if (params.tab) setSub(params.tab as Sub);
   }, [params.tab, params.nonce]);
@@ -137,6 +139,9 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
               <RefreshCw size={13} />
             </button>
           )}
+          <button className="btn sm ghost danger" title={ds ? 'Delete this datasheet and its parts from the library…' : 'Delete this part from the library…'} onClick={() => setDeleting(true)}>
+            <Trash2 size={13} />
+          </button>
         </div>
         <div className="subtabs">
           {tabs.map(([k, label, n]) => (
@@ -172,6 +177,19 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
         {sub === 'alternatives' && <Alternatives d={d} />}
       </div>
       {updating && ds && <UpdateDialog ds={ds} onClose={() => setUpdating(false)} />}
+      {deleting && (
+        <DeleteDialog
+          part={d.part.mpn}
+          onClose={() => setDeleting(false)}
+          onDeleted={(removed) => {
+            setDeleting(false);
+            // Close the tabs of the parts that no longer exist.
+            const gone = new Set(removed.map((m) => m.toUpperCase()));
+            for (const t of s.tabs) if (t.kind === 'part' && gone.has(String(t.params.part ?? '').toUpperCase())) s.close(t.id);
+            if (!gone.has(d.part.mpn.toUpperCase())) s.refreshLibrary();
+          }}
+        />
+      )}
     </div>
   );
 }

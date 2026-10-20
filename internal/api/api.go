@@ -322,6 +322,15 @@ func (a *API) registerLibrary() {
 		c.Changed("part", p.DatasheetID)
 		return p, err
 	})
+	// Deleting from the library is the user's alone (no MCP tool): the UI
+	// shows the plan and asks for confirmation before applying it.
+	a.methods["delete.preview"] = method(func(ctx context.Context, in partReq) (any, error) { return c.DeletePreview(ctx, in.Part) })
+	a.methods["delete.apply"] = method(func(ctx context.Context, in struct {
+		Part           string `json:"part"`
+		KeepInProjects bool   `json:"keepInProjects"`
+	}) (any, error) {
+		return c.DeletePart(ctx, in.Part, in.KeepInProjects)
+	})
 	a.methods["part.delete"] = method(func(ctx context.Context, in idReq) (any, error) {
 		err := c.Lib.DeletePart(ctx, in.ID)
 		c.Changed("part", 0)

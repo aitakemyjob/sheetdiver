@@ -1005,3 +1005,80 @@ func TestReextractDatasheetWithDocumentNumber(t *testing.T) {
 		t.Errorf("extractor = %q", d.Extractor)
 	}
 }
+
+func TestDeletePartWithItsDatasheet(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	r, _ := s.ResolvePart(ctx, "SD1234")
+	dsID := r.Part.DatasheetID
+	d, _ := s.Lib.Datasheet(ctx, dsID)
+	pdfPath := s.Lib.DatasheetPath(d.File)
+	if _, err := os.Stat(pdfPath); err != nil {
+		t.Fatal(err)
+	}
+	// Recorded data, notes and a project use.
+	if _, err := s.Lib.RecordParameters(ctx, dsID, []library.Parameter{{Key: "fsw", Name: "Switching frequency", Typ: f64(600), Unit: "kHz", Section: "Electrical Characteristics"}}, library.SourceUser, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Lib.AddNote(ctx, library.Note{TargetKind: library.TargetPart, TargetID: "SD1235", Body: "check thermal"}, dsID); err != nil {
+		t.Fatal(err)
+	}
+	s.Lib.CreateProject(ctx, "board", "")
+	s.AddToProject(ctx, "board", "SD1235", library.ProjectPart{Designator: "U1"})
+
+	plan, err := s.DeletePreview(ctx, "SD1234DDCR")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Datasheet == nil || len(plan.Parts) != 2 || plan.Recorded["parameters"] != 1 || plan.Notes != 1 || !plan.InProjects {
+		t.Fatalf("plan = %+v", plan)
+	}
+	for _, u := range plan.Parts {
+		if u.Part.MPN == "SD1235" && (len(u.Projects) != 1 || u.Projects[0] != "board") {
+			t.Errorf("SD1235 projects = %v", u.Projects)
+		}
+	}
+
+	// Keep the project's part: it stays without a datasheet.
+	res, err := s.DeletePart(ctx, "SD1234", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Datasheet == "" || strings.Join(res.Deleted, ",") != "SD1234" || strings.Join(res.Kept, ",") != "SD1235" {
+		t.Errorf("result = %+v", res)
+	}
+	if _, err := s.Lib.Datasheet(ctx, dsID); err == nil {
+		t.Error("the datasheet is gone")
+	}
+	if _, err := os.Stat(pdfPath); !os.IsNotExist(err) {
+		t.Error("the PDF is removed")
+	}
+	if _, err := s.ResolvePart(ctx, "SD1234"); err == nil {
+		t.Error("SD1234 is gone")
+	}
+	kept, err := s.ResolvePart(ctx, "SD1235")
+	if err != nil || kept.Part.DatasheetID != 0 {
+		t.Fatalf("SD1235 kept as a placeholder: %+v %v", kept.Part, err)
+	}
+	if d, _ := s.ProjectDetail(ctx, "board"); len(d.Parts) != 1 || d.Parts[0].HasDatasheet {
+		t.Errorf("project keeps it without a datasheet: %+v", d.Parts)
+	}
+
+	// Deleting the placeholder removes it from the project and its notes.
+	plan, _ = s.DeletePreview(ctx, "SD1235")
+	if plan.Datasheet != nil || len(plan.Parts) != 1 || plan.Notes != 1 {
+		t.Errorf("placeholder plan = %+v", plan)
+	}
+	if _, err := s.DeletePart(ctx, "SD1235", false); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := s.ProjectDetail(ctx, "board"); len(d.Parts) != 0 {
+		t.Errorf("removed from the project: %+v", d.Parts)
+	}
+	if n, _ := s.Lib.CountNotesOf(ctx, library.TargetPart, "SD1235"); n != 0 {
+		t.Errorf("notes left: %d", n)
+	}
+	if _, err := s.DeletePart(ctx, "nope", false); err == nil {
+		t.Error("unknown parts are an error")
+	}
+}
