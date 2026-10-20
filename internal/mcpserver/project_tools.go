@@ -36,6 +36,8 @@ type railArgs struct {
 	VMin         *float64 `json:"v_min,omitempty" jsonschema:"minimum voltage incl. tolerance and sag (V)"`
 	VMax         *float64 `json:"v_max,omitempty" jsonschema:"maximum voltage incl. tolerance and transients (V)"`
 	CurrentLimit *float64 `json:"current_limit,omitempty" jsonschema:"what the source can deliver (A); regulators in the project are used if omitted"`
+	OtherTyp     *float64 `json:"other_typ,omitempty" jsonschema:"typical current (A) of loads on the rail that aren't in the BOM (a module, sensors)"`
+	OtherMax     *float64 `json:"other_max,omitempty" jsonschema:"maximum current (A) of loads on the rail that aren't in the BOM"`
 	Source       string   `json:"source,omitempty" jsonschema:"what supplies it (a designator, 'USB', 'battery')"`
 	Notes        string   `json:"notes,omitempty"`
 	Delete       bool     `json:"delete,omitempty" jsonschema:"remove the rail"`
@@ -132,7 +134,7 @@ func (s *Server) registerProjects() {
 			return text(projectText(d)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_rail", Description: "Add or update a supply rail of a project (voltage range, current limit, source), or delete it.", Annotations: writes("Set rail", true)},
+	addTool(s, &mcp.Tool{Name: "set_rail", Description: "Add or update a supply rail of a project (voltage range, current limit, source, loads not in the BOM), or delete it.", Annotations: writes("Set rail", true)},
 		write, func(a railArgs) string { return "rail " + a.Name }, func(ctx context.Context, a railArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -149,7 +151,7 @@ func (s *Server) registerProjects() {
 				c.ProjectChanged(p.Name, "rail")
 				return text("deleted rail " + a.Name), nil
 			}
-			r, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: a.Name, VNom: a.VNom, VMin: a.VMin, VMax: a.VMax, CurrentLimit: a.CurrentLimit, Source: a.Source, Notes: a.Notes})
+			r, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: a.Name, VNom: a.VNom, VMin: a.VMin, VMax: a.VMax, CurrentLimit: a.CurrentLimit, OtherTyp: a.OtherTyp, OtherMax: a.OtherMax, Source: a.Source, Notes: a.Notes})
 			if err != nil {
 				return result{}, err
 			}
@@ -747,7 +749,15 @@ func projectText(d core.ProjectDetail) string {
 		if r.Capacity > 0 {
 			fmt.Fprintf(&b, " of %s (%s, %.0f%%)", calc.Eng(r.Capacity, "A"), r.CapacityFrom, 100*r.LoadMax/r.Capacity)
 		}
-		fmt.Fprintf(&b, " | %s | consumers: %s\n", calc.Eng(r.Power, "W"), strings.Join(r.Consumers, ", "))
+		consumers := strings.Join(r.Consumers, ", ")
+		if r.OtherTyp != nil || r.OtherMax != nil {
+			consumers = strings.TrimPrefix(consumers+fmt.Sprintf(", other loads %s typ / %s max", calc.Eng(deref(r.OtherTyp), "A"), calc.Eng(deref(r.OtherMax), "A")), ", ")
+		}
+		fmt.Fprintf(&b, " | %s | consumers: %s", calc.Eng(r.Power, "W"), consumers)
+		if r.Ripple != nil {
+			fmt.Fprintf(&b, " | ripple budget %s p-p (limited by %s)", calc.Eng(*r.Ripple, "V"), r.RippleLimit)
+		}
+		b.WriteString("\n")
 	}
 	fmt.Fprintf(&b, "input power at max load: %s\n", calc.Eng(d.InputPower, "W"))
 	b.WriteString("\n## Checks\n")

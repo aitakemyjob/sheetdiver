@@ -46,6 +46,14 @@ type RailStatus struct {
 	SourcePart  string   `json:"sourcePart,omitempty"`
 	Consumers   []string `json:"consumers"`
 	Power       float64  `json:"power"`
+	// Ripple is how much ripple (peak to peak, volts) the rail can carry
+	// before a part on it leaves its recommended input range, on top of
+	// the rail's DC tolerance; nil when no part's range is known.
+	Ripple *float64 `json:"ripple,omitempty"`
+	// RippleLimit is the part and limit that set it, RipplePage its
+	// datasheet page (0-based).
+	RippleLimit string `json:"rippleLimit,omitempty"`
+	RipplePage  int    `json:"ripplePage,omitempty"`
 }
 
 // ProjectCheck is a finding about a project.
@@ -91,12 +99,14 @@ func (s *Service) ProjectDetail(ctx context.Context, ref string) (ProjectDetail,
 	}
 	var loops []string
 	out.Rails, out.InputPower, loops = railStatus(rails, out.Parts, params)
+	rippleBudgets(out.Rails, out.Parts, params)
 	out.Checks = projectChecks(out.Rails, out.Parts, params, loops)
 	return out, nil
 }
 
-// railStatus computes each rail's load, propagating regulator input
-// currents up the power tree. A part with the same supply and output rail
+// railStatus computes each rail's load (the loads entered on the rail,
+// the parts on it, and the input current of regulators fed from it),
+// propagating regulator input currents up the power tree. A part with the same supply and output rail
 // is in line on that rail (a protection switch): a load, not a source. A
 // regulator whose output feeds back to its own supply (a loop in the tree)
 // can't be propagated; it counts as a plain load and is returned in loops.
@@ -141,6 +151,17 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 	for iter := 0; iter < 12; iter++ {
 		typ := make([]float64, len(st))
 		mx := make([]float64, len(st))
+		// Loads entered on the rail itself (not in the BOM).
+		for i, r := range st {
+			if r.OtherTyp != nil {
+				typ[i] = *r.OtherTyp
+			}
+			if r.OtherMax != nil {
+				mx[i] = *r.OtherMax
+			} else {
+				mx[i] = typ[i]
+			}
+		}
 		for _, pp := range parts {
 			si, ok := idx[strings.ToLower(pp.SupplyRail)]
 			if !ok || pp.SupplyRail == "" {
@@ -209,6 +230,57 @@ func railStatus(rails []library.Rail, parts []library.ProjectPart, params map[in
 		}
 	}
 	return st, input, loops
+}
+
+// rippleBudgets sets each rail's ripple budget: twice the smaller of its
+// margins to the parts on it, the low margin from the rail's lowest DC
+// voltage down to the highest minimum input, the high margin from its
+// highest DC voltage up to the lowest maximum input (recommended
+// operating ranges). Ripple swings both ways around the DC level, so the
+// smaller margin limits it.
+func rippleBudgets(rails []RailStatus, parts []library.ProjectPart, params map[int64][]library.Parameter) {
+	for i := range rails {
+		r := &rails[i]
+		lo, hi := railRange(r.Rail)
+		if hi <= 0 {
+			continue
+		}
+		margin, limit, page := math.Inf(1), "", 0
+		for _, pp := range parts {
+			if !strings.EqualFold(pp.SupplyRail, r.Name) {
+				continue
+			}
+			ps := params[pp.PartID]
+			label := firstNonEmpty(pp.Designator, pp.MPN)
+			if v, p, ok := paramSI(ps, "vin", []string{extract.KindRecommended}, "max"); ok && p.Section == extract.KindRecommended {
+				if m := v - hi; m < margin {
+					margin, page = m, p.Page
+					limit = fmt.Sprintf("%s's maximum input %s (%s p%d)", label, calc.Eng(v, "V"), pp.MPN, p.Page+1)
+				}
+			}
+			if v, p, ok := paramSI(ps, "vin", []string{extract.KindRecommended, extract.KindElectrical}, "min"); ok && p.Section != extract.KindAbsMax && v > 0 {
+				if m := lo - v; m < margin {
+					margin, page = m, p.Page
+					limit = fmt.Sprintf("%s's minimum input %s (%s p%d)", label, calc.Eng(v, "V"), pp.MPN, p.Page+1)
+				}
+			}
+		}
+		if math.IsInf(margin, 1) {
+			continue
+		}
+		budget := math.Max(0, 2*margin)
+		r.Ripple, r.RippleLimit, r.RipplePage = &budget, limit, page
+	}
+}
+
+// firstPositive is the first value set and above zero, or 0.
+func firstPositive(vs ...*float64) float64 {
+	for _, v := range vs {
+		if v != nil && *v > 0 {
+			return *v
+		}
+	}
+	return 0
 }
 
 // inLine reports whether a part's supply and output are the same rail: it
@@ -354,6 +426,20 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 	for i := range rails {
 		byName[strings.ToLower(rails[i].Name)] = &rails[i]
 	}
+	for _, r := range rails {
+		if r.Ripple == nil {
+			continue
+		}
+		vn := railNominal(r.Rail)
+		switch {
+		case *r.Ripple == 0:
+			add(calc.Error, "", r.Name, r.RipplePage, "%s has no room for ripple: its DC range already reaches %s", r.Name, r.RippleLimit)
+		case vn > 0 && *r.Ripple < 0.02*vn:
+			add(calc.Warn, "", r.Name, r.RipplePage, "%s can carry only %s p-p ripple before reaching %s; a switching regulator's ripple is often 1–2%% of its output, so tighten the rail's tolerance or filter it", r.Name, calc.Eng(*r.Ripple, "V"), r.RippleLimit)
+		default:
+			add(calc.OK, "", r.Name, r.RipplePage, "%s can carry up to %s p-p ripple; limited by %s", r.Name, calc.Eng(*r.Ripple, "V"), r.RippleLimit)
+		}
+	}
 	if len(loops) > 0 {
 		add(calc.Error, strings.Join(loops, ", "), "", 0, "%s power each other's supply: the power tree loops, so their currents aren't passed upstream; check their supply and output rails", strings.Join(loops, " and "))
 	}
@@ -361,6 +447,13 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 		label := firstNonEmpty(pp.Designator, pp.MPN)
 		if inLine(pp) && pp.Category != "battery-protection" && pp.Category != "load-switch" {
 			add(calc.Warn, label, pp.SupplyRail, 0, "%s (%s) has %s as both supply and output, so it's counted as a load on %s, not as its source; if it converts the voltage, set its output to another rail", label, pp.MPN, pp.SupplyRail, pp.SupplyRail)
+		}
+		// Currents entered on a regulator's row are its input current, so
+		// its output rail's loads aren't passed up.
+		if (pp.ITyp != nil || pp.IMax != nil) && pp.OutputRail != "" && !inLine(pp) {
+			if r := byName[strings.ToLower(pp.OutputRail)]; r != nil && r.LoadMax > 0 {
+				add(calc.Warn, label, pp.SupplyRail, 0, "%s has its own current entered (%s), which is used as its input current instead of deriving it from %s's load (%s); clear it to pass %s's load up to %s", label, calc.Eng(firstPositive(pp.IMax, pp.ITyp), "A"), r.Name, calc.Eng(r.LoadMax, "A"), r.Name, pp.SupplyRail)
+			}
 		}
 		if pp.Category == "charger" && pp.ITyp == nil && pp.IMax == nil && pp.OutputRail != "" && !inLine(pp) {
 			if _, m, page := chargeCurrent(params[pp.PartID]); m > 0 {

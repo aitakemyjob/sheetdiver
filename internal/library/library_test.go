@@ -236,3 +236,21 @@ func TestTranslations(t *testing.T) {
 		t.Errorf("other language: %v", got)
 	}
 }
+
+func TestRailOtherLoads(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, "Board", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := func(f float64) *float64 { return &f }
+	r, err := s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3), OtherTyp: v(0.1), OtherMax: v(0.15)})
+	if err != nil || r.OtherTyp == nil || *r.OtherTyp != 0.1 || *r.OtherMax != 0.15 {
+		t.Fatalf("rail = %+v %v", r, err)
+	}
+	// Updating without them clears them.
+	if r, _ = s.SetRail(ctx, Rail{ProjectID: p.ID, Name: "3V3", VNom: v(3.3)}); r.OtherTyp != nil || r.OtherMax != nil {
+		t.Errorf("cleared = %+v", r)
+	}
+}

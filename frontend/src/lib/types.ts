@@ -291,6 +291,9 @@ export interface Rail {
   vMax?: number | null;
   source?: string;
   currentLimit?: number | null;
+  /** Loads on the rail that aren't in the BOM (amps). */
+  otherTyp?: number | null;
+  otherMax?: number | null;
   notes?: string;
 }
 
@@ -305,6 +308,10 @@ export interface RailStatus extends Rail {
   sourcePart?: string;
   consumers: string[];
   power: number;
+  /** Peak-to-peak ripple (volts) the rail can carry before a part on it leaves its recommended input range. */
+  ripple?: number;
+  /** The part and limit that set the ripple budget. */
+  rippleLimit?: string;
 }
 
 export interface ProjectPart {

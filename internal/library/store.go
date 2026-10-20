@@ -304,6 +304,9 @@ CREATE TABLE translations (
 	created_at TEXT NOT NULL,
 	PRIMARY KEY (lang, source)
 );
+`, `
+ALTER TABLE project_rails ADD COLUMN other_typ REAL;
+ALTER TABLE project_rails ADD COLUMN other_max REAL;
 `}
 
 // migrate applies pending schema migrations.

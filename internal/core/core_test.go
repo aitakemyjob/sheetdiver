@@ -1197,3 +1197,75 @@ func TestRailLoadsInLineLoopsAndChargers(t *testing.T) {
 		t.Errorf("checks = %+v", cs)
 	}
 }
+
+func TestRippleBudgetsAndOtherLoads(t *testing.T) {
+	v := func(f float64) *float64 { return &f }
+	params := map[int64][]library.Parameter{
+		// A buck-boost: recommended 1.8–5.5 V input.
+		1: {{Key: "vin", Section: extract.KindRecommended, Min: v(1.8), Max: v(5.5), Unit: "V", Page: 3}},
+		// A sensor: 3.0–3.6 V; its absolute maximum doesn't count.
+		2: {{Key: "vin", Section: extract.KindAbsMax, Max: v(4), Unit: "V"}, {Key: "vin", Section: extract.KindRecommended, Min: v(3.0), Max: v(3.6), Unit: "V", Page: 1}},
+	}
+	rails := []library.Rail{
+		{Name: "VBAT", VNom: v(3.7), VMin: v(3.0), VMax: v(4.2)},
+		{Name: "3V3", VNom: v(3.3), VMin: v(3.25), VMax: v(3.35), OtherTyp: v(0.1), OtherMax: v(0.15)},
+		{Name: "AUX", VNom: v(5)},
+	}
+	reg := library.ProjectPart{ID: 1, PartID: 1, MPN: "TPS63900", Category: "buck-boost", Qty: 1, SupplyRail: "VBAT", OutputRail: "3V3"}
+	sensor := library.ProjectPart{ID: 2, PartID: 2, MPN: "BME280", Qty: 1, SupplyRail: "3V3", ITyp: v(0.001)}
+	st, _, _ := railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	get := func(name string) RailStatus {
+		for _, r := range st {
+			if r.Name == name {
+				return r
+			}
+		}
+		return RailStatus{}
+	}
+	// Other loads add to the rail and pass up through the regulator.
+	if r := get("3V3"); math.Abs(r.LoadMax-0.151) > 1e-9 || math.Abs(r.LoadTyp-0.101) > 1e-9 {
+		t.Errorf("3V3 load = %v / %v", r.LoadTyp, r.LoadMax)
+	}
+	if r := get("VBAT"); math.Abs(r.LoadMax-3.3*0.151/(3.7*0.85)) > 1e-9 {
+		t.Errorf("VBAT load = %v", r.LoadMax)
+	}
+	// 3V3 at 3.25–3.35 V for a 3.0–3.6 V sensor: 0.25 V margin each way → 0.5 V p-p.
+	if r := get("3V3"); r.Ripple == nil || math.Abs(*r.Ripple-0.5) > 1e-9 || !strings.Contains(r.RippleLimit, "BME280") || r.RipplePage != 1 {
+		t.Errorf("3V3 ripple = %+v", r)
+	}
+	// VBAT 3.0–4.2 V for 1.8–5.5 V: the 1.2 V low margin is smaller → 2.4 V p-p.
+	if r := get("VBAT"); r.Ripple == nil || math.Abs(*r.Ripple-2.4) > 1e-9 || !strings.Contains(r.RippleLimit, "minimum input 1.8 V") {
+		t.Errorf("VBAT ripple = %+v", r)
+	}
+	if r := get("AUX"); r.Ripple != nil {
+		t.Errorf("no part on AUX, no budget: %+v", r)
+	}
+	cs := projectChecks(st, []library.ProjectPart{reg, sensor}, params, nil)
+	if !findCheck(cs, calc.OK, "3V3 can carry up to 500 mV p-p ripple; limited by BME280's") {
+		t.Errorf("checks = %+v", cs)
+	}
+
+	// A tight rail: 3.03–3.3 V for a 3.0 V minimum leaves 30 mV → 60 mV
+	// p-p, under 2% of 3.3 V.
+	rails[1].VMin, rails[1].VMax = v(3.03), v(3.3)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, nil, params, nil); !findCheck(cs, calc.Warn, "3V3 can carry only 60 mV p-p ripple") {
+		t.Errorf("tight: %+v", cs)
+	}
+	// No room at all: the DC range reaches the part's limit.
+	rails[1].VMin = v(2.9)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	rippleBudgets(st, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, nil, params, nil); !findCheck(cs, calc.Error, "3V3 has no room for ripple") {
+		t.Errorf("none: %+v", cs)
+	}
+
+	// Currents entered on a regulator's row stop its output load passing up.
+	reg.ITyp = v(0.1)
+	st, _, _ = railStatus(rails, []library.ProjectPart{reg, sensor}, params)
+	if cs := projectChecks(st, []library.ProjectPart{reg}, params, nil); !findCheck(cs, calc.Warn, "TPS63900 has its own current entered (100 mA)") {
+		t.Errorf("entered regulator current: %+v", cs)
+	}
+}

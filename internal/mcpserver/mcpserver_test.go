@@ -152,10 +152,10 @@ func TestAgentWorkflow(t *testing.T) {
 
 	h.must("create_project", map[string]any{"name": "Board A"}, "created project Board A")
 	h.must("set_rail", map[string]any{"name": "VIN", "v_min": 10, "v_max": 14}, "rail VIN")
-	h.must("set_rail", map[string]any{"name": "3V3", "v_nom": 3.3}, "rail 3V3")
+	h.must("set_rail", map[string]any{"name": "3V3", "v_nom": 3.3, "other_typ": 0.05, "other_max": 0.1}, "rail 3V3")
 	h.must("add_to_project", map[string]any{"part": "SD1234", "designator": "U1", "supply_rail": "VIN", "output_rail": "3V3"}, "Board A")
 	h.must("add_to_project", map[string]any{"part": "SD1235", "designator": "U9", "supply_rail": "3V3", "i_max": 0.5}, "U9")
-	h.must("get_project", map[string]any{}, "3V3: 3.3 V", "load", "500 mA max", "U1")
+	h.must("get_project", map[string]any{}, "3V3: 3.3 V", "load", "600 mA max", "U1", "other loads 50 mA typ / 100 mA max", "ripple budget")
 	h.must("update_project_part", map[string]any{"entry": "U9", "remove": true}, "removed")
 
 	calc := h.must("calculate", map[string]any{"kind": "buck", "part": "SD1234", "project": "Board A", "inputs": map[string]any{"iout": 2}, "save": true},

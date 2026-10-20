@@ -58,8 +58,8 @@ func TestFrontendFixtures(t *testing.T) {
 	if _, err := c.Lib.CreateProject(ctx, "Empty board", ""); err != nil {
 		t.Fatal(err)
 	}
-	v12, v33, im := 12.0, 3.3, 0.5
-	for _, r := range []library.Rail{{ProjectID: proj.ID, Name: "VIN", VNom: &v12}, {ProjectID: proj.ID, Name: "3V3", VNom: &v33}} {
+	v12, v33, im, oth := 12.0, 3.3, 0.5, 0.05
+	for _, r := range []library.Rail{{ProjectID: proj.ID, Name: "VIN", VNom: &v12}, {ProjectID: proj.ID, Name: "3V3", VNom: &v33, OtherTyp: &oth, OtherMax: &oth}} {
 		if _, err := c.Lib.SetRail(ctx, r); err != nil {
 			t.Fatal(err)
 		}
