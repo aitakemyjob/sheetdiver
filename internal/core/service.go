@@ -187,8 +187,9 @@ type Activity struct {
 // Focus asks the UI to show something: a part, a page region, a figure,
 // a project or a calculation.
 type Focus struct {
-	// Kind is part, page, figure, section, project, calc, search or
-	// category (Query names the category).
+	// Kind is part, page, figure, section, project, calc, search,
+	// category (Query names the category), compare (Parts), catalog
+	// (Query, Subcategory and Filters, or LCSC) or walkthrough (Steps).
 	Kind        string    `json:"kind"`
 	Part        string    `json:"part,omitempty"`
 	DatasheetID int64     `json:"datasheetId,omitempty"`
@@ -201,6 +202,25 @@ type Focus struct {
 	Query       string    `json:"query,omitempty"`
 	Calc        any       `json:"calc,omitempty"`
 	Message     string    `json:"message,omitempty"`
+	// Parts and Keys are compared side by side; Notes says something
+	// about each part (by part number).
+	Parts []string          `json:"parts,omitempty"`
+	Keys  []string          `json:"keys,omitempty"`
+	Notes map[string]string `json:"notes,omitempty"`
+	// LCSC lists catalogue parts to show; Subcategory and Filters narrow a
+	// catalogue search.
+	LCSC        []string             `json:"lcsc,omitempty"`
+	Subcategory string               `json:"subcategory,omitempty"`
+	Filters     []catalog.AttrFilter `json:"filters,omitempty"`
+	// Highlight marks one thing in the view: the recommended part, an
+	// LCSC code, a rail or a BOM entry (designator or part number).
+	Highlight string `json:"highlight,omitempty"`
+	// Explain is the agent's explanation (markdown), shown beside the
+	// view. Links like [p3](#page/TPS63900/3) open what they name.
+	Explain string `json:"explain,omitempty"`
+	// Title and Steps make a walkthrough: steps the user clicks through.
+	Title string  `json:"title,omitempty"`
+	Steps []Focus `json:"steps,omitempty"`
 }
 
 // UIContext is what the user is looking at, reported by the UI so agents

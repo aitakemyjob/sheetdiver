@@ -321,43 +321,50 @@
      "key": "vin",
      "label": "Input / supply voltage (VIN, VCC, VDD)",
      "unit": "V",
-     "have": 3
+     "have": 3,
+     "direction": "cover"
     },
     {
      "key": "iout",
      "label": "Output / load current",
      "unit": "A",
-     "have": 3
+     "have": 3,
+     "direction": "higher"
     },
     {
      "key": "fsw",
      "label": "Switching or oscillator frequency",
      "unit": "Hz",
-     "have": 2
+     "have": 2,
+     "direction": "close"
     },
     {
      "key": "ilim",
      "label": "Current limit in normal operation (peak/valley switch or output)",
      "unit": "A",
-     "have": 1
+     "have": 1,
+     "direction": "higher"
     },
     {
      "key": "vref",
      "label": "Feedback / reference voltage (VFB, VREF)",
      "unit": "V",
-     "have": 2
+     "have": 2,
+     "direction": "close"
     },
     {
      "key": "ton_min",
      "label": "Minimum on-time",
      "unit": "s",
-     "have": 2
+     "have": 2,
+     "direction": "lower"
     },
     {
      "key": "tj",
      "label": "Junction temperature",
      "unit": "°C",
-     "have": 2
+     "have": 2,
+     "direction": "cover"
     }
    ],
    "rows": [
@@ -629,6 +636,205 @@
     }
    ],
    "total": 3
+  }
+ },
+ {
+  "method": "compare",
+  "args": {
+   "parts": [
+    "SD1234",
+    "TPX5430"
+   ]
+  },
+  "result": {
+   "category": "",
+   "columns": [
+    {
+     "key": "fsw",
+     "label": "Switching or oscillator frequency",
+     "unit": "Hz",
+     "have": 1,
+     "direction": "close"
+    },
+    {
+     "key": "iout",
+     "label": "Output / load current",
+     "unit": "A",
+     "have": 2,
+     "direction": "higher"
+    },
+    {
+     "key": "ton_min",
+     "label": "Minimum on-time",
+     "unit": "s",
+     "have": 1,
+     "direction": "lower"
+    },
+    {
+     "key": "vin",
+     "label": "Input / supply voltage (VIN, VCC, VDD)",
+     "unit": "V",
+     "have": 2,
+     "direction": "cover"
+    },
+    {
+     "key": "vref",
+     "label": "Feedback / reference voltage (VFB, VREF)",
+     "unit": "V",
+     "have": 1,
+     "direction": "close"
+    }
+   ],
+   "rows": [
+    {
+     "part": {
+      "id": 1,
+      "mpn": "SD1234",
+      "manufacturer": "Coilcraft",
+      "description": "SD123x 4.5-V to 17-V Input, 3-A Synchronous Step-Down Converter",
+      "category": "buck",
+      "datasheetId": 1,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "values": {
+      "fsw": {
+       "typ": 650000,
+       "unit": "Hz",
+       "conditions": "VIN = 12 V",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 120.5040283203125,
+        "x1": 513.5280151367188,
+        "y1": 128.15203857421875
+       },
+       "paramId": 6,
+       "source": "auto"
+      },
+      "iout": {
+       "min": 0,
+       "max": 3,
+       "unit": "A",
+       "page": 0,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 520.5039978027344,
+        "x1": 505.23199462890625,
+        "y1": 528.0480041503906
+       },
+       "paramId": 4,
+       "source": "auto"
+      },
+      "tj": {
+       "min": -40,
+       "max": 150,
+       "unit": "°C",
+       "rating": true,
+       "page": 0,
+       "box": {
+        "x0": 60.13600158691406,
+        "y0": 430.5039978027344,
+        "x1": 508.64801025390625,
+        "y1": 438.0480041503906
+       },
+       "paramId": 2,
+       "source": "auto"
+      },
+      "ton_min": {
+       "typ": 6.000000000000001e-8,
+       "max": 9.000000000000001e-8,
+       "unit": "s",
+       "page": 1,
+       "box": {
+        "x0": 60.11199951171875,
+        "y0": 148.5040283203125,
+        "x1": 508.1600036621094,
+        "y1": 156.04803466796875
+       },
+       "paramId": 8,
+       "source": "auto"
+      },
+      "vin": {
+       "min": 4.5,
+       "max": 17,
+       "unit": "V",
+       "page": 0,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 506.5039978027344,
+        "x1": 505.1759948730469,
+        "y1": 514.1520080566406
+       },
+       "paramId": 3,
+       "source": "auto"
+      },
+      "vref": {
+       "min": 0.758,
+       "typ": 0.765,
+       "max": 0.772,
+       "unit": "V",
+       "conditions": "TA = 25°C",
+       "page": 1,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 106.5040283203125,
+        "x1": 505.1759948730469,
+        "y1": 114.15203857421875
+       },
+       "paramId": 5,
+       "source": "auto"
+      }
+     }
+    },
+    {
+     "part": {
+      "id": 3,
+      "mpn": "TPX5430",
+      "manufacturer": "",
+      "description": "TPX5430 4.5-V to 28-V Input, 2-A buck",
+      "category": "buck",
+      "datasheetId": 2,
+      "tags": [],
+      "favorite": false,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+     },
+     "values": {
+      "iout": {
+       "min": 0,
+       "max": 2,
+       "unit": "A",
+       "page": 0,
+       "box": {
+        "x0": 60.72800064086914,
+        "y0": 190.5040283203125,
+        "x1": 505.23199462890625,
+        "y1": 198.04803466796875
+       },
+       "paramId": 11,
+       "source": "auto"
+      },
+      "vin": {
+       "min": 4.5,
+       "max": 28,
+       "unit": "V",
+       "page": 0,
+       "box": {
+        "x0": 60.15999984741211,
+        "y0": 176.5040283203125,
+        "x1": 505.1759948730469,
+        "y1": 184.15203857421875
+       },
+       "paramId": 10,
+       "source": "auto"
+      }
+     }
+    }
+   ],
+   "total": 2
   }
  },
  {

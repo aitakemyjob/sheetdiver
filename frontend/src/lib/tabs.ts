@@ -2,7 +2,7 @@
 // unit tested.
 import type { Focus } from './types';
 
-export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category' | 'catalog';
+export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category' | 'catalog' | 'compare';
 
 export interface Tab {
   id: string;
@@ -34,6 +34,8 @@ export function tabKey(kind: TabKind, params: Record<string, unknown>): string {
       return 'settings';
     case 'catalog':
       return 'catalog';
+    case 'compare':
+      return `compare:${((params.parts as string[] | undefined) ?? []).join(',').toUpperCase()}`;
   }
 }
 
@@ -62,8 +64,18 @@ export function closeTab(tabs: Tab[], id: string, active: string | undefined): {
   return { tabs: next, active: n?.id };
 }
 
-/** Converts an agent focus request into a tab to open. */
+/**
+ * Converts an agent focus request into a tab to open. Every tab carries
+ * the agent's explanation and highlight (or clears an earlier one: an
+ * existing tab's params are merged).
+ */
 export function focusToTab(f: Focus): Omit<Tab, 'id'> | undefined {
+  const t = baseTab(f);
+  return t && { ...t, params: { ...t.params, explain: f.explain, highlight: f.highlight } };
+}
+
+/** The tab for a focus request, without the agent's presentation. */
+function baseTab(f: Focus): Omit<Tab, 'id'> | undefined {
   switch (f.kind) {
     case 'part':
       if (!f.part) return undefined;
@@ -86,6 +98,11 @@ export function focusToTab(f: Focus): Omit<Tab, 'id'> | undefined {
     case 'category':
       if (!f.query) return undefined;
       return { kind: 'category', title: f.query, params: { category: f.query } };
+    case 'compare':
+      if (!f.parts?.length) return undefined;
+      return { kind: 'compare', title: f.parts.join(' vs '), params: { parts: f.parts, keys: f.keys, notes: f.notes } };
+    case 'catalog':
+      return { kind: 'catalog', title: 'Parts catalogue', params: { query: f.query, subcategory: f.subcategory, filters: f.filters, lcsc: f.lcsc, nonce: Date.now() } };
   }
   return undefined;
 }

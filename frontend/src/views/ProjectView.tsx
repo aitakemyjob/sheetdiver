@@ -36,6 +36,8 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
   const [report, setReport] = useState(false);
   const name = String(params.project ?? '');
+  // What the agent pointed at: a rail, or a BOM entry by designator or part number.
+  const highlight = String(params.highlight ?? '').toLowerCase() || undefined;
   const detail = useAsync(() => api.project(name), [name, s.projectVersion, s.libraryVersion]);
   const d = detail.data;
   useEffect(() => {
@@ -88,8 +90,8 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
         </div>
       </div>
       <div className="scroll pad col" style={{ flex: 1, gap: 16 }}>
-        <Rails d={d} onChange={bump} />
-        <Bom d={d} onChange={bump} />
+        <Rails d={d} onChange={bump} highlight={highlight} />
+        <Bom d={d} onChange={bump} highlight={highlight} />
         {checks.length > 0 && (
           <div className="card">
             <h3>Checks against the datasheets</h3>
@@ -146,6 +148,11 @@ export function currentTitle(pp: ProjectPart): string {
   return 'The current this part draws from its supply rail.';
 }
 
+/** Scrolls what the agent pointed at into view. */
+function scrollTo(el: HTMLElement | null) {
+  el?.scrollIntoView?.({ block: 'center' });
+}
+
 /** Reads an "other loads" entry: one current, or typ/max ("100m/150m"). */
 export function parseLoad(text: string): [number | undefined, number | undefined] {
   const [a, b] = text.split('/').map((x) => (x.trim() ? parseSI(x) : undefined));
@@ -160,7 +167,7 @@ export function loadText(typ?: number | null, max?: number | null): string {
 }
 
 /** Rail cards with load bars and an add/edit form. */
-function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
+function Rails({ d, onChange, highlight }: { d: ProjectDetail; onChange: () => void; highlight?: string }) {
   const s = useStore();
   const empty = { name: '', vNom: '', vMin: '', vMax: '', limit: '', other: '' };
   const [form, setForm] = useState(empty);
@@ -194,7 +201,14 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
           {d.rails.map((r) => {
             const u = r.capacity ? r.loadMax / r.capacity : 0;
             return (
-              <div key={r.id} className="rail-card" onClick={() => edit(r)} style={{ cursor: 'pointer' }} title="Click to edit">
+              <div
+                key={r.id}
+                ref={r.name.toLowerCase() === highlight ? scrollTo : undefined}
+                className={`rail-card ${r.name.toLowerCase() === highlight ? 'agent-hl' : ''}`}
+                onClick={() => edit(r)}
+                style={{ cursor: 'pointer' }}
+                title="Click to edit"
+              >
                 <div className="row">
                   <span className="name">{r.name}</span>
                   <span className="volt">{eng(r.vNom ?? undefined, 'V')}</span>
@@ -267,7 +281,7 @@ function Rails({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
 }
 
 /** The BOM, editable in place. */
-function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
+function Bom({ d, onChange, highlight }: { d: ProjectDetail; onChange: () => void; highlight?: string }) {
   const s = useStore();
   const [part, setPart] = useState('');
   const matches = useAsync(() => (part.trim().length >= 2 ? api.parts({ query: part.trim(), limit: 8 }) : Promise.resolve([])), [part]);
@@ -325,7 +339,11 @@ function Bom({ d, onChange }: { d: ProjectDetail; onChange: () => void }) {
             {d.parts.map((pp) => {
               const calc = calcFor(pp.category);
               return (
-                <tr key={pp.id}>
+                <tr
+                  key={pp.id}
+                  ref={highlight && (pp.designator?.toLowerCase() === highlight || pp.mpn.toLowerCase() === highlight) ? scrollTo : undefined}
+                  className={highlight && (pp.designator?.toLowerCase() === highlight || pp.mpn.toLowerCase() === highlight) ? 'agent-hl' : ''}
+                >
                   <td>
                     <input className="cell" defaultValue={pp.designator} onBlur={(e) => e.target.value !== (pp.designator ?? '') && update(pp, { designator: e.target.value })} />
                   </td>

@@ -11,6 +11,7 @@ import { ImportDialog } from './components/ImportDialog';
 import { ImportQueue } from './components/ImportQueue';
 import { Spinner } from './components/ui';
 import { ViewHost } from './views/ViewHost';
+import { WalkthroughBar } from './components/WalkthroughBar';
 
 /**
  * Root component: boots the store, binds global shortcuts and file drops,
@@ -103,6 +104,7 @@ export function App() {
         <div className="center">
           {s.tabs.length > 0 && <TabsBar />}
           <ViewHost />
+          <WalkthroughBar />
         </div>
       </div>
       <StatusBar />

@@ -32,7 +32,7 @@ export const api = {
   parts: (f: { query?: string; category?: string; manufacturer?: string; favorite?: boolean; status?: string; limit?: number } = {}) => call<Part[]>('parts.list', f),
   categories: () => call<Record<string, number>>('parts.categories'),
   categoryList: () => call<CategoryInfo[]>('categories.list'),
-  compare: (req: { category: string; keys?: string[]; filters?: CompareFilter[]; query?: string; sort?: string; desc?: boolean; favorite?: boolean; status?: string }) => call<CompareResult>('compare', req),
+  compare: (req: { category?: string; parts?: string[]; keys?: string[]; filters?: CompareFilter[]; query?: string; sort?: string; desc?: boolean; favorite?: boolean; status?: string }) => call<CompareResult>('compare', req),
   part: (part: string) => call<PartDetail>('part.detail', { part }),
   updatePart: (id: number, u: Partial<Pick<Part, 'mpn' | 'manufacturer' | 'description' | 'category' | 'package' | 'tags' | 'favorite' | 'status'>>) => call<Part>('part.update', { id, ...u }),
   startImports: (req: { paths?: string[]; urls?: string[]; mpns?: string[]; folder?: string; recursive?: boolean }) => call<ImportJob[]>('imports.start', req),
@@ -57,6 +57,7 @@ export const api = {
   catalogStatus: () => call<CatalogStatus>('catalog.status'),
   catalogDownload: () => call<CatalogStatus>('catalog.download'),
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),
+  catalogGet: (lcsc: string[]) => call<CatalogItem[]>('catalog.get', { lcsc }),
   catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; attrs?: CatalogFilter[]; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
     call<CatalogItem[]>('catalog.search', q),
   catalogParams: (q: { text: string; subcategory?: string; inStock?: boolean; basic?: boolean; attrs?: CatalogFilter[] }) => call<CatalogParam[]>('catalog.params', q),

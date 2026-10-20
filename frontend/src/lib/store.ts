@@ -6,6 +6,13 @@ import { api, uploadPDF } from './api';
 import { getTransport } from './transport';
 import { resetEngine, translateDatasheet } from './translate';
 import { closeTab, focusToTab, openTab, type Tab } from './tabs';
+
+/** A walkthrough: the agent's steps and the one being shown. */
+export interface Walkthrough {
+  title: string;
+  steps: Focus[];
+  index: number;
+}
 import { applyTheme, themeById, type Theme } from './themes';
 import type { Activity, AppState, BusEvent, CatalogStatus, Config, Focus, ImportJob, ImportResult, MCPStatus, Part, Settings, TranslateStatus } from './types';
 
@@ -38,6 +45,11 @@ interface State {
   /** The JLCPCB parts catalogue. */
   catalog?: CatalogStatus;
   translation?: TranslateStatus;
+  /** A walkthrough the agent is taking the user through. */
+  walkthrough?: Walkthrough;
+  /** Shows a walkthrough step (opening what it shows). */
+  walkTo: (index: number) => void;
+  endWalkthrough: () => void;
   /** Bumped when library data changes, so views refetch. */
   libraryVersion: number;
   projectVersion: number;
@@ -188,6 +200,16 @@ export const useStore = create<State>((set, get) => ({
       get().toast({ kind: 'err', title: 'Could not start the imports', body: (e as Error).message });
     }
   },
+  walkTo(index) {
+    const w = get().walkthrough;
+    if (!w || index < 0 || index >= w.steps.length) return;
+    set({ walkthrough: { ...w, index } });
+    const t = focusToTab(w.steps[index]);
+    if (t) get().open({ ...t, agent: true });
+  },
+  endWalkthrough() {
+    set({ walkthrough: undefined });
+  },
   async downloadCatalog() {
     try {
       set({ catalog: await api.catalogDownload() });
@@ -228,6 +250,17 @@ export const useStore = create<State>((set, get) => ({
         break;
       case 'focus': {
         const f = ev.data as Focus;
+        if (f.kind === 'walkthrough') {
+          const w: Walkthrough = { title: f.title ?? 'Walkthrough', steps: f.steps ?? [], index: 0 };
+          if (!w.steps.length) break;
+          if (!(s.app?.config.settings.followAgent ?? true)) {
+            s.toast({ kind: 'agent', title: `Agent wants to walk you through: ${w.title}`, action: { label: 'Start', run: () => (set({ walkthrough: w }), get().walkTo(0)) } });
+            break;
+          }
+          set({ walkthrough: w });
+          get().walkTo(0);
+          break;
+        }
         if (!(s.app?.config.settings.followAgent ?? true)) {
           const t = focusToTab(f);
           if (t) s.toast({ kind: 'agent', title: `Agent wants to show ${t.title}`, action: { label: 'Show', run: () => get().open(t) } });

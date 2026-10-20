@@ -2,12 +2,14 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -101,15 +103,35 @@ type pinsArgs struct {
 }
 
 type showArgs struct {
-	Kind    string      `json:"kind" jsonschema:"part, page, figure, section, project, search"`
+	Kind    string      `json:"kind" jsonschema:"part, page, figure, section, project, search, compare, catalog or calc"`
 	Part    string      `json:"part,omitempty"`
 	Page    int         `json:"page,omitempty" jsonschema:"1-based page"`
 	Region  *regionArgs `json:"region,omitempty" jsonschema:"highlight this box on the page (points, top-left origin)"`
 	Figure  string      `json:"figure,omitempty" jsonschema:"figure id or number"`
 	Section string      `json:"section,omitempty"`
 	Project string      `json:"project,omitempty"`
-	Query   string      `json:"query,omitempty"`
+	Query   string      `json:"query,omitempty" jsonschema:"search words; for catalog, catalogue search words"`
 	Message string      `json:"message,omitempty" jsonschema:"a short caption to show with it"`
+	// Comparison.
+	Parts []string          `json:"parts,omitempty" jsonschema:"compare: the part numbers to put side by side (2 or more, from the library)"`
+	Keys  []string          `json:"keys,omitempty" jsonschema:"compare: the parameter keys to compare (default: the usual ones for their types)"`
+	Notes map[string]string `json:"notes,omitempty" jsonschema:"compare: a short note per part number, such as why it's cheaper or what it lacks"`
+	// Catalogue.
+	LCSC        []string        `json:"lcsc,omitempty" jsonschema:"catalog: the JLCPCB/LCSC codes to show as candidates (from search_catalog)"`
+	Subcategory string          `json:"subcategory,omitempty" jsonschema:"catalog: a JLCPCB category to search instead"`
+	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"catalog: parameter filters for the search (as in search_catalog)"`
+	// Calculator.
+	Calculator string         `json:"calculator,omitempty" jsonschema:"calc: buck, boost, ldo, gate_drive, gate_divider or divider (filled from part and project, like calculate)"`
+	Inputs     map[string]any `json:"inputs,omitempty" jsonschema:"calc: calculator inputs in SI units"`
+	// Presentation.
+	Highlight string `json:"highlight,omitempty" jsonschema:"what to mark in the view: compare, the part you recommend; catalog, an LCSC code; project, a rail name or a BOM designator or part number"`
+	Explain   string `json:"explain,omitempty" jsonschema:"your explanation in markdown, shown beside the view. Link to what you cite: [p3](#page/TPS63900/3), [Figure 5](#figure/TPS63900/5), [TPS63900](#part/TPS63900), [Electrical](#section/TPS63900/Electrical Characteristics), [Sensor board](#project/Sensor board)"`
+	Title     string `json:"title,omitempty" jsonschema:"walkthrough step title"`
+}
+
+type walkthroughArgs struct {
+	Title string     `json:"title" jsonschema:"what the walkthrough is about, such as 'Why the TPS63900 for the 3V3 rail'"`
+	Steps []showArgs `json:"steps" jsonschema:"the steps in order: each is what show takes (kind, part, page…) with a title and an explain"`
 }
 
 // registerLibrary adds the read-only library tools.
@@ -486,37 +508,116 @@ func (s *Server) registerLibrary() {
 			return text(b.String()), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "show", Description: "Put something on the user's screen in SheetDiver: a part, a page (optionally highlighting a region), a figure, a section, a project or search results.", Annotations: &mcp.ToolAnnotations{Title: "Show", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)}},
+	addTool(s, &mcp.Tool{Name: "show", Description: "Put something on the user's screen in SheetDiver while you discuss it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry), search results, parts compared side by side (compare: parts, keys, a note per part, the one you recommend), catalogue candidates (catalog: LCSC codes, or a search, with the one you recommend) or a calculator filled in (calc). Add explain, your reasoning in markdown with links to pages and figures, to show it beside the view.", Annotations: &mcp.ToolAnnotations{Title: "Show", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)}},
 		read, func(a showArgs) string { return "show " + a.Kind + " " + a.Part + a.Project }, func(ctx context.Context, a showArgs) (result, error) {
-			f := core.Focus{Kind: a.Kind, Message: a.Message, Query: a.Query, Project: a.Project}
-			if a.Part != "" {
-				r, d, err := c.DatasheetOf(ctx, a.Part)
-				if err != nil {
-					return result{}, err
-				}
-				f.Part, f.DatasheetID = r.Part.MPN, d.ID
-			}
-			if a.Page > 0 {
-				f.Page = a.Page - 1
-			}
-			if a.Region != nil {
-				f.Box = &pdf.Rect{X0: a.Region.X0, Y0: a.Region.Y0, X1: a.Region.X1, Y1: a.Region.Y1}
-			}
-			if a.Figure != "" {
-				fig, err := c.FindFigure(ctx, a.Part, a.Figure)
-				if err != nil {
-					return result{}, err
-				}
-				f.FigureID, f.DatasheetID, f.Page, f.Box = fig.ID, fig.DatasheetID, fig.Page, &fig.Box
-			}
-			if a.Section != "" && f.DatasheetID != 0 {
-				if secs, _ := c.Lib.FindSections(ctx, f.DatasheetID, a.Section); len(secs) > 0 {
-					f.SectionID, f.Page = secs[0].ID, secs[0].Page
-				}
+			f, err := s.focusOf(ctx, a)
+			if err != nil {
+				return result{}, err
 			}
 			c.Show(f)
 			return text("shown"), nil
 		})
+	addTool(s, &mcp.Tool{Name: "show_walkthrough", Description: "Walk the user through something step by step in SheetDiver, such as why you recommend a part: each step shows something (as show does) with a title and your explanation; the user clicks through them.", Annotations: &mcp.ToolAnnotations{Title: "Show walkthrough", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)}},
+		read, func(a walkthroughArgs) string { return "walkthrough " + a.Title }, func(ctx context.Context, a walkthroughArgs) (result, error) {
+			if len(a.Steps) == 0 {
+				return result{}, fmt.Errorf("a walkthrough needs steps")
+			}
+			w := core.Focus{Kind: "walkthrough", Title: a.Title}
+			for i, st := range a.Steps {
+				f, err := s.focusOf(ctx, st)
+				if err != nil {
+					return result{}, fmt.Errorf("step %d: %w", i+1, err)
+				}
+				w.Steps = append(w.Steps, f)
+			}
+			c.Show(w)
+			return text(fmt.Sprintf("walkthrough shown: %d steps", len(w.Steps))), nil
+		})
+
+}
+
+// focusOf turns show arguments into what the UI opens, resolving parts,
+// figures and sections and checking what each kind needs.
+func (s *Server) focusOf(ctx context.Context, a showArgs) (core.Focus, error) {
+	c := s.core
+	f := core.Focus{Kind: a.Kind, Message: a.Message, Query: a.Query, Project: a.Project, Highlight: a.Highlight, Explain: a.Explain, Title: a.Title}
+	switch a.Kind {
+	case "part", "page", "figure", "section", "project", "search":
+	case "compare":
+		if len(a.Parts) < 2 {
+			return f, fmt.Errorf("compare needs two or more parts")
+		}
+		for _, p := range a.Parts {
+			r, err := c.ResolvePart(ctx, p)
+			if err != nil {
+				return f, err
+			}
+			f.Parts = append(f.Parts, r.Part.MPN)
+		}
+		for _, k := range a.Keys {
+			if _, ok := extract.Keys[k]; !ok {
+				return f, fmt.Errorf("unknown key %q", k)
+			}
+		}
+		f.Keys, f.Notes = a.Keys, a.Notes
+		return f, nil
+	case "catalog":
+		if len(a.LCSC) == 0 && a.Query == "" && a.Subcategory == "" {
+			return f, fmt.Errorf("catalog needs lcsc codes, a query or a subcategory")
+		}
+		f.LCSC, f.Subcategory = a.LCSC, a.Subcategory
+		for _, fl := range a.Filters {
+			f.Filters = append(f.Filters, catalog.AttrFilter{Key: fl.Parameter, Op: fl.Op, Input: fl.Value})
+		}
+		return f, nil
+	case "calc":
+		raw, _ := json.Marshal(a.Inputs)
+		resp, err := c.Calc(ctx, core.CalcRequest{Kind: a.Calculator, Part: a.Part, Project: a.Project, Inputs: raw})
+		if err != nil {
+			return f, err
+		}
+		f.Part, f.Project, f.Calc = resp.Part, resp.Project, resp
+		return f, nil
+	default:
+		return f, fmt.Errorf("unknown kind %q: part, page, figure, section, project, search, compare, catalog or calc", a.Kind)
+	}
+	if a.Kind == "project" {
+		name, err := s.project(a.Project)
+		if err != nil {
+			return f, err
+		}
+		p, err := c.Lib.Project(ctx, name)
+		if err != nil {
+			return f, err
+		}
+		f.Project = p.Name
+	}
+	if a.Part != "" {
+		r, d, err := c.DatasheetOf(ctx, a.Part)
+		if err != nil {
+			return f, err
+		}
+		f.Part, f.DatasheetID = r.Part.MPN, d.ID
+	}
+	if a.Page > 0 {
+		f.Page = a.Page - 1
+	}
+	if a.Region != nil {
+		f.Box = &pdf.Rect{X0: a.Region.X0, Y0: a.Region.Y0, X1: a.Region.X1, Y1: a.Region.Y1}
+	}
+	if a.Figure != "" {
+		fig, err := c.FindFigure(ctx, a.Part, a.Figure)
+		if err != nil {
+			return f, err
+		}
+		f.FigureID, f.DatasheetID, f.Page, f.Box = fig.ID, fig.DatasheetID, fig.Page, &fig.Box
+	}
+	if a.Section != "" && f.DatasheetID != 0 {
+		if secs, _ := c.Lib.FindSections(ctx, f.DatasheetID, a.Section); len(secs) > 0 {
+			f.SectionID, f.Page = secs[0].ID, secs[0].Page
+		}
+	}
+	return f, nil
 }
 
 // tableHeader renders a table's identity line with its flags.

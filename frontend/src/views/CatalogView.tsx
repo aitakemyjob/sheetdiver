@@ -141,7 +141,21 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   const [detail, setDetail] = useState<CatalogItem>();
   const [catFilter, setCatFilter] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState<CatalogFilter[]>([]);
+  const [filters, setFilters] = useState<CatalogFilter[]>((params.filters as CatalogFilter[] | undefined) ?? []);
+  // The agent's candidates (LCSC codes) are shown instead of a search
+  // until the user searches; its pick is highlighted.
+  const agentCodes = useMemo(() => (params.lcsc as string[] | undefined) ?? [], [params.lcsc]);
+  const [candidates, setCandidates] = useState(agentCodes.length > 0);
+  const pick = String(params.highlight ?? '').toUpperCase();
+  const firstSub = useRef(true);
+  useEffect(() => {
+    if (params.nonce === undefined) return;
+    setText(String(params.query ?? ''));
+    setSub(String(params.subcategory ?? ''));
+    setFilters((params.filters as CatalogFilter[] | undefined) ?? []);
+    setCandidates(agentCodes.length > 0);
+    firstSub.current = true;
+  }, [params.nonce, params.query, params.subcategory, params.filters, agentCodes.length]);
   const sent = useMemo(() => activeFilters(filters), [filters]);
   // Each parameter's values and range follow the other filters (faceted);
   // refetched once typing settles.
@@ -158,13 +172,29 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
     api.uiContext({ view: 'catalog', selection: sub || text }).catch(() => {});
   }, [sub, text]);
   useEffect(() => setPage(0), [text, sub, inStock, basic, sort, sent]);
-  // Parameters belong to a category: switching category drops its filters.
+  // Parameters belong to a category: switching category drops its filters
+  // (not the agent's, given with its category).
   useEffect(() => {
+    if (firstSub.current) {
+      firstSub.current = false;
+      return;
+    }
     setFilters([]);
     setSort((x) => (x.key.startsWith('attr:') ? { key: '', desc: false } : x));
   }, [sub]);
   useEffect(() => {
     if (!c?.installed) return;
+    if (candidates) {
+      setLoading(true);
+      api
+        .catalogGet(agentCodes)
+        .then((r) => {
+          setItems(r);
+          setError(undefined);
+        }, setError)
+        .finally(() => setLoading(false));
+      return;
+    }
     if (!text.trim() && !sub) {
       setItems(undefined);
       return;
@@ -180,7 +210,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [text, sub, inStock, basic, sent, sort, page, c?.installed, c?.downloaded, s.libraryVersion]);
+  }, [text, sub, inStock, basic, sent, sort, page, c?.installed, c?.downloaded, s.libraryVersion, candidates, agentCodes]);
 
   if (!c?.installed) {
     return (
@@ -377,6 +407,16 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
             )}
             {loading && !items && <Spinner label="Searching…" />}
             {items && items.length === 0 && <div className="faint pad">No parts match.</div>}
+            {candidates && (
+              <div className="row agent-candidates">
+                <b>Your agent's candidates</b>
+                <span className="faint">{agentCodes.length} parts</span>
+                <div className="grow" />
+                <button className="btn sm" onClick={() => setCandidates(false)}>
+                  Search the catalogue instead
+                </button>
+              </div>
+            )}
             {items && items.length > 0 && (
               <table className="dtable catalog-table">
                 <thead>
@@ -404,7 +444,13 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                 </thead>
                 <tbody>
                   {items.map((it) => (
-                    <tr key={it.lcsc} className={detail?.lcsc === it.lcsc ? 'hl' : ''} style={{ cursor: 'pointer' }} onClick={() => setDetail(it)}>
+                    <tr
+                      key={it.lcsc}
+                      className={`${detail?.lcsc === it.lcsc ? 'hl' : ''} ${it.lcsc.toUpperCase() === pick ? 'agent-hl' : ''}`}
+                      title={it.lcsc.toUpperCase() === pick ? "The agent's recommendation" : undefined}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setDetail(it)}
+                    >
                       <td onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={picked.has(it.lcsc)} onChange={() => toggle(it.lcsc)} aria-label={`Select ${it.mpn}`} />
                       </td>

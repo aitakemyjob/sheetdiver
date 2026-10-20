@@ -1,7 +1,9 @@
+import { AgentPanel } from '../components/AgentPanel';
 import { ViewBoundary } from '../components/ViewBoundary';
 import { useActiveTab, useStore } from '../lib/store';
 import { CalcView } from './CalcView';
 import { CategoryView } from './CategoryView';
+import { CompareView } from './CompareView';
 import { CatalogView } from './CatalogView';
 import { FigureView } from './FigureView';
 import { PageView } from './PageView';
@@ -19,7 +21,8 @@ export function ViewHost() {
   return (
     <>
       {tabs.map((t) => (
-        <div key={t.id} className="view" style={{ display: t.id === active.id ? 'flex' : 'none' }}>
+        <div key={t.id} className="view with-agent" style={{ display: t.id === active.id ? 'flex' : 'none' }}>
+          <div className="view">
           <ViewBoundary>
           {t.kind === 'part' && <PartView params={t.params} />}
           {t.kind === 'page' && <PageView params={t.params} />}
@@ -30,7 +33,10 @@ export function ViewHost() {
           {t.kind === 'settings' && <SettingsView />}
           {t.kind === 'category' && <CategoryView params={t.params} />}
           {t.kind === 'catalog' && <CatalogView params={t.params} />}
+          {t.kind === 'compare' && <CompareView params={t.params} />}
           </ViewBoundary>
+          </div>
+          {typeof t.params.explain === 'string' && t.params.explain.trim() && <AgentPanel key={t.params.explain} explain={t.params.explain} />}
         </div>
       ))}
     </>
