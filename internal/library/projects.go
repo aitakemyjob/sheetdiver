@@ -175,11 +175,19 @@ func (s *Store) Rails(ctx context.Context, projectID int64) ([]Rail, error) {
 		if err := rows.Scan(&r.ID, &r.Name, &nom, &mn, &mx, &r.Source, &lim, &ot, &om, &r.Notes); err != nil {
 			return nil, err
 		}
-		r.VNom, r.VMin, r.VMax, r.CurrentLimit = floatPtr(nom), floatPtr(mn), floatPtr(mx), floatPtr(lim)
+		r.VNom, r.VMin, r.VMax, r.CurrentLimit = floatPtr(nom), floatPtr(mn), floatPtr(mx), positive(floatPtr(lim))
 		r.OtherTyp, r.OtherMax = floatPtr(ot), floatPtr(om)
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// positive returns v when it's above zero, else nil.
+func positive(v *float64) *float64 {
+	if v == nil || *v <= 0 {
+		return nil
+	}
+	return v
 }
 
 // SetRail adds or replaces a rail by name.
@@ -188,6 +196,9 @@ func (s *Store) SetRail(ctx context.Context, r Rail) (Rail, error) {
 	if r.Name == "" {
 		return r, errors.New("a rail needs a name, e.g. 3V3 or VBUS")
 	}
+	// A current limit of zero (or less) means none: the regulator's
+	// rating then sets the rail's capacity.
+	r.CurrentLimit = positive(r.CurrentLimit)
 	if r.VNom == nil && r.VMin != nil && r.VMax != nil {
 		v := (*r.VMin + *r.VMax) / 2
 		r.VNom = &v
