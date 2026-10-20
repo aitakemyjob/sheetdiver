@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,6 +39,10 @@ type fixture struct {
 var (
 	timeRe = regexp.MustCompile(`"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)"`)
 	dateRe = regexp.MustCompile(`\b20\d\d-\d\d-\d\d\b`)
+	// The library folder and platform differ by OS (Windows paths, macOS's
+	// symlinked temporary folder).
+	libraryDirRe = regexp.MustCompile(`"libraryDir":"[^"]+"`)
+	platformRe   = regexp.MustCompile(`"platform":"[^"]*"`)
 )
 
 // TestFrontendFixtures records real responses for the calls the UI makes,
@@ -162,17 +167,38 @@ func TestFrontendFixtures(t *testing.T) {
 	}
 	want, err := os.ReadFile(fixturesFile)
 	if err != nil || !bytes.Equal(want, got) {
-		t.Fatalf("%s is stale (the API changed): run go test ./internal/api -run TestFrontendFixtures -update", fixturesFile)
+		t.Fatalf("%s is stale (the API changed): run go test ./internal/api -run TestFrontendFixtures -update\n%s", fixturesFile, firstDiff(string(want), string(got)))
 	}
 }
 
-// normalize makes a response stable: fixed times, and the test's
-// temporary folder as /tmp/sheetdiver.
+// normalize makes a response the same everywhere: fixed times and dates,
+// the test's temporary folder as /tmp/sheetdiver, and the platform as
+// linux.
 func normalize(res json.RawMessage, dir string) json.RawMessage {
 	s := timeRe.ReplaceAllString(string(res), `"2026-01-01T00:00:00Z"`)
 	s = dateRe.ReplaceAllString(s, "2026-01-01")
+	s = libraryDirRe.ReplaceAllString(s, `"libraryDir":"/tmp/sheetdiver/lib"`)
+	s = platformRe.ReplaceAllString(s, `"platform":"linux"`)
 	if dir != "" && dir != "." {
 		s = strings.ReplaceAll(s, dir, "/tmp/sheetdiver")
 	}
 	return json.RawMessage(s)
+}
+
+// firstDiff shows the first line where two texts differ.
+func firstDiff(want, got string) string {
+	w, g := strings.Split(want, "\n"), strings.Split(got, "\n")
+	for i := 0; i < len(w) || i < len(g); i++ {
+		var a, b string
+		if i < len(w) {
+			a = w[i]
+		}
+		if i < len(g) {
+			b = g[i]
+		}
+		if a != b {
+			return fmt.Sprintf("line %d:\n  recorded: %s\n  now:      %s", i+1, a, b)
+		}
+	}
+	return ""
 }
