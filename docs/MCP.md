@@ -37,7 +37,8 @@ Conventions:
 | `get_tables` | Detected tables, or one table as an image with its cells. Tables flagged IRREGULAR (matrices, grouped rows, multi-row headers) have unreliable cells; read the image. |
 | `get_pins` | The pin table. |
 | `get_registers` | Recorded registers and the register-map sections to read from. |
-| `show` | Show a part, page (optionally highlighting a region), figure, section, project or search in the app. |
+| `show` | Put something on the user's screen while discussing it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry), search results, parts compared side by side (`compare`: parts, keys, a note per part, the recommended one), catalogue candidates (`catalog`: LCSC codes or a search, the recommended one) or a filled-in calculator (`calc`). `explain` adds the agent's reasoning in markdown beside the view; links like `[p3](#page/TPS63900/3)`, `#figure/PART/5`, `#part/PART`, `#section/PART/Title` and `#project/Name` open what they name. |
+| `show_walkthrough` | Walk the user through something step by step: each step shows something as `show` does, with a title and an explanation; the user clicks through them. |
 
 ## Recording what the agent learns
 

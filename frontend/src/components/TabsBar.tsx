@@ -1,9 +1,9 @@
-import { Calculator, Cpu, Database, FileText, FolderKanban, LayoutGrid, LineChart, Search, Settings, X } from 'lucide-react';
+import { Calculator, Columns3, Cpu, Database, FileText, FolderKanban, LayoutGrid, LineChart, Search, Settings, X } from 'lucide-react';
 import { useStore } from '../lib/store';
 import type { TabKind } from '../lib/tabs';
 
 const icons: Record<TabKind, typeof Cpu> = {
-  part: Cpu, page: FileText, figure: LineChart, project: FolderKanban, calc: Calculator, search: Search, settings: Settings, category: LayoutGrid, catalog: Database,
+  part: Cpu, page: FileText, figure: LineChart, project: FolderKanban, calc: Calculator, search: Search, settings: Settings, category: LayoutGrid, catalog: Database, compare: Columns3,
 };
 
 /**

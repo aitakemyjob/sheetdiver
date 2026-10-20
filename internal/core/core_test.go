@@ -1292,3 +1292,32 @@ func TestRippleBudgetsAndOtherLoads(t *testing.T) {
 		t.Errorf("entered regulator current: %+v", cs)
 	}
 }
+
+func TestCompareSpecificParts(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	res, err := s.Compare(ctx, CompareRequest{Parts: []string{"SD1235", "sd1234"}, Keys: []string{"vin", "iout", "iq"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rows) != 2 || res.Rows[0].Part.MPN != "SD1235" || res.Rows[1].Part.MPN != "SD1234" {
+		t.Errorf("rows in the order given: %+v", res.Rows)
+	}
+	dirs := map[string]string{}
+	for _, c := range res.Columns {
+		dirs[c.Key] = c.Direction
+	}
+	if dirs["vin"] != "cover" || dirs["iout"] != "higher" || dirs["iq"] != "lower" {
+		t.Errorf("directions = %v", dirs)
+	}
+	// Without keys: the usual ones for their types.
+	if res, err := s.Compare(ctx, CompareRequest{Parts: []string{"SD1234", "SD1235"}}); err != nil || len(res.Columns) == 0 {
+		t.Errorf("default keys: %+v %v", res.Columns, err)
+	}
+	if _, err := s.Compare(ctx, CompareRequest{Parts: []string{"SD1234", "NOPE9"}}); err == nil {
+		t.Error("an unknown part")
+	}
+	if _, err := s.Compare(ctx, CompareRequest{Parts: []string{"SD1234"}, Keys: []string{"speed"}}); err == nil {
+		t.Error("an unknown key")
+	}
+}

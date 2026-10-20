@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -337,4 +338,76 @@ func TestCatalogueTools(t *testing.T) {
 	h.must("import_datasheets", map[string]any{"lcsc": []string{"C1"}}, "1 imported", "ZX7001")
 	h.must("search_catalog", map[string]any{"query": "ZX7001"}, "| ZX7001 |")
 	h.must("get_part", map[string]any{"part": "ZX7001DBVR"}, "ZX7001")
+}
+
+// shown runs a show tool and returns the focus it sent to the UI.
+func (h *harness) shown(name string, args map[string]any) core.Focus {
+	h.t.Helper()
+	events, stop := h.core.Bus.Subscribe()
+	defer stop()
+	h.must(name, args)
+	for {
+		select {
+		case ev := <-events:
+			if ev.Type == core.EvFocus {
+				return ev.Data.(core.Focus)
+			}
+		case <-time.After(5 * time.Second):
+			h.t.Fatalf("%s sent nothing to the UI", name)
+		}
+	}
+}
+
+func TestShowWhileDiscussing(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	// Parts side by side, with notes and a recommendation.
+	f := h.shown("show", map[string]any{"kind": "compare", "parts": []string{"sd1234", "SD1235"}, "keys": []string{"vin", "iout"},
+		"notes": map[string]string{"SD1234": "cheaper"}, "highlight": "SD1234", "explain": "SD1234 does it: see [p2](#page/SD1234/2)."})
+	if f.Kind != "compare" || !slices.Equal(f.Parts, []string{"SD1234", "SD1235"}) || f.Notes["SD1234"] != "cheaper" || f.Highlight != "SD1234" || !strings.Contains(f.Explain, "#page/SD1234/2") {
+		t.Errorf("compare = %+v", f)
+	}
+	for _, bad := range []map[string]any{
+		{"kind": "compare", "parts": []string{"SD1234"}},
+		{"kind": "compare", "parts": []string{"SD1234", "NOPE9"}},
+		{"kind": "compare", "parts": []string{"SD1234", "SD1235"}, "keys": []string{"speed"}},
+		{"kind": "catalog"},
+		{"kind": "hologram"},
+	} {
+		if out, _, isErr := h.call("show", bad); !isErr {
+			t.Errorf("%v should fail: %s", bad, out)
+		}
+	}
+	// Catalogue candidates.
+	f = h.shown("show", map[string]any{"kind": "catalog", "lcsc": []string{"C1", "C2"}, "highlight": "C2"})
+	if f.Kind != "catalog" || len(f.LCSC) != 2 || f.Highlight != "C2" {
+		t.Errorf("catalog = %+v", f)
+	}
+	f = h.shown("show", map[string]any{"kind": "catalog", "subcategory": "MOSFETs", "filters": []map[string]any{{"parameter": "Drain to Source Voltage", "op": ">=", "value": "30V"}}})
+	if f.Subcategory != "MOSFETs" || len(f.Filters) != 1 || f.Filters[0].Input != "30V" {
+		t.Errorf("catalog search = %+v", f)
+	}
+	// A calculator filled in from the part.
+	f = h.shown("show", map[string]any{"kind": "calc", "calculator": "divider", "inputs": map[string]any{"vin": 3.3, "vout": 1.8}})
+	if f.Kind != "calc" || f.Calc == nil {
+		t.Errorf("calc = %+v", f)
+	}
+	// A project with a rail highlighted.
+	h.must("create_project", map[string]any{"name": "Board"}, "created")
+	f = h.shown("show", map[string]any{"kind": "project", "project": "board", "highlight": "3V3"})
+	if f.Project != "Board" || f.Highlight != "3V3" {
+		t.Errorf("project = %+v", f)
+	}
+	// A walkthrough of several steps.
+	f = h.shown("show_walkthrough", map[string]any{"title": "Why SD1234", "steps": []map[string]any{
+		{"kind": "part", "part": "SD1234", "title": "The part", "explain": "A 3 A buck."},
+		{"kind": "page", "part": "SD1234", "page": 2, "title": "Its limits"},
+		{"kind": "compare", "parts": []string{"SD1234", "SD1235"}, "title": "Against SD1235"},
+	}})
+	if f.Kind != "walkthrough" || f.Title != "Why SD1234" || len(f.Steps) != 3 || f.Steps[1].Page != 1 || f.Steps[1].DatasheetID == 0 || f.Steps[0].Explain != "A 3 A buck." {
+		t.Errorf("walkthrough = %+v", f)
+	}
+	if out, _, isErr := h.call("show_walkthrough", map[string]any{"title": "x", "steps": []map[string]any{{"kind": "part", "part": "NOPE9"}}}); !isErr || !strings.Contains(out, "step 1") {
+		t.Errorf("a bad step names itself: %s", out)
+	}
 }

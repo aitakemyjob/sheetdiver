@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -137,6 +138,26 @@ func (s *Service) CatalogSearch(ctx context.Context, q catalog.Query) ([]Catalog
 	if err != nil {
 		return nil, err
 	}
+	return s.inLibrary(ctx, items), nil
+}
+
+// CatalogGet returns catalogue parts by LCSC code, in the order given,
+// marked with the library part each is (if imported).
+func (s *Service) CatalogGet(ctx context.Context, codes []string) ([]CatalogItem, error) {
+	items, err := s.Catalog.Get(ctx, codes)
+	if err != nil {
+		return nil, err
+	}
+	pos := map[string]int{}
+	for i, c := range codes {
+		pos[strings.ToUpper(strings.TrimSpace(c))] = i
+	}
+	sort.SliceStable(items, func(a, b int) bool { return pos[strings.ToUpper(items[a].LCSC)] < pos[strings.ToUpper(items[b].LCSC)] })
+	return s.inLibrary(ctx, items), nil
+}
+
+// inLibrary marks catalogue parts with the library part each is.
+func (s *Service) inLibrary(ctx context.Context, items []catalog.Item) []CatalogItem {
 	out := make([]CatalogItem, 0, len(items))
 	for _, it := range items {
 		ci := CatalogItem{Item: it}
@@ -145,7 +166,7 @@ func (s *Service) CatalogSearch(ctx context.Context, q catalog.Query) ([]Catalog
 		}
 		out = append(out, ci)
 	}
-	return out, nil
+	return out
 }
 
 // CatalogRequest builds the import of a catalogue part: its datasheet

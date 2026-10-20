@@ -480,6 +480,21 @@ export interface Focus {
   query?: string;
   calc?: CalcResponse;
   message?: string;
+  /** compare: parts side by side, the keys, a note per part. */
+  parts?: string[];
+  keys?: string[];
+  notes?: Record<string, string>;
+  /** catalog: candidates by LCSC code, or a search. */
+  lcsc?: string[];
+  subcategory?: string;
+  filters?: CatalogFilter[];
+  /** What to mark: the recommended part, an LCSC code, a rail or a BOM entry. */
+  highlight?: string;
+  /** The agent's explanation (markdown), shown beside the view. */
+  explain?: string;
+  /** walkthrough: its title and steps. */
+  title?: string;
+  steps?: Focus[];
 }
 
 export interface CategoryInfo {
@@ -513,12 +528,20 @@ export interface CompareColumn {
   label: string;
   unit: string;
   have: number;
+  /** Which values are better: higher, lower, close (to a target) or cover (a range). */
+  direction?: 'higher' | 'lower' | 'close' | 'cover';
+}
+
+/** A part's values in a comparison. */
+export interface CompareRow {
+  part: Part;
+  values: Record<string, CompareValue>;
 }
 
 export interface CompareResult {
   category: string;
   columns: CompareColumn[] | null;
-  rows: { part: Part; values: Record<string, CompareValue> }[];
+  rows: CompareRow[];
   total: number;
   unknown?: Record<string, number> | null;
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,9 +75,11 @@ type Filter struct {
 
 // CompareRequest asks for a comparison of the parts of one type.
 type CompareRequest struct {
-	Category string   `json:"category"`
-	Keys     []string `json:"keys,omitempty"`
-	Filters  []Filter `json:"filters,omitempty"`
+	Category string `json:"category"`
+	// Parts compares these parts (part numbers) instead of a category's.
+	Parts   []string `json:"parts,omitempty"`
+	Keys    []string `json:"keys,omitempty"`
+	Filters []Filter `json:"filters,omitempty"`
 	// Query keeps parts whose number, manufacturer or description
 	// contains it.
 	Query string `json:"query,omitempty"`
@@ -115,6 +118,9 @@ type CompareColumn struct {
 	Label string `json:"label"`
 	Unit  string `json:"unit"`
 	Have  int    `json:"have"`
+	// Direction says which values are better: higher, lower, close (to
+	// a target) or cover (a range that includes the need).
+	Direction string `json:"direction,omitempty"`
 }
 
 // CompareResult is the comparison table.
@@ -134,6 +140,9 @@ type CompareResult struct {
 // over ratings), converted to SI.
 func (s *Service) Compare(ctx context.Context, req CompareRequest) (CompareResult, error) {
 	out := CompareResult{Category: req.Category, Rows: []CompareRow{}, Unknown: map[string]int{}}
+	if len(req.Parts) > 0 {
+		return s.compareParts(ctx, req, out)
+	}
 	parts, err := s.Lib.Parts(ctx, library.PartFilter{Category: req.Category, Favorite: req.Favorite, Status: req.Status})
 	if err != nil {
 		return out, err
@@ -177,7 +186,7 @@ func (s *Service) Compare(ctx context.Context, req CompareRequest) (CompareResul
 		keys = defaultKeys(req.Category, have)
 	}
 	for _, k := range keys {
-		out.Columns = append(out.Columns, CompareColumn{Key: k, Label: extract.Keys[k], Unit: units[k], Have: have[k]})
+		out.Columns = append(out.Columns, CompareColumn{Key: k, Label: extract.Keys[k], Unit: units[k], Have: have[k], Direction: keyDirections[k]})
 	}
 	q := strings.ToLower(strings.TrimSpace(req.Query))
 rows:
@@ -233,6 +242,50 @@ func (s *Service) categoryNames(ctx context.Context) []string {
 		}
 	}
 	return out
+}
+
+// compareParts compares the given parts, in the order given, on the
+// requested keys or the usual keys of their types.
+func (s *Service) compareParts(ctx context.Context, req CompareRequest, out CompareResult) (CompareResult, error) {
+	have := map[string]int{}
+	units := map[string]string{}
+	cats := map[string]bool{}
+	for _, ref := range req.Parts {
+		r, err := s.ResolvePart(ctx, ref)
+		if err != nil {
+			return out, err
+		}
+		vals, err := s.partValues(ctx, r.Part)
+		if err != nil {
+			return out, err
+		}
+		for k, v := range vals {
+			have[k]++
+			units[k] = v.Unit
+		}
+		cats[r.Part.Category] = true
+		out.Rows = append(out.Rows, CompareRow{Part: r.Part, Values: vals})
+	}
+	keys := req.Keys
+	if len(keys) == 0 {
+		for c := range cats {
+			for _, k := range defaultKeys(c, have) {
+				if !slices.Contains(keys, k) {
+					keys = append(keys, k)
+				}
+			}
+		}
+		sort.Strings(keys)
+	}
+	for _, k := range keys {
+		if _, ok := extract.Keys[k]; !ok {
+			return out, fmt.Errorf("unknown key %q", k)
+		}
+		out.Columns = append(out.Columns, CompareColumn{Key: k, Label: extract.Keys[k], Unit: units[k], Have: have[k], Direction: keyDirections[k]})
+	}
+	out.Total = len(out.Rows)
+	out.Unknown = nil
+	return out, nil
 }
 
 // defaultKeys picks a type's comparison columns: its preset keys that some

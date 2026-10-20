@@ -104,6 +104,7 @@ func TestFrontendFixtures(t *testing.T) {
 		{"parts.categories", nil},
 		{"categories.list", nil},
 		{"compare", map[string]any{"category": "buck"}},
+		{"compare", map[string]any{"parts": []string{"SD1234", "TPX5430"}}},
 		{"part.detail", map[string]any{"part": "SD1234"}},
 		{"part.detail", map[string]any{"part": "TPX5430"}},
 		{"part.alternatives", map[string]any{"part": "SD1234"}},
