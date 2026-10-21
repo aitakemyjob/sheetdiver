@@ -30,6 +30,19 @@ every merged pull request.
   app opens your browser; only part pages built from the LCSC code can be
   opened.
 
+### Fixed
+- **Windows: importing datasheets failed** with "PDF engine busy: could not
+  instantiate webassembly module: GetFileType /dev/stdout: The handle is
+  invalid". The desktop app has no console, and the PDF engine was given
+  its (invalid) output handles. (#51)
+- **Downloading the parts catalogue often failed** with "the catalogue was
+  republished during the download". A publication's files are dated a
+  second or so apart, and the download required identical dates. It now
+  allows for that, and still restarts if the dataset really is
+  republished while downloading. (#52)
+- **A rail current limit of 0 A** hid the regulator's rated output, so the
+  rail's load wasn't checked. Zero now means no limit. (#50)
+
 ## [0.1.0] - 2026-10-19
 
 The first release: a datasheet library for electronics design, shared with

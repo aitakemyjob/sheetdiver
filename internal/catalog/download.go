@@ -85,7 +85,7 @@ func (c *Catalog) Download(ctx context.Context, progress func(Progress)) (err er
 	if err := extract(work, parts, src, progress); err != nil {
 		return err
 	}
-	published, _ := http.ParseTime(parts[0].modified)
+	published := publishedAt(parts)
 	progress(Progress{Stage: "checking"})
 	in, err := check(ctx, src)
 	if err != nil {
@@ -125,6 +125,35 @@ func (c *Catalog) swap(src string, in info) error {
 
 // errMixed means the archive parts come from different publications.
 var errMixed = errors.New("the catalogue was republished during the download")
+
+// publishWindow is how far apart the parts of one publication can be
+// dated: they're written over a second or two, and the same file can
+// report a slightly different date from different CDN edges or in its
+// compressed form. Republishes are hours apart.
+const publishWindow = 10 * time.Minute
+
+// samePublication reports whether two Last-Modified dates belong to the
+// same publication (exactly equal when either doesn't parse).
+func samePublication(a, b string) bool {
+	ta, errA := http.ParseTime(a)
+	tb, errB := http.ParseTime(b)
+	if errA != nil || errB != nil {
+		return a == b
+	}
+	d := ta.Sub(tb)
+	return d <= publishWindow && d >= -publishWindow
+}
+
+// publishedAt is when a publication was finished: its latest part's date.
+func publishedAt(parts []part) time.Time {
+	var latest time.Time
+	for _, p := range parts {
+		if t, err := http.ParseTime(p.modified); err == nil && t.After(latest) {
+			latest = t
+		}
+	}
+	return latest
+}
 
 // head asks for a file's size and modification time; ok is false for 404.
 func (c *Catalog) head(ctx context.Context, name string) (part, bool, error) {
@@ -169,44 +198,53 @@ func (c *Catalog) fetchParts(ctx context.Context, dir string, progress func(Prog
 	parts = append(parts, last)
 	var total int64
 	for _, p := range parts {
-		if p.modified != last.modified {
+		if !samePublication(p.modified, last.modified) {
 			return nil, errMixed
 		}
 		total += p.size
 	}
 	var done int64
 	for _, p := range parts {
-		n, mod, err := c.get(ctx, p.name, filepath.Join(dir, p.name), func(n int64) {
+		n, err := c.get(ctx, p.name, filepath.Join(dir, p.name), func(n int64) {
 			progress(Progress{Stage: "downloading", Done: done + n, Total: total})
 		})
 		if err != nil {
 			return nil, err
 		}
-		if mod != last.modified || (p.size > 0 && n != p.size) {
+		if p.size > 0 && n != p.size {
 			return nil, errMixed
 		}
 		done += n
+	}
+	// Republished while downloading: the last part is now from another
+	// publication. (A mix that slips through fails the zip checksums.)
+	again, ok, err := c.head(ctx, "cache.zip")
+	if err != nil {
+		return nil, err
+	}
+	if !ok || !samePublication(again.modified, last.modified) {
+		return nil, errMixed
 	}
 	return parts, nil
 }
 
 // get downloads one file, reporting bytes as they arrive.
-func (c *Catalog) get(ctx context.Context, name, to string, progress func(int64)) (int64, string, error) {
+func (c *Catalog) get(ctx context.Context, name, to string, progress func(int64)) (int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Source+name, nil)
 	if err != nil {
-		return 0, "", err
+		return 0, err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, "", err
+		return 0, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, "", fmt.Errorf("download %s: %s", name, resp.Status)
+		return 0, fmt.Errorf("download %s: %s", name, resp.Status)
 	}
 	f, err := os.Create(to)
 	if err != nil {
-		return 0, "", err
+		return 0, err
 	}
 	defer f.Close()
 	var n int64
@@ -215,7 +253,7 @@ func (c *Catalog) get(ctx context.Context, name, to string, progress func(int64)
 		k, rerr := resp.Body.Read(buf)
 		if k > 0 {
 			if _, err := f.Write(buf[:k]); err != nil {
-				return n, "", err
+				return n, err
 			}
 			n += int64(k)
 			progress(n)
@@ -224,10 +262,10 @@ func (c *Catalog) get(ctx context.Context, name, to string, progress func(int64)
 			break
 		}
 		if rerr != nil {
-			return n, "", fmt.Errorf("download %s: %w", name, rerr)
+			return n, fmt.Errorf("download %s: %w", name, rerr)
 		}
 	}
-	return n, resp.Header.Get("Last-Modified"), f.Close()
+	return n, f.Close()
 }
 
 // multiFile reads several files as one.

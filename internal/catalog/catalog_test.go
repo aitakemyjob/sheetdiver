@@ -60,7 +60,7 @@ func (p *publisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // serve starts a publisher and a catalogue reading from it.
-func serve(t *testing.T, p *publisher) *Catalog {
+func serve(t *testing.T, p http.Handler) *Catalog {
 	t.Helper()
 	srv := httptest.NewServer(p)
 	t.Cleanup(srv.Close)
@@ -252,5 +252,89 @@ func TestShopURL(t *testing.T) {
 		if u, err := ShopURL(bad[0], bad[1]); err == nil {
 			t.Errorf("ShopURL(%q, %q) = %q, want an error", bad[0], bad[1], u)
 		}
+	}
+}
+
+func TestDownloadToleratesOnePublicationsDates(t *testing.T) {
+	ctx := context.Background()
+	files := splitZip(t, sourceDB(t, sourceFormat), 600)
+	// As GitHub Pages serves it: the parts are written a second apart, and
+	// a GET (compressed, from another CDN edge) can be dated a second off
+	// its HEAD. This used to fail as "republished during the download"
+	// three times over.
+	var gets atomic.Int32
+	p := &publisher{files: files, modified: func(n string) string {
+		if n == "cache.zip" {
+			return "Tue, 20 Oct 2026 23:05:12 GMT"
+		}
+		if gets.Load()%2 == 1 {
+			return "Tue, 20 Oct 2026 23:05:12 GMT"
+		}
+		return "Tue, 20 Oct 2026 23:05:11 GMT"
+	}}
+	c := serve(t, &countingPublisher{publisher: p, gets: &gets})
+	if err := c.Download(ctx, nil); err != nil {
+		t.Fatalf("one publication's parts: %v", err)
+	}
+	// Dated by its last part.
+	if st := c.Status(ctx); st.Published.Format(time.RFC3339) != "2026-10-20T23:05:12Z" {
+		t.Errorf("published = %v", st.Published)
+	}
+}
+
+func TestDownloadRetriesARepublishMidway(t *testing.T) {
+	ctx := context.Background()
+	files := splitZip(t, sourceDB(t, sourceFormat), 600)
+	// The site is republished while the first attempt downloads: the
+	// re-check after the download sees a new date, so it starts over and
+	// the second attempt (all new) succeeds.
+	var gets atomic.Int32
+	parts := int32(len(files))
+	p := &publisher{files: files, modified: func(string) string {
+		if gets.Load() >= parts {
+			return "Wed, 21 Oct 2026 05:00:00 GMT"
+		}
+		return "Tue, 20 Oct 2026 23:05:12 GMT"
+	}}
+	c := serve(t, &countingPublisher{publisher: p, gets: &gets})
+	if err := c.Download(ctx, nil); err != nil {
+		t.Fatalf("after a republish: %v", err)
+	}
+	if n := gets.Load(); n != 2*parts {
+		t.Errorf("downloads = %d, want %d (all parts twice)", n, 2*parts)
+	}
+	if st := c.Status(ctx); st.Published.Format(time.RFC3339) != "2026-10-21T05:00:00Z" {
+		t.Errorf("published = %v, want the new publication", st.Published)
+	}
+}
+
+func TestSamePublication(t *testing.T) {
+	for _, tc := range []struct {
+		a, b string
+		want bool
+	}{
+		{"Tue, 20 Oct 2026 23:05:11 GMT", "Tue, 20 Oct 2026 23:05:12 GMT", true},
+		{"Tue, 20 Oct 2026 23:05:12 GMT", "Tue, 20 Oct 2026 23:14:00 GMT", true},
+		{"Tue, 20 Oct 2026 23:05:12 GMT", "Wed, 21 Oct 2026 05:00:00 GMT", false},
+		{"garbled", "garbled", true},
+		{"garbled", "Tue, 20 Oct 2026 23:05:12 GMT", false},
+	} {
+		if got := samePublication(tc.a, tc.b); got != tc.want {
+			t.Errorf("samePublication(%q, %q) = %v", tc.a, tc.b, got)
+		}
+	}
+}
+
+// countingPublisher counts GETs before serving them.
+type countingPublisher struct {
+	*publisher
+	gets *atomic.Int32
+}
+
+// ServeHTTP serves a request, counting GETs.
+func (c *countingPublisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c.publisher.ServeHTTP(w, r)
+	if r.Method == http.MethodGet {
+		c.gets.Add(1)
 	}
 }
