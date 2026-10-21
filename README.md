@@ -124,8 +124,9 @@ Windows choose **More info → Run anyway** in SmartScreen.
    ```
 
    **Claude Desktop:** in the connect dialog (the **MCP** pill), choose
-   *Claude Desktop › Save Claude Desktop extension*, then open the saved
-   `sheetdiver.mcpb` to install it. The dialog also has the add commands
+   *Claude Desktop › Save Claude Desktop extension*. Then in Claude Desktop
+   open Settings › Extensions › Advanced settings › **Install Extension…**
+   and pick the saved `sheetdiver.mcpb`. The dialog also has the add commands
    and config files for Codex, Gemini CLI, Windsurf and others, with this
    copy's path filled in, and saves each file on request.
 

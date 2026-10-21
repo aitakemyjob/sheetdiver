@@ -59,7 +59,7 @@ const command = process.env.SHEETDIVER_APP;
 const child = spawn(command, ['mcp'], { stdio: 'inherit', windowsHide: true });
 child.on('error', (err) => {
   console.error('sheetdiver: cannot start ' + command + ': ' + err.message +
-    '. If SheetDiver moved, save the extension again (Connect an agent > Claude Desktop) and reinstall it.');
+    '. If SheetDiver moved, save the extension again (Connect an agent > Claude Desktop) and reinstall it (Settings > Extensions > Advanced settings > Install Extension).');
   process.exit(1);
 });
 child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));

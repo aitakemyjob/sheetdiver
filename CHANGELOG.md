@@ -32,7 +32,8 @@ every merged pull request.
 
 - **Claude Desktop extension and config files for other agents:** the
   connect dialog (the MCP pill) saves a Claude Desktop extension
-  (`sheetdiver.mcpb`; open it to install), and each agent's config file
+  (`sheetdiver.mcpb`; install it from Claude Desktop's Settings › Extensions
+  › Advanced settings › Install Extension…), and each agent's config file
   (`.mcp.json`, Cursor and VS Code `mcp.json`, Codex `config.toml`, Gemini
   CLI `settings.json`, Windsurf `mcp_config.json`). Commands and files that
   launch SheetDiver use this copy's full path, since `sheetdiver` isn't on

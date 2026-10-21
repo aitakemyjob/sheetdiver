@@ -111,8 +111,8 @@ export function ConnectAgent() {
       {client === 'Claude Desktop' && (
         <div className="col" style={{ gap: 6 }}>
           <div className="muted">
-            Save the SheetDiver extension, then open the saved <span className="mono">sheetdiver.mcpb</span> (or drag it onto Claude Desktop's Settings › Extensions) and
-            choose Install. It runs this copy of SheetDiver, so save it again if you move the app.
+            Save the SheetDiver extension, then in Claude Desktop open Settings › Extensions › Advanced settings, choose <b>Install Extension…</b> and pick the saved{' '}
+            <span className="mono">sheetdiver.mcpb</span>. It runs this copy of SheetDiver, so save and install it again if you move the app.
           </div>
           <button className="btn primary" style={{ alignSelf: 'flex-start' }} disabled={busy} onClick={saveExtension}>
             <Download size={14} /> Save Claude Desktop extension (.mcpb)
