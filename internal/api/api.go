@@ -15,6 +15,7 @@ import (
 
 	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
+	"github.com/aitakemyjob/sheetdiver/internal/connect"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/extract"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -85,11 +86,14 @@ func (a *API) Invoke(ctx context.Context, name string, args json.RawMessage) (js
 
 // AppState is what the UI needs at startup.
 type AppState struct {
-	Version     string            `json:"version"`
-	Platform    string            `json:"platform"`
-	Config      config.Config     `json:"config"`
-	LibraryDir  string            `json:"libraryDir"`
-	MCP         core.MCPStatus    `json:"mcp"`
+	Version    string         `json:"version"`
+	Platform   string         `json:"platform"`
+	Config     config.Config  `json:"config"`
+	LibraryDir string         `json:"libraryDir"`
+	MCP        core.MCPStatus `json:"mcp"`
+	// Command starts this app's stdio MCP bridge (with "mcp"), for
+	// clients that launch servers themselves.
+	Command     string            `json:"command"`
 	CanPickFile bool              `json:"canPickFile"`
 	CanOpenFile bool              `json:"canOpenFile"`
 	CanSaveFile bool              `json:"canSaveFile"`
@@ -113,9 +117,16 @@ func (a *API) registerApp() {
 	c := a.core
 	a.methods["app.state"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		return AppState{
-			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(),
+			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(), Command: connect.Command(),
 			CanPickFile: a.PickPDFs != nil, CanOpenFile: a.OpenFile != nil, Statuses: library.Statuses, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
 		}, nil
+	})
+	a.methods["mcp.extension"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		b, err := connect.Extension{Version: c.Version, Command: connect.Command()}.Build()
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"name": "sheetdiver.mcpb", "data": base64.StdEncoding.EncodeToString(b)}, nil
 	})
 	a.methods["settings.update"] = method(func(ctx context.Context, in config.Settings) (any, error) {
 		return nil, c.UpdateSettings(in)

@@ -4,6 +4,7 @@
 //	frontend/public/logo.png      256×256  (title bar, welcome screen)
 //	frontend/public/favicon.png   64×64
 //	docs/assets/logo.png          512×512  (README)
+//	internal/connect/icon.png     512×512  (Claude Desktop extension)
 //
 // The source may have a fake "transparency" checkerboard baked in; every
 // light, neutral pixel connected to the image border is treated as
@@ -40,6 +41,7 @@ func main() {
 		{"frontend/public/logo.png", 256},
 		{"frontend/public/favicon.png", 64},
 		{"docs/assets/logo.png", 512},
+		{"internal/connect/icon.png", 512},
 	} {
 		if err := save(out.path, resize(cut, out.size)); err != nil {
 			log.Fatal(err)
