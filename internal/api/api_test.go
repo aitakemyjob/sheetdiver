@@ -1,7 +1,10 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -197,5 +200,38 @@ func TestOpenShop(t *testing.T) {
 	}
 	if len(opened) != 1 || opened[0] != "https://jlcpcb.com/partdetail/C25744" {
 		t.Errorf("opened = %v", opened)
+	}
+}
+
+func TestMCPExtension(t *testing.T) {
+	a, _ := newAPI(t)
+	var st AppState
+	if err := invoke(t, a, "app.state", nil, &st); err != nil || !filepath.IsAbs(st.Command) {
+		t.Fatalf("command = %q, %v", st.Command, err)
+	}
+	var x struct{ Name, Data string }
+	if err := invoke(t, a, "mcp.extension", nil, &x); err != nil {
+		t.Fatal(err)
+	}
+	b, err := base64.StdEncoding.DecodeString(x.Data)
+	if err != nil || x.Name != "sheetdiver.mcpb" {
+		t.Fatalf("%q, %v", x.Name, err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := zr.Open("manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var m struct {
+		Server struct {
+			MCPConfig struct{ Env map[string]string } `json:"mcp_config"`
+		}
+	}
+	if err := json.NewDecoder(f).Decode(&m); err != nil || m.Server.MCPConfig.Env["SHEETDIVER_APP"] != st.Command {
+		t.Errorf("the extension runs %q, want this app (%q): %v", m.Server.MCPConfig.Env["SHEETDIVER_APP"], st.Command, err)
 	}
 }

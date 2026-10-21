@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../lib/store';
 import { fakeBackend, recorded, type FakeBackend } from '../test/backend';
 import type { Datasheet } from '../lib/types';
-import { ConnectAgent } from './ConnectAgent';
+import { ConnectAgent, connectSnippets } from './ConnectAgent';
 import { ImportDialog } from './ImportDialog';
 import { ImportQueue } from './ImportQueue';
 import { ReportDialog } from './ReportDialog';
@@ -124,5 +124,59 @@ describe('ConnectAgent', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getAllByText(/claude mcp add/).length).toBeGreaterThan(0);
     expect(within(dialog).getAllByText(/\/mcp/).length).toBeGreaterThan(0);
+  });
+
+  /** Opens the dialog in the desktop app, at the given client. */
+  function desktopAt(client: string) {
+    const app = useStore.getState().app!;
+    useStore.setState({ app: { ...app, canSaveFile: true, platform: 'windows', command: 'C:\\Program Files\\SheetDiver\\sheetdiver.exe' } });
+    b.on('file.save', (a) => ({ path: `C:\\Users\\me\\${(a as { name: string }).name}` }));
+    render(<ConnectAgent />);
+    fireEvent.click(screen.getByRole('button', { name: client }));
+  }
+
+  it('saves the Claude Desktop extension', async () => {
+    b.on('mcp.extension', () => ({ name: 'sheetdiver.mcpb', data: btoa('PK') }));
+    desktopAt('Claude Desktop');
+    fireEvent.click(screen.getByRole('button', { name: /Save Claude Desktop extension/ }));
+    await waitFor(() => expect(b.callsTo('file.save')[0]).toEqual({ name: 'sheetdiver.mcpb', data: btoa('PK') }));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Claude Desktop extension saved' }));
+    // The hand-written config runs this app, not a "sheetdiver" on PATH.
+    expect(screen.getByText(/"command": "C:\\\\Program Files/)).toBeInTheDocument();
+  });
+
+  it("saves a client's config file", async () => {
+    desktopAt('Codex');
+    expect(screen.getByText('codex mcp add sheetdiver -- "C:\\Program Files\\SheetDiver\\sheetdiver.exe" mcp')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Save as config.toml/ }));
+    await waitFor(() => expect(b.callsTo('file.save').length).toBe(1));
+    const { name, data } = b.callsTo('file.save')[0] as { name: string; data: string };
+    expect(name).toBe('config.toml');
+    expect(atob(data)).toContain("command = 'C:\\Program Files\\SheetDiver\\sheetdiver.exe'");
+    expect(screen.getByText(/paste the snippet into it instead/)).toBeInTheDocument();
+  });
+
+  it('reports a failed save', async () => {
+    b.on('mcp.extension', () => {
+      throw new Error('disk full');
+    });
+    desktopAt('Claude Desktop');
+    fireEvent.click(screen.getByRole('button', { name: /Save Claude Desktop extension/ }));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'err', body: 'disk full' }));
+  });
+});
+
+describe('connectSnippets', () => {
+  it('writes each client its own format', () => {
+    const sn = connectSnippets('http://127.0.0.1:47480/mcp', '/Applications/SheetDiver.app/Contents/MacOS/SheetDiver', 'darwin');
+    const parse = (c: keyof typeof sn, i = 0) => JSON.parse(sn[c][i].text);
+    expect(parse('Claude Desktop').mcpServers.sheetdiver).toEqual({ command: '/Applications/SheetDiver.app/Contents/MacOS/SheetDiver', args: ['mcp'] });
+    expect(sn['Claude Desktop'][0].note).toContain('~/Library/Application Support/Claude/');
+    expect(parse('Claude Code', 1).mcpServers.sheetdiver).toEqual({ type: 'http', url: 'http://127.0.0.1:47480/mcp' });
+    expect(parse('Cursor').mcpServers.sheetdiver).toEqual({ url: 'http://127.0.0.1:47480/mcp' });
+    expect(parse('VS Code').servers.sheetdiver).toEqual({ type: 'http', url: 'http://127.0.0.1:47480/mcp' });
+    expect(parse('Gemini CLI', 1).mcpServers.sheetdiver).toEqual({ httpUrl: 'http://127.0.0.1:47480/mcp' });
+    expect(parse('Windsurf').mcpServers.sheetdiver).toEqual({ serverUrl: 'http://127.0.0.1:47480/mcp' });
+    expect(sn.Other[1].text).toBe('/Applications/SheetDiver.app/Contents/MacOS/SheetDiver mcp');
   });
 });

@@ -43,6 +43,8 @@ var (
 	// symlinked temporary folder).
 	libraryDirRe = regexp.MustCompile(`"libraryDir":"[^"]+"`)
 	platformRe   = regexp.MustCompile(`"platform":"[^"]*"`)
+	// The test binary's path.
+	commandRe = regexp.MustCompile(`"command":"[^"]*"`)
 )
 
 // TestFrontendFixtures records real responses for the calls the UI makes,
@@ -173,13 +175,14 @@ func TestFrontendFixtures(t *testing.T) {
 }
 
 // normalize makes a response the same everywhere: fixed times and dates,
-// the test's temporary folder as /tmp/sheetdiver, and the platform as
-// linux.
+// the test's temporary folder as /tmp/sheetdiver, the platform as linux
+// and the executable as /opt/sheetdiver/sheetdiver.
 func normalize(res json.RawMessage, dir string) json.RawMessage {
 	s := timeRe.ReplaceAllString(string(res), `"2026-01-01T00:00:00Z"`)
 	s = dateRe.ReplaceAllString(s, "2026-01-01")
 	s = libraryDirRe.ReplaceAllString(s, `"libraryDir":"/tmp/sheetdiver/lib"`)
 	s = platformRe.ReplaceAllString(s, `"platform":"linux"`)
+	s = commandRe.ReplaceAllString(s, `"command":"/opt/sheetdiver/sheetdiver"`)
 	if dir != "" && dir != "." {
 		s = strings.ReplaceAll(s, dir, "/tmp/sheetdiver")
 	}

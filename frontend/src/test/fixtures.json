@@ -24,6 +24,7 @@
     "running": false,
     "url": ""
    },
+   "command": "/opt/sheetdiver/sheetdiver",
    "canPickFile": false,
    "canOpenFile": false,
    "canSaveFile": false,

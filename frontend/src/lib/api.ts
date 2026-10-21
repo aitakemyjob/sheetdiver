@@ -47,6 +47,7 @@ export const api = {
   applyUpdate: (id: number) => call<ImportResult>('datasheet.applyUpdate', { id }),
   checkAllUpdates: () => call<UpdateCheck[]>('datasheets.checkUpdates'),
   saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
+  mcpExtension: () => call<{ name: string; data: string }>('mcp.extension'),
   deletePreview: (part: string) => call<DeletePlan>('delete.preview', { part }),
   deleteApply: (part: string, keepInProjects: boolean) => call<DeleteResult>('delete.apply', { part, keepInProjects }),
   translateStatus: () => call<TranslateStatus>('translate.status'),
@@ -160,14 +161,17 @@ export async function uploadPDF(file: File, opts: { mpns?: string; manufacturer?
  * (returns the file name).
  */
 export async function saveText(name: string, text: string, mime: string, desktop: boolean): Promise<string> {
-  if (desktop) {
-    const bytes = new TextEncoder().encode(text);
-    let bin = '';
-    for (const b of bytes) bin += String.fromCharCode(b);
-    return (await api.saveFile(name, btoa(bin))).path;
-  }
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return saveBase64(name, btoa(bin), mime, desktop);
+}
+
+/** Saves base64 data as a file, as saveText does. */
+export async function saveBase64(name: string, data: string, mime: string, desktop: boolean): Promise<string> {
+  if (desktop) return (await api.saveFile(name, data)).path;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.href = URL.createObjectURL(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type: mime }));
   a.download = name;
   a.click();
   URL.revokeObjectURL(a.href);

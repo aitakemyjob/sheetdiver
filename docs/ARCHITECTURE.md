@@ -80,6 +80,7 @@ corrections, which are kept and preferred.
 | `internal/core` | The `Service`: imports (path, bytes, URL, product-page links, part-number lookup), part overviews and key parameters, rendering with a cache, calculator input filling from datasheets and project rails (with provenance), project analysis (power tree loads, checks), agent access switches, activity feed and UI focus/context. |
 | `internal/api` | The frontend's JSON method table; one entry point `Invoke(method, args)`. |
 | `internal/mcpserver` | MCP tools over `core`, rendered as compact text (plus PNG images for figures and pages); every call is logged to the activity feed. |
+| `internal/connect` | What agents need to connect: this executable's path for stdio clients, and the Claude Desktop extension (`.mcpb`: a manifest and a small Node launcher that runs `sheetdiver mcp`). |
 | `internal/server` | Loopback HTTP: `/mcp`, `/healthz`, and in browser mode the UI, `/api/invoke`, `/api/events` (SSE) and the binary endpoints (`page.png`, `figure.png`, `datasheet.pdf`, `upload`). |
 | `main.go`, `gui.go`, `bridge.go`, `inspect.go` | CLI (`serve`, `mcp`, `import`, `inspect`), Wails desktop shell (`!nogui`), stdio↔HTTP MCP bridge. |
 

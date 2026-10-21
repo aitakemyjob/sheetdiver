@@ -38,6 +38,8 @@ export interface AppState {
   config: Config;
   libraryDir: string;
   mcp: MCPStatus;
+  /** Starts this app's stdio MCP bridge (with "mcp"). */
+  command: string;
   canPickFile: boolean;
   canOpenFile: boolean;
   canSaveFile: boolean;

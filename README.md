@@ -119,9 +119,16 @@ Windows choose **More info → Run anyway** in SmartScreen.
    { "mcpServers": { "sheetdiver": { "url": "http://127.0.0.1:47480/mcp" } } }
    // VS Code (.vscode/mcp.json)
    { "servers": { "sheetdiver": { "type": "http", "url": "http://127.0.0.1:47480/mcp" } } }
-   // Claude Desktop and other stdio-only clients
+   // Stdio-only clients: the app's full path where it isn't on PATH (Windows, macOS)
    { "mcpServers": { "sheetdiver": { "command": "sheetdiver", "args": ["mcp"] } } }
    ```
+
+   **Claude Desktop:** in the connect dialog (the **MCP** pill), choose
+   *Claude Desktop › Save Claude Desktop extension*. Then in Claude Desktop
+   open Settings › Extensions › Advanced settings › **Install Extension…**
+   and pick the saved `sheetdiver.mcpb`. The dialog also has the add commands
+   and config files for Codex, Gemini CLI, Windsurf and others, with this
+   copy's path filled in, and saves each file on request.
 
 3. Ask things like:
    - *"Import the TPS563200 and check its extracted parameters against the electrical characteristics."*
