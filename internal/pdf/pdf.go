@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -190,6 +191,12 @@ func (e *Engine) startPool(cached bool) (pdfium.Pool, error) {
 		// No filesystem mounts: documents always arrive as bytes.
 		FSConfig:      wazero.NewFSConfig(),
 		RuntimeConfig: rc,
+		// Not the process's stdout and stderr (the default): the Windows
+		// desktop app has no console, so those handles are invalid and
+		// the module fails to start ("GetFileType /dev/stdout: The handle
+		// is invalid"). PDFium prints nothing we need.
+		Stdout: io.Discard,
+		Stderr: io.Discard,
 	})
 }
 

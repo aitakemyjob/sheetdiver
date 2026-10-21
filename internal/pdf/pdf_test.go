@@ -7,6 +7,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
@@ -177,5 +179,31 @@ func TestEngineRetriesWithoutTheCompilationCache(t *testing.T) {
 	e2 := NewEngine("")
 	if _, err := e2.Extract(context.Background(), testutil.Datasheet(), nil); err == nil || calls != 1 {
 		t.Errorf("err = %v after %d attempts", err, calls)
+	}
+}
+
+func TestEngineDoesNotUseTheProcessConsole(t *testing.T) {
+	// The Windows desktop app has no console: os.Stdout and os.Stderr are
+	// invalid handles there, and wazero fails on them when it starts the
+	// module. The engine must not hand them over (go-pdfium's default).
+	saved := initPool
+	defer func() { initPool = saved }()
+	var got webassembly.Config
+	initPool = func(cfg webassembly.Config) (pdfium.Pool, error) {
+		got = cfg
+		return saved(cfg)
+	}
+	e := NewEngine("")
+	defer e.Close()
+	if _, err := e.Extract(context.Background(), testutil.Datasheet(), nil); err != nil {
+		t.Fatal(err)
+	}
+	for name, w := range map[string]io.Writer{"stdout": got.Stdout, "stderr": got.Stderr} {
+		if w == nil {
+			t.Errorf("%s is left to the default (the process's)", name)
+		}
+		if _, isFile := w.(*os.File); isFile {
+			t.Errorf("%s is a file handle", name)
+		}
 	}
 }
