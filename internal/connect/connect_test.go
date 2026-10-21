@@ -22,6 +22,9 @@ func unzip(t *testing.T, b []byte) map[string][]byte {
 	}
 	out := map[string][]byte{}
 	for _, f := range zr.File {
+		if f.Mode().Perm() != 0o644 {
+			t.Errorf("%s has mode %v, want rw-r--r--", f.Name, f.Mode())
+		}
 		r, err := f.Open()
 		if err != nil {
 			t.Fatal(err)

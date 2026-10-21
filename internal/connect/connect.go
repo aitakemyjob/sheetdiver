@@ -137,7 +137,10 @@ func (e Extension) Build() ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	for _, f := range files {
-		w, err := zw.Create(f.name)
+		// Unix permissions, as the mcpb CLI's packer writes them.
+		h := &zip.FileHeader{Name: f.name, Method: zip.Deflate}
+		h.SetMode(0o644)
+		w, err := zw.CreateHeader(h)
 		if err != nil {
 			return nil, err
 		}
