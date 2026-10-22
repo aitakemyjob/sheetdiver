@@ -100,9 +100,10 @@ func (s *Server) Handler() http.Handler {
 	})
 }
 
-// Run serves MCP over stdio (used by `sheetdiver mcp --standalone`).
-func (s *Server) Run(ctx context.Context) error {
-	return s.srv.Run(ctx, &mcp.StdioTransport{})
+// Run serves MCP over t, the client's stdio (`sheetdiver mcp` while the
+// app is closed, or with -standalone).
+func (s *Server) Run(ctx context.Context, t mcp.Transport) error {
+	return s.srv.Run(ctx, t)
 }
 
 // access is what a tool needs from the user's settings.

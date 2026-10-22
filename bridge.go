@@ -30,5 +30,7 @@ func runMCP(port int, standalone bool) error {
 		return err
 	}
 	defer a.core.Close()
-	return mcpserver.New(a.core).Run(ctx)
+	// Answer what the client already asked before stopping when it closes
+	// stdin.
+	return mcpserver.New(a.core).Run(ctx, mcpbridge.Drain{Transport: &mcp.StdioTransport{}})
 }

@@ -1,13 +1,16 @@
 package mcpbridge
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -209,4 +212,68 @@ func TestBesideFindsTheApp(t *testing.T) {
 	if _, ok := AppPath(dir).Locate(); ok {
 		t.Error("a folder isn't an app")
 	}
+}
+
+// closedStdio is a client that sends lines and closes its input at once,
+// as Claude Desktop's version probe does. Replies collect in out.
+func closedStdio(lines string, out *syncBuffer) mcp.Transport {
+	return &mcp.IOTransport{Reader: io.NopCloser(strings.NewReader(lines)), Writer: nopWriteCloser{out}}
+}
+
+// syncBuffer is a bytes.Buffer safe for concurrent writes and reads.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+// Write appends p.
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+// String returns what was written.
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// nopWriteCloser adds a no-op Close to a writer.
+type nopWriteCloser struct{ io.Writer }
+
+// Close does nothing.
+func (nopWriteCloser) Close() error { return nil }
+
+// versionProbe is Claude Desktop's version probe: a request the server doesn't
+// know, which it must still answer.
+const versionProbe = `{"jsonrpc":"2.0","id":0,"method":"server/discover","params":{}}` + "\n"
+
+func TestRepliesBeforeTheClientsInputCloses(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	t.Run("relay", func(t *testing.T) {
+		port := freePort(t)
+		serveOn(t, port, fakeApp(t))
+		for range 5 {
+			var out syncBuffer
+			if err := Relay(ctx, closedStdio(versionProbe, &out), Endpoint(port)); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), `"id":0,"error"`) {
+				t.Fatalf("relayed %q, want the probe's reply", out.String())
+			}
+		}
+	})
+	t.Run("server", func(t *testing.T) {
+		srv := mcp.NewServer(&mcp.Implementation{Name: "sheetdiver", Version: "test"}, nil)
+		var out syncBuffer
+		if err := srv.Run(ctx, Drain{Transport: closedStdio(versionProbe, &out)}); err != nil && !errors.Is(err, io.EOF) {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out.String(), `"id":0,"error"`) {
+			t.Fatalf("served %q, want the probe's reply", out.String())
+		}
+	})
 }
