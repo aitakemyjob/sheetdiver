@@ -411,17 +411,53 @@ export interface ConnectionRow {
   pinType?: string;
 }
 
-export interface DiagramNode {
+/** A connected pin of a box on the block diagram (see core.DiagramPin). */
+export interface DiagramPin {
+  name: string;
+  net: string;
+  side: 'left' | 'right' | 'bottom' | 'inside';
+  /** The pin (or ground net) an inside pin is tied to. */
+  tied?: string;
+  /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
+  bridged?: boolean;
+}
+
+/** A part or connector drawn as a box, in a column along the power flow. */
+export interface DiagramPart {
   id: string;
-  label: string;
+  title: string;
   mpn?: string;
-  category?: string;
-  block?: boolean;
+  kind: string;
+  column: number;
+  pins: DiagramPin[];
+  ground: string[];
+  /** Where it was dragged to. */
   x?: number;
   y?: number;
 }
 
-export interface DiagramEdge {
+/** A passive (or several alike: "C1,C2") and where it hangs. */
+export interface DiagramPassive {
+  id: string;
+  label: string;
+  value?: string;
+  kind: string;
+  mount: 'wire' | 'lane' | 'out' | 'below' | 'beside' | 'bridge';
+  part: string;
+  nets: string[];
+}
+
+/** A drawn net: the parts on it in column order, and how its wire runs. */
+export interface DiagramNet {
+  name: string;
+  kind: string;
+  parts: string[];
+  wire: 'between' | 'lane' | 'out' | '';
+  arrow?: boolean;
+}
+
+/** Two parts sharing nets (the report's chart, agents). */
+export interface DiagramLink {
   from: string;
   to: string;
   label: string;
@@ -429,11 +465,19 @@ export interface DiagramEdge {
   nets: string[];
 }
 
+/** A project's block diagram: what's drawn; the app decides where (lib/blockDiagram.ts). */
+export interface Diagram {
+  parts: DiagramPart[];
+  passives: DiagramPassive[];
+  nets: DiagramNet[];
+  links: DiagramLink[];
+}
+
 export interface Connections {
   nets: Net[];
   blocks: Block[];
   connections: ConnectionRow[];
-  diagram: { nodes: DiagramNode[]; edges: DiagramEdge[] };
+  diagram: Diagram;
   /** Each part's pins and what they're connected to. */
   pinouts: Pinout[];
 }

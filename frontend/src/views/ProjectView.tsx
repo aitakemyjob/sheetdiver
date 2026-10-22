@@ -1,39 +1,21 @@
 import { useEffect, useState } from 'react';
-import { AlertOctagon, AlertTriangle, Calculator, CheckCircle2, FileText, Plus, Trash2, Zap } from 'lucide-react';
+import { Calculator, FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
 import { useStore } from '../lib/store';
 import { StatusBadge } from '../components/PartStatus';
 import { ReportDialog } from '../components/ReportDialog';
-import type { Check, ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
+import type { ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
 import { CategoryBadge, Empty, ErrorBox, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
 import { calcFor } from './PartView';
-import { BlockDiagram, ConnectionTable, PinTables } from './ProjectConnections';
+import { Checks } from '../components/Checks';
+import { BlockDiagram } from './project/BlockDiagram';
+import { ConnectionTable } from './project/ConnectionTable';
+import { PinTables } from './project/PinTables';
 
 /** The project view's tabs. */
 type ProjectTab = 'overview' | 'diagram' | 'pins' | 'connections';
-
-/** Icon for a check level. */
-export function CheckIcon({ level }: { level: string }) {
-  if (level === 'error') return <AlertOctagon size={14} style={{ color: 'var(--err)' }} />;
-  if (level === 'warn') return <AlertTriangle size={14} style={{ color: 'var(--warn)' }} />;
-  return <CheckCircle2 size={14} style={{ color: 'var(--ok)' }} />;
-}
-
-/** A list of checks. */
-export function Checks({ checks }: { checks: Check[] }) {
-  return (
-    <div className="col" style={{ gap: 4 }}>
-      {checks.map((c, i) => (
-        <div key={i} className={`check ${c.level}`}>
-          <CheckIcon level={c.level} />
-          <span>{c.message}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /**
  * A project: rails with budgets, BOM, checks, calculations and notes on

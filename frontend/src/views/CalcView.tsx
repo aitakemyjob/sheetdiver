@@ -5,7 +5,7 @@ import { eng, parseSI } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { CalcResponse } from '../lib/types';
 import { ErrorBox, useAsync } from '../components/ui';
-import { Checks } from './ProjectView';
+import { Checks } from '../components/Checks';
 
 const kinds: [string, string][] = [
   ['buck', 'Buck'],
