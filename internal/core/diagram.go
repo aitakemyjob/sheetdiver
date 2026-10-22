@@ -140,11 +140,13 @@ var (
 
 // end is something in the connection table: a BOM entry or a block.
 type end struct {
-	id      string
-	title   string
-	mpn     string
-	kind    string
-	value   string
+	id    string
+	title string
+	mpn   string
+	kind  string
+	value string
+	// label names it as a passive: its designator(s), or its name.
+	label   string
 	passive bool
 	entry   *library.ProjectPart
 }
@@ -172,7 +174,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	for i := range parts {
 		pp := &parts[i]
 		id := library.PartNode(pp.ID)
-		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: diagramKind(pp.Category, false), value: passiveValue(pp.Role), passive: library.TwoTerminal(pp.Category), entry: pp}
+		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: diagramKind(pp.Category, false), value: passiveValue(pp.Role), label: firstNonEmpty(pp.Designator, pp.MPN), passive: library.TwoTerminal(pp.Category), entry: pp}
 		if pp.Designator == "" {
 			out[id].title = pp.MPN
 		}
@@ -180,7 +182,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	}
 	for _, b := range blocks {
 		id := library.BlockNode(b.ID)
-		out[id] = &end{id: id, title: b.Name, kind: diagramKind(b.Kind, true), value: b.Value, passive: library.TwoTerminal(b.Kind)}
+		out[id] = &end{id: id, title: b.Name, kind: diagramKind(b.Kind, true), value: b.Value, label: b.Name, passive: library.TwoTerminal(b.Kind)}
 		order = append(order, id)
 	}
 	return out, order
@@ -197,10 +199,10 @@ func passiveValue(role string) string {
 	return ""
 }
 
-// nodeOf is a connection's node.
+// nodeOf is a connection's node: an entry's, or one of its designators'.
 func nodeOf(r ConnectionRow) string {
 	if r.EntryID != 0 {
-		return library.PartNode(r.EntryID)
+		return library.RefNode(r.EntryID, r.Ref)
 	}
 	return library.BlockNode(r.BlockID)
 }
@@ -232,6 +234,7 @@ func diagram(parts []library.ProjectPart, blocks []library.Block, nets []library
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
 	connected := map[string]bool{}
 	for _, r := range rows {
+		b.splitEnd(r)
 		if _, ok := b.ends[nodeOf(r)]; !ok {
 			continue
 		}
@@ -291,6 +294,24 @@ func (b *diagramBuilder) drives(id, net string) bool {
 		}
 	}
 	return false
+}
+
+// splitEnd adds the end of one designator of a BOM entry with several
+// ("R1" of "R1,R2"), drawn on its own, after its entry.
+func (b *diagramBuilder) splitEnd(r ConnectionRow) {
+	if r.Ref == "" || r.EntryID == 0 {
+		return
+	}
+	id := nodeOf(r)
+	parent, ok := b.ends[library.PartNode(r.EntryID)]
+	if _, done := b.ends[id]; done || !ok {
+		return
+	}
+	e := *parent
+	e.id, e.label, e.title = id, r.Ref, strings.TrimSpace(r.Ref+" "+parent.mpn)
+	b.ends[id] = &e
+	i := slices.Index(b.order, parent.id)
+	b.order = slices.Insert(b.order, i+1, id)
 }
 
 // ground reports whether a net is ground.
@@ -625,10 +646,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			continue
 		}
 		e := b.ends[id]
-		label := e.title
-		if e.entry != nil && e.entry.Designator != "" {
-			label = e.entry.Designator
-		}
+		label := e.label
 		p := DiagramPassive{ID: id, Label: label, Value: e.value, Kind: e.kind, Nets: nets}
 		// Across two pins of one box.
 		if len(nets) == 2 {

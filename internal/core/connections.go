@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -62,7 +63,7 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		row := ConnectionRow{Connection: c}
 		if c.EntryID != 0 {
 			if pp := entryByID(parts, c.EntryID); pp != nil {
-				row.Endpoint = entryLabel(*pp)
+				row.Endpoint = firstNonEmpty(c.Ref, entryLabel(*pp))
 			}
 			if pin, ok := findPin(pins[c.EntryID], c.Pin); ok {
 				row.PinName, row.PinType = pin.Name, pin.Type
@@ -269,15 +270,16 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	pins := s.entryPins(ctx, parts)
 	for _, cc := range ch.Connect {
 		ref, pinRef := strings.TrimSpace(cc.Part), strings.TrimSpace(cc.Pin)
-		entry, block := endpoint(parts, blocks, ref)
-		if entry == 0 && block == 0 && pinRef == "" {
+		to := endpoint(parts, blocks, ref)
+		if !to.found() && pinRef == "" {
 			if i := strings.LastIndex(ref, "."); i > 0 {
-				if e, b := endpoint(parts, blocks, ref[:i]); e != 0 || b != 0 {
-					entry, block, ref, pinRef = e, b, ref[:i], ref[i+1:]
+				if t := endpoint(parts, blocks, ref[:i]); t.found() {
+					to, ref, pinRef = t, ref[:i], ref[i+1:]
 				}
 			}
 		}
-		if entry == 0 && block == 0 {
+		entry, block := to.entry, to.block
+		if !to.found() {
 			problems = append(problems, fmt.Sprintf("%s: %v", ref, errEndpoint))
 			continue
 		}
@@ -289,7 +291,7 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 				problems = append(problems, fmt.Sprintf("%s has no pin “%s” in its pin table (saved as given)", ref, pinRef))
 			}
 		}
-		c := library.Connection{Net: cc.Net, EntryID: entry, BlockID: block, Pin: pin, Notes: cc.Notes, Source: source}
+		c := library.Connection{Net: cc.Net, EntryID: entry, BlockID: block, Ref: to.ref, Pin: pin, Notes: cc.Notes, Source: source}
 		if cc.Remove {
 			err = s.Lib.Disconnect(ctx, p.ID, c)
 		} else {
@@ -307,12 +309,12 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	for _, pc := range ch.Positions {
 		node := pc.Node
 		if !strings.HasPrefix(node, "part:") && !strings.HasPrefix(node, "block:") {
-			entry, block := endpoint(parts, blocks, node)
+			to := endpoint(parts, blocks, node)
 			switch {
-			case entry != 0:
-				node = library.PartNode(entry)
-			case block != 0:
-				node = library.BlockNode(block)
+			case to.entry != 0:
+				node = library.RefNode(to.entry, to.ref)
+			case to.block != 0:
+				node = library.BlockNode(to.block)
 			default:
 				problems = append(problems, fmt.Sprintf("%s: %v", pc.Node, errEndpoint))
 				continue
@@ -326,12 +328,36 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	return problems, nil
 }
 
-// endpoint finds what a connection names: a BOM entry by designator, or
-// by part number when only one entry has it, else a block by name.
-func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) (entry, block int64) {
+// target is what a connection names: a BOM entry (with Ref, one of its
+// designators when it has several), or a block.
+type target struct {
+	entry, block int64
+	ref          string
+}
+
+// found reports whether the target names anything.
+func (t target) found() bool { return t.entry != 0 || t.block != 0 }
+
+// designatorSplit separates the designators of one BOM entry ("R1,R2",
+// "C3 C4").
+var designatorSplit = regexp.MustCompile(`[,;\s]+`)
+
+// endpoint finds what a connection names: a BOM entry by designator (or
+// by one of its designators, "R1" of "R1,R2"), or by part number when
+// only one entry has it, else a block by name.
+func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) target {
 	for _, pp := range parts {
 		if pp.Designator != "" && strings.EqualFold(pp.Designator, ref) {
-			return pp.ID, 0
+			return target{entry: pp.ID}
+		}
+	}
+	for _, pp := range parts {
+		if refs := designatorSplit.Split(strings.TrimSpace(pp.Designator), -1); len(refs) > 1 {
+			for _, d := range refs {
+				if strings.EqualFold(d, ref) {
+					return target{entry: pp.ID, ref: d}
+				}
+			}
 		}
 	}
 	var found []int64
@@ -341,12 +367,12 @@ func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) (
 		}
 	}
 	if len(found) == 1 {
-		return found[0], 0
+		return target{entry: found[0]}
 	}
 	for _, b := range blocks {
 		if strings.EqualFold(b.Name, ref) {
-			return 0, b.ID
+			return target{block: b.ID}
 		}
 	}
-	return 0, 0
+	return target{}
 }

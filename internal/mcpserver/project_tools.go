@@ -54,7 +54,7 @@ type netArgs struct {
 
 type connectArgs struct {
 	Net    string `json:"net"`
-	Part   string `json:"part" jsonschema:"BOM designator (U1), part number, or block name; U1.SDA names the pin too"`
+	Part   string `json:"part" jsonschema:"BOM designator (U1), one designator of an entry with several (R1 of R1,R2), part number, or block name; U1.SDA names the pin too"`
 	Pin    string `json:"pin,omitempty" jsonschema:"pin number or name, checked against the part's pin table (get_pins); blocks need none"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`

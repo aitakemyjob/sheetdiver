@@ -300,7 +300,7 @@ func (s *Store) RemoveProjectPart(ctx context.Context, projectID, id int64) erro
 	}
 	// Its connections go with it (cascade); so does its place on the
 	// block diagram, which a later entry could otherwise inherit.
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM project_layout WHERE project_id = ? AND node = ?`, projectID, PartNode(id)); err != nil {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM project_layout WHERE project_id = ? AND (node = ? OR node LIKE ?)`, projectID, PartNode(id), PartNode(id)+"/%"); err != nil {
 		return err
 	}
 	s.touch(ctx, projectID)

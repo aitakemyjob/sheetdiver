@@ -6,7 +6,7 @@ import { fakeBackend, recorded, type FakeBackend } from '../../test/backend';
 import { ProjectView } from '../ProjectView';
 import { darkTheme, palette, swatch } from '../../lib/diagramPalette';
 import { fitView, zoomAbout } from './BlockDiagram';
-import { connectionsCSV } from './ConnectionTable';
+import { connectionsCSV, designators } from './ConnectionTable';
 import { pinoutsCSV } from './PinTables';
 
 let b: FakeBackend;
@@ -236,3 +236,11 @@ describe('the palette', () => {
   });
 });
 
+
+describe('designators', () => {
+  it('offers each of an entry with several', () => {
+    expect(designators('R1,R2')).toEqual(['R1,R2', 'R1', 'R2']);
+    expect(designators('U1 U2')).toEqual(['U1 U2', 'U1', 'U2']);
+    expect(designators('U3')).toEqual(['U3']);
+  });
+});
