@@ -110,6 +110,12 @@ func (s *Service) entryPins(ctx context.Context, parts []library.ProjectPart) ma
 	return out
 }
 
+// pinKey is how a connection names a pin: its number, or its name when
+// the pin table gives it none (a thermal pad).
+func pinKey(p library.Pin) string {
+	return firstNonEmpty(p.Number, p.Name)
+}
+
 // findPin finds a pin by number, then by name (ignoring case).
 func findPin(pins []library.Pin, ref string) (library.Pin, bool) {
 	ref = strings.TrimSpace(ref)
@@ -278,7 +284,7 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 		pin := pinRef
 		if entry != 0 && pinRef != "" {
 			if found, ok := findPin(pins[entry], pinRef); ok {
-				pin = found.Number
+				pin = pinKey(found)
 			} else if len(pins[entry]) > 0 {
 				problems = append(problems, fmt.Sprintf("%s has no pin “%s” in its pin table (saved as given)", ref, pinRef))
 			}

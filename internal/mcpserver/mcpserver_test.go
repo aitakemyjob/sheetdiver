@@ -431,7 +431,7 @@ func TestConnectionsTools(t *testing.T) {
 			{"net": "SCL", "part": "U3", "pin": "1"},
 		},
 	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
-		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: supply or ground pins not connected: GND (1)")
+		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: pins that must be connected aren't: GND (1)")
 	// Links come from the connection table: U1 makes 3V3 in the BOM but
 	// has no pin on it here.
 	if strings.Contains(out, ": 3V3 (power)") {

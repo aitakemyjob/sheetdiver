@@ -83,7 +83,7 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 		for _, pin := range pins[pp.ID] {
 			pr := PinoutRow{Number: pin.Number, Name: pin.Name, Type: pin.Type, Description: pin.Description, To: []string{}}
 			for _, r := range mine {
-				if !used[r.ID] && r.Pin != "" && strings.EqualFold(r.Pin, pin.Number) {
+				if !used[r.ID] && r.Pin != "" && strings.EqualFold(r.Pin, pinKey(pin)) {
 					x := row(r)
 					pr.Net, pr.NetKind, pr.To = x.Net, x.NetKind, x.To
 					used[r.ID] = true
