@@ -79,6 +79,32 @@ func Circuits() []Circuit {
 			},
 		},
 		{
+			// From testing: ESD diodes and pull-downs on both CC pins, an
+			// eFuse with its current-limit resistor, input capacitors with
+			// a long description, and a buck-boost whose thermal pad and SEL
+			// go to ground.
+			Name: "Tester board",
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1 TPS25200", Kind: "ic"}, {Name: "U2 TPS63900", Kind: "ic"},
+				{Name: "D1", Kind: "diode", Value: "TVS"}, {Name: "D2", Kind: "diode", Value: "ESD"}, {Name: "D3", Kind: "diode", Value: "ESD"},
+				{Name: "R1", Kind: "resistor", Value: "5.1k"}, {Name: "R2", Kind: "resistor", Value: "5.1k"}, {Name: "R3", Kind: "resistor", Value: "150k"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF input bulk for U2 VIN, X5R 10 V"}, {Name: "C2", Kind: "capacitor", Value: "10µF input bulk for U2 VIN, X5R 10 V"},
+				{Name: "C3", Kind: "capacitor", Value: "22µF"}, {Name: "C4", Kind: "capacitor", Value: "22µF"}, {Name: "L1", Kind: "inductor", Value: "2.2µH"},
+				{Name: "R4", Kind: "resistor", Value: "36.5k"}, {Name: "R5", Kind: "resistor", Value: "16.2k"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS", Kind: "power"}, {Name: "5V_PROT", Kind: "power"}, {Name: "3V3", Kind: "power"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"CC1", "J1 USB-C", "CC1"}, {"CC2", "J1 USB-C", "CC2"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "D1", ""}, {"CC1", "D2", ""}, {"CC2", "D3", ""}, {"CC1", "R1", ""}, {"CC2", "R2", ""},
+				{"VBUS", "U1 TPS25200", "IN"}, {"VBUS", "U1 TPS25200", "EN"}, {"5V_PROT", "U1 TPS25200", "OUT"}, {"ILIM", "U1 TPS25200", "ILIM"},
+				{"GND", "U1 TPS25200", "GND"}, {"GND", "U1 TPS25200", "PAD"}, {"ILIM", "R3", ""},
+				{"5V_PROT", "C1", ""}, {"5V_PROT", "C2", ""},
+				{"5V_PROT", "U2 TPS63900", "VIN"}, {"5V_PROT", "U2 TPS63900", "EN"}, {"GND", "U2 TPS63900", "SEL"}, {"GND", "U2 TPS63900", "GND"}, {"GND", "U2 TPS63900", "Thermal Pad"},
+				{"3V3", "U2 TPS63900", "VOUT"}, {"LX1", "U2 TPS63900", "LX1"}, {"LX2", "U2 TPS63900", "LX2"}, {"LX1", "L1", "1"}, {"LX2", "L1", "2"},
+				{"CFG1", "U2 TPS63900", "CFG1"}, {"CFG3", "U2 TPS63900", "CFG3"}, {"CFG1", "R4", ""}, {"CFG3", "R5", ""}, {"3V3", "C3", ""}, {"3V3", "C4", ""},
+			},
+		},
+		{
 			Name:  "MCU board",
 			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
 			Parts: []CircuitPart{

@@ -122,7 +122,10 @@ describe('project block diagram, pins and connections', () => {
     const svg = await screen.findByRole('img', { name: 'Block diagram of USB-C to 3V3' });
     expect(svg.querySelector('[data-passive="C1,C2"]')).not.toBeNull();
     expect(svg.querySelector('[data-passive="L1"]')).toHaveAttribute('data-hl', 'true');
-    expect(within(svg as unknown as HTMLElement).getByText('EN→IN')).toBeInTheDocument();
+    // EN is drawn as a pin of each IC, tied to IN / VIN at a junction.
+    expect(within(svg as unknown as HTMLElement).getAllByText('EN')).toHaveLength(2);
+    expect(svg.querySelectorAll('[data-junction]').length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll('[data-ground]').length).toBeGreaterThan(0);
   });
 
   it('exports the table as CSV', () => {

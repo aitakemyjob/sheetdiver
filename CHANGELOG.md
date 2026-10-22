@@ -112,12 +112,18 @@ your AI agent over MCP.
   recommended input range.
 - **Block diagram, pins and connections:** each project has a block
   diagram drawn from its connection table: parts with their pins, wires
-  labelled with their nets, passives with their values hanging off the
-  pins and nets they serve; zoom, pan, drag parts, export as SVG. A pin
-  table per part lists every pin with what it's connected to. The
-  connection table is checked against the parts' pin tables (pins that
-  don't exist, ground or supply pins on the wrong net, supply pins left
-  open). Agents can draft it all (`set_connections`).
+  labelled with their nets (a bus with junctions where a net joins
+  several parts), passives with their values hanging off the pins and
+  nets they serve, each ground connection to a small ground symbol, and
+  pull-ups pointing to their rail. No wire crosses another net's wire,
+  and nothing is drawn on one. Zoom, pan, drag parts and passives,
+  export as SVG. A pin table per part lists every pin with what it's
+  connected to. The connection table is checked against the parts' pin
+  tables: pins that don't exist, ground or supply pins on the wrong net,
+  and pins left open that must be connected (supply, ground, exposed
+  pads, and pins the datasheet says mustn't float). One designator of a
+  BOM line with several ("R1" of "R1,R2") can be connected on its own.
+  Agents can draft it all (`set_connections`).
 - **BOM import** from CSV/TSV (KiCad, Altium, JLCPCB, LCSC codes): parts
   found in the library or fetched by part number, with JLC availability.
 - **Design-review report** as Markdown (Report button, `sheetdiver report`).

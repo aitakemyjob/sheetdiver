@@ -40,7 +40,6 @@ type DiagramPart struct {
 	Kind   string       `json:"kind"`
 	Column int          `json:"column"`
 	Pins   []DiagramPin `json:"pins"`
-	Ground []string     `json:"ground"`
 	X      *float64     `json:"x,omitempty"`
 	Y      *float64     `json:"y,omitempty"`
 }
@@ -54,15 +53,17 @@ const (
 	SideInside = "inside"
 )
 
-// DiagramPin is a connected pin of a box. Tied is the pin (or ground
-// net) an inside pin is tied to; Bridged pins have a passive across
-// them (LX1 and LX2 with the inductor) and go last on the right.
+// DiagramPin is a connected pin of a box. Tied is the pin an inside pin
+// is tied to; Bridged pins have a passive across them (LX1 and LX2 with
+// the inductor) and go last on the right; Ground pins (GND, a thermal
+// pad, a pin tied to ground) go along the bottom, each to a ground symbol.
 type DiagramPin struct {
 	Name    string `json:"name"`
 	Net     string `json:"net"`
 	Side    string `json:"side"`
 	Tied    string `json:"tied,omitempty"`
 	Bridged bool   `json:"bridged,omitempty"`
+	Ground  bool   `json:"ground,omitempty"`
 }
 
 // How a net is drawn.
@@ -74,8 +75,7 @@ const (
 	// WireOut leaves the board from one part's pin (with an arrow when
 	// it's an output).
 	WireOut = "out"
-	// WireNone: the net is a bottom or bridged pin, or a connector pin
-	// with its passive beside it; drawn with the passive.
+	// WireNone: the net is a bottom or bridged pin; drawn with its passive.
 	WireNone = ""
 )
 
@@ -99,14 +99,14 @@ const (
 	MountOut = "out"
 	// MountBelow: below Part's bottom pin.
 	MountBelow = "below"
-	// MountBeside: beside a connector's pin.
-	MountBeside = "beside"
 	// MountBridge: across Part's two pins on Nets.
 	MountBridge = "bridge"
 )
 
 // DiagramPassive is a passive (or several alike on one net: "C1,C2")
-// and where it hangs. Its other end is ground, except for a bridge.
+// and where it hangs, from Nets[0]. Its other end is ground, or Nets[1]
+// (a pull-up's rail; for a bridge, the other pin's net). X and Y are
+// where it was placed, if it was.
 type DiagramPassive struct {
 	ID    string   `json:"id"`
 	Label string   `json:"label"`
@@ -115,6 +115,8 @@ type DiagramPassive struct {
 	Mount string   `json:"mount"`
 	Part  string   `json:"part"`
 	Nets  []string `json:"nets"`
+	X     *float64 `json:"x,omitempty"`
+	Y     *float64 `json:"y,omitempty"`
 }
 
 // DiagramLink says two parts share nets: Kind "power" (From feeds To) or
@@ -129,8 +131,6 @@ type DiagramLink struct {
 
 // Pin names that say what a pin is, for pin tables without types.
 var (
-	// groundName is a pin that is ground itself (not one tied to it).
-	groundName = regexp.MustCompile(`(?i)^((A|D|P|S)?GND\w*|VSS\w*|EP|0V)$|thermal`)
 	// mainName is the pin that gets the wire when several pins of a part
 	// share a net (IN over EN).
 	mainName = regexp.MustCompile(`(?i)^(V?IN|VCC|VDD|VBUS|VBAT|V?OUT)$`)
@@ -182,21 +182,35 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	}
 	for _, b := range blocks {
 		id := library.BlockNode(b.ID)
-		out[id] = &end{id: id, title: b.Name, kind: diagramKind(b.Kind, true), value: b.Value, label: b.Name, passive: library.TwoTerminal(b.Kind)}
+		out[id] = &end{id: id, title: b.Name, kind: diagramKind(b.Kind, true), value: shortValue(b.Value), label: b.Name, passive: library.TwoTerminal(b.Kind)}
 		order = append(order, id)
 	}
 	return out, order
 }
 
 // valueRe is a component value ("10µF", "36.5k", "2.2uH").
-var valueRe = regexp.MustCompile(`^[\d.]+\s*[pnuµmkKMG]?(F|H|Ω|R|ohm)?\b`)
+// It must end there ("3V3" isn't a value), which \b can't say after "Ω".
+var valueRe = regexp.MustCompile(`^([\d.]+\s*[pnuµmkKMG]?(?:F|H|Ω|R|ohm)?)(?:$|[\s,;/(])`)
 
-// passiveValue is a BOM entry's value, when its role gives one.
+// passiveValue is the value a BOM entry's role starts with ("10µF" of
+// "10µF input bulk"), or nothing.
 func passiveValue(role string) string {
-	if valueRe.MatchString(role) {
-		return role
+	if m := valueRe.FindStringSubmatch(strings.TrimSpace(role)); m != nil {
+		return m[1]
 	}
 	return ""
+}
+
+// shortValue is a block's value as printed: the value it starts with, or
+// at most 12 characters, so a long description doesn't stretch its box.
+func shortValue(v string) string {
+	if m := passiveValue(v); m != "" {
+		return m
+	}
+	if r := []rune(strings.TrimSpace(v)); len(r) > 12 {
+		return string(r[:11]) + "…"
+	}
+	return strings.TrimSpace(v)
 }
 
 // nodeOf is a connection's node: an entry's, or one of its designators'.
@@ -272,7 +286,14 @@ func diagram(parts []library.ProjectPart, blocks []library.Block, nets []library
 		d.Parts = append(d.Parts, part)
 	}
 	d.Nets = b.nets(d.Parts)
+	orderPins(d.Parts, d.Nets)
 	d.Passives = b.mount(d.Parts, d.Nets)
+	for i, q := range d.Passives {
+		if p, ok := pos[strings.Split(q.ID, ",")[0]]; ok {
+			x, y := p.X, p.Y
+			d.Passives[i].X, d.Passives[i].Y = &x, &y
+		}
+	}
 	d.Links = links
 	return d
 }
@@ -442,7 +463,7 @@ func columnsOf(ids []string, links []DiagramLink) map[string]int {
 // part builds a box: its pins on their sides.
 func (b *diagramBuilder) part(id string) DiagramPart {
 	e := b.ends[id]
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Column: b.columns[id], Pins: []DiagramPin{}, Ground: []string{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Column: b.columns[id], Pins: []DiagramPin{}}
 	var mine []ConnectionRow
 	for _, r := range b.rows {
 		if nodeOf(r) == id {
@@ -465,12 +486,14 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 		name := pinName(r)
 		key := strings.ToLower(r.Net)
 		switch {
-		case b.ground(r.Net) && groundName.MatchString(name) || b.ground(r.Net) && r.Pin == "" && r.PinName == "":
-			if !contains(p.Ground, name) {
-				p.Ground = append(p.Ground, name)
-			}
 		case b.ground(r.Net):
-			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideInside, Tied: r.Net})
+			// Each ground connection goes to a ground symbol below the box.
+			if r.Pin == "" && r.PinName == "" {
+				name = "GND"
+			}
+			if !slices.ContainsFunc(p.Pins, func(x DiagramPin) bool { return x.Ground && x.Name == name }) {
+				p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideBottom, Ground: true})
+			}
 		case wired[key] != name:
 			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideInside, Tied: wired[key]})
 		default:
@@ -582,7 +605,7 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 	var names []string
 	for _, p := range parts {
 		for _, pin := range p.Pins {
-			if pin.Side == SideInside {
+			if pin.Side == SideInside || pin.Ground {
 				continue
 			}
 			k := strings.ToLower(pin.Net)
@@ -607,8 +630,6 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 			n.Wire = WireBetween
 		case pins[0].pin.Side == SideBottom || pins[0].pin.Bridged:
 			n.Wire = WireNone
-		case b.ends[pins[0].part].kind == "connector" && pins[0].pin.Side == SideRight && len(b.passivesOn(name)) > 0 && n.Kind != library.NetPower:
-			n.Wire = WireNone // its passive sits beside the pin
 		default:
 			n.Wire = WireOut
 			e := b.ends[pins[0].part]
@@ -661,7 +682,12 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 				out = append(out, p)
 				continue
 			}
-			p.Nets = nets[:1] // a series part hangs from its first net
+			// Between two nets that aren't a box's pair (a pull-up from
+			// SDA to 3V3): it hangs from the first one drawn, and its other
+			// end is shown by name.
+			if _, drawn := byNet[strings.ToLower(nets[0])]; !drawn {
+				p.Nets = []string{nets[1], nets[0]}
+			}
 		}
 		n, ok := byNet[strings.ToLower(p.Nets[0])]
 		if !ok {
@@ -681,14 +707,9 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		case WireOut:
 			p.Mount, p.Part = MountOut, n.Parts[0]
 		default:
-			p.Part = n.Parts[0]
-			if pin, _ := pinOf(p.Part, n.Name); pin.Side == SideBottom {
-				p.Mount = MountBelow
-			} else {
-				p.Mount = MountBeside
-			}
+			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}
-		key := strings.ToLower(n.Name) + "|" + p.Value + "|" + p.Kind
+		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind
 		if i, ok := merged[key]; ok {
 			out[i].ID += "," + p.ID
 			out[i].Label += "," + p.Label
@@ -708,4 +729,34 @@ func containsFold(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// orderPins orders each side of each box so wires leave it without
+// crossing: nets running along a lane first (their riser goes up past
+// nothing), then wires to other parts, then wires leaving the board
+// (whose passives drop past nothing below them), then bridged pins.
+// Along the bottom, ground pins come last.
+func orderPins(parts []DiagramPart, nets []DiagramNet) {
+	wire := map[string]string{}
+	for _, n := range nets {
+		wire[strings.ToLower(n.Name)] = n.Wire
+	}
+	rank := func(p DiagramPin) int {
+		switch {
+		case p.Ground:
+			return 5
+		case p.Bridged:
+			return 4
+		}
+		switch wire[strings.ToLower(p.Net)] {
+		case WireLane:
+			return 0
+		case WireBetween:
+			return 1
+		}
+		return 2
+	}
+	for i := range parts {
+		sort.SliceStable(parts[i].Pins, func(a, b int) bool { return rank(parts[i].Pins[a]) < rank(parts[i].Pins[b]) })
+	}
 }

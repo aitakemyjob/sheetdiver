@@ -979,13 +979,17 @@ func connectionsText(d core.ProjectDetail) string {
 	for _, p := range c.Diagram.Passives {
 		name := strings.TrimSpace(p.Label + " " + p.Value)
 		part := label[p.Part]
+		to := "ground"
+		if len(p.Nets) > 1 {
+			to = p.Nets[1] // a pull-up's rail
+		}
 		switch p.Mount {
 		case core.MountBridge:
 			fmt.Fprintf(&b, "%s across %s %s\n", name, part, strings.Join(p.Nets, "/"))
-		case core.MountBelow, core.MountBeside:
-			fmt.Fprintf(&b, "%s on %s at %s, to ground\n", name, p.Nets[0], part)
+		case core.MountBelow:
+			fmt.Fprintf(&b, "%s on %s at %s, to %s\n", name, p.Nets[0], part, to)
 		default:
-			fmt.Fprintf(&b, "%s on %s (by %s), to ground\n", name, p.Nets[0], part)
+			fmt.Fprintf(&b, "%s on %s (by %s), to %s\n", name, p.Nets[0], part, to)
 		}
 	}
 	if len(c.Pinouts) > 0 {

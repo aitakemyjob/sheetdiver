@@ -422,6 +422,8 @@ export interface DiagramPin {
   tied?: string;
   /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
   bridged?: boolean;
+  /** Goes to ground: drawn along the bottom, to a ground symbol. */
+  ground?: boolean;
 }
 
 /** A part or connector drawn as a box, in a column along the power flow. */
@@ -432,7 +434,6 @@ export interface DiagramPart {
   kind: string;
   column: number;
   pins: DiagramPin[];
-  ground: string[];
   /** Where it was dragged to. */
   x?: number;
   y?: number;
@@ -444,9 +445,12 @@ export interface DiagramPassive {
   label: string;
   value?: string;
   kind: string;
-  mount: 'wire' | 'lane' | 'out' | 'below' | 'beside' | 'bridge';
+  mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge';
   part: string;
   nets: string[];
+  /** Where it was dragged to. */
+  x?: number;
+  y?: number;
 }
 
 /** A drawn net: the parts on it in column order, and how its wire runs. */
