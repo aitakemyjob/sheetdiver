@@ -8,63 +8,7 @@ every merged pull request.
 
 ## [Unreleased]
 
-### Added
-- **Package filter in the parts catalogue:** every category can be filtered
-  by package, picking several at once (SOT-23, SOT-23-3, SOT-23(TO-236)…),
-  alongside its parameters. Text filters (package, channel type, topology…)
-  take several values. Number parameters take = as well as ≥ and ≤
-  (Resistance = 10k, Output Voltage = 3.3V): values compare by value within
-  0.1% (10k matches 10.0kΩ, not 10.2kΩ), ranges match when they contain
-  it, and the category's common values are suggested. Each filter's list
-  of values and ranges follows the
-  other filters, so after "V<sub>DS</sub> ≥ 30 V" the package list shows only
-  packages that still have matching parts, with their counts. Agents get
-  the same (`Package = SOT-23|SOT-23-3`, faceted `catalog_parameters`).
-- **Delete from the library:** the trash button on a part opens a
-  confirmation that lists what goes: the datasheet with all its parts,
-  what you and agents recorded for it, notes, and the projects that use
-  the parts (kept there without a datasheet, or removed with them, your
-  choice). Agents can't delete.
-- **Open a catalogue part at LCSC or JLCPCB:** buttons in the part's
-  details pane, and its LCSC code in the results is a link. The desktop
-  app opens your browser; only part pages built from the LCSC code can be
-  opened.
-
-- **Claude Desktop extension and config files for other agents:** the
-  connect dialog (the MCP pill) saves a Claude Desktop extension
-  (`sheetdiver.mcpb`; install it from Claude Desktop's Settings › Extensions
-  › Advanced settings › Install Extension…), and each agent's config file
-  (`.mcp.json`, Cursor and VS Code `mcp.json`, Codex `config.toml`, Gemini
-  CLI `settings.json`, Windsurf `mcp_config.json`). Commands and files that
-  launch SheetDiver use this copy's full path, since `sheetdiver` isn't on
-  PATH on Windows or macOS. Codex, Gemini CLI and Windsurf are new in the
-  list. (#53)
-
-### Fixed
-- **Windows: the Claude Desktop extension couldn't connect.** The app is a
-  windowed program, which Claude Desktop can't run as a stdio server on
-  Windows. Windows now has a small console bridge, `sheetdiver-mcp.exe`,
-  installed beside the app (and in the zip), and the extension carries its
-  own copy instead of a Node launcher, so it no longer depends on where
-  SheetDiver is installed. When the app is closed it starts it (the
-  extension's *Start SheetDiver* setting), or tells Claude to open it.
-  The port comes from the extension's settings, else SheetDiver's. Codex
-  and other stdio clients on Windows are pointed at the bridge too. Each
-  release has the extension as `sheetdiver_windows_amd64.mcpb` (for the
-  installer; with the zip, save it from the app). (#60)
-- **Windows: importing datasheets failed** with "PDF engine busy: could not
-  instantiate webassembly module: GetFileType /dev/stdout: The handle is
-  invalid". The desktop app has no console, and the PDF engine was given
-  its (invalid) output handles. (#51)
-- **Downloading the parts catalogue often failed** with "the catalogue was
-  republished during the download". A publication's files are dated a
-  second or so apart, and the download required identical dates. It now
-  allows for that, and still restarts if the dataset really is
-  republished while downloading. (#52)
-- **A rail current limit of 0 A** hid the regulator's rated output, so the
-  rail's load wasn't checked. Zero now means no limit. (#50)
-
-## [0.1.0] - 2026-10-19
+## [0.1.0] - 2026-10-21
 
 The first release: a datasheet library for electronics design, shared with
 your AI agent over MCP.
@@ -93,9 +37,21 @@ your AI agent over MCP.
   typ printed half a line off, ±% tolerances, current limits in normal
   operation vs start-up vs input, per-pin absolute-maximum rows, thresholds
   that aren't operating ranges, µ and Ω set in Symbol fonts, and output
-  ratings stated only on the first page. A corpus of 18 real datasheets
+  ratings stated only on the first page. A corpus of 19 real datasheets
   guards it (`make corpus && make test-corpus`); `sheetdiver inspect`
   shows what it finds.
+- **Chinese and small-vendor datasheets** (TP4056, DW01A and the like):
+  Chinese headings, spec and pin tables, uncaptioned figures and pins
+  described in prose are extracted too.
+- **Offline translation:** a part's text (sections, tables, parameters,
+  figures) can be translated from Chinese to English inside the app, with
+  an electronics glossary; non-English imports are translated
+  automatically once it's set up. Translation runs locally (Mozilla's
+  Bergamot engine); the model (about 55 MB, checked by SHA-256) is
+  downloaded only when you ask, from Settings › Translation. Nothing is
+  sent anywhere to translate.
+- Section text reads as written: paragraphs, headings, lists, tables and
+  figure references, instead of raw lines.
 - **Datasheet revisions:** check one datasheet or the whole library for a
   newer revision, see which spec rows changed, and update in place. The
   same datasheet from another URL is recognised instead of duplicated.
@@ -118,6 +74,10 @@ your AI agent over MCP.
   ("VIN ≥ 24 V, IOUT ≥ 3 A"), every value linked to its page; CSV export.
 - **Alternatives:** library parts that could replace a part, compared key
   by key in the direction that matters; drop-ins first.
+- **Delete from the library:** a confirmation lists what goes: the
+  datasheet with all its parts, what you and agents recorded for it,
+  notes, and the projects that use the parts (kept there without a
+  datasheet, or removed with them, your choice). Agents can't delete.
 
 ### Parts catalogue (JLCPCB / LCSC)
 - One click downloads the open [jlcparts](https://github.com/yaqwsx/jlcparts)
@@ -127,6 +87,13 @@ your AI agent over MCP.
   category's own parameters (Drain to Source Voltage ≥ 30V, RDS(on) ≤ 10mΩ,
   Type = N-Channel; supply ranges compare as "accepts"), with stock, price,
   JLC basic/extended library and the parameters as sortable columns.
+- **Package filter** (several at once: SOT-23, SOT-23-3…), text filters
+  with several values, and = as well as ≥ and ≤ on numbers (Resistance =
+  10k matches 10.0kΩ, not 10.2kΩ; ranges match when they contain the
+  value), with the category's common values suggested. Each filter's
+  values follow the other filters, with counts, so after "VDS ≥ 30 V" the
+  package list shows only packages that still have matching parts.
+- Open a part at LCSC or JLCPCB from its details or its LCSC code.
 - Tick parts to import their datasheets. Part-number lookups and BOM import
   fall back to its datasheet links.
 
@@ -136,6 +103,13 @@ your AI agent over MCP.
   output loads; checks against every part's absolute-maximum and
   recommended limits, regulator ratings (a current limit is only a
   ceiling), discouraged parts and parts without a datasheet.
+- Chargers draw the charge current you set (none set: no charging; a
+  linear charger draws the larger of that and its load, a power-path
+  charger both, up to its input limit). Parts in line on a rail (a load
+  switch, a protection IC) count as loads, loops in the power tree are
+  reported, rails can carry other loads, and each rail shows its ripple
+  budget: how much ripple it can carry before a part on it leaves its
+  recommended input range.
 - **BOM import** from CSV/TSV (KiCad, Altium, JLCPCB, LCSC codes): parts
   found in the library or fetched by part number, with JLC availability.
 - **Design-review report** as Markdown (Report button, `sheetdiver report`).
@@ -145,13 +119,29 @@ your AI agent over MCP.
 
 ### For AI agents
 - A built-in MCP server (streamable HTTP on 127.0.0.1, or `sheetdiver mcp`
-  over stdio) with 43 tools: search and read the library, see figures,
+  over stdio) with 44 tools: search and read the library, see figures,
   pages and tables as images, record parameters, figure descriptions,
   tables, pins, registers, recommendations and notes, import datasheets and
   BOMs, search the parts catalogue, find alternatives, manage projects, run
   calculators and export reports. Settings switch agents off, make them
   read-only or forbid imports; their changes are marked.
-- Follow agent: what the agent shows opens in front of you.
+- **Follow agent:** what the agent shows opens in front of you: parts,
+  pages, figures, projects with the rail or BOM entry it means
+  highlighted, parts compared side by side with the best and worst values
+  marked and its pick starred, catalogue candidates, and calculators with
+  its inputs. Its explanation sits beside them, with links that open
+  parts, pages, figures and sections. It can also walk you through
+  several steps (Alt+← / Alt+→).
+- **Connect an agent** (the MCP pill) has the setup for Claude Code,
+  Claude Desktop, Codex, Cursor, VS Code, Gemini CLI and Windsurf, and
+  saves each one's config file. For Claude Desktop it saves an extension
+  (`sheetdiver.mcpb`; install it from Settings › Extensions › Advanced
+  settings › Install Extension…).
+- On Windows a small console program, `sheetdiver-mcp.exe`, is installed
+  beside the app for Claude Desktop and other stdio clients; it starts
+  SheetDiver when it's closed (an extension setting). Releases also have
+  the extension as `sheetdiver_windows_amd64.mcpb` for installer
+  installs.
 
 ### Apps and packaging
 - Desktop app for macOS (universal), Windows and Linux (x64 and ARM64; .deb,
