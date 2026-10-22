@@ -417,11 +417,11 @@ func TestOneDesignatorOfAnEntryWithSeveral(t *testing.T) {
 	if ends["R1"] != "CC1" || ends["R2"] != "CC2" || ends["U1"] != "A" || ends["U2"] != "B" {
 		t.Errorf("connections by designator = %v", ends)
 	}
-	// The diagram: two resistors, each beside its own CC pin, and two
+	// The diagram: two resistors, each on its own CC pin, and two
 	// boxes, U2 where it was placed.
 	dg := drawn{t, d.Connections.Diagram}
 	got := dg.passives()
-	if strings.Join(got, "; ") != "R1 5.1k beside J1 on CC1; R2 5.1k beside J1 on CC2" {
+	if strings.Join(got, "; ") != "R1 5.1k out J1 on CC1; R2 5.1k out J1 on CC2" {
 		t.Errorf("passives = %q", got)
 	}
 	if u2 := dg.part("U2"); u2.X == nil || *u2.X != 400 || dg.part("U1").ID == u2.ID {

@@ -92,6 +92,9 @@ func (d drawn) pins(title string) string {
 		if p.Bridged {
 			s += "*"
 		}
+		if p.Ground {
+			s += "⏚"
+		}
 		out = append(out, s)
 	}
 	return strings.Join(out, " ")
@@ -154,20 +157,18 @@ func TestDiagramOfTheUSBSketch(t *testing.T) {
 	}
 	for title, want := range map[string]string{
 		// The connector's CC pins face right, their resistors beside them.
-		"J1": "VBUS:right CC1:right CC2:right",
+		"J1": "VBUS:right CC1:right CC2:right GND:bottom⏚",
 		// IN gets the wire, EN is written tied to it; ILIM's resistor is below.
-		"U1": "IN:left EN:inside→IN OUT:right ILIM:bottom",
+		"U1": "IN:left EN:inside→IN OUT:right ILIM:bottom GND:bottom⏚",
 		// SEL is tied to ground; LX1 and LX2 come last, bridged by L1.
-		"U2": "VIN:left EN:inside→VIN SEL:inside→GND VOUT:right CFG1:bottom CFG2:bottom CFG3:bottom LX1:right* LX2:right*",
+		// Pins tied to ground go to a ground symbol like GND itself.
+		"U2": "VIN:left EN:inside→VIN VOUT:right CFG1:bottom CFG2:bottom CFG3:bottom LX1:right* LX2:right* SEL:bottom⏚ GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
 		}
 	}
-	if g := d.part("U2").Ground; len(g) != 1 || g[0] != "GND" {
-		t.Errorf("U2 ground = %v", g)
-	}
-	for name, want := range map[string]string{"VBUS": "between", "5V_PROT": "between", "3V3": "out", "CC1": "", "ILIM": "", "LX1": "", "CFG1": ""} {
+	for name, want := range map[string]string{"VBUS": "between", "5V_PROT": "between", "3V3": "out", "CC1": "out", "ILIM": "", "LX1": "", "CFG1": ""} {
 		if got := d.net(name).Wire; got != want {
 			t.Errorf("%s wire = %q, want %q", name, got, want)
 		}
@@ -184,8 +185,8 @@ func TestDiagramOfTheUSBSketch(t *testing.T) {
 		"R4 36.5k below U2 on CFG1",
 		"R5 16.2k below U2 on CFG3",
 		"R6 0Ω below U2 on CFG2",
-		"Rd1 5.1k beside J1 on CC1",
-		"Rd2 5.1k beside J1 on CC2",
+		"Rd1 5.1k out J1 on CC1", // hanging from a short stub, to ground
+		"Rd2 5.1k out J1 on CC2",
 	}
 	if got := d.passives(); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("passives:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -205,8 +206,9 @@ func TestDiagramOfABatteryBoard(t *testing.T) {
 		t.Errorf("4.2V = %+v", lane)
 	}
 	for title, want := range map[string]string{
-		"U1": "VCC:left CE:inside→VCC TEMP:inside→GND BAT:left PROG:bottom CHRG:bottom",
-		"U3": "VIN:left EN:inside→VIN VOUT:right LX1:right* LX2:right*",
+		// The lane's pin first, so its riser crosses nothing.
+		"U1": "BAT:left VCC:left CE:inside→VCC PROG:bottom CHRG:bottom GND:bottom⏚ TEMP:bottom⏚",
+		"U3": "VIN:left EN:inside→VIN VOUT:right LX1:right* LX2:right* GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
@@ -232,12 +234,12 @@ func TestDiagramOfAnMCUBoard(t *testing.T) {
 	}
 	for title, want := range map[string]string{
 		// A library part: its pins by name from its pin table.
-		"U1": "VIN:left SW:right",
+		"U1": "SW:right VIN:left GND:bottom⏚",
 		// USB data from the connector on the left, I2C to the sensor on
 		// the right; the LED pin's LED below; EN leaves with its pull-up
 		// and capacitor.
-		"U2": "3V3:left EN:left GPIO19:left GPIO18:left GPIO8:right GPIO9:right GPIO2:bottom",
-		"U3": "VDD:left CSB:inside→VDD SDA:left SCL:left",
+		"U2": "3V3:left GPIO19:left GPIO18:left GPIO8:right GPIO9:right EN:left GPIO2:bottom GND:bottom⏚",
+		"U3": "VDD:left CSB:inside→VDD SDA:left SCL:left GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
@@ -251,9 +253,9 @@ func TestDiagramOfAnMCUBoard(t *testing.T) {
 		"C2 1µF lane U1 on 3V3", // below the regulator's output
 		"C3 1µF out U2 on EN",
 		"LED1 green below U2 on LED",
-		"R1 10k out U2 on EN", // a pull-up to 3V3 hangs from EN
-		"R2 4.7k wire U2 on SDA",
-		"R3 4.7k wire U2 on SCL",
+		"R1 10k out U2 on EN+3V3", // a pull-up: from EN, its other end 3V3
+		"R2 4.7k wire U2 on SDA+3V3",
+		"R3 4.7k wire U2 on SCL+3V3",
 	} {
 		if !contains(d.passives(), want) {
 			t.Errorf("missing %q in\n%s", want, strings.Join(d.passives(), "\n"))
@@ -284,7 +286,12 @@ func TestDiagramKinds(t *testing.T) {
 			t.Errorf("diagramKind(%q, %v) = %s, want %s", in[0], in[1] == "block", got, want)
 		}
 	}
-	if passiveValue("10µF") != "10µF" || passiveValue("3V3 LDO") != "" {
-		t.Error("a BOM role is a value only when it reads like one")
+	for in, want := range map[string]string{"10µF": "10µF", "10µF input bulk": "10µF", "0Ω": "0Ω", "3V3 LDO": "", "2.2µH, shielded": "2.2µH"} {
+		if got := passiveValue(in); got != want {
+			t.Errorf("passiveValue(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if shortValue("input bulk for U2 VIN") != "input bulk …" || shortValue("TVS") != "TVS" || shortValue("10µF input bulk for U2") != "10µF" {
+		t.Error("a long description is cut to its value, or 12 characters")
 	}
 }
