@@ -110,6 +110,14 @@ your AI agent over MCP.
   reported, rails can carry other loads, and each rail shows its ripple
   budget: how much ripple it can carry before a part on it leaves its
   recommended input range.
+- **Block diagram, pins and connections:** each project has a block
+  diagram drawn from its connection table: parts with their pins, wires
+  labelled with their nets, passives with their values hanging off the
+  pins and nets they serve; zoom, pan, drag parts, export as SVG. A pin
+  table per part lists every pin with what it's connected to. The
+  connection table is checked against the parts' pin tables (pins that
+  don't exist, ground or supply pins on the wrong net, supply pins left
+  open). Agents can draft it all (`set_connections`).
 - **BOM import** from CSV/TSV (KiCad, Altium, JLCPCB, LCSC codes): parts
   found in the library or fetched by part number, with JLC availability.
 - **Design-review report** as Markdown (Report button, `sheetdiver report`).
@@ -119,7 +127,7 @@ your AI agent over MCP.
 
 ### For AI agents
 - A built-in MCP server (streamable HTTP on 127.0.0.1, or `sheetdiver mcp`
-  over stdio) with 44 tools: search and read the library, see figures,
+  over stdio) with 46 tools: search and read the library, see figures,
   pages and tables as images, record parameters, figure descriptions,
   tables, pins, registers, recommendations and notes, import datasheets and
   BOMs, search the parts catalogue, find alternatives, manage projects, run
