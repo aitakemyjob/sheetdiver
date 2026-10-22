@@ -85,6 +85,10 @@ func TestFrontendFixtures(t *testing.T) {
 	}, library.SourceUser); err != nil {
 		t.Fatal(err)
 	}
+	// The block diagram's test circuits, for the layout tests.
+	for _, cir := range testutil.Circuits() {
+		buildCircuit(t, c, cir)
+	}
 	if _, err := c.Calc(ctx, core.CalcRequest{Kind: "divider", Inputs: json.RawMessage(`{"vin": 3.3, "vout": 1.8}`), Project: "Sensor board", Save: true, Title: "ADC divider"}); err != nil {
 		t.Fatal(err)
 	}
@@ -137,6 +141,12 @@ func TestFrontendFixtures(t *testing.T) {
 		{"project.report", map[string]any{"project": "Sensor board"}},
 		{"calc.list", map[string]any{"projectId": 0}},
 		{"delete.preview", map[string]any{"part": "SD1234"}},
+	}
+	for _, cir := range testutil.Circuits() {
+		calls = append(calls, struct {
+			method string
+			args   any
+		}{"project.detail", map[string]any{"project": cir.Name}})
 	}
 	kinds := make([]string, 0, len(core.CalcKinds))
 	for k := range core.CalcKinds {
@@ -213,4 +223,40 @@ func firstDiff(want, got string) string {
 		}
 	}
 	return ""
+}
+
+// buildCircuit puts a test circuit in a project, as an agent would.
+func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
+	t.Helper()
+	ctx := context.Background()
+	p, err := c.Lib.CreateProject(ctx, cir.Name, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range cir.Rails {
+		v := r.V
+		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var ch core.ConnectionsChange
+	for _, part := range cir.Parts {
+		if part.Ref != "" {
+			if _, err := c.AddToProject(ctx, cir.Name, part.Ref, library.ProjectPart{Designator: part.Name, SupplyRail: part.Supply, OutputRail: part.Output}); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		ch.Blocks = append(ch.Blocks, core.BlockChange{Name: part.Name, Kind: part.Kind, Value: part.Value})
+	}
+	for _, n := range cir.Nets {
+		bus := n.Bus
+		ch.Nets = append(ch.Nets, core.NetChange{Name: n.Name, Kind: n.Kind, Bus: &bus})
+	}
+	for _, pin := range cir.Pins {
+		ch.Connect = append(ch.Connect, core.ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
+	}
+	if problems, err := c.ChangeConnections(ctx, cir.Name, ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatalf("%s: %v %q", cir.Name, err, problems)
+	}
 }

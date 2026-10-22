@@ -431,11 +431,16 @@ func TestConnectionsTools(t *testing.T) {
 			{"net": "SCL", "part": "U3", "pin": "1"},
 		},
 	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
-		"U1 → U2: 3V3 (power)", "U1 — U2: I2C1 (signal)", "[warn] U1: supply or ground pins not connected: GND (1)")
+		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: supply or ground pins not connected: GND (1)")
+	// Links come from the connection table: U1 makes 3V3 in the BOM but
+	// has no pin on it here.
+	if strings.Contains(out, ": 3V3 (power)") {
+		t.Errorf("no 3V3 link without a pin on it:\n%s", out)
+	}
 	if strings.Contains(out, "Battery →") {
 		t.Errorf("VBAT isn't a power net, so the battery isn't drawn feeding U1:\n%s", out)
 	}
-	h.must("set_connections", map[string]any{"nets": []map[string]any{{"name": "VBAT", "kind": "power"}}}, "Battery → U1: VBAT (power)")
+	h.must("set_connections", map[string]any{"nets": []map[string]any{{"name": "VBAT", "kind": "power"}}}, "Battery → U1 SD1234: VBAT (power)")
 	h.must("get_connections", map[string]any{}, "blocks off the BOM: Battery", "3V3 [power]: U2.3(VIN)")
 	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 1 blocks off the BOM")
 

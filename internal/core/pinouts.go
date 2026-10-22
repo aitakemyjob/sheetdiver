@@ -47,7 +47,10 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 			}
 			return strings.TrimSpace(r.Endpoint + " " + value[r.BlockID])
 		}
-		return r.Endpoint + "." + firstNonEmpty(r.PinName, r.Pin)
+		if pin := firstNonEmpty(r.PinName, r.Pin); pin != "" {
+			return r.Endpoint + "." + pin
+		}
+		return r.Endpoint // connected without naming a pin
 	}
 	to := func(self ConnectionRow) []string {
 		out := []string{}

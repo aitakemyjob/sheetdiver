@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 
@@ -65,23 +66,27 @@ func TestConnectionsDiagramAndChecks(t *testing.T) {
 	if vin.Pin != "3" || vin.PinName != "VIN" || vin.PinType != "P" || vin.Source != library.SourceAgent {
 		t.Errorf("U1.VIN is stored as its pin number, with its name: %+v", vin)
 	}
-	// The diagram: the battery feeds U1 on VIN, U1 feeds U2 on 3V3, and
-	// U1 and U2 share I2C1: one link, labelled by the bus, from U2, which
-	// has more pins on it. Ground isn't drawn. Rails go in name order.
-	label := map[string]string{}
-	for _, n := range c.Diagram.Nodes {
-		label[n.ID] = n.Label
-		if n.Label == "U1" && (n.X == nil || *n.X != 10) {
-			t.Errorf("U1 keeps its saved position: %+v", n)
+	// The links between parts, from the connection table only: the
+	// battery feeds U1 on VIN and U1 and U2 share I2C1 (one link,
+	// labelled by the bus). U1 makes 3V3 in the BOM, but has no pin on it
+	// in the table, so there's no 3V3 link. Ground isn't linked. (The
+	// drawing itself is tested in diagram_test.go.)
+	title := map[string]string{}
+	for _, p := range c.Diagram.Parts {
+		title[p.ID] = p.Title
+		if p.Title == "U1 SD1234" && (p.X == nil || *p.X != 10) {
+			t.Errorf("U1 keeps its saved position: %+v", p)
 		}
 	}
 	var got []string
-	for _, e := range c.Diagram.Edges {
-		got = append(got, label[e.From]+"→"+label[e.To]+" "+e.Kind+" "+e.Label)
+	for _, l := range c.Diagram.Links {
+		got = append(got, title[l.From]+"→"+title[l.To]+" "+l.Kind+" "+l.Label)
 	}
-	want := []string{"U1→U2 power 3V3", "Battery→U1 power VIN", "U2→U1 signal I2C1"}
+	// A signal link runs from the part connected to it first.
+	want := []string{"Battery→U1 SD1234 power VIN", "U2 SD1235→U1 SD1234 signal I2C1"}
+	sort.Strings(got)
 	if strings.Join(got, "; ") != strings.Join(want, "; ") {
-		t.Errorf("edges = %q, want %q", got, want)
+		t.Errorf("links = %q, want %q", got, want)
 	}
 
 	checks := map[string]string{}
@@ -141,7 +146,7 @@ func TestConnectionsInTheReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"## Block diagram", "```mermaid\nflowchart LR", `n0["U1<br/>SD1234"]`, `n1(["USB-C"])`, `n1 ==>|"VBUS"| n0`, "## Connections", "| VBUS | power | U1.3 (VIN), USB-C |", "| GND | ground | U1.1 (GND) |"} {
+	for _, want := range []string{"## Block diagram", "```mermaid\nflowchart LR", `n0["U1 SD1234"]`, `n1(["USB-C"])`, `n1 ==>|"VBUS"| n0`, "## Connections", "| VBUS | power | U1.3 (VIN), USB-C |", "| GND | ground | U1.1 (GND) |"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("report lacks %q:\n%s", want, md)
 		}
@@ -164,7 +169,7 @@ func TestPinoutsListEveryPinWithWhatItMeets(t *testing.T) {
 		Connect: []ConnectChange{
 			{Net: "VBUS", Part: "J1", Pin: "VBUS"}, {Net: "VBUS", Part: "U1", Pin: "VIN"}, {Net: "VBUS", Part: "C1"},
 			{Net: "GND", Part: "U1", Pin: "GND"}, {Net: "GND", Part: "J1", Pin: "GND"},
-			{Net: "FB", Part: "U1", Pin: "VFB"}, {Net: "FB", Part: "U2", Pin: "VFB"},
+			{Net: "FB", Part: "U1", Pin: "VFB"}, {Net: "FB", Part: "U2", Pin: "VFB"}, {Net: "SW", Part: "U1", Pin: "SW"}, {Net: "SW", Part: "U2"},
 		},
 	}, library.SourceUser); err != nil {
 		t.Fatal(err)
@@ -189,7 +194,7 @@ func TestPinoutsListEveryPinWithWhatItMeets(t *testing.T) {
 		got[p.Name] = p
 	}
 	// Every pin of the pin table, in order, connected or not.
-	if len(u1.Pins) != 4 || u1.Pins[0].Name != "GND" || got["SW"].Net != "" || got["SW"].Description != "Switch node." {
+	if len(u1.Pins) != 4 || u1.Pins[0].Name != "GND" || got["SW"].Description != "Switch node." {
 		t.Errorf("U1 pins = %+v", u1.Pins)
 	}
 	if strings.Join(got["VIN"].To, ", ") != "J1.VBUS, C1 10µF" || got["VIN"].Net != "VBUS" {
@@ -198,13 +203,103 @@ func TestPinoutsListEveryPinWithWhatItMeets(t *testing.T) {
 	if got["GND"].NetKind != "ground" || len(got["GND"].To) != 0 {
 		t.Errorf("ground lists nothing else: %+v", got["GND"])
 	}
+	// A part connected without naming a pin is listed as itself.
+	if strings.Join(got["SW"].To, ", ") != "U2" {
+		t.Errorf("SW = %+v", got["SW"])
+	}
 	if strings.Join(got["VFB"].To, ", ") != "U2.VFB" {
 		t.Errorf("VFB = %+v", got["VFB"])
 	}
 	md, _ := s.ProjectReport(ctx, "board")
-	for _, want := range []string{"### U1 SD1234 pins", "| 3 | VIN | VBUS | J1.VBUS, C1 10µF |", "| 2 | SW | not connected |  |"} {
+	for _, want := range []string{"### U1 SD1234 pins", "| 3 | VIN | VBUS | J1.VBUS, C1 10µF |", "| 4 | VFB | FB | U2.VFB |"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("report lacks %q", want)
 		}
+	}
+}
+
+func TestChangeConnectionsEdits(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, _ := s.Lib.CreateProject(ctx, "board", "")
+	if _, err := s.AddToProject(ctx, "board", "SD1234", library.ProjectPart{Designator: "U1"}); err != nil {
+		t.Fatal(err)
+	}
+	apply := func(ch ConnectionsChange) []string {
+		t.Helper()
+		problems, err := s.ChangeConnections(ctx, "board", ch, library.SourceUser)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return problems
+	}
+	v := 1.8
+	notes := "I/O"
+	apply(ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "J1", Kind: "connector"}},
+		Nets:    []NetChange{{Name: "SDA", Voltage: &v, Notes: &notes}},
+		Connect: []ConnectChange{{Net: "SDA", Part: "U1", Pin: "VFB"}, {Net: "SDA", Part: "J1", Pin: "2"}, {Net: "GND", Part: "U1", Pin: "1"}},
+		// Placed by block name and by designator.
+		Positions: []PositionChange{{Node: "J1", X: 5, Y: 6}, {Node: "U1", X: 300, Y: 6}},
+	})
+	// A partial net change keeps what it doesn't set.
+	apply(ConnectionsChange{Nets: []NetChange{{Name: "sda", Kind: library.NetSignal}}})
+	nets, _ := s.Lib.Nets(ctx, p.ID)
+	for _, n := range nets {
+		if n.Name == "SDA" && (n.Voltage == nil || *n.Voltage != 1.8 || n.Notes != "I/O") {
+			t.Errorf("SDA lost its voltage or notes: %+v", n)
+		}
+	}
+	if l, _ := s.Lib.Layout(ctx, p.ID); len(l) != 2 {
+		t.Errorf("layout = %+v", l)
+	}
+	// What can't be done is reported, one line each; the rest is applied.
+	problems := apply(ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "X", Kind: "transistor"}, {Name: "nope", Remove: true}},
+		Nets:    []NetChange{{Name: "nope", Remove: true}, {Name: " ", Kind: "power"}},
+		Connect: []ConnectChange{{Net: "SDA", Part: "U1", Pin: "VFB", Remove: true}, {Net: "SDA", Part: "U1", Pin: "VFB", Remove: true}},
+	})
+	if len(problems) != 5 || !strings.Contains(problems[0], "kind is one of ic, connector") || !strings.Contains(problems[4], "U1 VFB on SDA") {
+		t.Errorf("problems = %q", problems)
+	}
+	// Removing a block takes its connections and place; a net its pins.
+	apply(ConnectionsChange{Blocks: []BlockChange{{Name: "J1", Remove: true}}, Nets: []NetChange{{Name: "GND", Remove: true}}, ResetLayout: true})
+	if cs, _ := s.Lib.Connections(ctx, p.ID); len(cs) != 0 {
+		t.Errorf("connections left = %+v", cs)
+	}
+	if l, _ := s.Lib.Layout(ctx, p.ID); len(l) != 0 {
+		t.Errorf("layout after reset = %+v", l)
+	}
+	if _, err := s.ChangeConnections(ctx, "nope", ConnectionsChange{}, library.SourceUser); err == nil {
+		t.Error("an unknown project is an error")
+	}
+}
+
+func TestEntryPinsFollowThePartsPackage(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "board", ""); err != nil {
+		t.Fatal(err)
+	}
+	pp, err := s.AddToProject(ctx, "board", "SD1234", library.ProjectPart{Designator: "U1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, _ := s.Lib.PartByID(ctx, pp.PartID)
+	// Two packages with different numbering; the part is the QFN one.
+	if err := s.Lib.RecordPins(ctx, part.DatasheetID, "SOT-23", []library.Pin{{Number: "1", Name: "GND"}, {Number: "2", Name: "VIN"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Lib.RecordPins(ctx, part.DatasheetID, "QFN", []library.Pin{{Number: "7", Name: "VIN"}, {Number: "8", Name: "GND"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	pkg := "QFN-16"
+	if _, err := s.Lib.UpdatePart(ctx, part.ID, library.PartUpdate{Package: &pkg}); err != nil {
+		t.Fatal(err)
+	}
+	parts, _ := s.Lib.ProjectParts(ctx, pp.ProjectID)
+	pins := s.entryPins(ctx, parts)[pp.ID]
+	if len(pins) != 2 || pins[0].Number != "7" {
+		t.Errorf("pins = %+v, want the QFN's", pins)
 	}
 }

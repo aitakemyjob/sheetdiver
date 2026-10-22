@@ -964,10 +964,10 @@ func connectionsText(d core.ProjectDetail) string {
 	}
 	b.WriteString("\n## Block diagram\n")
 	label := map[string]string{}
-	for _, n := range c.Diagram.Nodes {
-		label[n.ID] = n.Label
+	for _, p := range c.Diagram.Parts {
+		label[p.ID] = p.Title
 	}
-	for _, e := range c.Diagram.Edges {
+	for _, e := range c.Diagram.Links {
 		arrow := "—"
 		if e.Kind == "power" {
 			arrow = "→"

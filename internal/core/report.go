@@ -241,26 +241,22 @@ func mdCell(s string) string {
 // writeConnections adds the block diagram (as a Mermaid flowchart, which
 // GitHub and most Markdown viewers draw) and the connection table.
 func writeConnections(b *strings.Builder, c Connections) {
-	if len(c.Connections) == 0 && len(c.Diagram.Edges) == 0 {
+	if len(c.Connections) == 0 {
 		return
 	}
-	if len(c.Diagram.Edges) > 0 {
+	if len(c.Diagram.Links) > 0 {
 		b.WriteString("## Block diagram\n\n```mermaid\nflowchart LR\n")
 		ids := map[string]string{}
-		for i, n := range c.Diagram.Nodes {
-			ids[n.ID] = fmt.Sprintf("n%d", i)
-			label := n.Label
-			if n.MPN != "" && n.MPN != n.Label {
-				label += "<br/>" + n.MPN
-			}
-			label = strings.ReplaceAll(label, `"`, "'")
-			if n.Block {
-				fmt.Fprintf(b, "  %s([\"%s\"])\n", ids[n.ID], label)
+		for i, p := range c.Diagram.Parts {
+			ids[p.ID] = fmt.Sprintf("n%d", i)
+			label := strings.ReplaceAll(p.Title, `"`, "'")
+			if p.Kind == "connector" {
+				fmt.Fprintf(b, "  %s([\"%s\"])\n", ids[p.ID], label)
 			} else {
-				fmt.Fprintf(b, "  %s[\"%s\"]\n", ids[n.ID], label)
+				fmt.Fprintf(b, "  %s[\"%s\"]\n", ids[p.ID], label)
 			}
 		}
-		for _, e := range c.Diagram.Edges {
+		for _, e := range c.Diagram.Links {
 			arrow := "---"
 			if e.Kind == "power" {
 				arrow = "==>"

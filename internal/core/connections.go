@@ -76,7 +76,7 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		}
 		out.Connections = append(out.Connections, row)
 	}
-	out.Diagram = diagram(parts, out.Blocks, out.Nets, out.Connections, rails, layout)
+	out.Diagram = diagram(parts, out.Blocks, out.Nets, out.Connections, layout)
 	out.Pinouts = pinouts(parts, out.Blocks, out.Nets, out.Connections, pins)
 	return out, connectionChecks(parts, rails, out.Nets, out.Connections, pins), nil
 }

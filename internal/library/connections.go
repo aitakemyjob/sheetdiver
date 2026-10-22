@@ -46,7 +46,7 @@ type Block struct {
 }
 
 // BlockKinds are the kinds a block can be ("" is a generic block).
-var BlockKinds = []string{"connector", "module", "resistor", "capacitor", "inductor", "diode"}
+var BlockKinds = []string{"ic", "connector", "module", "resistor", "capacitor", "inductor", "diode"}
 
 // TwoTerminal reports whether a block kind or part category is drawn as
 // a passive on the block diagram, hanging off a net rather than as a box
