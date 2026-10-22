@@ -974,6 +974,20 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		fmt.Fprintf(&b, "%s %s %s: %s (%s)\n", label[e.From], arrow, label[e.To], e.Label, e.Kind)
 	}
+	// The passives, as the app draws them: strapping that the links above
+	// don't show.
+	for _, p := range c.Diagram.Passives {
+		name := strings.TrimSpace(p.Label + " " + p.Value)
+		part := label[p.Part]
+		switch p.Mount {
+		case core.MountBridge:
+			fmt.Fprintf(&b, "%s across %s %s\n", name, part, strings.Join(p.Nets, "/"))
+		case core.MountBelow, core.MountBeside:
+			fmt.Fprintf(&b, "%s on %s at %s, to ground\n", name, p.Nets[0], part)
+		default:
+			fmt.Fprintf(&b, "%s on %s (by %s), to ground\n", name, p.Nets[0], part)
+		}
+	}
 	if len(c.Pinouts) > 0 {
 		b.WriteString("\n## Pins by part\n")
 		for _, po := range c.Pinouts {
