@@ -2,7 +2,8 @@
 
 SheetDiver serves the [Model Context Protocol](https://modelcontextprotocol.io)
 at `http://127.0.0.1:47480/mcp` (streamable HTTP), and over stdio through
-`sheetdiver mcp`. Every call appears in the app's agent activity feed.
+`sheetdiver mcp` (on Windows, `sheetdiver-mcp.exe`, installed beside the
+app). Every call appears in the app's agent activity feed.
 
 Conventions:
 

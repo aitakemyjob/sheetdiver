@@ -32,14 +32,20 @@ export interface MCPStatus {
   error?: string;
 }
 
+/** How a client launches SheetDiver's stdio MCP bridge. */
+export interface StdioCommand {
+  command: string;
+  args: string[];
+}
+
 export interface AppState {
   version: string;
   platform: string;
   config: Config;
   libraryDir: string;
   mcp: MCPStatus;
-  /** Starts this app's stdio MCP bridge (with "mcp"). */
-  command: string;
+  /** Starts this install's stdio MCP bridge. */
+  stdio: StdioCommand;
   canPickFile: boolean;
   canOpenFile: boolean;
   canSaveFile: boolean;

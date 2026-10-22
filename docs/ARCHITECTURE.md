@@ -80,9 +80,11 @@ corrections, which are kept and preferred.
 | `internal/core` | The `Service`: imports (path, bytes, URL, product-page links, part-number lookup), part overviews and key parameters, rendering with a cache, calculator input filling from datasheets and project rails (with provenance), project analysis (power tree loads, checks), agent access switches, activity feed and UI focus/context. |
 | `internal/api` | The frontend's JSON method table; one entry point `Invoke(method, args)`. |
 | `internal/mcpserver` | MCP tools over `core`, rendered as compact text (plus PNG images for figures and pages); every call is logged to the activity feed. |
-| `internal/connect` | What agents need to connect: this executable's path for stdio clients, and the Claude Desktop extension (`.mcpb`: a manifest and a small Node launcher that runs `sheetdiver mcp`). |
+| `internal/connect` | What agents need to connect: the stdio command for this install, and the Claude Desktop extension (`.mcpb`). On Windows the extension carries the console bridge (`server/sheetdiver-mcp.exe`); elsewhere it is a manifest and a small Node launcher that runs `sheetdiver mcp`. |
+| `internal/mcpbridge` | The stdio↔HTTP MCP bridge: port lookup (flag, settings file, default), relaying to the app's `/mcp`, and, for the console bridge, a small state machine that starts a closed app (found beside the bridge or from the installer's registry entry) or answers with why it can't be reached. Logs go to stderr only. |
+| `cmd/sheetdiver-mcp` | The bridge as a console program with no UI, for stdio clients. Windows needs it: the desktop app is a windowed (`-H windowsgui`) program, which a client can't run as a stdio server there. The installer puts it beside `sheetdiver.exe`. |
 | `internal/server` | Loopback HTTP: `/mcp`, `/healthz`, and in browser mode the UI, `/api/invoke`, `/api/events` (SSE) and the binary endpoints (`page.png`, `figure.png`, `datasheet.pdf`, `upload`). |
-| `main.go`, `gui.go`, `bridge.go`, `inspect.go` | CLI (`serve`, `mcp`, `import`, `inspect`), Wails desktop shell (`!nogui`), stdio↔HTTP MCP bridge. |
+| `main.go`, `gui.go`, `bridge.go`, `inspect.go` | CLI (`serve`, `mcp`, `import`, `inspect`), Wails desktop shell (`!nogui`), the `mcp` subcommand (the bridge, or the library served over stdio while the app is closed). |
 
 ## Design principles
 

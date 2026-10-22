@@ -129,7 +129,7 @@ describe('ConnectAgent', () => {
   /** Opens the dialog in the desktop app, at the given client. */
   function desktopAt(client: string) {
     const app = useStore.getState().app!;
-    useStore.setState({ app: { ...app, canSaveFile: true, platform: 'windows', command: 'C:\\Program Files\\SheetDiver\\sheetdiver.exe' } });
+    useStore.setState({ app: { ...app, canSaveFile: true, platform: 'windows', stdio: { command: 'C:\\Program Files\\SheetDiver\\sheetdiver-mcp.exe', args: [] } } });
     b.on('file.save', (a) => ({ path: `C:\\Users\\me\\${(a as { name: string }).name}` }));
     render(<ConnectAgent />);
     fireEvent.click(screen.getByRole('button', { name: client }));
@@ -141,18 +141,19 @@ describe('ConnectAgent', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save Claude Desktop extension/ }));
     await waitFor(() => expect(b.callsTo('file.save')[0]).toEqual({ name: 'sheetdiver.mcpb', data: btoa('PK') }));
     await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Claude Desktop extension saved' }));
-    // The hand-written config runs this app, not a "sheetdiver" on PATH.
-    expect(screen.getByText(/"command": "C:\\\\Program Files/)).toBeInTheDocument();
+    expect(screen.getByText(/opens the app when Claude needs it/)).toBeInTheDocument();
+    // The hand-written config runs the installed console bridge, not a "sheetdiver" on PATH.
+    expect(screen.getByText(/"command": "C:\\\\Program Files\\\\SheetDiver\\\\sheetdiver-mcp.exe",\s+"args": \[\]/)).toBeInTheDocument();
   });
 
   it("saves a client's config file", async () => {
     desktopAt('Codex');
-    expect(screen.getByText('codex mcp add sheetdiver -- "C:\\Program Files\\SheetDiver\\sheetdiver.exe" mcp')).toBeInTheDocument();
+    expect(screen.getByText('codex mcp add sheetdiver -- "C:\\Program Files\\SheetDiver\\sheetdiver-mcp.exe"')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Save as config.toml/ }));
     await waitFor(() => expect(b.callsTo('file.save').length).toBe(1));
     const { name, data } = b.callsTo('file.save')[0] as { name: string; data: string };
     expect(name).toBe('config.toml');
-    expect(atob(data)).toContain("command = 'C:\\Program Files\\SheetDiver\\sheetdiver.exe'");
+    expect(atob(data)).toContain("command = 'C:\\Program Files\\SheetDiver\\sheetdiver-mcp.exe'\nargs = []");
     expect(screen.getByText(/paste the snippet into it instead/)).toBeInTheDocument();
   });
 
@@ -168,7 +169,7 @@ describe('ConnectAgent', () => {
 
 describe('connectSnippets', () => {
   it('writes each client its own format', () => {
-    const sn = connectSnippets('http://127.0.0.1:47480/mcp', '/Applications/SheetDiver.app/Contents/MacOS/SheetDiver', 'darwin');
+    const sn = connectSnippets('http://127.0.0.1:47480/mcp', { command: '/Applications/SheetDiver.app/Contents/MacOS/SheetDiver', args: ['mcp'] }, 'darwin');
     const parse = (c: keyof typeof sn, i = 0) => JSON.parse(sn[c][i].text);
     expect(parse('Claude Desktop').mcpServers.sheetdiver).toEqual({ command: '/Applications/SheetDiver.app/Contents/MacOS/SheetDiver', args: ['mcp'] });
     expect(sn['Claude Desktop'][0].note).toContain('~/Library/Application Support/Claude/');
@@ -178,5 +179,6 @@ describe('connectSnippets', () => {
     expect(parse('Gemini CLI', 1).mcpServers.sheetdiver).toEqual({ httpUrl: 'http://127.0.0.1:47480/mcp' });
     expect(parse('Windsurf').mcpServers.sheetdiver).toEqual({ serverUrl: 'http://127.0.0.1:47480/mcp' });
     expect(sn.Other[1].text).toBe('/Applications/SheetDiver.app/Contents/MacOS/SheetDiver mcp');
+    expect(sn.Codex[1].text).toContain('args = ["mcp"]');
   });
 });

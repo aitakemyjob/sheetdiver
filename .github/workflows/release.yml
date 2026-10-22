@@ -116,6 +116,13 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          # Optional Authenticode signing of the console MCP bridge; leave
+          # secrets unset to skip.
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        # The app, the console MCP bridge, the installer and the Claude
+        # Desktop extension come from this one build, so their versions match.
         run: scripts/build.ps1 -Arch ${{ matrix.arch }} -Version $env:TAG -Package
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -199,6 +206,7 @@ jobs:
           |---|---|
           | macOS (Apple Silicon + Intel) | \`sheetdiver_darwin_universal.zip\` |
           | Windows | \`sheetdiver_windows_amd64_installer.exe\` or \`sheetdiver_windows_amd64.zip\` |
+          | Claude Desktop extension (Windows) | \`sheetdiver_windows_amd64.mcpb\` for the installer. With the zip, save it from the app instead (*Connect an agent › Claude Desktop*), so it knows where SheetDiver is |
           | Linux x64 | \`.deb\`, \`.rpm\` or \`.tar.gz\` (\`sheetdiver_linux_amd64.*\`) |
           | Linux ARM64 | \`sheetdiver_linux_arm64.*\` |
           | Headless server (\`sheetdiver serve\`) | \`sheetdiver-headless_<os>_<arch>.*\` |

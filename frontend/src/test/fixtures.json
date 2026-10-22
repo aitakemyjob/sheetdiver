@@ -24,7 +24,12 @@
     "running": false,
     "url": ""
    },
-   "command": "/opt/sheetdiver/sheetdiver",
+   "stdio": {
+    "command": "/opt/sheetdiver/sheetdiver",
+    "args": [
+     "mcp"
+    ]
+   },
    "canPickFile": false,
    "canOpenFile": false,
    "canSaveFile": false,

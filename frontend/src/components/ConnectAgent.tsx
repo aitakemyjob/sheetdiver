@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Bot, Download, ShieldCheck } from 'lucide-react';
 import { api, saveBase64, saveText } from '../lib/api';
 import { useStore } from '../lib/store';
+import type { StdioCommand } from '../lib/types';
 import { Modal, Snippet } from './ui';
 
 const clients = ['Claude Code', 'Claude Desktop', 'Codex', 'Cursor', 'VS Code', 'Gemini CLI', 'Windsurf', 'Other'] as const;
@@ -25,13 +26,15 @@ function shellPath(p: string): string {
 
 /**
  * How to connect each client: to the HTTP endpoint at url, or by running
- * command (this app's own executable) with "mcp" for clients that only
- * launch servers. A bare "sheetdiver" isn't on PATH on Windows and macOS.
+ * stdio (this app with "mcp", or on Windows the console bridge installed
+ * beside it) for clients that only launch servers. A bare "sheetdiver"
+ * isn't on PATH on Windows and macOS.
  */
-export function connectSnippets(url: string, command: string, platform: string): Record<Client, ConnectSnippet[]> {
+export function connectSnippets(url: string, stdio: StdioCommand, platform: string): Record<Client, ConnectSnippet[]> {
   const win = platform === 'windows';
   const home = win ? '%USERPROFILE%\\' : '~/';
-  const stdio = { command, args: ['mcp'] };
+  const { command, args } = stdio;
+  const commandLine = [shellPath(command), ...args].join(' ');
   const json = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
   const desktopConfig = platform === 'darwin' ? '~/Library/Application Support/Claude/claude_desktop_config.json' : win ? '%APPDATA%\\Claude\\claude_desktop_config.json' : 'claude_desktop_config.json';
   return {
@@ -39,11 +42,11 @@ export function connectSnippets(url: string, command: string, platform: string):
       { note: 'Run once in your terminal. User scope makes your datasheet library available in every project:', text: claudeAddCommand(url) },
       { note: 'Or share it with a hardware repo through .mcp.json (project scope) at the repo root:', text: json({ mcpServers: { sheetdiver: { type: 'http', url } } }), file: '.mcp.json' },
     ],
-    'Claude Desktop': [{ note: `Or add it by hand to ${desktopConfig}:`, text: json({ mcpServers: { sheetdiver: stdio } }), file: 'claude_desktop_config.json' }],
+    'Claude Desktop': [{ note: `Or add it by hand to ${desktopConfig}:`, text: json({ mcpServers: { sheetdiver: { command, args } } }), file: 'claude_desktop_config.json' }],
     Codex: [
-      { note: 'Run once in your terminal:', text: `codex mcp add sheetdiver -- ${shellPath(command)} mcp` },
+      { note: 'Run once in your terminal:', text: `codex mcp add sheetdiver -- ${commandLine}` },
       // A TOML literal string: Windows paths need no escaping.
-      { note: `Or add to ${home}.codex${win ? '\\' : '/'}config.toml:`, text: `[mcp_servers.sheetdiver]\ncommand = '${command}'\nargs = ["mcp"]\n`, file: 'config.toml' },
+      { note: `Or add to ${home}.codex${win ? '\\' : '/'}config.toml:`, text: `[mcp_servers.sheetdiver]\ncommand = '${command}'\nargs = ${JSON.stringify(args)}\n`, file: 'config.toml' },
     ],
     Cursor: [{ note: `Add to ${home}.cursor${win ? '\\' : '/'}mcp.json (or .cursor/mcp.json in a project):`, text: json({ mcpServers: { sheetdiver: { url } } }), file: 'mcp.json' }],
     'VS Code': [{ note: 'Add to .vscode/mcp.json in your workspace:', text: json({ servers: { sheetdiver: { type: 'http', url } } }), file: 'mcp.json' }],
@@ -54,9 +57,16 @@ export function connectSnippets(url: string, command: string, platform: string):
     Windsurf: [{ note: `Add to ${home}.codeium${win ? '\\' : '/'}windsurf${win ? '\\' : '/'}mcp_config.json:`, text: json({ mcpServers: { sheetdiver: { serverUrl: url } } }), file: 'mcp_config.json' }],
     Other: [
       { note: 'Streamable HTTP endpoint:', text: url },
-      { note: 'Or launch over stdio (bridges to the running app, or serves the library itself while it is closed):', text: `${shellPath(command)} mcp` },
+      { note: args.length === 0 ? 'Or launch over stdio (bridges to the running app, and starts it if it is closed):' : 'Or launch over stdio (bridges to the running app, or serves the library itself while it is closed):', text: commandLine },
     ],
   };
+}
+
+/** What the saved Claude Desktop extension depends on, on platform. */
+export function extensionNote(platform: string): string {
+  return platform === 'windows'
+    ? 'It carries its own bridge to SheetDiver and opens the app when Claude needs it.'
+    : 'It runs this copy of SheetDiver, so save and install it again if you move the app.';
 }
 
 /** Dialog with MCP connection snippets and config files for popular agents. */
@@ -67,7 +77,7 @@ export function ConnectAgent() {
   const mcp = s.app?.mcp;
   const desktop = !!s.app?.canSaveFile;
   const url = mcp?.url || `http://127.0.0.1:${s.app?.config.settings.mcpPort ?? 47480}/mcp`;
-  const snippets = connectSnippets(url, s.app?.command || 'sheetdiver', s.app?.platform ?? '');
+  const snippets = connectSnippets(url, s.app?.stdio ?? { command: 'sheetdiver', args: ['mcp'] }, s.app?.platform ?? '');
   const saved = (title: string, where: string) => where && s.toast({ kind: 'ok', title, body: desktop ? where : `Downloaded ${where}` });
   const saveSnippet = async (sn: ConnectSnippet) => {
     try {
@@ -112,7 +122,7 @@ export function ConnectAgent() {
         <div className="col" style={{ gap: 6 }}>
           <div className="muted">
             Save the SheetDiver extension, then in Claude Desktop open Settings › Extensions › Advanced settings, choose <b>Install Extension…</b> and pick the saved{' '}
-            <span className="mono">sheetdiver.mcpb</span>. It runs this copy of SheetDiver, so save and install it again if you move the app.
+            <span className="mono">sheetdiver.mcpb</span>. {extensionNote(s.app?.platform ?? '')}
           </div>
           <button className="btn primary" style={{ alignSelf: 'flex-start' }} disabled={busy} onClick={saveExtension}>
             <Download size={14} /> Save Claude Desktop extension (.mcpb)

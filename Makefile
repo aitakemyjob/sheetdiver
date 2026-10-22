@@ -14,7 +14,7 @@ ifeq ($(shell uname -s),Linux)
   WAILS_TAGS := -tags webkit2_41
 endif
 
-.PHONY: help tools deps frontend notices test test-go test-frontend test-corpus corpus vet lint vuln build package headless headless-all serve dev icon release clean
+.PHONY: help tools deps frontend notices test test-go test-frontend test-corpus corpus vet lint vuln build package bridge mcpb headless headless-all serve dev icon release clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -61,6 +61,14 @@ build: ## Desktop app for this machine → build/bin
 package: ## Desktop app + release artifacts for this machine → dist/
 	scripts/build.sh --version $(VERSION) --package
 
+bridge: ## Console MCP bridge for this machine → build/bin/sheetdiver-mcp
+	go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o build/bin/sheetdiver-mcp ./cmd/sheetdiver-mcp
+
+mcpb: ## Windows Claude Desktop extension → dist/sheetdiver_windows_amd64.mcpb
+	mkdir -p build/mcp dist
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o build/mcp/sheetdiver-mcp.exe ./cmd/sheetdiver-mcp
+	go run ./scripts/mcpb -bridge build/mcp/sheetdiver-mcp.exe -version $(VERSION) -o dist/sheetdiver_windows_amd64.mcpb
+
 headless: frontend ## Headless binary for this machine → build/bin/sheetdiver-headless
 	go build -tags nogui -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o build/bin/sheetdiver-headless .
 
@@ -90,4 +98,4 @@ release: ## Tag and push a release: make release VERSION=v1.2.3
 	@echo "Pushed $(VERSION); the Release workflow will publish it."
 
 clean: ## Remove build outputs
-	rm -rf build/bin dist frontend/dist/assets frontend/dist/index.html
+	rm -rf build/bin build/mcp dist frontend/dist/assets frontend/dist/index.html
