@@ -8,6 +8,13 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Fixed
+- **Claude Desktop couldn't start SheetDiver ("version negotiation
+  failed").** Claude Desktop probes a server by sending a request and
+  closing its input straight away, and `sheetdiver mcp` stopped without
+  answering. It now answers every request it has read before it stops,
+  both when it relays to the app and when it serves the library itself.
+
 ## [0.1.0] - 2026-10-21
 
 The first release: a datasheet library for electronics design, shared with

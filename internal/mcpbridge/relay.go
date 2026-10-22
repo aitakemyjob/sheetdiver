@@ -31,11 +31,13 @@ func Running(ctx context.Context, base string) bool {
 // Relay passes JSON-RPC messages between local (the client's stdio) and
 // the app's streamable HTTP endpoint until either side closes. The HTTP
 // transport handles the protocol's details: JSON and SSE replies, the
-// Mcp-Session-Id header and 202 Accepted for notifications.
+// Mcp-Session-Id header and 202 Accepted for notifications. When the
+// client closes its input, the replies it is still owed are delivered
+// first.
 func Relay(ctx context.Context, local mcp.Transport, endpoint string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	in, err := local.Connect(ctx)
+	in, err := Drain{Transport: local}.Connect(ctx)
 	if err != nil {
 		return err
 	}
