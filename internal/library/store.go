@@ -346,6 +346,8 @@ CREATE TABLE project_layout (
 	y REAL NOT NULL,
 	PRIMARY KEY (project_id, node)
 );
+`, `
+ALTER TABLE project_connections ADD COLUMN ref TEXT NOT NULL DEFAULT '';
 `}
 
 // migrate applies pending schema migrations.

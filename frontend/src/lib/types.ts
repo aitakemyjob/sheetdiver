@@ -403,6 +403,8 @@ export interface ConnectionRow {
   net: string;
   entryId?: number;
   blockId?: number;
+  /** Which of the entry's designators ("R1" of "R1,R2"). */
+  ref?: string;
   pin?: string;
   notes?: string;
   source: string;

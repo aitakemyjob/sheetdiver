@@ -431,7 +431,7 @@ func TestConnectionsTools(t *testing.T) {
 			{"net": "SCL", "part": "U3", "pin": "1"},
 		},
 	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
-		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: supply or ground pins not connected: GND (1)")
+		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: pins that must be connected aren't: GND (1)")
 	// Links come from the connection table: U1 makes 3V3 in the BOM but
 	// has no pin on it here.
 	if strings.Contains(out, ": 3V3 (power)") {
@@ -442,7 +442,12 @@ func TestConnectionsTools(t *testing.T) {
 	}
 	h.must("set_connections", map[string]any{"nets": []map[string]any{{"name": "VBAT", "kind": "power"}}}, "Battery → U1 SD1234: VBAT (power)")
 	h.must("get_connections", map[string]any{}, "blocks off the BOM: Battery", "3V3 [power]: U2.3(VIN)")
-	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 1 blocks off the BOM")
+	// Passives are listed with where they hang, not only part-to-part links.
+	h.must("set_connections", map[string]any{
+		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}},
+		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U1", "pin": "SW"}, {"net": "LX2", "part": "U1", "pin": "GND"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
+	}, "C9 10µF on 3V3 (by U2 SD1235), to ground", "L9 2.2µH across U1 SD1234 LX1/LX2")
+	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 4 blocks off the BOM")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

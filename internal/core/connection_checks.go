@@ -13,7 +13,17 @@ import (
 var (
 	groundPinRe = regexp.MustCompile(`(?i)^(A|D|P|S)?(GND|VSS)\w*$`)
 	supplyPinRe = regexp.MustCompile(`(?i)^(A|D)?V(DD|CC|IN|BAT|IO|S)\w*$|^VDDIO\w*$`)
+	// padRe is an exposed or thermal pad, which nearly always goes to ground.
+	padRe = regexp.MustCompile(`(?i)thermal|exposed|power\s*pad|^(EP|PAD|TAB)$`)
+	// mustRe is a pin description that says the pin can't be left open.
+	mustRe = regexp.MustCompile(`(?i)connect (this pin |it |the pad )?to (ground|gnd)|must (not|never) be left (open|floating|unconnected)|must not float|do not leave (it )?(open|floating|unconnected)|must be connected`)
 )
+
+// mustConnect reports whether a pin can't be left unconnected: supply and
+// ground pins, exposed pads, and pins whose description says so.
+func mustConnect(p library.Pin) bool {
+	return groundPin(p) || supplyPin(p) || padRe.MatchString(p.Name) || mustRe.MatchString(p.Description)
+}
 
 // groundPin and supplyPin say what a pin is from its type, else its name.
 func groundPin(p library.Pin) bool {
@@ -90,7 +100,7 @@ func connectionChecks(parts []library.ProjectPart, rails []RailStatus, nets []li
 		if connected[r.EntryID] == nil {
 			connected[r.EntryID] = map[string]string{}
 		}
-		connected[r.EntryID][pin.Number] = r.Net
+		connected[r.EntryID][pinKey(pin)] = r.Net
 		kind := kinds[strings.ToLower(r.Net)]
 		switch {
 		case groundPin(pin) && kind != library.NetGround:
@@ -101,8 +111,9 @@ func connectionChecks(parts []library.ProjectPart, rails []RailStatus, nets []li
 			add(calc.Warn, who, "%s pin %s (%s) is on %s, but the BOM has %s powered from %s", who, pin.Number, pin.Name, r.Net, who, pp.SupplyRail)
 		}
 	}
-	// Supply and ground pins left open, on parts whose pins are being
-	// connected.
+	// Pins that must be connected but aren't (supply, ground, exposed
+	// pads, and pins whose description says so), on parts whose pins are
+	// being connected.
 	for _, pp := range parts {
 		got := connected[pp.ID]
 		if len(got) == 0 {
@@ -110,12 +121,16 @@ func connectionChecks(parts []library.ProjectPart, rails []RailStatus, nets []li
 		}
 		var open []string
 		for _, pin := range pins[pp.ID] {
-			if _, ok := got[pin.Number]; !ok && (groundPin(pin) || supplyPin(pin)) {
-				open = append(open, fmt.Sprintf("%s (%s)", pin.Name, pin.Number))
+			if _, ok := got[pinKey(pin)]; !ok && mustConnect(pin) {
+				if pin.Number == "" || pin.Number == pin.Name {
+					open = append(open, pinKey(pin))
+				} else {
+					open = append(open, fmt.Sprintf("%s (%s)", pin.Name, pin.Number))
+				}
 			}
 		}
 		if len(open) > 0 {
-			add(calc.Warn, entryLabel(pp), "%s: supply or ground pins not connected: %s", entryLabel(pp), strings.Join(open, ", "))
+			add(calc.Warn, entryLabel(pp), "%s: pins that must be connected aren't: %s", entryLabel(pp), strings.Join(open, ", "))
 		}
 	}
 	for _, n := range nets {

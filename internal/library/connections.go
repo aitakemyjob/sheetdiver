@@ -61,13 +61,16 @@ func TwoTerminal(kind string) bool {
 
 // Connection puts a pin of a BOM entry (EntryID), or a block (BlockID),
 // on a net. Pin is the pin number when the pin table has it, else as
-// given; a block's connections usually have none.
+// given; a block's connections usually have none. Ref is which of an
+// entry's designators it is, when the entry has several ("R1" of
+// "R1,R2"); empty for the entry as a whole.
 type Connection struct {
 	ID      int64  `json:"id"`
 	NetID   int64  `json:"netId"`
 	Net     string `json:"net"`
 	EntryID int64  `json:"entryId,omitempty"`
 	BlockID int64  `json:"blockId,omitempty"`
+	Ref     string `json:"ref,omitempty"`
 	Pin     string `json:"pin,omitempty"`
 	Notes   string `json:"notes,omitempty"`
 	Source  string `json:"source"`
@@ -213,9 +216,9 @@ func (s *Store) DeleteBlock(ctx context.Context, projectID int64, name string) e
 
 // Connections lists a project's connections by net, then pin.
 func (s *Store) Connections(ctx context.Context, projectID int64) ([]Connection, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT c.id, n.id, n.name, IFNULL(c.entry_id, 0), IFNULL(c.block_id, 0), c.pin, c.notes, c.source
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id, n.id, n.name, IFNULL(c.entry_id, 0), IFNULL(c.block_id, 0), c.ref, c.pin, c.notes, c.source
 		FROM project_connections c JOIN project_nets n ON n.id = c.net_id WHERE n.project_id = ?
-		ORDER BY n.name, c.entry_id IS NULL, c.entry_id, c.block_id, CAST(c.pin AS INTEGER), c.pin`, projectID)
+		ORDER BY n.name, c.entry_id IS NULL, c.entry_id, c.ref, c.block_id, CAST(c.pin AS INTEGER), c.pin`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +226,7 @@ func (s *Store) Connections(ctx context.Context, projectID int64) ([]Connection,
 	out := []Connection{}
 	for rows.Next() {
 		var c Connection
-		if err := rows.Scan(&c.ID, &c.NetID, &c.Net, &c.EntryID, &c.BlockID, &c.Pin, &c.Notes, &c.Source); err != nil {
+		if err := rows.Scan(&c.ID, &c.NetID, &c.Net, &c.EntryID, &c.BlockID, &c.Ref, &c.Pin, &c.Notes, &c.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -249,8 +252,8 @@ func (s *Store) Connect(ctx context.Context, projectID int64, c Connection) (Con
 	err = s.tx(ctx, func(tx *sql.Tx) error {
 		// The same pin elsewhere moves here; a pinless connection to the
 		// same net is replaced.
-		q := `DELETE FROM project_connections WHERE IFNULL(entry_id, 0) = ? AND IFNULL(block_id, 0) = ? AND pin = ?`
-		args := []any{c.EntryID, c.BlockID, c.Pin}
+		q := `DELETE FROM project_connections WHERE IFNULL(entry_id, 0) = ? AND IFNULL(block_id, 0) = ? AND ref = ? AND pin = ?`
+		args := []any{c.EntryID, c.BlockID, c.Ref, c.Pin}
 		if c.Pin == "" {
 			q += ` AND net_id = ?`
 			args = append(args, netID)
@@ -258,8 +261,8 @@ func (s *Store) Connect(ctx context.Context, projectID int64, c Connection) (Con
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO project_connections (net_id, entry_id, block_id, pin, notes, source) VALUES (?,?,?,?,?,?)`,
-			netID, nullID(c.EntryID), nullID(c.BlockID), c.Pin, c.Notes, c.Source)
+		res, err := tx.ExecContext(ctx, `INSERT INTO project_connections (net_id, entry_id, block_id, ref, pin, notes, source) VALUES (?,?,?,?,?,?,?)`,
+			netID, nullID(c.EntryID), nullID(c.BlockID), c.Ref, c.Pin, c.Notes, c.Source)
 		if err != nil {
 			return err
 		}
@@ -276,7 +279,7 @@ func (s *Store) Connect(ctx context.Context, projectID int64, c Connection) (Con
 // Disconnect removes a pin (or a block) from a net.
 func (s *Store) Disconnect(ctx context.Context, projectID int64, c Connection) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM project_connections WHERE net_id IN (SELECT id FROM project_nets WHERE project_id = ? AND name = ?)
-		AND IFNULL(entry_id, 0) = ? AND IFNULL(block_id, 0) = ? AND pin = ?`, projectID, strings.TrimSpace(c.Net), c.EntryID, c.BlockID, strings.TrimSpace(c.Pin))
+		AND IFNULL(entry_id, 0) = ? AND IFNULL(block_id, 0) = ? AND ref = ? AND pin = ?`, projectID, strings.TrimSpace(c.Net), c.EntryID, c.BlockID, c.Ref, strings.TrimSpace(c.Pin))
 	if err != nil {
 		return err
 	}
@@ -289,6 +292,15 @@ func (s *Store) Disconnect(ctx context.Context, projectID int64, c Connection) e
 
 // PartNode names a BOM entry's block-diagram node, for Position.
 func PartNode(entryID int64) string { return "part:" + strconv.FormatInt(entryID, 10) }
+
+// RefNode names one designator's node, of an entry with several
+// ("part:3/R1"); the entry's own node when ref is empty.
+func RefNode(entryID int64, ref string) string {
+	if ref == "" {
+		return PartNode(entryID)
+	}
+	return PartNode(entryID) + "/" + ref
+}
 
 // BlockNode names a block's block-diagram node.
 func BlockNode(blockID int64) string { return "block:" + strconv.FormatInt(blockID, 10) }

@@ -72,35 +72,27 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 		if library.TwoTerminal(pp.Category) {
 			continue
 		}
-		mine := []ConnectionRow{}
+		// One table for the entry, and one per designator connected on its
+		// own ("U1" of "U1,U2").
+		var refs []string
+		whole := false
 		for _, r := range rows {
-			if r.EntryID == pp.ID {
-				mine = append(mine, r)
+			if r.EntryID != pp.ID {
+				continue
+			}
+			if r.Ref == "" {
+				whole = true
+			} else if !contains(refs, r.Ref) {
+				refs = append(refs, r.Ref)
 			}
 		}
-		po := Pinout{Node: library.PartNode(pp.ID), Title: strings.TrimSpace(pp.Designator + " " + pp.MPN), MPN: pp.MPN, Pins: []PinoutRow{}}
-		used := map[int64]bool{}
-		for _, pin := range pins[pp.ID] {
-			pr := PinoutRow{Number: pin.Number, Name: pin.Name, Type: pin.Type, Description: pin.Description, To: []string{}}
-			for _, r := range mine {
-				if !used[r.ID] && r.Pin != "" && strings.EqualFold(r.Pin, pin.Number) {
-					x := row(r)
-					pr.Net, pr.NetKind, pr.To = x.Net, x.NetKind, x.To
-					used[r.ID] = true
-				}
-			}
-			po.Pins = append(po.Pins, pr)
+		if whole || len(refs) == 0 {
+			refs = append([]string{""}, refs...)
 		}
-		// Connections the pin table doesn't have (or a part without one).
-		for _, r := range mine {
-			if !used[r.ID] {
-				x := row(r)
-				x.Number, x.Name, x.Type = r.Pin, r.PinName, r.PinType
-				po.Pins = append(po.Pins, x)
+		for _, ref := range refs {
+			if po, ok := entryPinout(pp, ref, rows, pins[pp.ID], row); ok {
+				out = append(out, po)
 			}
-		}
-		if len(po.Pins) > 0 {
-			out = append(out, po)
 		}
 	}
 	for _, b := range blocks {
@@ -120,4 +112,42 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 		}
 	}
 	return out
+}
+
+// entryPinout is the pin table of an entry, or of one of its designators
+// (ref): every pin of its pin table, then connections the table lacks.
+// ok is false when there's nothing to show.
+func entryPinout(pp library.ProjectPart, ref string, rows []ConnectionRow, pins []library.Pin, row func(ConnectionRow) PinoutRow) (Pinout, bool) {
+	mine := []ConnectionRow{}
+	for _, r := range rows {
+		if r.EntryID == pp.ID && r.Ref == ref {
+			mine = append(mine, r)
+		}
+	}
+	title := strings.TrimSpace(firstNonEmpty(ref, pp.Designator) + " " + pp.MPN)
+	po := Pinout{Node: library.RefNode(pp.ID, ref), Title: title, MPN: pp.MPN, Pins: []PinoutRow{}}
+	if ref != "" && len(mine) == 0 {
+		return po, false
+	}
+	used := map[int64]bool{}
+	for _, pin := range pins {
+		pr := PinoutRow{Number: pin.Number, Name: pin.Name, Type: pin.Type, Description: pin.Description, To: []string{}}
+		for _, r := range mine {
+			if !used[r.ID] && r.Pin != "" && strings.EqualFold(r.Pin, pinKey(pin)) {
+				x := row(r)
+				pr.Net, pr.NetKind, pr.To = x.Net, x.NetKind, x.To
+				used[r.ID] = true
+			}
+		}
+		po.Pins = append(po.Pins, pr)
+	}
+	// Connections the pin table doesn't have (or a part without one).
+	for _, r := range mine {
+		if !used[r.ID] {
+			x := row(r)
+			x.Number, x.Name, x.Type = r.Pin, r.PinName, r.PinType
+			po.Pins = append(po.Pins, x)
+		}
+	}
+	return po, len(po.Pins) > 0
 }

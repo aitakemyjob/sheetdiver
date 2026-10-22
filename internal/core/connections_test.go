@@ -119,7 +119,7 @@ func TestConnectionsDiagramAndChecks(t *testing.T) {
 		msgs = append(msgs, ch.Message)
 	}
 	all := strings.Join(msgs, "\n")
-	for _, want := range []string{"U2 pin 3 (VIN) is on VIN, but the BOM has U2 powered from 3V3", "U1: supply or ground pins not connected: GND (1)"} {
+	for _, want := range []string{"U2 pin 3 (VIN) is on VIN, but the BOM has U2 powered from 3V3", "U1: pins that must be connected aren't: GND (1)"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing %q in\n%s", want, all)
 		}
@@ -301,5 +301,155 @@ func TestEntryPinsFollowThePartsPackage(t *testing.T) {
 	pins := s.entryPins(ctx, parts)[pp.ID]
 	if len(pins) != 2 || pins[0].Number != "7" {
 		t.Errorf("pins = %+v, want the QFN's", pins)
+	}
+}
+
+func TestPinsWithoutANumberAndPinsThatMustBeConnected(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, _ := s.Lib.CreateProject(ctx, "board", "")
+	pp, err := s.AddToProject(ctx, "board", "SD1234", library.ProjectPart{Designator: "U2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, _ := s.Lib.PartByID(ctx, pp.PartID)
+	// As the TPS63900's pin table: a thermal pad with no number, and pins
+	// whose descriptions say they mustn't be left open.
+	if err := s.Lib.RecordPins(ctx, part.DatasheetID, "", []library.Pin{
+		{Number: "1", Name: "EN", Type: "I", Description: "Device enable. It must not be left open."},
+		{Number: "6", Name: "VOUT"},
+		{Number: "8", Name: "GND"},
+		{Number: "10", Name: "VIN"},
+		{Name: "Thermal Pad", Description: "Connect this pin to ground for correct operation."},
+		{Number: "11", Name: "NC", Description: "No connection."},
+	}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	connect := func(ch ...ConnectChange) {
+		t.Helper()
+		if problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Nets: []NetChange{{Name: "GND", Kind: library.NetGround}}, Connect: ch}, library.SourceUser); err != nil || len(problems) > 0 {
+			t.Fatalf("%v %q", err, problems)
+		}
+	}
+	connect(ConnectChange{Net: "GND", Part: "U2", Pin: "Thermal Pad"}, ConnectChange{Net: "GND", Part: "U2", Pin: "8"}, ConnectChange{Net: "VBAT", Part: "U2", Pin: "VIN"})
+	// The pad is stored by its name, not as a pinless connection.
+	cs, _ := s.Lib.Connections(ctx, p.ID)
+	var pad *library.Connection
+	for i := range cs {
+		if cs[i].Pin == "" {
+			t.Errorf("a pinless connection was made: %+v", cs[i])
+		}
+		if cs[i].Pin == "Thermal Pad" {
+			pad = &cs[i]
+		}
+	}
+	if pad == nil {
+		t.Fatalf("the thermal pad isn't connected: %+v", cs)
+	}
+	d, _ := s.ProjectDetail(ctx, "board")
+	for _, po := range d.Connections.Pinouts {
+		for _, row := range po.Pins {
+			if row.Name == "Thermal Pad" && row.Net != "GND" {
+				t.Errorf("the pin table shows the pad as %+v", row)
+			}
+		}
+	}
+	checks := func() string {
+		d, _ := s.ProjectDetail(ctx, "board")
+		var out []string
+		for _, ch := range d.Checks {
+			if ch.Area == "connections" {
+				out = append(out, ch.Message)
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	// EN must not be left open, VOUT can; NC is fine open.
+	if got := checks(); !strings.Contains(got, "U2: pins that must be connected aren't: EN (1)") || strings.Contains(got, "Thermal Pad") || strings.Contains(got, "VOUT") || strings.Contains(got, "NC") {
+		t.Errorf("checks:\n%s", got)
+	}
+	// Without the pad, it's flagged too.
+	if _, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "GND", Part: "U2", Pin: "Thermal Pad", Remove: true}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if got := checks(); !strings.Contains(got, "U2: pins that must be connected aren't: Thermal Pad, EN (1)") {
+		t.Errorf("checks:\n%s", got)
+	}
+}
+
+func TestOneDesignatorOfAnEntryWithSeveral(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "board", ""); err != nil {
+		t.Fatal(err)
+	}
+	// Two pull-downs in one BOM line, and two of the same IC.
+	res, _ := s.Lib.Resolve(ctx, "SD1235")
+	cat := "resistor"
+	if _, err := s.Lib.UpdatePart(ctx, res.Part.ID, library.PartUpdate{Category: &cat}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddToProject(ctx, "board", "SD1235", library.ProjectPart{Designator: "R1,R2", Qty: 2, Role: "5.1k"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddToProject(ctx, "board", "SD1234", library.ProjectPart{Designator: "U1 U2", Qty: 2}); err != nil {
+		t.Fatal(err)
+	}
+	problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{
+		Blocks: []BlockChange{{Name: "J1", Kind: "connector"}},
+		Connect: []ConnectChange{
+			{Net: "CC1", Part: "J1", Pin: "CC1"}, {Net: "CC2", Part: "J1", Pin: "CC2"},
+			{Net: "CC1", Part: "R1"}, {Net: "CC2", Part: "r2"}, // each resistor on its own net
+			{Net: "A", Part: "U1", Pin: "VIN"}, {Net: "B", Part: "U2.VIN"}, // each IC on its own
+		},
+		Positions: []PositionChange{{Node: "U2", X: 400, Y: 50}},
+	}, library.SourceUser)
+	if err != nil || len(problems) > 0 {
+		t.Fatalf("%v %q", err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "board")
+	ends := map[string]string{}
+	for _, r := range d.Connections.Connections {
+		if r.EntryID != 0 {
+			ends[r.Endpoint] = r.Net
+		}
+	}
+	if ends["R1"] != "CC1" || ends["R2"] != "CC2" || ends["U1"] != "A" || ends["U2"] != "B" {
+		t.Errorf("connections by designator = %v", ends)
+	}
+	// The diagram: two resistors, each beside its own CC pin, and two
+	// boxes, U2 where it was placed.
+	dg := drawn{t, d.Connections.Diagram}
+	got := dg.passives()
+	if strings.Join(got, "; ") != "R1 5.1k beside J1 on CC1; R2 5.1k beside J1 on CC2" {
+		t.Errorf("passives = %q", got)
+	}
+	if u2 := dg.part("U2"); u2.X == nil || *u2.X != 400 || dg.part("U1").ID == u2.ID {
+		t.Errorf("U2 = %+v", u2)
+	}
+	// A pin table each, and none for the pair as a whole.
+	var titles []string
+	for _, po := range d.Connections.Pinouts {
+		titles = append(titles, po.Title)
+	}
+	if strings.Join(titles, "|") != "U1 SD1234|U2 SD1234|J1" {
+		t.Errorf("pin tables = %q", titles)
+	}
+	// Disconnecting one leaves the other.
+	if _, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "CC1", Part: "R1", Remove: true}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "board")
+	n := 0
+	for _, r := range d.Connections.Connections {
+		if r.Endpoint == "R2" {
+			n++
+		}
+		if r.Endpoint == "R1" {
+			t.Errorf("R1 is still connected: %+v", r)
+		}
+	}
+	if n != 1 {
+		t.Error("R2 stays connected")
 	}
 }

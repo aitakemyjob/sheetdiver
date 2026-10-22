@@ -104,7 +104,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     if (pos) change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
   };
   const open = (b: Box) => {
-    const pp = d.parts.find((p) => `part:${p.id}` === b.part.id);
+    // A designator of an entry with several is "part:<id>/R1".
+    const pp = d.parts.find((p) => `part:${p.id}` === b.part.id.split('/')[0]);
     if (pp) s.open({ kind: 'part', title: pp.mpn, params: { part: pp.mpn } });
   };
   const exportSVG = async () => {

@@ -6,6 +6,12 @@ import type { ConnectionRow, Pin, ProjectDetail } from '../../lib/types';
 import { Checks } from '../../components/Checks';
 import { change, marked } from './connections';
 
+/** What an entry can be connected as: its designators, and each one when it has several. */
+export function designators(d: string): string[] {
+  const each = d.split(/[,;\s]+/).filter(Boolean);
+  return each.length > 1 ? [d, ...each] : [d];
+}
+
 /** The CSV of a connection table. */
 export function connectionsCSV(d: ProjectDetail): string {
   const q = (v: unknown) => {
@@ -37,7 +43,7 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
   const [blockKind, setBlockKind] = useState('');
   const [blockValue, setBlockValue] = useState('');
   const [pins, setPins] = useState<Pin[]>([]);
-  const entry = d.parts.find((p) => (p.designator || p.mpn) === part);
+  const entry = d.parts.find((p) => designators(p.designator || p.mpn).includes(part));
   useEffect(() => {
     setPins([]);
     if (entry?.datasheetId) api.pins(entry.datasheetId).then(setPins, () => {});
@@ -53,7 +59,9 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
     const where = await saveText(`${project}-connections.csv`, connectionsCSV(d), 'text/csv', !!s.app?.canSaveFile);
     if (where) s.toast({ kind: 'ok', title: 'Connections saved', body: where });
   };
-  const endpoints = [...d.parts.map((p) => p.designator || p.mpn), ...c.blocks.map((b) => b.name)];
+  // Each designator of an entry with several ("R1,R2") can be connected
+  // on its own, as well as the entry as a whole.
+  const endpoints = [...d.parts.flatMap((p) => designators(p.designator || p.mpn)), ...c.blocks.map((b) => b.name)];
   return (
     <div className="col" style={{ gap: 16 }}>
       {checks.length > 0 && (
