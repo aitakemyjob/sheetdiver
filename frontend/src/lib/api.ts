@@ -5,6 +5,7 @@ import type {
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
+  ConnectionsChange,
 } from './types';
 
 /** Calls a backend method. */
@@ -101,6 +102,7 @@ export const api = {
   addProjectPart: (project: string, part: string, pp: Partial<ProjectPart>) => call<ProjectPart>('projectParts.add', { project, part, ...pp }),
   updateProjectPart: (pp: ProjectPart) => call<void>('projectParts.update', pp),
   removeProjectPart: (projectId: number, id: number) => call<void>('projectParts.remove', { projectId, id }),
+  changeConnections: (project: string, change: ConnectionsChange) => call<{ problems: string[] }>('connections.change', { project, ...change }),
 
   calcFields: (kind: string) => call<CalcField[]>('calc.fields', { kind }),
   calc: (req: { kind: string; part?: string; project?: string; inputs?: Record<string, unknown>; save?: boolean; title?: string }) => call<CalcResponse>('calc.run', req),

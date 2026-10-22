@@ -77,6 +77,14 @@ func TestFrontendFixtures(t *testing.T) {
 	if _, err := c.AddToProject(ctx, "Sensor board", "SD1235", library.ProjectPart{Designator: "U2", SupplyRail: "3V3", IMax: &im}); err != nil {
 		t.Fatal(err)
 	}
+	bus := "I2C1"
+	if _, err := c.ChangeConnections(ctx, "Sensor board", core.ConnectionsChange{
+		Blocks:  []core.BlockChange{{Name: "Battery"}},
+		Nets:    []core.NetChange{{Name: "SDA", Bus: &bus}, {Name: "VIN", Kind: library.NetPower}},
+		Connect: []core.ConnectChange{{Net: "VIN", Part: "Battery"}, {Net: "3V3", Part: "U2", Pin: "VIN"}, {Net: "GND", Part: "U2", Pin: "GND"}, {Net: "SDA", Part: "U2", Pin: "VFB"}, {Net: "SDA", Part: "U1"}},
+	}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.Calc(ctx, core.CalcRequest{Kind: "divider", Inputs: json.RawMessage(`{"vin": 3.3, "vout": 1.8}`), Project: "Sensor board", Save: true, Title: "ADC divider"}); err != nil {
 		t.Fatal(err)
 	}
@@ -157,6 +165,18 @@ func TestFrontendFixtures(t *testing.T) {
 		}
 		out = append(out, fixture{Method: call.method, Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
 	}
+	// The block diagram's test circuits, for the layout tests: built after
+	// the calls above, so they aren't in projects.list (whose order by
+	// update time would then depend on how fast the machine is).
+	for _, cir := range testutil.Circuits() {
+		buildCircuit(t, c, cir)
+		raw, _ := json.Marshal(map[string]any{"project": cir.Name})
+		res, err := a.Invoke(ctx, "project.detail", raw)
+		if err != nil {
+			t.Fatalf("%s: %v", cir.Name, err)
+		}
+		out = append(out, fixture{Method: "project.detail", Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
+	}
 	got, _ := json.MarshalIndent(out, "", " ")
 	got = append(got, '\n')
 	if *update {
@@ -205,4 +225,40 @@ func firstDiff(want, got string) string {
 		}
 	}
 	return ""
+}
+
+// buildCircuit puts a test circuit in a project, as an agent would.
+func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
+	t.Helper()
+	ctx := context.Background()
+	p, err := c.Lib.CreateProject(ctx, cir.Name, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range cir.Rails {
+		v := r.V
+		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var ch core.ConnectionsChange
+	for _, part := range cir.Parts {
+		if part.Ref != "" {
+			if _, err := c.AddToProject(ctx, cir.Name, part.Ref, library.ProjectPart{Designator: part.Name, SupplyRail: part.Supply, OutputRail: part.Output}); err != nil {
+				t.Fatal(err)
+			}
+			continue
+		}
+		ch.Blocks = append(ch.Blocks, core.BlockChange{Name: part.Name, Kind: part.Kind, Value: part.Value})
+	}
+	for _, n := range cir.Nets {
+		bus := n.Bus
+		ch.Nets = append(ch.Nets, core.NetChange{Name: n.Name, Kind: n.Kind, Bus: &bus})
+	}
+	for _, pin := range cir.Pins {
+		ch.Connect = append(ch.Connect, core.ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
+	}
+	if problems, err := c.ChangeConnections(ctx, cir.Name, ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatalf("%s: %v %q", cir.Name, err, problems)
+	}
 }

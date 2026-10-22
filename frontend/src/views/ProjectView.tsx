@@ -1,48 +1,43 @@
 import { useEffect, useState } from 'react';
-import { AlertOctagon, AlertTriangle, Calculator, CheckCircle2, FileText, Plus, Trash2, Zap } from 'lucide-react';
+import { Calculator, FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
 import { useStore } from '../lib/store';
 import { StatusBadge } from '../components/PartStatus';
 import { ReportDialog } from '../components/ReportDialog';
-import type { Check, ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
+import type { ProjectDetail, ProjectPart, RailStatus } from '../lib/types';
 import { CategoryBadge, Empty, ErrorBox, Spinner, useAsync } from '../components/ui';
 import { NotesPanel } from './NotesPanel';
 import { calcFor } from './PartView';
+import { Checks } from '../components/Checks';
+import { BlockDiagram } from './project/BlockDiagram';
+import { ConnectionTable } from './project/ConnectionTable';
+import { PinTables } from './project/PinTables';
 
-/** Icon for a check level. */
-export function CheckIcon({ level }: { level: string }) {
-  if (level === 'error') return <AlertOctagon size={14} style={{ color: 'var(--err)' }} />;
-  if (level === 'warn') return <AlertTriangle size={14} style={{ color: 'var(--warn)' }} />;
-  return <CheckCircle2 size={14} style={{ color: 'var(--ok)' }} />;
-}
+/** The project view's tabs. */
+type ProjectTab = 'overview' | 'diagram' | 'pins' | 'connections';
 
-/** A list of checks. */
-export function Checks({ checks }: { checks: Check[] }) {
-  return (
-    <div className="col" style={{ gap: 4 }}>
-      {checks.map((c, i) => (
-        <div key={i} className={`check ${c.level}`}>
-          <CheckIcon level={c.level} />
-          <span>{c.message}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** A project: rails with budgets, BOM, checks, calculations and notes. */
+/**
+ * A project: rails with budgets, BOM, checks, calculations and notes on
+ * the overview; the block diagram, pin tables and connection table on
+ * their tabs.
+ */
 export function ProjectView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
   const [report, setReport] = useState(false);
+  const [tab, setTab] = useState<ProjectTab>((params.tab as ProjectTab) || 'overview');
+  useEffect(() => {
+    if (params.tab) setTab(params.tab as ProjectTab);
+  }, [params.tab, params.nonce]);
   const name = String(params.project ?? '');
-  // What the agent pointed at: a rail, or a BOM entry by designator or part number.
+  // What the agent pointed at: a rail, a BOM entry by designator or part
+  // number, a net or a block.
   const highlight = String(params.highlight ?? '').toLowerCase() || undefined;
   const detail = useAsync(() => api.project(name), [name, s.projectVersion, s.libraryVersion]);
   const d = detail.data;
   useEffect(() => {
-    if (d) api.uiContext({ view: 'project', project: d.project.name }).catch(() => {});
-  }, [d]);
+    if (d) api.uiContext({ view: tab === 'overview' ? 'project' : `project/${tab}`, project: d.project.name }).catch(() => {});
+  }, [d, tab]);
   if (detail.loading && !d) return <Spinner label="Analyzing project…" />;
   if (detail.error) return <ErrorBox error={detail.error} />;
   if (!d) return null;
@@ -88,8 +83,38 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
             <span>Calculations</span>
           </div>
         </div>
+        <div className="subtabs" style={{ marginTop: 8 }}>
+          {(
+            [
+              ['overview', 'Overview'],
+              ['diagram', 'Block diagram'],
+              ['pins', 'Pins', d.connections.pinouts?.length],
+              ['connections', 'Connections', d.connections.connections.length],
+            ] as [ProjectTab, string, number?][]
+          ).map(([k, label, n]) => (
+            <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+              {label}
+              {n ? <span className="n">{n}</span> : null}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="scroll pad col" style={{ flex: 1, gap: 16 }}>
+      {tab === 'diagram' && (
+        <div className="scroll pad col" style={{ flex: 1 }}>
+          <BlockDiagram d={d} highlight={highlight} onChange={bump} />
+        </div>
+      )}
+      {tab === 'pins' && (
+        <div className="scroll pad col" style={{ flex: 1 }}>
+          <PinTables d={d} highlight={highlight} />
+        </div>
+      )}
+      {tab === 'connections' && (
+        <div className="scroll pad col" style={{ flex: 1 }}>
+          <ConnectionTable d={d} highlight={highlight} onChange={bump} />
+        </div>
+      )}
+      <div className="scroll pad col" style={{ flex: 1, gap: 16, display: tab === 'overview' ? undefined : 'none' }}>
         <Rails d={d} onChange={bump} highlight={highlight} />
         <Bom d={d} onChange={bump} highlight={highlight} />
         {checks.length > 0 && (

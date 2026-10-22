@@ -89,7 +89,7 @@ function baseTab(f: Focus): Omit<Tab, 'id'> | undefined {
       return { kind: 'figure', title: 'Figure', params: { id: f.figureId, message: f.message } };
     case 'project':
       if (!f.project) return undefined;
-      return { kind: 'project', title: f.project, params: { project: f.project, nonce: Date.now() } };
+      return { kind: 'project', title: f.project, params: { project: f.project, tab: f.tab ?? 'overview', nonce: Date.now() } };
     case 'calc':
       if (!f.calc) return undefined;
       return { kind: 'calc', title: `${f.calc.kind} ${f.calc.part ?? ''}`.trim(), params: { kind: f.calc.kind, part: f.calc.part, project: f.calc.project, result: f.calc } };

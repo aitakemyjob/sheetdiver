@@ -331,6 +331,7 @@ export interface ProjectPart {
   status?: string;
   /** False for BOM placeholders whose datasheet isn't imported. */
   hasDatasheet: boolean;
+  datasheetId?: number;
   designator?: string;
   qty: number;
   role?: string;
@@ -348,6 +349,8 @@ export interface Check {
   part?: string;
   rail?: string;
   page?: number;
+  /** "connections" for checks on the connection table. */
+  area?: string;
 }
 
 export interface Calculation {
@@ -369,6 +372,131 @@ export interface ProjectDetail {
   calculations: Calculation[];
   notes: Note[];
   inputPower: number;
+  connections: Connections;
+}
+
+/** A net in a project's connection table. */
+export interface Net {
+  id: number;
+  name: string;
+  kind: 'signal' | 'power' | 'ground';
+  bus?: string;
+  voltage?: number;
+  notes?: string;
+  source: string;
+}
+
+/** Something off the BOM the board connects to, or a passive with its value. */
+export interface Block {
+  id: number;
+  name: string;
+  kind?: string;
+  value?: string;
+  notes?: string;
+  source: string;
+}
+
+/** A pin of a BOM entry (or a block) on a net. */
+export interface ConnectionRow {
+  id: number;
+  netId: number;
+  net: string;
+  entryId?: number;
+  blockId?: number;
+  pin?: string;
+  notes?: string;
+  source: string;
+  endpoint: string;
+  pinName?: string;
+  pinType?: string;
+}
+
+/** A connected pin of a box on the block diagram (see core.DiagramPin). */
+export interface DiagramPin {
+  name: string;
+  net: string;
+  side: 'left' | 'right' | 'bottom' | 'inside';
+  /** The pin (or ground net) an inside pin is tied to. */
+  tied?: string;
+  /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
+  bridged?: boolean;
+}
+
+/** A part or connector drawn as a box, in a column along the power flow. */
+export interface DiagramPart {
+  id: string;
+  title: string;
+  mpn?: string;
+  kind: string;
+  column: number;
+  pins: DiagramPin[];
+  ground: string[];
+  /** Where it was dragged to. */
+  x?: number;
+  y?: number;
+}
+
+/** A passive (or several alike: "C1,C2") and where it hangs. */
+export interface DiagramPassive {
+  id: string;
+  label: string;
+  value?: string;
+  kind: string;
+  mount: 'wire' | 'lane' | 'out' | 'below' | 'beside' | 'bridge';
+  part: string;
+  nets: string[];
+}
+
+/** A drawn net: the parts on it in column order, and how its wire runs. */
+export interface DiagramNet {
+  name: string;
+  kind: string;
+  parts: string[];
+  wire: 'between' | 'lane' | 'out' | '';
+  arrow?: boolean;
+}
+
+/** Two parts sharing nets (the report's chart, agents). */
+export interface DiagramLink {
+  from: string;
+  to: string;
+  label: string;
+  kind: 'power' | 'signal';
+  nets: string[];
+}
+
+/** A project's block diagram: what's drawn; the app decides where (lib/blockDiagram.ts). */
+export interface Diagram {
+  parts: DiagramPart[];
+  passives: DiagramPassive[];
+  nets: DiagramNet[];
+  links: DiagramLink[];
+}
+
+export interface Connections {
+  nets: Net[];
+  blocks: Block[];
+  connections: ConnectionRow[];
+  diagram: Diagram;
+  /** Each part's pins and what they're connected to. */
+  pinouts: Pinout[];
+}
+
+/** A part's (or block's) pins, for the reference table. */
+export interface Pinout {
+  node: string;
+  title: string;
+  mpn?: string;
+  pins: { number?: string; name?: string; type?: string; description?: string; net?: string; netKind?: string; to: string[] }[];
+}
+
+/** An edit of the connection table and block diagram (see core.ConnectionsChange). */
+export interface ConnectionsChange {
+  blocks?: { name: string; kind?: string; value?: string; notes?: string; remove?: boolean }[];
+  nets?: { name: string; kind?: string; bus?: string; voltage?: number; notes?: string; remove?: boolean }[];
+  connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
+  positions?: { node: string; x: number; y: number }[];
+  resetLayout?: boolean;
 }
 
 export interface CalcOutput {

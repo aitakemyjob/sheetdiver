@@ -124,7 +124,8 @@ type showArgs struct {
 	Calculator string         `json:"calculator,omitempty" jsonschema:"calc: buck, boost, ldo, gate_drive, gate_divider or divider (filled from part and project, like calculate)"`
 	Inputs     map[string]any `json:"inputs,omitempty" jsonschema:"calc: calculator inputs in SI units"`
 	// Presentation.
-	Highlight string `json:"highlight,omitempty" jsonschema:"what to mark in the view: compare, the part you recommend; catalog, an LCSC code; project, a rail name or a BOM designator or part number"`
+	Highlight string `json:"highlight,omitempty" jsonschema:"what to mark in the view: compare, the part you recommend; catalog, an LCSC code; project, a rail name, a BOM designator or part number, a net or a block"`
+	Tab       string `json:"tab,omitempty" jsonschema:"project: overview, diagram (the block diagram), pins (each part's pins and what they connect to) or connections (the connection table)"`
 	Explain   string `json:"explain,omitempty" jsonschema:"your explanation in markdown, shown beside the view. Link to what you cite: [p3](#page/TPS63900/3), [Figure 5](#figure/TPS63900/5), [TPS63900](#part/TPS63900), [Electrical](#section/TPS63900/Electrical Characteristics), [Sensor board](#project/Sensor board)"`
 	Title     string `json:"title,omitempty" jsonschema:"walkthrough step title"`
 }
@@ -508,7 +509,7 @@ func (s *Server) registerLibrary() {
 			return text(b.String()), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "show", Description: "Put something on the user's screen in SheetDiver while you discuss it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry), search results, parts compared side by side (compare: parts, keys, a note per part, the one you recommend), catalogue candidates (catalog: LCSC codes, or a search, with the one you recommend) or a calculator filled in (calc). Add explain, your reasoning in markdown with links to pages and figures, to show it beside the view.", Annotations: &mcp.ToolAnnotations{Title: "Show", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)}},
+	addTool(s, &mcp.Tool{Name: "show", Description: "Put something on the user's screen in SheetDiver while you discuss it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry; tab diagram, pins or connections shows its block diagram, pin tables or connection table, highlighting a net, part or block), search results, parts compared side by side (compare: parts, keys, a note per part, the one you recommend), catalogue candidates (catalog: LCSC codes, or a search, with the one you recommend) or a calculator filled in (calc). Add explain, your reasoning in markdown with links to pages and figures, to show it beside the view.", Annotations: &mcp.ToolAnnotations{Title: "Show", ReadOnlyHint: true, OpenWorldHint: boolPtr(false)}},
 		read, func(a showArgs) string { return "show " + a.Kind + " " + a.Part + a.Project }, func(ctx context.Context, a showArgs) (result, error) {
 			f, err := s.focusOf(ctx, a)
 			if err != nil {
@@ -542,7 +543,14 @@ func (s *Server) focusOf(ctx context.Context, a showArgs) (core.Focus, error) {
 	c := s.core
 	f := core.Focus{Kind: a.Kind, Message: a.Message, Query: a.Query, Project: a.Project, Highlight: a.Highlight, Explain: a.Explain, Title: a.Title}
 	switch a.Kind {
-	case "part", "page", "figure", "section", "project", "search":
+	case "project":
+		switch a.Tab {
+		case "", "overview", "diagram", "pins", "connections":
+			f.Tab = a.Tab
+		default:
+			return f, fmt.Errorf("a project's tabs are overview, diagram, pins and connections")
+		}
+	case "part", "page", "figure", "section", "search":
 	case "compare":
 		if len(a.Parts) < 2 {
 			return f, fmt.Errorf("compare needs two or more parts")

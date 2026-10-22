@@ -307,6 +307,45 @@ CREATE TABLE translations (
 `, `
 ALTER TABLE project_rails ADD COLUMN other_typ REAL;
 ALTER TABLE project_rails ADD COLUMN other_max REAL;
+`, `
+CREATE TABLE project_nets (
+	id INTEGER PRIMARY KEY,
+	project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	name TEXT NOT NULL COLLATE NOCASE,
+	kind TEXT NOT NULL DEFAULT 'signal',
+	bus TEXT NOT NULL DEFAULT '',
+	voltage REAL,
+	notes TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'user',
+	UNIQUE(project_id, name)
+);
+CREATE TABLE project_blocks (
+	id INTEGER PRIMARY KEY,
+	project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	name TEXT NOT NULL COLLATE NOCASE,
+	kind TEXT NOT NULL DEFAULT '',
+	value TEXT NOT NULL DEFAULT '',
+	notes TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'user',
+	UNIQUE(project_id, name)
+);
+CREATE TABLE project_connections (
+	id INTEGER PRIMARY KEY,
+	net_id INTEGER NOT NULL REFERENCES project_nets(id) ON DELETE CASCADE,
+	entry_id INTEGER REFERENCES project_parts(id) ON DELETE CASCADE,
+	block_id INTEGER REFERENCES project_blocks(id) ON DELETE CASCADE,
+	pin TEXT NOT NULL DEFAULT '',
+	notes TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'user'
+);
+CREATE INDEX project_connections_net ON project_connections(net_id);
+CREATE TABLE project_layout (
+	project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	node TEXT NOT NULL,
+	x REAL NOT NULL,
+	y REAL NOT NULL,
+	PRIMARY KEY (project_id, node)
+);
 `}
 
 // migrate applies pending schema migrations.

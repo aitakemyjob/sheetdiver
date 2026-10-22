@@ -49,6 +49,8 @@ registers. Projects group the parts of a board with their supply rails.
   data is kept when a datasheet is re-extracted and is what the calculators and project checks use.
 - Projects: create_project, set_rail, add_to_project (with supply/output rails and load currents), then
   get_project for the BOM, power budget per rail (regulator input currents included) and voltage/current checks.
+  set_connections drafts the block diagram and connection table (pins of BOM parts on nets, blocks off the
+  BOM such as a battery or connector); get_connections checks them against the pin tables and rails.
 - Calculations: list_calculators, then calculate (buck, boost, ldo, gate_drive, gate_divider, divider). Give a part
   and SheetDiver fills inputs from its datasheet (and from its rails in a project) and says where each came from.
   Prefer these over mental arithmetic, and check the "missing" inputs it reports.

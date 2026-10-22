@@ -411,3 +411,44 @@ func TestShowWhileDiscussing(t *testing.T) {
 		t.Errorf("a bad step names itself: %s", out)
 	}
 }
+
+func TestConnectionsTools(t *testing.T) {
+	h := newHarness(t)
+	h.importSample()
+	h.must("create_project", map[string]any{"name": "board", "activate": true}, "created")
+	h.must("set_rail", map[string]any{"name": "3V3", "v_nom": 3.3}, "rail 3V3")
+	h.must("add_to_project", map[string]any{"part": "SD1234", "designator": "U1", "output_rail": "3V3"}, "added")
+	h.must("add_to_project", map[string]any{"part": "SD1235", "designator": "U2", "supply_rail": "3V3"}, "added")
+	out := h.must("set_connections", map[string]any{
+		"blocks": []map[string]any{{"name": "Battery"}},
+		"nets":   []map[string]any{{"name": "SDA", "bus": "I2C1"}},
+		"connect": []map[string]any{
+			{"net": "VBAT", "part": "Battery"},
+			{"net": "VBAT", "part": "U1", "pin": "VIN"},
+			{"net": "3V3", "part": "U2.VIN"},
+			{"net": "SDA", "part": "U1", "pin": "VFB"},
+			{"net": "SDA", "part": "U2", "pin": "4"},
+			{"net": "SCL", "part": "U3", "pin": "1"},
+		},
+	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
+		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: supply or ground pins not connected: GND (1)")
+	// Links come from the connection table: U1 makes 3V3 in the BOM but
+	// has no pin on it here.
+	if strings.Contains(out, ": 3V3 (power)") {
+		t.Errorf("no 3V3 link without a pin on it:\n%s", out)
+	}
+	if strings.Contains(out, "Battery →") {
+		t.Errorf("VBAT isn't a power net, so the battery isn't drawn feeding U1:\n%s", out)
+	}
+	h.must("set_connections", map[string]any{"nets": []map[string]any{{"name": "VBAT", "kind": "power"}}}, "Battery → U1 SD1234: VBAT (power)")
+	h.must("get_connections", map[string]any{}, "blocks off the BOM: Battery", "3V3 [power]: U2.3(VIN)")
+	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 1 blocks off the BOM")
+
+	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
+	if f.Tab != "diagram" || f.Highlight != "I2C1" {
+		t.Errorf("show = %+v", f)
+	}
+	if _, _, isErr := h.call("show", map[string]any{"kind": "project", "project": "board", "tab": "registers"}); !isErr {
+		t.Error("a project has no registers tab")
+	}
+}
