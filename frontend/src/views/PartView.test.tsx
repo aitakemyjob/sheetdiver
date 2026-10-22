@@ -27,7 +27,8 @@ describe('PartView', () => {
     expect(screen.getAllByText(/Absolute Maximum Ratings/).length).toBeGreaterThan(0);
     // English datasheets have no Translate button.
     expect(screen.queryByRole('button', { name: /Translate/ })).not.toBeInTheDocument();
-    expect(b.callsTo('ui.context')[0]).toMatchObject({ view: 'part/overview', part: 'SD1234' });
+    // Sent from an effect after the render: waited for, or it flakes under load.
+    await waitFor(() => expect(b.callsTo('ui.context')[0]).toMatchObject({ view: 'part/overview', part: 'SD1234' }));
   });
 
   it('lists parameters', async () => {
