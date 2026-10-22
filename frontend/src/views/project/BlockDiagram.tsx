@@ -43,9 +43,10 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const pal = useMemo(palette, [theme]);
   const drawing = useMemo(() => {
     const dg = d.connections.diagram;
-    return layoutBlockDiagram({ ...dg, parts: dg.parts.map((p) => ({ ...p, ...moved[p.id] })) });
+    // Parts by their node; passives by their first one's.
+    return layoutBlockDiagram({ ...dg, parts: dg.parts.map((p) => ({ ...p, ...moved[p.id] })), passives: dg.passives.map((q) => ({ ...q, ...moved[q.id.split(',')[0]] })) });
   }, [d, moved]);
-  const height = drawing.height + (drawing.grounded ? 24 : 0);
+  const height = drawing.height;
   const empty = drawing.boxes.length === 0;
   const fit = () => setView(fitView(drawing.width, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
   const zoom = (factor: number, px?: number, py?: number) =>
@@ -77,10 +78,10 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     const m = content.current?.getScreenCTM?.();
     return m && typeof DOMPoint !== 'undefined' ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : { x: e.clientX, y: e.clientY };
   };
-  const grab = (e: PointerEvent, b: Box) => {
+  const grab = (e: PointerEvent, id: string, r: { x: number; y: number }) => {
     const p = at(e);
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ id: b.part.id, dx: p.x - b.x, dy: p.y - b.y });
+    setDrag({ id, dx: p.x - r.x, dy: p.y - r.y });
   };
   const startPan = (e: PointerEvent) => {
     if (e.target !== svg.current) return; // the background, not a part
@@ -188,7 +189,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   key={b.part.id}
                   data-part={b.part.title}
                   data-hl={on || undefined}
-                  onPointerDown={(e) => grab(e, b)}
+                  onPointerDown={(e) => grab(e, b.part.id, b)}
                   onDoubleClick={() => open(b)}
                   style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab' }}
                 >
@@ -203,14 +204,9 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                       </text>
                     ) : (
                       <text key={i} x={p.side === 'right' ? p.x - 12 : p.x + 12} y={p.y} dominantBaseline="central" textAnchor={p.side === 'right' ? 'end' : 'start'} fontSize={12} fill={c.text}>
-                        {p.tied ? `${p.name}→${p.tied}` : p.name}
+                        {p.tied && p.side === 'inside' ? `${p.name}→${p.tied}` : p.name}
                       </text>
                     ),
-                  )}
-                  {b.part.ground.length > 0 && (
-                    <text x={b.x + b.w - 12} y={b.y + b.h - 12} textAnchor="end" fontSize={12} fill={c.text}>
-                      {b.part.ground.join(', ')}
-                    </text>
                   )}
                 </g>
               );
@@ -220,25 +216,48 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
               const c = swatch(pal, q.kind);
               const on = marked(hl, ...q.label.split(','));
               return (
-                <g key={q.id} data-passive={q.label} data-hl={on || undefined}>
+                <g
+                  key={q.id}
+                  data-passive={q.label}
+                  data-hl={on || undefined}
+                  onPointerDown={(e) => grab(e, q.id.split(',')[0], p)}
+                  style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab' }}
+                >
                   <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
-                  <text x={p.x + p.w / 2} y={p.y + (q.value && !p.oneLine ? 17 : p.h / 2)} dominantBaseline="central" textAnchor="middle" fontSize={p.oneLine ? 12 : 13} fontWeight={500} fill={c.text}>
+                  <text x={p.x + p.w / 2} y={p.y + (q.value ? 15 : p.h / 2)} dominantBaseline="central" textAnchor="middle" fontSize={13} fontWeight={500} fill={c.text}>
                     {q.label}
-                    {p.oneLine && q.value ? <tspan fontWeight={400}> {q.value}</tspan> : null}
                   </text>
-                  {q.value && !p.oneLine && (
-                    <text x={p.x + p.w / 2} y={p.y + 32} dominantBaseline="central" textAnchor="middle" fontSize={11} fill={c.text}>
+                  {q.value && (
+                    <text x={p.x + p.w / 2} y={p.y + 30} dominantBaseline="central" textAnchor="middle" fontSize={11} fill={c.text}>
                       {q.value}
                     </text>
                   )}
                 </g>
               );
             })}
-            {drawing.grounded && (
-              <text x={40} y={drawing.height + 8} fontSize={12} fill={w.text}>
-                Passives on stubs return to GND.
-              </text>
-            )}
+            {drawing.grounds.map((g, i) => (
+              // A small ground symbol: a stub and three bars.
+              <path
+                key={`g${i}`}
+                data-ground
+                d={`M${g.x},${g.y} V${g.y + 4} M${g.x - 6},${g.y + 4} H${g.x + 6} M${g.x - 4},${g.y + 7} H${g.x + 4} M${g.x - 2},${g.y + 10} H${g.x + 2}`}
+                fill="none"
+                stroke={w.stroke}
+                strokeWidth={1.2}
+              />
+            ))}
+            {drawing.flags.map((f, i) => (
+              // The net at a passive's far end (a pull-up's 3V3): a bar and its name.
+              <g key={`f${i}`} data-flag={f.text}>
+                <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={w.stroke} strokeWidth={1.4} />
+                <text x={f.x} y={f.up ? f.y - 4 : f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
+                  {f.text}
+                </text>
+              </g>
+            ))}
+            {drawing.dots.map((p, i) => (
+              <circle key={`j${i}`} data-junction cx={p.x} cy={p.y} r={2.5} fill={w.stroke} />
+            ))}
           </g>
         </svg>
       </div>
