@@ -21,6 +21,8 @@ type ProjectDetail struct {
 	Checks       []ProjectCheck        `json:"checks"`
 	Calculations []library.Calculation `json:"calculations"`
 	Notes        []library.Note        `json:"notes"`
+	// Connections is the connection table and block diagram.
+	Connections Connections `json:"connections"`
 	// InputPower is the power drawn from rails with no regulator in the
 	// project (the board's inputs), at maximum load.
 	InputPower float64 `json:"inputPower"`
@@ -63,6 +65,8 @@ type ProjectCheck struct {
 	Part    string `json:"part,omitempty"`
 	Rail    string `json:"rail,omitempty"`
 	Page    int    `json:"page,omitempty"`
+	// Area is "connections" for checks on the connection table.
+	Area string `json:"area,omitempty"`
 }
 
 // regulatorCats are categories whose input current derives from their
@@ -101,6 +105,13 @@ func (s *Service) ProjectDetail(ctx context.Context, ref string) (ProjectDetail,
 	out.Rails, out.InputPower, loops = railStatus(rails, out.Parts, params)
 	rippleBudgets(out.Rails, out.Parts, params)
 	out.Checks = projectChecks(out.Rails, out.Parts, params, loops)
+	conns, checks, err := s.connections(ctx, p, out.Parts, out.Rails)
+	if err != nil {
+		return out, err
+	}
+	out.Connections = conns
+	out.Checks = append(out.Checks, checks...)
+	sortChecks(out.Checks)
 	return out, nil
 }
 
@@ -594,9 +605,14 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 			add(calc.Warn, "", r.Name, 0, "%s has no voltage set", r.Name)
 		}
 	}
-	rank := map[string]int{calc.Error: 0, calc.Warn: 1, calc.OK: 2}
-	sort.SliceStable(out, func(i, j int) bool { return rank[out[i].Level] < rank[out[j].Level] })
+	sortChecks(out)
 	return out
+}
+
+// sortChecks puts errors first, then warnings, then the rest.
+func sortChecks(cs []ProjectCheck) {
+	rank := map[string]int{calc.Error: 0, calc.Warn: 1, calc.OK: 2}
+	sort.SliceStable(cs, func(i, j int) bool { return rank[cs[i].Level] < rank[cs[j].Level] })
 }
 
 // passive reports whether a category draws no supply current of its own.

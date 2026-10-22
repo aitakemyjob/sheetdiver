@@ -569,6 +569,13 @@ func (a *API) registerProjects() {
 		c.ProjectChanged("", "part")
 		return nil, err
 	})
+	a.methods["connections.change"] = method(func(ctx context.Context, in struct {
+		Project string `json:"project"`
+		core.ConnectionsChange
+	}) (any, error) {
+		problems, err := c.ChangeConnections(ctx, in.Project, in.ConnectionsChange, library.SourceUser)
+		return map[string]any{"problems": problems}, err
+	})
 	a.methods["calc.fields"] = method(func(ctx context.Context, in struct {
 		Kind string `json:"kind"`
 	}) (any, error) {

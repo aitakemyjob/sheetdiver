@@ -61,7 +61,7 @@ maps, notes), so the library gets better every time it's used.
 | **Parts catalogue** | One click downloads JLCPCB's catalogue (about 2.5 million parts, via the open [jlcparts](https://github.com/yaqwsx/jlcparts) dataset) for offline search by part number or specs, browsing by category and filtering on each category's parameters (V<sub>DS</sub> ≥ 30 V, R<sub>DS(on)</sub> ≤ 10 mΩ…), with stock, price and JLC library; tick the parts you want and their datasheets are imported. |
 | **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
 | **Alternatives** | "What else in my library could replace this?" ranked key by key: ▲ better, = same, ▼ worse, with drop-ins first. |
-| **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, calculations. |
+| **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, the block diagram (Mermaid), connections and each part's pins, calculations. |
 | **Datasheet revisions** | Revisions are detected on import; check for newer ones, see which spec rows changed, update in place without losing recorded data. |
 | **Favorites and status** | Star parts and mark them preferred, approved, avoid, NRND or EOL. Filter the library and comparisons by them; projects warn about avoid/NRND/EOL parts, and agents are told to prefer your preferred parts. |
 | **Part numbers that resolve** | `TPS563200DDCR`, `TLV75733PDBVR`, `MCP1700T-3302E/TT`, `STM32U545VET6Q` and `TPS56x200` all find the right part and datasheet. |
@@ -70,6 +70,7 @@ maps, notes), so the library gets better every time it's used.
 | **Pins, sections, registers** | Pin tables, the full section tree with text (pin description, register map, layout guidelines, design procedure…), and structured registers recorded by the agent. |
 | **Page viewer** | Pages with figure and table boxes overlaid, the exact region of any parameter highlighted, and drag-to-select to read a region or define a missed figure. |
 | **Projects** | BOM with designators, rails and currents; per-rail load with regulator input currents derived from their output loads; checks against absolute-maximum and recommended limits and regulator capacity. |
+| **Block diagram, pins and connections** | A project's *Block diagram* tab draws its parts with their pins, wires labelled with their nets, and passives hanging off the pins and nets they serve (R, C, L and diodes with their values); zoom, pan, drag parts to arrange them, export as SVG. The *Pins* tab lists every pin of each part with what it's connected to. The *Connections* tab is the table you edit, checked against each part's pin table (pins that don't exist, ground or supply pins on the wrong net, supply pins left open); export as CSV. Your agent can draft all of it. |
 | **Calculators** | Buck, boost, LDO, gate drive, gate divider and divider: outputs with formulas, checks (minimum on/off time, current limit, thermal), suggestions, and the datasheet page behind every input. |
 | **Compare by type** | Pick a component type and see its parts side by side on the parameters that matter for it, sorted and filtered ("VIN ≥ 24 V, IOUT ≥ 3 A, IQ ≤ 1 µA"), with every value linked to its page. |
 | **Search** | Full text over parts, pages, sections, figure descriptions, parameters, pins, registers, recommendations and notes. |
@@ -142,6 +143,7 @@ Windows choose **More info → Run anyway** in SmartScreen.
    - *"Look at its efficiency graphs and describe them in SheetDiver."*
    - *"Design a 12 V → 3.3 V, 2 A supply with it: inductor, capacitors, feedback resistors."*
    - *"Put the parts of my sensor board in a project and check every rail against the datasheets."*
+   - *"Draft the block diagram and pin connections for it, and check them against the pin tables."*
    - *"Pick a gate divider for this P-FET switching a 9–24 V rail."*
 
    With **Follow agent** on, whatever the agent shows opens in front of you.

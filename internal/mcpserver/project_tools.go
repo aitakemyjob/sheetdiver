@@ -24,6 +24,42 @@ type createProjectArgs struct {
 	Activate    bool   `json:"activate,omitempty" jsonschema:"make it the default project"`
 }
 
+type connectionsArgs struct {
+	Project   string                `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
+	Blocks    []blockArgs           `json:"blocks,omitempty" jsonschema:"things off the BOM the board connects to (Battery, USB-C, a sensor still to be chosen); added before the connections, so they can be connected"`
+	Nets      []netArgs             `json:"nets,omitempty" jsonschema:"set a net's kind, bus or I/O voltage, or remove it with its connections. Nets are also created by connecting to them; a net named like a rail is that rail, GND/VSS are ground"`
+	Connect   []connectArgs         `json:"connect,omitempty" jsonschema:"pins to put on nets (or take off): one entry per pin"`
+	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"place blocks on the block diagram: node (designator, part number or block name), x and y in pixels, left to right"`
+	// ResetLayout forgets saved positions.
+	ResetLayout bool `json:"reset_layout,omitempty" jsonschema:"go back to the automatic layout"`
+	Show        bool `json:"show,omitempty" jsonschema:"also open the project's block diagram in SheetDiver"`
+}
+
+type blockArgs struct {
+	Name   string `json:"name" jsonschema:"what's printed on the block diagram: J1 USB-C, Battery, R4, C1,C2"`
+	Kind   string `json:"kind,omitempty" jsonschema:"connector, module, resistor, capacitor, inductor or diode; passives are drawn hanging off their nets"`
+	Value  string `json:"value,omitempty" jsonschema:"printed under the name: 36.5k, 10µF, 2.2µH, TVS"`
+	Notes  string `json:"notes,omitempty"`
+	Remove bool   `json:"remove,omitempty"`
+}
+
+type netArgs struct {
+	Name    string   `json:"name"`
+	Kind    string   `json:"kind,omitempty" jsonschema:"signal, power or ground"`
+	Bus     *string  `json:"bus,omitempty" jsonschema:"groups nets on the block diagram: SDA and SCL in I2C1"`
+	Voltage *float64 `json:"voltage,omitempty" jsonschema:"a signal net's I/O level in volts"`
+	Notes   *string  `json:"notes,omitempty"`
+	Remove  bool     `json:"remove,omitempty"`
+}
+
+type connectArgs struct {
+	Net    string `json:"net"`
+	Part   string `json:"part" jsonschema:"BOM designator (U1), part number, or block name; U1.SDA names the pin too"`
+	Pin    string `json:"pin,omitempty" jsonschema:"pin number or name, checked against the part's pin table (get_pins); blocks need none"`
+	Notes  string `json:"notes,omitempty"`
+	Remove bool   `json:"remove,omitempty"`
+}
+
 type projectArgs struct {
 	Project string `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
 	Show    bool   `json:"show,omitempty" jsonschema:"also open the project in SheetDiver"`
@@ -134,6 +170,61 @@ func (s *Server) registerProjects() {
 				c.Show(core.Focus{Kind: "project", Project: d.Project.Name})
 			}
 			return text(projectText(d)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "get_connections", Description: "A project's connection table (each net with the pins on it, their names and types from the pin tables), its block diagram (power links along the rails, signal links per bus or net) and the checks on them: pins missing from a pin table, ground or supply pins on the wrong net, supply and ground pins left open, nets with one connection, two outputs on a net.", Annotations: readOnly("Get connections")},
+		read, func(a projectArgs) string { return "connections " + a.Project }, func(ctx context.Context, a projectArgs) (result, error) {
+			name, err := s.project(a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			d, err := c.ProjectDetail(ctx, name)
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "connections"})
+			}
+			return text(connectionsText(d)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
+		write, func(a connectionsArgs) string { return "connections " + a.Project }, func(ctx context.Context, a connectionsArgs) (result, error) {
+			name, err := s.project(a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			ch := core.ConnectionsChange{Positions: a.Positions, ResetLayout: a.ResetLayout}
+			for _, b := range a.Blocks {
+				ch.Blocks = append(ch.Blocks, core.BlockChange{Name: b.Name, Kind: b.Kind, Value: b.Value, Notes: b.Notes, Remove: b.Remove})
+			}
+			for _, n := range a.Nets {
+				ch.Nets = append(ch.Nets, core.NetChange{Name: n.Name, Kind: n.Kind, Bus: n.Bus, Voltage: n.Voltage, Notes: n.Notes, Remove: n.Remove})
+			}
+			for _, cn := range a.Connect {
+				ch.Connect = append(ch.Connect, core.ConnectChange{Net: cn.Net, Part: cn.Part, Pin: cn.Pin, Notes: cn.Notes, Remove: cn.Remove})
+			}
+			problems, err := c.ChangeConnections(ctx, name, ch, library.SourceAgent)
+			if err != nil {
+				return result{}, err
+			}
+			d, err := c.ProjectDetail(ctx, name)
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"})
+			}
+			var b strings.Builder
+			if len(problems) > 0 {
+				b.WriteString("not applied:\n")
+				for _, p := range problems {
+					b.WriteString("  " + p + "\n")
+				}
+				b.WriteString("\n")
+			}
+			b.WriteString(connectionsText(d))
+			return text(b.String()), nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "set_rail", Description: "Add or update a supply rail of a project (voltage range, current limit, source, loads not in the BOM), or delete it.", Annotations: writes("Set rail", true)},
@@ -769,6 +860,9 @@ func projectText(d core.ProjectDetail) string {
 	for _, ch := range d.Checks {
 		fmt.Fprintf(&b, "[%s] %s\n", ch.Level, ch.Message)
 	}
+	if n := len(d.Connections.Connections); n > 0 || len(d.Connections.Blocks) > 0 {
+		fmt.Fprintf(&b, "\n## Connections\n%d nets, %d pin connections, %d blocks off the BOM (get_connections for the table and diagram)\n", len(d.Connections.Nets), n, len(d.Connections.Blocks))
+	}
 	if len(d.Calculations) > 0 {
 		b.WriteString("\n## Saved calculations\n")
 		for _, cl := range d.Calculations {
@@ -827,3 +921,87 @@ func calcText(r core.CalcResponse) string {
 
 // sortStrings sorts in place.
 func sortStrings(s []string) { sort.Strings(s) }
+
+// connectionsText renders a project's connection table, block diagram
+// and the checks on them.
+func connectionsText(d core.ProjectDetail) string {
+	c := d.Connections
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s: connections\n", d.Project.Name)
+	if len(c.Blocks) > 0 {
+		names := make([]string, len(c.Blocks))
+		for i, bl := range c.Blocks {
+			names[i] = bl.Name
+		}
+		fmt.Fprintf(&b, "blocks off the BOM: %s\n", strings.Join(names, ", "))
+	}
+	b.WriteString("\n## Nets\n")
+	if len(c.Nets) == 0 {
+		b.WriteString("(none yet — set_connections)\n")
+	}
+	for _, n := range c.Nets {
+		fmt.Fprintf(&b, "%s [%s", n.Name, n.Kind)
+		if n.Bus != "" {
+			b.WriteString(", bus " + n.Bus)
+		}
+		if n.Voltage != nil {
+			b.WriteString(", " + calc.Eng(*n.Voltage, "V"))
+		}
+		b.WriteString("]:")
+		for _, r := range c.Connections {
+			if r.NetID != n.ID {
+				continue
+			}
+			b.WriteString(" " + r.Endpoint)
+			if r.Pin != "" {
+				b.WriteString("." + r.Pin)
+				if r.PinName != "" && r.PinName != r.Pin {
+					b.WriteString("(" + r.PinName + ")")
+				}
+			}
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n## Block diagram\n")
+	label := map[string]string{}
+	for _, n := range c.Diagram.Nodes {
+		label[n.ID] = n.Label
+	}
+	for _, e := range c.Diagram.Edges {
+		arrow := "—"
+		if e.Kind == "power" {
+			arrow = "→"
+		}
+		fmt.Fprintf(&b, "%s %s %s: %s (%s)\n", label[e.From], arrow, label[e.To], e.Label, e.Kind)
+	}
+	if len(c.Pinouts) > 0 {
+		b.WriteString("\n## Pins by part\n")
+		for _, po := range c.Pinouts {
+			b.WriteString(po.Title + ":")
+			for _, p := range po.Pins {
+				pin := strings.Trim(p.Number+" "+p.Name, " ")
+				switch {
+				case p.Net == "":
+					fmt.Fprintf(&b, " %s=nc;", pin)
+				case len(p.To) > 0:
+					fmt.Fprintf(&b, " %s=%s (%s);", pin, p.Net, strings.Join(p.To, ", "))
+				default:
+					fmt.Fprintf(&b, " %s=%s;", pin, p.Net)
+				}
+			}
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("\n## Checks\n")
+	n := 0
+	for _, ch := range d.Checks {
+		if ch.Area == "connections" {
+			fmt.Fprintf(&b, "[%s] %s\n", ch.Level, ch.Message)
+			n++
+		}
+	}
+	if n == 0 {
+		b.WriteString("none\n")
+	}
+	return b.String()
+}

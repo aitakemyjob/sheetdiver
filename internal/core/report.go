@@ -141,6 +141,8 @@ func (s *Service) ProjectReport(ctx context.Context, name string) (string, error
 		b.WriteString("\n")
 	}
 
+	writeConnections(&b, d.Connections)
+
 	if len(d.Calculations) > 0 {
 		b.WriteString("## Calculations\n\n")
 		for _, c := range d.Calculations {
@@ -234,4 +236,76 @@ func railVoltage(r library.Rail) string {
 func mdCell(s string) string {
 	s = strings.ReplaceAll(s, "|", "\\|")
 	return strings.Join(strings.Fields(s), " ")
+}
+
+// writeConnections adds the block diagram (as a Mermaid flowchart, which
+// GitHub and most Markdown viewers draw) and the connection table.
+func writeConnections(b *strings.Builder, c Connections) {
+	if len(c.Connections) == 0 && len(c.Diagram.Edges) == 0 {
+		return
+	}
+	if len(c.Diagram.Edges) > 0 {
+		b.WriteString("## Block diagram\n\n```mermaid\nflowchart LR\n")
+		ids := map[string]string{}
+		for i, n := range c.Diagram.Nodes {
+			ids[n.ID] = fmt.Sprintf("n%d", i)
+			label := n.Label
+			if n.MPN != "" && n.MPN != n.Label {
+				label += "<br/>" + n.MPN
+			}
+			label = strings.ReplaceAll(label, `"`, "'")
+			if n.Block {
+				fmt.Fprintf(b, "  %s([\"%s\"])\n", ids[n.ID], label)
+			} else {
+				fmt.Fprintf(b, "  %s[\"%s\"]\n", ids[n.ID], label)
+			}
+		}
+		for _, e := range c.Diagram.Edges {
+			arrow := "---"
+			if e.Kind == "power" {
+				arrow = "==>"
+			}
+			fmt.Fprintf(b, "  %s %s|\"%s\"| %s\n", ids[e.From], arrow, strings.ReplaceAll(e.Label, `"`, "'"), ids[e.To])
+		}
+		b.WriteString("```\n\n")
+	}
+	if len(c.Connections) > 0 {
+		b.WriteString("## Connections\n\n| Net | Kind | Connected to |\n|---|---|---|\n")
+		kind := map[string]string{}
+		for _, n := range c.Nets {
+			k := n.Kind
+			if n.Bus != "" {
+				k += " (" + n.Bus + ")"
+			}
+			kind[strings.ToLower(n.Name)] = k
+		}
+		for i := 0; i < len(c.Connections); {
+			net := c.Connections[i].Net
+			var ends []string
+			for ; i < len(c.Connections) && c.Connections[i].Net == net; i++ {
+				r := c.Connections[i]
+				end := r.Endpoint
+				if r.Pin != "" {
+					end += "." + r.Pin
+					if r.PinName != "" && r.PinName != r.Pin {
+						end += " (" + r.PinName + ")"
+					}
+				}
+				ends = append(ends, end)
+			}
+			fmt.Fprintf(b, "| %s | %s | %s |\n", mdCell(net), mdCell(kind[strings.ToLower(net)]), mdCell(strings.Join(ends, ", ")))
+		}
+		b.WriteString("\n")
+	}
+	for _, po := range c.Pinouts {
+		fmt.Fprintf(b, "### %s pins\n\n| Pin | Name | Net | Connected to |\n|---|---|---|---|\n", po.Title)
+		for _, p := range po.Pins {
+			net := p.Net
+			if net == "" {
+				net = "not connected"
+			}
+			fmt.Fprintf(b, "| %s | %s | %s | %s |\n", mdCell(p.Number), mdCell(p.Name), mdCell(net), mdCell(strings.Join(p.To, ", ")))
+		}
+		b.WriteString("\n")
+	}
 }

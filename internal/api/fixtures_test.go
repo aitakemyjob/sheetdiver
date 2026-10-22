@@ -77,6 +77,14 @@ func TestFrontendFixtures(t *testing.T) {
 	if _, err := c.AddToProject(ctx, "Sensor board", "SD1235", library.ProjectPart{Designator: "U2", SupplyRail: "3V3", IMax: &im}); err != nil {
 		t.Fatal(err)
 	}
+	bus := "I2C1"
+	if _, err := c.ChangeConnections(ctx, "Sensor board", core.ConnectionsChange{
+		Blocks:  []core.BlockChange{{Name: "Battery"}},
+		Nets:    []core.NetChange{{Name: "SDA", Bus: &bus}, {Name: "VIN", Kind: library.NetPower}},
+		Connect: []core.ConnectChange{{Net: "VIN", Part: "Battery"}, {Net: "3V3", Part: "U2", Pin: "VIN"}, {Net: "GND", Part: "U2", Pin: "GND"}, {Net: "SDA", Part: "U2", Pin: "VFB"}, {Net: "SDA", Part: "U1"}},
+	}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.Calc(ctx, core.CalcRequest{Kind: "divider", Inputs: json.RawMessage(`{"vin": 3.3, "vout": 1.8}`), Project: "Sensor board", Save: true, Title: "ADC divider"}); err != nil {
 		t.Fatal(err)
 	}
