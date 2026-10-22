@@ -85,10 +85,6 @@ func TestFrontendFixtures(t *testing.T) {
 	}, library.SourceUser); err != nil {
 		t.Fatal(err)
 	}
-	// The block diagram's test circuits, for the layout tests.
-	for _, cir := range testutil.Circuits() {
-		buildCircuit(t, c, cir)
-	}
 	if _, err := c.Calc(ctx, core.CalcRequest{Kind: "divider", Inputs: json.RawMessage(`{"vin": 3.3, "vout": 1.8}`), Project: "Sensor board", Save: true, Title: "ADC divider"}); err != nil {
 		t.Fatal(err)
 	}
@@ -142,12 +138,6 @@ func TestFrontendFixtures(t *testing.T) {
 		{"calc.list", map[string]any{"projectId": 0}},
 		{"delete.preview", map[string]any{"part": "SD1234"}},
 	}
-	for _, cir := range testutil.Circuits() {
-		calls = append(calls, struct {
-			method string
-			args   any
-		}{"project.detail", map[string]any{"project": cir.Name}})
-	}
 	kinds := make([]string, 0, len(core.CalcKinds))
 	for k := range core.CalcKinds {
 		kinds = append(kinds, k)
@@ -174,6 +164,18 @@ func TestFrontendFixtures(t *testing.T) {
 			t.Fatalf("%s: %v", call.method, err)
 		}
 		out = append(out, fixture{Method: call.method, Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
+	}
+	// The block diagram's test circuits, for the layout tests: built after
+	// the calls above, so they aren't in projects.list (whose order by
+	// update time would then depend on how fast the machine is).
+	for _, cir := range testutil.Circuits() {
+		buildCircuit(t, c, cir)
+		raw, _ := json.Marshal(map[string]any{"project": cir.Name})
+		res, err := a.Invoke(ctx, "project.detail", raw)
+		if err != nil {
+			t.Fatalf("%s: %v", cir.Name, err)
+		}
+		out = append(out, fixture{Method: "project.detail", Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
 	}
 	got, _ := json.MarshalIndent(out, "", " ")
 	got = append(got, '\n')

@@ -1180,17 +1180,7 @@
      "updatedAt": "2026-01-01T00:00:00Z"
     }
    ],
-   "projects": [
-    {
-     "id": 5,
-     "name": "MCU board",
-     "description": "",
-     "createdAt": "2026-01-01T00:00:00Z",
-     "updatedAt": "2026-01-01T00:00:00Z",
-     "parts": 0,
-     "rails": 0
-    }
-   ],
+   "projects": [],
    "recommended": [
     {
      "id": 1,
@@ -3003,33 +2993,6 @@
     "updatedAt": "2026-01-01T00:00:00Z",
     "parts": 0,
     "rails": 0
-   },
-   {
-    "id": 3,
-    "name": "USB-C to 3V3",
-    "description": "",
-    "createdAt": "2026-01-01T00:00:00Z",
-    "updatedAt": "2026-01-01T00:00:00Z",
-    "parts": 0,
-    "rails": 0
-   },
-   {
-    "id": 4,
-    "name": "Battery board",
-    "description": "",
-    "createdAt": "2026-01-01T00:00:00Z",
-    "updatedAt": "2026-01-01T00:00:00Z",
-    "parts": 0,
-    "rails": 0
-   },
-   {
-    "id": 5,
-    "name": "MCU board",
-    "description": "",
-    "createdAt": "2026-01-01T00:00:00Z",
-    "updatedAt": "2026-01-01T00:00:00Z",
-    "parts": 1,
-    "rails": 2
    }
   ]
  },
@@ -3652,10 +3615,7 @@
       "favorite": false,
       "createdAt": "2026-01-01T00:00:00Z",
       "updatedAt": "2026-01-01T00:00:00Z"
-     },
-     "projects": [
-      "MCU board"
-     ]
+     }
     },
     {
      "part": {
@@ -3678,6 +3638,630 @@
    "recorded": {},
    "notes": 1,
    "inProjects": true
+  }
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "boost"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz)",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "inductor ripple / average inductor current, default 0.3",
+    "name": "rippleRatio",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "expected efficiency 0..1, default 0.85",
+    "name": "efficiency",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
+    "name": "voutRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen inductance (H)",
+    "name": "l",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback reference voltage (V)",
+    "name": "vref",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback bottom resistor (Ω), default 10 kΩ",
+    "name": "rBottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum switch current limit (A)",
+    "name": "ilimSwitch",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum output voltage (V)",
+    "name": "voutLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum input voltage (V)",
+    "name": "vinMinDevice",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum duty cycle (0..1)",
+    "name": "dmax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "buck"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz)",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "inductor ripple current / Iout, default 0.3",
+    "name": "rippleRatio",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "expected efficiency 0..1, default 0.9",
+    "name": "efficiency",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
+    "name": "voutRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "allowed input ripple, peak-peak (V), default 2% of VinMin",
+    "name": "vinRipple",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen inductance (H); default: next E12 value above the calculated one",
+    "name": "l",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback reference voltage (V) for the divider",
+    "name": "vref",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "feedback bottom resistor (Ω), default 10 kΩ",
+    "name": "rBottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum operating input voltage (V)",
+    "name": "vinLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum operating input voltage (V)",
+    "name": "vinMinDevice",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device rated output current (A)",
+    "name": "ioutLimit",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum current limit (A)",
+    "name": "ilim",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum on-time (s)",
+    "name": "tonMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device minimum off-time (s)",
+    "name": "toffMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "datasheet minimum recommended inductance (H)",
+    "name": "lMin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "datasheet maximum recommended inductance (H)",
+    "name": "lMax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "divider"
+  },
+  "result": [
+   {
+    "description": "voltage across the divider (V)",
+    "name": "vin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "wanted tap voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "target Rtop+Rbottom (Ω), default 100 kΩ",
+    "name": "rtotal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "fix the bottom resistor (Ω) instead of searching",
+    "name": "rbottom",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "E24, E48 or E96 (default E96)",
+    "name": "series",
+    "required": "false",
+    "type": "string"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "gate_divider"
+  },
+  "result": [
+   {
+    "description": "minimum supply across the divider (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum supply across the divider (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "gate voltage needed for full enhancement (V), e.g. the RDS(on) rating voltage",
+    "name": "vgsOn",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source rating (V)",
+    "name": "vgsMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "fraction of VgsMax to stay under, default 0.8",
+    "name": "margin",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "target R1+R2 (Ω), default 47 kΩ (sets divider current and turn-off speed)",
+    "name": "rtotal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "MOSFET input capacitance (F) for timing",
+    "name": "ciss",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "resistor series, default E24",
+    "name": "series",
+    "required": "false",
+    "type": "string"
+   },
+   {
+    "description": "voltage lost in the pull-down transistor (V), default 0.2",
+    "name": "vpulldown",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "gate_drive"
+  },
+  "result": [
+   {
+    "description": "n or p, default n",
+    "name": "channel",
+    "required": "false",
+    "type": "string"
+   },
+   {
+    "description": "gate drive voltage swing (V), e.g. 3.3 from an MCU or 12 from a driver",
+    "name": "vdrive",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "driver output resistance (Ω); MCU pins are roughly 25–50 Ω",
+    "name": "rdriver",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "driver peak current (A), used if rdriver is not given",
+    "name": "idrive",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "chosen external gate resistor (Ω); default: computed for tswitch",
+    "name": "rg",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "target switching (Miller) time (s), default 50 ns",
+    "name": "tswitch",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate threshold voltage, max (V)",
+    "name": "vgsTh",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source voltage rating (V)",
+    "name": "vgsMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "Vgs at which RDS(on) is specified (V), e.g. 4.5 or 10",
+    "name": "vgsRated",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "Miller plateau voltage (V); default VgsTh + 1 V",
+    "name": "vplateau",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "total gate charge (C)",
+    "name": "qg",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-drain charge (C)",
+    "name": "qgd",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "gate-source charge (C)",
+    "name": "qgs",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "input capacitance (F)",
+    "name": "ciss",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "internal gate resistance (Ω)",
+    "name": "rgInternal",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "on-resistance at the drive voltage (Ω)",
+    "name": "rdson",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "drain-source voltage when off (V)",
+    "name": "vds",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "drain-source rating (V)",
+    "name": "vdsMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "load current (A)",
+    "name": "iload",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "continuous drain current rating (A)",
+    "name": "idMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "switching frequency (Hz); 0 for a static switch",
+    "name": "fsw",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "junction-to-ambient thermal resistance (°C/W)",
+    "name": "rthJA",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "ambient (°C), default 25",
+    "name": "ta",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "maximum junction temperature (°C), default 150",
+    "name": "tjMax",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.fields",
+  "args": {
+   "kind": "ldo"
+  },
+  "result": [
+   {
+    "description": "minimum input voltage (V)",
+    "name": "vinMin",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "maximum input voltage (V)",
+    "name": "vinMax",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "output voltage (V)",
+    "name": "vout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "load current (A)",
+    "name": "iout",
+    "required": "true",
+    "type": "float64"
+   },
+   {
+    "description": "quiescent/ground current (A)",
+    "name": "iq",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "dropout voltage at this load (V)",
+    "name": "dropout",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "junction-to-ambient thermal resistance (°C/W)",
+    "name": "rthJA",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "ambient temperature (°C), default 25",
+    "name": "ta",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "maximum junction temperature (°C), default 125",
+    "name": "tjMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device rated output current (A)",
+    "name": "ioutMax",
+    "required": "false",
+    "type": "float64"
+   },
+   {
+    "description": "device maximum input voltage (V)",
+    "name": "vinLimit",
+    "required": "false",
+    "type": "float64"
+   }
+  ]
+ },
+ {
+  "method": "calc.run",
+  "args": {
+   "inputs": {
+    "vin": 3.3,
+    "vout": 1.8
+   },
+   "kind": "divider"
+  },
+  "result": {
+   "kind": "divider",
+   "inputs": {
+    "vin": 3.3,
+    "vout": 1.8
+   },
+   "filled": [],
+   "result": {
+    "kind": "divider",
+    "summary": "Divider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)",
+    "outputs": [
+     {
+      "name": "Top resistor",
+      "symbol": "Rtop",
+      "value": 88700,
+      "unit": "Ω",
+      "formula": "E96"
+     },
+     {
+      "name": "Bottom resistor",
+      "symbol": "Rbottom",
+      "value": 107000,
+      "unit": "Ω",
+      "formula": "E96"
+     },
+     {
+      "name": "Tap voltage",
+      "symbol": "Vtap",
+      "value": 1.804292284108329,
+      "unit": "V",
+      "formula": "Vin·Rbottom / (Rtop + Rbottom)"
+     },
+     {
+      "name": "Error",
+      "symbol": "err",
+      "value": 0.23846022824050264,
+      "unit": "%"
+     },
+     {
+      "name": "Divider current",
+      "symbol": "I",
+      "value": 0.000016862544711292794,
+      "unit": "A",
+      "formula": "Vin / (Rtop + Rbottom)"
+     },
+     {
+      "name": "Ideal ratio",
+      "symbol": "k",
+      "value": 0.5454545454545455,
+      "unit": "",
+      "formula": "Vout / Vin"
+     }
+    ],
+    "checks": [],
+    "suggestions": [
+     "Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V",
+     "Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V",
+     "Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V",
+     "Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V"
+    ]
+   }
   }
  },
  {
@@ -6839,630 +7423,6 @@
     ]
    },
    "inputPower": 0
-  }
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "boost"
-  },
-  "result": [
-   {
-    "description": "minimum input voltage (V)",
-    "name": "vinMin",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum input voltage (V)",
-    "name": "vinMax",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "output voltage (V)",
-    "name": "vout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum load current (A)",
-    "name": "iout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "switching frequency (Hz)",
-    "name": "fsw",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "inductor ripple / average inductor current, default 0.3",
-    "name": "rippleRatio",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "expected efficiency 0..1, default 0.85",
-    "name": "efficiency",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
-    "name": "voutRipple",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "chosen inductance (H)",
-    "name": "l",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "feedback reference voltage (V)",
-    "name": "vref",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "feedback bottom resistor (Ω), default 10 kΩ",
-    "name": "rBottom",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum switch current limit (A)",
-    "name": "ilimSwitch",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device maximum output voltage (V)",
-    "name": "voutLimit",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum input voltage (V)",
-    "name": "vinMinDevice",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device maximum duty cycle (0..1)",
-    "name": "dmax",
-    "required": "false",
-    "type": "float64"
-   }
-  ]
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "buck"
-  },
-  "result": [
-   {
-    "description": "minimum input voltage (V)",
-    "name": "vinMin",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum input voltage (V)",
-    "name": "vinMax",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "output voltage (V)",
-    "name": "vout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum load current (A)",
-    "name": "iout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "switching frequency (Hz)",
-    "name": "fsw",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "inductor ripple current / Iout, default 0.3",
-    "name": "rippleRatio",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "expected efficiency 0..1, default 0.9",
-    "name": "efficiency",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "allowed output ripple, peak-peak (V), default 1% of Vout",
-    "name": "voutRipple",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "allowed input ripple, peak-peak (V), default 2% of VinMin",
-    "name": "vinRipple",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "chosen inductance (H); default: next E12 value above the calculated one",
-    "name": "l",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "feedback reference voltage (V) for the divider",
-    "name": "vref",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "feedback bottom resistor (Ω), default 10 kΩ",
-    "name": "rBottom",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device maximum operating input voltage (V)",
-    "name": "vinLimit",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum operating input voltage (V)",
-    "name": "vinMinDevice",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device rated output current (A)",
-    "name": "ioutLimit",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum current limit (A)",
-    "name": "ilim",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum on-time (s)",
-    "name": "tonMin",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device minimum off-time (s)",
-    "name": "toffMin",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "datasheet minimum recommended inductance (H)",
-    "name": "lMin",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "datasheet maximum recommended inductance (H)",
-    "name": "lMax",
-    "required": "false",
-    "type": "float64"
-   }
-  ]
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "divider"
-  },
-  "result": [
-   {
-    "description": "voltage across the divider (V)",
-    "name": "vin",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "wanted tap voltage (V)",
-    "name": "vout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "target Rtop+Rbottom (Ω), default 100 kΩ",
-    "name": "rtotal",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "fix the bottom resistor (Ω) instead of searching",
-    "name": "rbottom",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "E24, E48 or E96 (default E96)",
-    "name": "series",
-    "required": "false",
-    "type": "string"
-   }
-  ]
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "gate_divider"
-  },
-  "result": [
-   {
-    "description": "minimum supply across the divider (V)",
-    "name": "vinMin",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum supply across the divider (V)",
-    "name": "vinMax",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "gate voltage needed for full enhancement (V), e.g. the RDS(on) rating voltage",
-    "name": "vgsOn",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "gate-source rating (V)",
-    "name": "vgsMax",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "fraction of VgsMax to stay under, default 0.8",
-    "name": "margin",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "target R1+R2 (Ω), default 47 kΩ (sets divider current and turn-off speed)",
-    "name": "rtotal",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "MOSFET input capacitance (F) for timing",
-    "name": "ciss",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "resistor series, default E24",
-    "name": "series",
-    "required": "false",
-    "type": "string"
-   },
-   {
-    "description": "voltage lost in the pull-down transistor (V), default 0.2",
-    "name": "vpulldown",
-    "required": "false",
-    "type": "float64"
-   }
-  ]
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "gate_drive"
-  },
-  "result": [
-   {
-    "description": "n or p, default n",
-    "name": "channel",
-    "required": "false",
-    "type": "string"
-   },
-   {
-    "description": "gate drive voltage swing (V), e.g. 3.3 from an MCU or 12 from a driver",
-    "name": "vdrive",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "driver output resistance (Ω); MCU pins are roughly 25–50 Ω",
-    "name": "rdriver",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "driver peak current (A), used if rdriver is not given",
-    "name": "idrive",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "chosen external gate resistor (Ω); default: computed for tswitch",
-    "name": "rg",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "target switching (Miller) time (s), default 50 ns",
-    "name": "tswitch",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "gate threshold voltage, max (V)",
-    "name": "vgsTh",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "gate-source voltage rating (V)",
-    "name": "vgsMax",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "Vgs at which RDS(on) is specified (V), e.g. 4.5 or 10",
-    "name": "vgsRated",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "Miller plateau voltage (V); default VgsTh + 1 V",
-    "name": "vplateau",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "total gate charge (C)",
-    "name": "qg",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "gate-drain charge (C)",
-    "name": "qgd",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "gate-source charge (C)",
-    "name": "qgs",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "input capacitance (F)",
-    "name": "ciss",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "internal gate resistance (Ω)",
-    "name": "rgInternal",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "on-resistance at the drive voltage (Ω)",
-    "name": "rdson",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "drain-source voltage when off (V)",
-    "name": "vds",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "drain-source rating (V)",
-    "name": "vdsMax",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "load current (A)",
-    "name": "iload",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "continuous drain current rating (A)",
-    "name": "idMax",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "switching frequency (Hz); 0 for a static switch",
-    "name": "fsw",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "junction-to-ambient thermal resistance (°C/W)",
-    "name": "rthJA",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "ambient (°C), default 25",
-    "name": "ta",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "maximum junction temperature (°C), default 150",
-    "name": "tjMax",
-    "required": "false",
-    "type": "float64"
-   }
-  ]
- },
- {
-  "method": "calc.fields",
-  "args": {
-   "kind": "ldo"
-  },
-  "result": [
-   {
-    "description": "minimum input voltage (V)",
-    "name": "vinMin",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "maximum input voltage (V)",
-    "name": "vinMax",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "output voltage (V)",
-    "name": "vout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "load current (A)",
-    "name": "iout",
-    "required": "true",
-    "type": "float64"
-   },
-   {
-    "description": "quiescent/ground current (A)",
-    "name": "iq",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "dropout voltage at this load (V)",
-    "name": "dropout",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "junction-to-ambient thermal resistance (°C/W)",
-    "name": "rthJA",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "ambient temperature (°C), default 25",
-    "name": "ta",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "maximum junction temperature (°C), default 125",
-    "name": "tjMax",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device rated output current (A)",
-    "name": "ioutMax",
-    "required": "false",
-    "type": "float64"
-   },
-   {
-    "description": "device maximum input voltage (V)",
-    "name": "vinLimit",
-    "required": "false",
-    "type": "float64"
-   }
-  ]
- },
- {
-  "method": "calc.run",
-  "args": {
-   "inputs": {
-    "vin": 3.3,
-    "vout": 1.8
-   },
-   "kind": "divider"
-  },
-  "result": {
-   "kind": "divider",
-   "inputs": {
-    "vin": 3.3,
-    "vout": 1.8
-   },
-   "filled": [],
-   "result": {
-    "kind": "divider",
-    "summary": "Divider 3.3 V → 1.8 V: Rtop = 88.7 kΩ, Rbottom = 107 kΩ (1.8 V)",
-    "outputs": [
-     {
-      "name": "Top resistor",
-      "symbol": "Rtop",
-      "value": 88700,
-      "unit": "Ω",
-      "formula": "E96"
-     },
-     {
-      "name": "Bottom resistor",
-      "symbol": "Rbottom",
-      "value": 107000,
-      "unit": "Ω",
-      "formula": "E96"
-     },
-     {
-      "name": "Tap voltage",
-      "symbol": "Vtap",
-      "value": 1.804292284108329,
-      "unit": "V",
-      "formula": "Vin·Rbottom / (Rtop + Rbottom)"
-     },
-     {
-      "name": "Error",
-      "symbol": "err",
-      "value": 0.23846022824050264,
-      "unit": "%"
-     },
-     {
-      "name": "Divider current",
-      "symbol": "I",
-      "value": 0.000016862544711292794,
-      "unit": "A",
-      "formula": "Vin / (Rtop + Rbottom)"
-     },
-     {
-      "name": "Ideal ratio",
-      "symbol": "k",
-      "value": 0.5454545454545455,
-      "unit": "",
-      "formula": "Vout / Vin"
-     }
-    ],
-    "checks": [],
-    "suggestions": [
-     "Rtop = 137 kΩ, Rbottom = 165 kΩ → 1.8 V",
-     "Rtop = 84.5 kΩ, Rbottom = 102 kΩ → 1.8 V",
-     "Rtop = 23.2 kΩ, Rbottom = 28 kΩ → 1.8 V",
-     "Rtop = 95.3 kΩ, Rbottom = 115 kΩ → 1.8 V"
-    ]
-   }
   }
  }
 ]
