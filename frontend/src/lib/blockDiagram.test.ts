@@ -69,6 +69,23 @@ describe.each(circuits)('the block diagram of %s', (name) => {
       }
   });
 
+  it('keeps passives near what they hang from', () => {
+    for (const p of d.passives) {
+      const box = d.boxes.find((b) => b.part.id === p.passive.part)!;
+      if (p.passive.mount === 'beside' || p.passive.mount === 'bridge') {
+        // Beside its box, not wandering off across the drawing.
+        expect(p.x - (box.x + box.w), `${p.passive.label}`).toBeLessThan(100);
+      }
+    }
+  });
+
+  it('leaves room beside a box for a passive across its pins', () => {
+    for (const p of d.passives.filter((x) => x.passive.mount === 'bridge')) {
+      const box = d.boxes.find((b) => b.part.id === p.passive.part)!;
+      for (const next of d.boxes.filter((b) => b.part.column > box.part.column)) expect(next.x - (p.x + p.w), `${p.passive.label} to ${next.part.title}`).toBeGreaterThan(60);
+    }
+  });
+
   it('puts boxes left to right by column', () => {
     for (const a of d.boxes) for (const b of d.boxes) if (a.part.column < b.part.column) expect(a.x).toBeLessThan(b.x);
   });
@@ -86,8 +103,15 @@ describe('the USB-C sketch', () => {
     expect(passive('C1,C2').x + passive('C1,C2').w).toBeLessThan(box('U2').x);
     // R4 under its CFG pin, the Rd resistors beside J1's CC pins.
     expect(passive('R4').y).toBeGreaterThan(box('U2').y + box('U2').h);
-    expect(passive('Rd1').x).toBeGreaterThan(pin('J1', 'CC1').x);
-    expect(passive('Rd1').y + passive('Rd1').h / 2).toBe(pin('J1', 'CC1').y);
+    for (const [rd, cc] of [
+      ['Rd1', 'CC1'],
+      ['Rd2', 'CC2'],
+    ]) {
+      // Right beside the pin, whatever else hangs nearby (D1 on VBUS).
+      expect(passive(rd).x - pin('J1', cc).x).toBeGreaterThan(0);
+      expect(passive(rd).x - pin('J1', cc).x).toBeLessThan(40);
+      expect(passive(rd).y + passive(rd).h / 2).toBe(pin('J1', cc).y);
+    }
     // L1 across LX1 and LX2, which sit below the gap left for C3,C4.
     expect(passive('L1').x).toBeGreaterThan(box('U2').x + box('U2').w);
     expect(pin('U2', 'LX1').y - pin('U2', 'VOUT').y).toBeGreaterThan(3 * PITCH);

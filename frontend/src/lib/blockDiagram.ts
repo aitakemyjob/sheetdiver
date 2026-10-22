@@ -130,7 +130,10 @@ export function place(boxes: Box[], d: Diagram, lanes: number): void {
       b.y = b.part.y ?? y;
       y += b.h + 70 + (b.pins.some((p) => p.side === 'bottom') ? 120 : 0);
     }
-    x += Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(170, hanging * 76 + 70);
+    // A passive across two pins sits just right of its box, before any
+    // hanging in the gap.
+    const bridged = list.some((b) => d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge')) ? 100 : 0;
+    x += Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(170, hanging * 76 + 70) + bridged;
   }
   separate(boxes);
 }
@@ -306,7 +309,10 @@ export function unclutter(mounted: Mounted[], boxes: Box[], wires: Wire[]): Wire
   const obstacles: Rect[] = boxes.map((b) => ({ x: b.x - 8, y: b.y - TITLE, w: b.w + 16, h: b.h + TITLE }));
   for (const w of wires) if (w.label) obstacles.push(labelRect(w.label));
   const out: Wire[] = [];
-  for (const m of mounted) {
+  // Passives that can only move sideways (beside a pin, across two)
+  // claim their places first; the ones that can move down make way.
+  const order = [...mounted].sort((a, b) => Number(b.dir === 'right') - Number(a.dir === 'right'));
+  for (const m of order) {
     const p = m.placed;
     for (let k = 0; k < 60; k++) {
       const hit = obstacles.find((o) => overlaps(o, p, 6));
