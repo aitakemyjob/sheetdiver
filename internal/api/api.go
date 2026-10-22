@@ -91,9 +91,9 @@ type AppState struct {
 	Config     config.Config  `json:"config"`
 	LibraryDir string         `json:"libraryDir"`
 	MCP        core.MCPStatus `json:"mcp"`
-	// Command starts this app's stdio MCP bridge (with "mcp"), for
-	// clients that launch servers themselves.
-	Command     string            `json:"command"`
+	// Stdio starts this install's stdio MCP bridge, for clients that
+	// launch servers themselves.
+	Stdio       connect.Stdio     `json:"stdio"`
 	CanPickFile bool              `json:"canPickFile"`
 	CanOpenFile bool              `json:"canOpenFile"`
 	CanSaveFile bool              `json:"canSaveFile"`
@@ -117,12 +117,16 @@ func (a *API) registerApp() {
 	c := a.core
 	a.methods["app.state"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		return AppState{
-			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(), Command: connect.Command(),
+			Version: c.Version, Platform: runtime.GOOS, Config: c.Config.Get(), LibraryDir: c.Config.LibraryDir(), MCP: c.MCPStatus(), Stdio: connect.StdioCommand(),
 			CanPickFile: a.PickPDFs != nil, CanOpenFile: a.OpenFile != nil, Statuses: library.Statuses, CanSaveFile: a.SaveFile != nil, Keys: extract.Keys, Calculators: core.CalcKinds,
 		}, nil
 	})
 	a.methods["mcp.extension"] = method(func(ctx context.Context, _ struct{}) (any, error) {
-		b, err := connect.Extension{Version: c.Version, Command: connect.Command()}.Build()
+		x, err := connect.ForThisApp(c.Version)
+		if err != nil {
+			return nil, err
+		}
+		b, err := x.Build()
 		if err != nil {
 			return nil, err
 		}

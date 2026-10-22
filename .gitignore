@@ -8,7 +8,12 @@
 
 # Wails-generated platform files (regenerated from build/appicon.png)
 /build/darwin/
-/build/windows/
+/build/windows/*
+!/build/windows/installer/
+/build/windows/installer/*
+# ...except the installer project, which adds the console MCP bridge
+!/build/windows/installer/project.nsi
+/build/mcp/
 /frontend/wailsjs/
 /frontend/package.json.md5
 

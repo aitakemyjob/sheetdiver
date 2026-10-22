@@ -41,6 +41,17 @@ every merged pull request.
   list. (#53)
 
 ### Fixed
+- **Windows: the Claude Desktop extension couldn't connect.** The app is a
+  windowed program, which Claude Desktop can't run as a stdio server on
+  Windows. Windows now has a small console bridge, `sheetdiver-mcp.exe`,
+  installed beside the app (and in the zip), and the extension carries its
+  own copy instead of a Node launcher, so it no longer depends on where
+  SheetDiver is installed. When the app is closed it starts it (the
+  extension's *Start SheetDiver* setting), or tells Claude to open it.
+  The port comes from the extension's settings, else SheetDiver's. Codex
+  and other stdio clients on Windows are pointed at the bridge too. Each
+  release has the extension as `sheetdiver_windows_amd64.mcpb` (for the
+  installer; with the zip, save it from the app). (#60)
 - **Windows: importing datasheets failed** with "PDF engine busy: could not
   instantiate webassembly module: GetFileType /dev/stdout: The handle is
   invalid". The desktop app has no console, and the PDF engine was given

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -37,34 +38,81 @@ func Command() string {
 	return p
 }
 
+// BridgeName is the file name of the console bridge (cmd/sheetdiver-mcp)
+// that the Windows install puts beside the app.
+const BridgeName = "sheetdiver-mcp.exe"
+
+// Stdio is how a client launches SheetDiver's stdio MCP server.
+type Stdio struct {
+	Command string   `json:"command"`
+	Args    []string `json:"args"`
+}
+
+// StdioCommand is the stdio server for this install. On Windows it is the
+// console bridge beside the app: the app is a windowed program, which
+// can't serve a client's stdio there. Elsewhere it is this executable
+// with "mcp".
+func StdioCommand() Stdio {
+	if runtime.GOOS == "windows" {
+		if p, ok := bridgeBeside(Command()); ok {
+			return Stdio{Command: p, Args: []string{}}
+		}
+	}
+	return Stdio{Command: Command(), Args: []string{"mcp"}}
+}
+
+// bridgeBeside returns the console bridge next to app, when it's there.
+func bridgeBeside(app string) (string, bool) {
+	p := filepath.Join(filepath.Dir(app), BridgeName)
+	st, err := os.Stat(p)
+	return p, err == nil && !st.IsDir()
+}
+
+// ErrNoBridge means a Windows extension was asked for without the console
+// bridge to put in it.
+var ErrNoBridge = errors.New(BridgeName + " isn't installed beside SheetDiver; reinstall SheetDiver to get it")
+
 // Extension describes the Claude Desktop extension to build.
 type Extension struct {
 	// Version is the app's version ("v0.1.0", or "dev").
 	Version string
-	// Command is the SheetDiver executable the extension runs.
+	// Command is the SheetDiver executable the extension runs. On Windows
+	// it's only a hint for starting a closed app, and may be "" (a
+	// release's extension, for any install).
 	Command string
 	// Platform is runtime.GOOS of the machine it's for (default: this one).
 	Platform string
+	// Bridge is the console bridge executable the Windows extension
+	// carries (cmd/sheetdiver-mcp, built for Windows).
+	Bridge []byte
 }
 
-// launcher is the extension's server: it runs SheetDiver's stdio bridge
-// with Claude Desktop's own pipes. The bridge relays to the running app,
-// or serves the library itself while the app is closed. Claude Desktop
-// supplies Node for "node" extensions, so nothing else is needed.
-const launcher = `// SheetDiver for Claude Desktop: starts "sheetdiver mcp" (the stdio
-// bridge to the SheetDiver app) at the path saved in the extension.
-const { spawn } = require('node:child_process');
+// ForThisApp describes the extension for this install, with the console
+// bridge read from beside the app on Windows.
+func ForThisApp(version string) (Extension, error) {
+	e := Extension{Version: version, Command: Command()}
+	if e.platform() != "windows" {
+		return e, nil
+	}
+	p, ok := bridgeBeside(e.Command)
+	if !ok {
+		return e, ErrNoBridge
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return e, err
+	}
+	e.Bridge = b
+	return e, nil
+}
 
-const command = process.env.SHEETDIVER_APP;
-const child = spawn(command, ['mcp'], { stdio: 'inherit', windowsHide: true });
-child.on('error', (err) => {
-  console.error('sheetdiver: cannot start ' + command + ': ' + err.message +
-    '. If SheetDiver moved, save the extension again (Connect an agent > Claude Desktop) and reinstall it (Settings > Extensions > Advanced settings > Install Extension).');
-  process.exit(1);
-});
-child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
-`
+// platform is the GOOS the extension is for.
+func (e Extension) platform() string {
+	if e.Platform == "" {
+		return runtime.GOOS
+	}
+	return e.Platform
+}
 
 // platforms maps Go's GOOS to the platform names extensions use.
 var platforms = map[string]string{"darwin": "darwin", "windows": "win32", "linux": "linux"}
@@ -79,19 +127,27 @@ func semver(v string) string {
 	return v
 }
 
-// Manifest is the extension's manifest.json.
-func (e Extension) Manifest() map[string]any {
-	plat := e.Platform
-	if plat == "" {
-		plat = runtime.GOOS
-	}
-	env := map[string]string{"SHEETDIVER_APP": e.Command}
-	// An app started on another library or config: the extension uses the
-	// same one when it serves the library itself.
+// overrides is the library and config this app was started on, for the
+// extension to use the same ones.
+func overrides() map[string]string {
+	env := map[string]string{}
 	for _, k := range []string{"SHEETDIVER_CONFIG", "SHEETDIVER_LIBRARY"} {
 		if v := os.Getenv(k); v != "" {
 			env[k] = v
 		}
+	}
+	return env
+}
+
+// Manifest is the extension's manifest.json.
+func (e Extension) Manifest() (map[string]any, error) {
+	srv, err := e.server()
+	if err != nil {
+		return nil, err
+	}
+	compat := map[string]any{"platforms": []string{platforms[e.platform()]}}
+	if r := srv.runtimes(); r != nil {
+		compat["runtimes"] = r
 	}
 	m := map[string]any{
 		"manifest_version": "0.3",
@@ -106,40 +162,43 @@ func (e Extension) Manifest() map[string]any {
 		"license":          "MIT",
 		"icon":             "icon.png",
 		"keywords":         []string{"datasheets", "electronics", "components", "hardware"},
-		"server": map[string]any{
-			"type":        "node",
-			"entry_point": "server/index.js",
-			"mcp_config": map[string]any{
-				"command": "node",
-				"args":    []string{"${__dirname}/server/index.js"},
-				"env":     env,
-			},
-		},
-		"compatibility": map[string]any{
-			"platforms": []string{platforms[plat]},
-			"runtimes":  map[string]string{"node": ">=16.0.0"},
-		},
+		"server":           srv.section(overrides()),
+		"compatibility":    compat,
 	}
-	return m
+	if uc := srv.userConfig(); uc != nil {
+		m["user_config"] = uc
+	}
+	return m, nil
 }
 
-// Build writes the extension: a zip of manifest.json, the launcher and
-// the icon, which Claude Desktop installs when it's opened.
-func (e Extension) Build() ([]byte, error) {
-	man, err := json.MarshalIndent(e.Manifest(), "", "  ")
+// ManifestJSON is manifest.json's contents.
+func (e Extension) ManifestJSON() ([]byte, error) {
+	m, err := e.Manifest()
 	if err != nil {
 		return nil, err
 	}
-	files := []struct {
-		name string
-		data []byte
-	}{{"manifest.json", man}, {"server/index.js", []byte(launcher)}, {"icon.png", icon}}
+	return json.MarshalIndent(m, "", "  ")
+}
+
+// Build writes the extension: a zip of manifest.json, the server and the
+// icon, which Claude Desktop installs when it's opened.
+func (e Extension) Build() ([]byte, error) {
+	srv, err := e.server()
+	if err != nil {
+		return nil, err
+	}
+	man, err := e.ManifestJSON()
+	if err != nil {
+		return nil, err
+	}
+	files := append([]bundleFile{{name: "manifest.json", data: man, mode: 0o644}}, srv.files()...)
+	files = append(files, bundleFile{name: "icon.png", data: icon, mode: 0o644})
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	for _, f := range files {
 		// Unix permissions, as the mcpb CLI's packer writes them.
 		h := &zip.FileHeader{Name: f.name, Method: zip.Deflate}
-		h.SetMode(0o644)
+		h.SetMode(f.mode)
 		w, err := zw.CreateHeader(h)
 		if err != nil {
 			return nil, err

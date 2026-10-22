@@ -8,11 +8,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aitakemyjob/sheetdiver/internal/config"
+	"github.com/aitakemyjob/sheetdiver/internal/connect"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
@@ -206,11 +209,19 @@ func TestOpenShop(t *testing.T) {
 func TestMCPExtension(t *testing.T) {
 	a, _ := newAPI(t)
 	var st AppState
-	if err := invoke(t, a, "app.state", nil, &st); err != nil || !filepath.IsAbs(st.Command) {
-		t.Fatalf("command = %q, %v", st.Command, err)
+	if err := invoke(t, a, "app.state", nil, &st); err != nil || !filepath.IsAbs(st.Stdio.Command) || !slices.Equal(st.Stdio.Args, []string{"mcp"}) {
+		t.Fatalf("stdio = %+v, %v", st.Stdio, err)
 	}
 	var x struct{ Name, Data string }
-	if err := invoke(t, a, "mcp.extension", nil, &x); err != nil {
+	err := invoke(t, a, "mcp.extension", nil, &x)
+	if runtime.GOOS == "windows" {
+		// The test binary has no console bridge beside it.
+		if err == nil || !strings.Contains(err.Error(), connect.BridgeName) {
+			t.Errorf("without the bridge: %v", err)
+		}
+		return
+	}
+	if err != nil {
 		t.Fatal(err)
 	}
 	b, err := base64.StdEncoding.DecodeString(x.Data)
@@ -231,7 +242,7 @@ func TestMCPExtension(t *testing.T) {
 			MCPConfig struct{ Env map[string]string } `json:"mcp_config"`
 		}
 	}
-	if err := json.NewDecoder(f).Decode(&m); err != nil || m.Server.MCPConfig.Env["SHEETDIVER_APP"] != st.Command {
-		t.Errorf("the extension runs %q, want this app (%q): %v", m.Server.MCPConfig.Env["SHEETDIVER_APP"], st.Command, err)
+	if err := json.NewDecoder(f).Decode(&m); err != nil || m.Server.MCPConfig.Env["SHEETDIVER_APP"] != st.Stdio.Command {
+		t.Errorf("the extension runs %q, want this app (%q): %v", m.Server.MCPConfig.Env["SHEETDIVER_APP"], st.Stdio.Command, err)
 	}
 }
