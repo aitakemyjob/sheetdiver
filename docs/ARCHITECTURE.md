@@ -121,15 +121,19 @@ result back into the drawing; dragged parts are hints to ELK's
 interactive crossing minimisation, which keeps their order in their
 layer and routes the wires again. Which nets become wires and which
 become labels follows schematic practice, decided per net in `graph()`:
-grounds are symbols at each pin; a rail nothing in the group drives is a
-power port at each pin with its capacitors in a row beside the part; a
-signal reaching three parts or spanning more than a column is a net
-label at each pin; a switch, LED or battery stands aside under its net's
-name; everything else (a crystal with its load capacitors, a series
-resistor, a pin's own pull-up) is wired at the pin, the passive placed
-before the pin it feeds. Subgroups are laid out first, each as one unit
-that the group's graph then places as a single node (`clusterUnits`):
-the parts hanging off one net by one part, with the series part leading
+grounds are symbols at each pin; a rail nothing in the group drives
+isn't wired between its parts: each pin wires what hangs off it by its
+part, the wire named, and a pin with nothing gets a named stub (between
+just two parts with nothing hanging off it, one wire does); a signal
+reaching three parts or spanning more than a column is a net label at
+each pin; everything else (a crystal with its load capacitors, a series
+resistor, a pin's own pull-up, a button and its resistor) is wired at
+the pin. One rule places and wires a passive: it gets a wire from what
+it's placed by, an IC pin, a connector pin or the previous passive in a
+chain, on that pin's side of the part. Subgroups are laid out first,
+each as one unit that the group's graph then places as a single node
+(`clusterUnits`): the parts hanging off one rail by one part, with the
+series part leading
 to it, go on a bus named after the net in a faint frame, on the side of
 the part their pin is on; parts named into a subgroup (`cluster` on an
 assignment) are laid out by ELK on their own, everything inside wired,

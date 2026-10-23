@@ -1051,11 +1051,15 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		b.WriteString("\n")
 	}
-	// A group defined but drawn empty is still a group.
+	// A group defined but drawn empty is still a group; subgroups of
+	// parts in no group are listed too.
 	for _, g := range c.Groups {
 		if !drawnGroups[strings.ToLower(g.Name)] {
 			fmt.Fprintf(&b, "group %s: no connected parts yet\n", g.Name)
 		}
+	}
+	if t := subgroupsText(c.Diagram, "", label); t != "" {
+		b.WriteString("subgroups in no group: " + t + "\n")
 	}
 	// The passives, as the app draws them: strapping that the links above
 	// don't show.

@@ -68,6 +68,15 @@ every merged pull request.
   with the new `delete_project` tool, by name only: its BOM, rails,
   connections, groups, calculations and notes go; the parts stay in the
   library.
+- **Every passive is wired from what it's placed by:** an IC pin, a
+  connector pin, or the previous passive in a chain, on that pin's side
+  of the part. A rail nothing in the group drives is still not wired
+  between its parts, but each pin now wires its own capacitors (the
+  wire named, a pin with nothing keeping its named stub) instead of
+  leaving them under a flag; a TVS by its connector and a resistor by
+  the output connector get their wire; switches, LEDs and batteries are
+  wired like anything else. The connections text lists subgroups of
+  parts in no group too.
 - **Subgroups within a group:** the parts hanging off one net (the
   VDD decoupling, a button and its pull-up, an LED and its resistor)
   are moved aside together and wired up as one unit in a faint frame

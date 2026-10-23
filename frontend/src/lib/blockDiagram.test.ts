@@ -445,22 +445,19 @@ describe('subgroups', () => {
     expect(ctrl.some((pt) => pt.x === c.x || pt.x === c.x + c.w)).toBe(true);
   });
 
-  it("puts a net's hanging parts on one bus named after it, in a frame of their own", () => {
-    const c = d.clusters.find((x) => x.name === '' && inside(passive('SW1'), x))!;
-    expect(c).toBeDefined();
-    expect(inside(passive('R2'), c)).toBe(true);
-    // One wire along their top ends carries the net's name; the pull-up's
-    // rail is named at its far end; the switch goes to ground.
-    const bus = d.wires.find((w) => w.net === 'BTN' && w.label?.text === 'BTN')!;
-    const pts = points(bus.path);
-    for (const p of [passive('SW1'), passive('R2')]) expect(pts.some((pt) => pt.x === p.ends[0].x && pt.y === p.ends[0].y), p.passive.label).toBe(true);
-    expect(new Set(pts.map((pt) => pt.y)).size).toBe(1);
+  it("wires a net's hanging parts to the pin they hang off, on its side of the part", () => {
+    // The button and its pull-up both hang off PA2's wire, named BTN; the
+    // pull-up's rail is named at its far end; the switch goes to ground.
+    const pa2 = box('U2 MCU').pins.find((p) => p.name === 'PA2')!;
+    const btn = d.wires.filter((w) => w.net === 'BTN' && !w.thin).flatMap((w) => points(w.path));
+    expect(btn.some((pt) => pt.x === pa2.x && pt.y === pa2.y)).toBe(true);
+    for (const p of [passive('SW1'), passive('R2')]) {
+      expect(btn.some((pt) => pt.x === p.ends[0].x && pt.y === p.ends[0].y), p.passive.label).toBe(true);
+      expect(p.x + p.w, `${p.passive.label} left of the MCU`).toBeLessThan(box('U2 MCU').x);
+    }
+    expect(d.wires.some((w) => w.net === 'BTN' && w.label?.text === 'BTN')).toBe(true);
     expect(d.flags.some((f) => f.text === '3V3' && f.x === passive('R2').ends[1].x)).toBe(true);
     expect(d.grounds.some((g) => g.x === passive('SW1').ends[1].x)).toBe(true);
-    // The MCU's pin gets a stub named BTN, and the subgroup sits on that pin's side of it.
-    const pa2 = box('U2 MCU').pins.find((p) => p.name === 'PA2')!;
-    expect(d.wires.some((w) => w.net === 'BTN' && w.label?.text === 'BTN' && points(w.path)[0].x === pa2.x && points(w.path)[0].y === pa2.y)).toBe(true);
-    expect(c.x + c.w).toBeLessThan(box('U2 MCU').x);
   });
 
   it('draws a passive reached only through another on a bus after it, led in from the pin', async () => {
@@ -550,16 +547,23 @@ describe('a board in groups', () => {
     expect(inside(cap('C4'), frame('MCU'))).toBe(true);
     expect(inside(cap('C5'), frame('Sensor'))).toBe(true);
     // Nothing in these groups drives 3V3 (the Power group makes it), so
-    // it isn't wired: each part's 3V3 pin gets a stub named 3V3, and each
-    // capacitor stands beside its part, on its pin's side, with 3V3
-    // flagged above it.
+    // it isn't wired between parts: each part's 3V3 pin wires its own
+    // capacitor, named 3V3 on the way, the capacitor beside its part on
+    // its pin's side; no 3V3 wire reaches another part.
     for (const [c, u] of [['C4', 'U2'], ['C5', 'U3']]) {
       const pin = box(u).pins.find((p) => p.net === '3V3' && !p.tied)!;
       const top = cap(c).ends[0];
-      expect(d.wires.some((w) => w.net === '3V3' && w.label?.text === '3V3' && points(w.path)[0].x === pin.x && points(w.path)[0].y === pin.y), `${u} stub`).toBe(true);
-      expect(d.flags.some((f) => f.text === '3V3' && f.up && f.x === top.x && f.y < top.y), `${c} flagged`).toBe(true);
+      const wire = d.wires.find((w) => w.net === '3V3' && !w.thin && points(w.path).some((pt) => pt.x === pin.x && pt.y === pin.y))!;
+      expect(wire, `${u} wired`).toBeDefined();
+      expect(points(wire.path).some((pt) => pt.x === top.x && pt.y === top.y), `${u} to ${c}`).toBe(true);
+      expect(wire.label?.text).toBe('3V3');
       if (pin.side === 'left') expect(cap(c).x + cap(c).w, `${c} left of ${u}`).toBeLessThan(box(u).x);
       else expect(cap(c).x, `${c} right of ${u}`).toBeGreaterThan(box(u).x + box(u).w);
+    }
+    const pins3v3 = d.boxes.flatMap((b) => b.pins.filter((p) => p.net === '3V3' && !p.tied).map((p) => ({ ...p, box: b })));
+    for (const w of d.wires.filter((x) => x.net === '3V3' && !x.thin)) {
+      const at = pins3v3.filter((p) => points(w.path).some((pt) => pt.x === p.x && pt.y === p.y));
+      expect(at.length, 'one part per 3V3 wire').toBeLessThanOrEqual(1);
     }
   });
 
