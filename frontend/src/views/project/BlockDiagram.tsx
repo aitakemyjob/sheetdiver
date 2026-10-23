@@ -320,6 +320,17 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                 )}
               </g>
             ))}
+            {drawing.clusters.map((c, i) => (
+              // A subgroup: its parts wired up as one unit, in a faint frame named only when it was named.
+              <g key={`c${i}`} data-cluster={c.name}>
+                <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={6} fill="none" stroke={pal.group.stroke} strokeWidth={1} strokeDasharray="2 3" />
+                {c.name && (
+                  <text x={c.x + 8} y={c.y + 14} fontSize={11} fontWeight={600} fill={pal.group.text}>
+                    {c.name}
+                  </text>
+                )}
+              </g>
+            ))}
             {drawing.wires.map((x, i) => {
               const on = marked(hl, x.net);
               return (

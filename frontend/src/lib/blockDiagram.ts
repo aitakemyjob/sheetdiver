@@ -103,7 +103,7 @@ export interface PlacedPassive extends Rect {
   terminals: [string, string];
   horizontal?: boolean;
   /** Where its name is written (its value under it): beside a vertical symbol, above a horizontal one. */
-  label: Pt & { anchor: 'start' | 'middle' };
+  label: Pt & { anchor: 'start' | 'middle' | 'end' };
   /** Where its group's content starts: saved positions are relative to it. */
   origin?: Pt;
 }
@@ -113,6 +113,11 @@ export interface Frame extends Rect {
   group: DiagramGroup;
   /** Height of the header with its name, description and notes. */
   header: number;
+}
+
+/** A subgroup's faint frame: the parts wired up as one unit inside their group, with its name. */
+export interface Cluster extends Rect {
+  name: string;
 }
 
 /** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
@@ -134,6 +139,8 @@ export interface BlockDrawing {
   dots: Pt[];
   /** Group frames, behind everything else. */
   frames: Frame[];
+  /** Subgroup frames, over the group frames. */
+  clusters: Cluster[];
   width: number;
   height: number;
 }
@@ -174,6 +181,9 @@ export function groupDiagram(d: Diagram, group: string): Diagram {
   };
 }
 
+/** An empty drawing. */
+const empty = (): BlockDrawing => ({ boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], clusters: [], width: 0, height: 0 });
+
 /** Moves an SVG path of absolute M, L, H and V commands. */
 export function movePath(path: string, dx: number, dy: number): string {
   return path.replace(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g, (_, cmd: string, a: string, b?: string) => {
@@ -191,6 +201,7 @@ export function topLeft(r: BlockDrawing): Pt {
     ...r.grounds,
     ...r.flags.map((f) => ({ x: f.x - f.text.length * 3.6, y: f.y - 12 })),
     ...r.dots,
+    ...r.clusters,
     ...r.wires.flatMap((w) => [
       ...[...w.path.matchAll(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g)].map(([, c, a, b]) => (c === 'V' ? { x: Infinity, y: Number(a) } : { x: Number(a), y: c === 'H' ? Infinity : Number(b) })),
       ...(w.label ? [labelRect(w.label)] : []),
@@ -211,6 +222,7 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
     flags: r.flags.map(pt),
     dots: r.dots.map(pt),
     frames: r.frames.map(pt),
+    clusters: r.clusters.map(pt),
   };
 }
 
@@ -221,12 +233,12 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
  * another group's parts.
  */
 async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
-  const out: BlockDrawing = { boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], width: 0, height: 0 };
-  const clusters: (DiagramGroup | undefined)[] = [...d.groups, undefined];
-  const subs = clusters.map((group) => groupDiagram(d, group?.name ?? ''));
+  const out: BlockDrawing = empty();
+  const groups: (DiagramGroup | undefined)[] = [...d.groups, undefined];
+  const subs = groups.map((group) => groupDiagram(d, group?.name ?? ''));
   const drawings = await Promise.all(subs.map((sub) => (sub.parts.length ? layoutOne(sub, opts) : undefined)));
   let x = 0;
-  clusters.forEach((group, i) => {
+  groups.forEach((group, i) => {
     const drawn = drawings[i];
     if (!drawn) return;
     const header = group ? headerHeight(group) : 0;
@@ -252,6 +264,7 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     out.grounds.push(...local.grounds);
     out.flags.push(...local.flags);
     out.dots.push(...local.dots);
+    out.clusters.push(...local.clusters);
     out.width = x + w;
     out.height = Math.max(out.height, header + local.height);
     x += w + GROUP_GAP;
@@ -443,6 +456,10 @@ interface PortEnd {
   passive?: boolean;
   /** On a series passive, which carries the net on to another. */
   series?: boolean;
+  /** On a subgroup, which never drives a net. */
+  unit?: boolean;
+  /** On a subgroup, whose bus this net is: it stands aside under the net's name, by the pin. */
+  aside?: boolean;
 }
 
 /** The ELK graph of a diagram, and what each node stands for. */
@@ -457,6 +474,8 @@ interface Built {
   labelled: Set<string>;
   /** Edge ids that carry their net's name (written on the wire after layout). */
   named: Set<string>;
+  /** Subgroups, each a node of its own. */
+  units: Unit[];
 }
 
 const option = {
@@ -513,10 +532,11 @@ function room(width: number, above: number, below: number): Pick<ElkNode, 'label
  * right-side pin, or a series passive's far end; else the first pin on
  * it) to each other port on it; ELK merges them into a bus.
  */
-function graph(d: Diagram, boxes: Box[]): Built {
-  const built: Built = { d, root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set() };
+function graph(d: Diagram, boxes: Box[], units: Unit[] = [], inside = false): Built {
+  const built: Built = { d, root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set(), units };
   const children = built.root.children!;
   const edges = built.root.edges!;
+  const member = new Set(units.flatMap((u) => [...u.members]));
   const ends = new Map<string, PortEnd[]>(); // net (lower case) → its ports
   const endsOf = (net: string) => ends.get(net.toLowerCase()) ?? [];
   const addEnd = (e: PortEnd) => ends.set(e.net.toLowerCase(), [...endsOf(e.net), e]);
@@ -536,6 +556,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
   // ports along a side regardless of the bands the names take.
   for (const b of boxes) {
     const id = `b:${b.part.id}`;
+    if (member.has(id)) continue; // drawn inside its subgroup
     built.boxes.set(id, b);
     const ports: ElkPort[] = [];
     let bottom = b.pins.some((p) => p.ground) ? GROUND + 10 : 6;
@@ -569,6 +590,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
   for (const q of d.passives) {
     if (built.below.some((u) => u.passive === q)) continue;
     const id = `q:${q.id}`;
+    if (member.has(id)) continue; // drawn inside its subgroup
     const nets = q.nets.filter((n) => boxesOn(n).size > 0);
     if (nets.length === 0) continue; // between passives only: not drawn
     const layoutOptions = { 'elk.portConstraints': 'FIXED_POS' };
@@ -626,6 +648,14 @@ function graph(d: Diagram, boxes: Box[]): Built {
     built.passives.push({ passive: q, node, size, horizontal: false, first: net, end });
   }
 
+  // Subgroups: each a node the size of its frame, the nets reaching it
+  // from outside at ports on the border facing the part they come from.
+  for (const u of units) {
+    const ports: ElkPort[] = u.ports.map((port, i) => ({ id: `${u.id}/${i}`, x: u.side === 'EAST' ? u.w : 0, y: port.y, width: 0, height: 0, layoutOptions: { 'elk.port.side': u.side } }));
+    u.ports.forEach((port, i) => addEnd({ id: `${u.id}/${i}`, net: port.net, side: u.side, passive: true, unit: true, aside: port.aside }));
+    children.push({ id: u.id, width: u.w, height: u.h, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS', 'elk.portLabels.placement': 'OUTSIDE' } });
+  }
+
   // Nets. One leaving the group (or the board) from a pin nothing in the
   // group is wired to is a stub out of that pin, named; an output leaving
   // the board ends in an arrow, with what hangs off it branching from
@@ -650,18 +680,29 @@ function graph(d: Diagram, boxes: Box[]): Built {
   const passiveOf = (e: PortEnd) => built.passives.find((x) => `${x.node.id}/0` === e.id);
   // Stands aside under its net's name rather than wired at the pin, placed
   // in a row by the part it serves (ghost edges, not drawn, chain the row).
+  const unitOf = (e: PortEnd) => units.find((u) => e.id.startsWith(`${u.id}/`));
+  const unitGhosts: ElkExtendedEdge[] = [];
   const aside = (e: PortEnd, net: string, by: PortEnd) => {
+    // Kept by the pin, on the pin's side of the part (a ghost edge, not
+    // drawn, towards it from a pin on the left): a subgroup, or a passive
+    // in a row with the others by its part.
+    const ghost = (from: string): ElkExtendedEdge => ({ id: `g:${net}:${e.id}`, sources: [by.side === 'WEST' ? e.id : from], targets: [by.side === 'WEST' ? from : e.id] });
+    const link = (from: string) => edges.push(ghost(from));
     const q = passiveOf(e);
-    if (!q) return;
+    if (!q) {
+      // A subgroup's wires place it; only one with none is kept by a ghost.
+      if (unitOf(e)) unitGhosts.push(ghost(by.id));
+      return;
+    }
     q.flag = net;
     const row = built.passives.filter((x) => x.flag && x.passive.part === q.passive.part && x !== q);
-    edges.push({ id: `g:${net}:${e.id}`, sources: [row.length ? `${row[row.length - 1].node.id}/0` : by.id], targets: [e.id] });
+    link(row.length ? `${row[row.length - 1].node.id}/0` : by.id);
   };
   for (const n of d.nets) {
     const ports = endsOf(n.name);
     if (ports.length === 0) continue;
     const boxPorts = ports.filter((e) => !e.passive);
-    const fromPassive = ports.find((e) => e.passive && e.side === 'EAST');
+    const fromPassive = ports.find((e) => e.passive && !e.unit && e.side === 'EAST');
     const driver = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH');
     const series = ports.some((e) => e.series);
     const hung = ports.filter((e) => e.passive && !e.series);
@@ -673,7 +714,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
     // LED or battery on it, or a rail, stands aside whole, under the net's
     // name: all of what hangs off it together, never half at the pin and
     // half away from it.
-    const standsAside = rail || hung.some((e) => ASIDE.has(passiveOf(e)?.passive.shape ?? ''));
+    const standsAside = rail || (!inside && hung.some((e) => e.aside || ASIDE.has(passiveOf(e)?.passive.shape ?? '')));
     if (home && standsAside) for (const e of hung) aside(e, n.name, home);
     const wiredPassives = standsAside ? [] : hung;
     // Which pins are labelled rather than wired: every pin of a rail; of
@@ -711,13 +752,18 @@ function graph(d: Diagram, boxes: Box[]): Built {
       edges.push(edge);
     });
   }
+  for (const g of unitGhosts) {
+    const u = units.find((x) => [...g.sources, ...g.targets].some((id) => id.startsWith(`${x.id}/`)))!;
+    if (!edges.some((e) => !e.id.startsWith('g:') && [...e.sources, ...e.targets].some((id) => id.startsWith(`${u.id}/`)))) edges.push(g);
+  }
   // Nodes in a layer keep this order where crossings allow: boxes first,
   // then the passives in the order of the pins they feed down each box,
   // so a crystal sits by its oscillator pins, not above the whole part.
   const boxIndex = new Map(children.filter((c) => c.id.startsWith('b:')).map((c, i) => [c.id, i]));
   const anchor = (c: ElkNode): [number, number] => {
     const q = built.passives.find((x) => x.node === c);
-    for (const net of q?.passive.nets ?? []) {
+    const nets = q?.passive.nets ?? units.find((u) => u.id === c.id)?.ports.map((port) => port.net) ?? [];
+    for (const net of nets) {
       const e = endsOf(net).find((x) => !x.passive);
       if (e) return [boxIndex.get(e.id.split('/')[0]) ?? 0, portOf.get(e.id)?.y ?? 0];
     }
@@ -745,18 +791,21 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
  * dragged, and a fresh graph is laid out again keeping that order (a
  * fresh one: the first result's wires would be taken as given).
  */
-async function layoutOne(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
+async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Promise<BlockDrawing> {
   const boxes = measure(d, opts);
   boxes.forEach((b) => pinsAt(b, d));
   const engine = await elk();
-  const first = graph(d, boxes);
+  const units = subgroups ? await clusterUnits(d, boxes, opts) : [];
+  const first = graph(d, boxes, units, !subgroups);
   const r = await engine.layout(first.root);
   const hint = new Map<string, Pt>();
   for (const p of d.parts) if (p.x !== undefined && p.y !== undefined) hint.set(`b:${p.id}`, { x: p.x, y: p.y });
   for (const q of d.passives) if (q.x !== undefined && q.y !== undefined) hint.set(`q:${q.id}`, { x: q.x, y: q.y });
+  // A subgroup goes where any of its members was dragged.
+  for (const u of units) for (const id of u.members) if (hint.has(id) && !hint.has(u.id)) hint.set(u.id, hint.get(id)!);
   if (!hint.size) return drawing(first, r);
   const was = new Map((r.children ?? []).map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]));
-  const again = graph(d, boxes);
+  const again = graph(d, boxes, units, !subgroups);
   for (const n of again.root.children ?? []) {
     const at = hint.get(n.id) ?? was.get(n.id);
     if (!at) continue;
@@ -772,8 +821,20 @@ const at = (v: number) => Math.round(v * 2) / 2;
 
 /** Turns ELK's result into the drawing. */
 function drawing(built: Built, r: ElkNode): BlockDrawing {
-  const out: BlockDrawing = { boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], width: at(r.width ?? 0), height: at(r.height ?? 0) };
+  const out: BlockDrawing = { ...empty(), width: at(r.width ?? 0), height: at(r.height ?? 0) };
   const placed = new Map((r.children ?? []).map((n) => [n.id, n]));
+  // Subgroups: each one's own drawing, moved to where ELK put its node.
+  for (const u of built.units) {
+    const n = placed.get(u.id)!;
+    const local = moveDrawing(u.drawing, at(n.x ?? 0), at(n.y ?? 0));
+    out.boxes.push(...local.boxes);
+    out.passives.push(...local.passives);
+    out.wires.push(...local.wires);
+    out.grounds.push(...local.grounds);
+    out.flags.push(...local.flags);
+    out.dots.push(...local.dots);
+    out.clusters.push({ x: at(n.x ?? 0), y: at(n.y ?? 0), w: u.w, h: u.h, name: u.name });
+  }
   // Symbols: at ELK's place, their pins where they were measured (ELK
   // was given them as fixed ports).
   for (const [id, b] of built.boxes) {
@@ -889,6 +950,7 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
     ...out.boxes.map((b) => ({ x: b.x + b.w, y: b.y + b.h + GROUND })),
     ...out.passives.map((p) => ({ x: p.x + p.w, y: p.y + p.h + GROUND })),
     ...out.grounds.map((g) => ({ x: g.x + 8, y: g.y + GROUND })),
+    ...out.clusters.map((c) => ({ x: c.x + c.w, y: c.y + c.h })),
     ...out.wires.map(wireExtent),
   ];
   out.width = Math.max(out.width, ...extents.map((e) => e.x + PAD));
@@ -902,6 +964,247 @@ function wireExtent(w: Wire): Pt {
   const ys = [...w.path.matchAll(/(?:,(-?[\d.]+)|V(-?[\d.]+))/g)].map((m) => Number(m[1] ?? m[2]));
   const l = w.label ? labelRect(w.label) : undefined;
   return { x: Math.max(0, ...xs, l ? l.x + l.w : 0), y: Math.max(0, ...ys, l ? l.y + l.h : 0) };
+}
+
+// ── subgroups ─────────────────────────────────────────────────────────
+
+/**
+ * A subgroup laid out as one unit: the parts hanging off one net (the VDD
+ * decoupling, a button and its pull-up, an LED behind its resistor), or
+ * the parts given one name. Its drawing is local to its frame, from
+ * (0, 0) to (w, h); the group's layout places the frame as one node.
+ */
+interface Unit {
+  id: string;
+  /** As named; "" for one of a net's hanging parts, whose bus says the net. */
+  name: string;
+  /** The nodes drawn inside it. */
+  members: Set<string>;
+  drawing: BlockDrawing;
+  w: number;
+  h: number;
+  /** Where each net from outside reaches it, down one border. */
+  ports: { net: string; y: number; aside?: boolean }[];
+  /** The border its ports are on: facing the part its first net comes from. */
+  side: 'WEST' | 'EAST';
+  /** A bus with its parts hanging off it (else its own layout, with a box in it). */
+  bus?: boolean;
+}
+
+const UNIT_PAD = 14; // inside a subgroup's frame
+const UNIT_HEAD = 18; // a bus's name above it, and the frame's
+const ROW_MAX = 6; // parts hanging off one bus before it goes on below
+
+/**
+ * The subgroups of a diagram: the parts named into one, each pulling the
+ * rest of its net's hanging parts in with it; and, of what stands aside
+ * under a net's name by one part, any two or more together, with the
+ * series parts that lead there (a resistor before an LED).
+ */
+async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Promise<Unit[]> {
+  const plain = graph(d, boxes);
+  const nodeOf = new Map(plain.passives.map((q) => [q.node.id, q]));
+  const key = (s: string) => s.toLowerCase();
+  // Named: parts and passives with the same name, and the whole of a net
+  // whose hanging parts one of them is among.
+  const named = new Map<string, { name: string; ids: Set<string> }>();
+  const name = (id: string, cluster?: string) => {
+    if (!cluster) return;
+    const c = named.get(key(cluster)) ?? { name: cluster, ids: new Set<string>() };
+    c.ids.add(id);
+    named.set(key(cluster), c);
+  };
+  for (const p of d.parts) name(`b:${p.id}`, p.cluster);
+  for (const q of d.passives) name(`q:${q.id}`, q.cluster);
+  const taken = new Set<string>();
+  for (const c of named.values()) {
+    for (const id of [...c.ids]) {
+      const q = nodeOf.get(id);
+      if (!q?.flag) continue;
+      for (const x of plain.passives) if (x.flag === q.flag && x.passive.part === q.passive.part) c.ids.add(x.node.id);
+    }
+    for (const id of c.ids) taken.add(id);
+  }
+  // Automatic: what stands aside on one net by one part, with the series
+  // part its net is reached through.
+  const auto = new Map<string, { name: string; ids: Set<string> }>();
+  for (const q of plain.passives) {
+    if (!q.flag || taken.has(q.node.id)) continue;
+    const k = `${key(q.flag)}|${q.passive.part}`;
+    const c = auto.get(k) ?? { name: q.flag, ids: new Set<string>() };
+    c.ids.add(q.node.id);
+    auto.set(k, c);
+  }
+  for (const q of plain.passives) {
+    if (!q.horizontal || taken.has(q.node.id)) continue;
+    const down = q.passive.nets.find((n) => key(n) !== key(q.first));
+    const c = [...auto.values()].find((x) => down && key(x.name) === key(down));
+    c?.ids.add(q.node.id);
+  }
+  const units: Unit[] = [];
+  for (const [k, c] of named) units.push(await unit(`u:${k}`, c.name, c.ids, d, plain, boxes, opts));
+  for (const [k, c] of auto) if (c.ids.size >= 2) units.push(await unit(`u:auto:${k}`, '', c.ids, d, plain, boxes, opts));
+  // Each faces the part its first signal (else its first net) comes
+  // from: a subgroup off a pin on a part's left goes to the left of it.
+  const power = new Set(d.nets.filter((n) => n.kind === 'power').map((n) => n.name.toLowerCase()));
+  for (const u of units) {
+    const net = [...u.ports].sort((a, b) => Number(power.has(a.net.toLowerCase())) - Number(power.has(b.net.toLowerCase())))[0]?.net.toLowerCase();
+    const pin = d.parts.filter((p) => !u.members.has(`b:${p.id}`)).flatMap((p) => p.pins).find((p) => p.net?.toLowerCase() === net);
+    if (pin?.side === 'left') {
+      u.side = 'EAST';
+      if (u.bus) mirror(u);
+    }
+  }
+  return units;
+}
+
+/** Turns a bus subgroup round, so its entry is on its right. */
+function mirror(u: Unit): void {
+  const r = u.drawing;
+  const w = u.w;
+  const pt = <T extends Pt>(p: T): T => ({ ...p, x: at(w - p.x) });
+  // A horizontal symbol's ends change places; a vertical one's stay.
+  r.passives = r.passives.map((p) => ({
+    ...p,
+    x: at(w - p.x - p.w),
+    ends: p.horizontal ? [pt(p.ends[1]), pt(p.ends[0])] : [pt(p.ends[0]), pt(p.ends[1])],
+    terminals: p.horizontal ? [p.terminals[1], p.terminals[0]] : p.terminals,
+    label: { ...pt(p.label), anchor: p.label.anchor === 'start' ? 'end' : p.label.anchor },
+  }));
+  r.wires = r.wires.map((x) => ({
+    ...x,
+    path: x.path.replace(/([MLH])(-?[\d.]+)/g, (_, cmd: string, a: string) => `${cmd}${at(w - Number(a))}`),
+    label: x.label && { ...pt(x.label), anchor: x.label.anchor === 'start' ? 'end' : x.label.anchor === 'end' ? 'start' : 'middle' },
+  }));
+  r.grounds = r.grounds.map(pt);
+  r.flags = r.flags.map(pt);
+  r.dots = r.dots.map(pt);
+}
+
+/** Lays a subgroup out: a bus with its parts hanging off it, or, with a box among them, its own layout. */
+async function unit(id: string, name: string, ids: Set<string>, d: Diagram, plain: Built, boxes: Box[], opts: LayoutOptions): Promise<Unit> {
+  const parts = boxes.filter((b) => ids.has(`b:${b.part.id}`)).map((b) => b.part);
+  if (parts.length === 0) return busUnit(id, name, plain.passives.filter((q) => ids.has(q.node.id)));
+  const passives = d.passives.filter((q) => ids.has(`q:${q.id}`));
+  const strip = <T extends { x?: number; y?: number; cluster?: string }>(p: T): T => ({ ...p, x: undefined, y: undefined, cluster: undefined });
+  const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);
+  const sub: Diagram = { parts: parts.map((p) => ({ ...strip(p), column: columns.indexOf(p.column) })), passives: passives.map(strip), nets: d.nets, groups: [], links: [] };
+  const drawn = await layoutOne(sub, opts, false);
+  const corner = topLeft(drawn);
+  const local = moveDrawing(drawn, UNIT_PAD - corner.x, UNIT_PAD + UNIT_HEAD - corner.y);
+  const far = bottomRight(local);
+  const u: Unit = { id, name, members: ids, drawing: local, w: far.x + UNIT_PAD, h: far.y + UNIT_PAD, ports: [], side: 'WEST' };
+  // The nets that also reach a part outside: a port each, level with the
+  // net's name inside, else with a pin on it.
+  const inside = new Set([...parts.flatMap((p) => p.pins.map((pin) => pin.net ?? '')), ...passives.flatMap((q) => q.nets)].map((n) => n.toLowerCase()));
+  const outside = new Set(d.parts.filter((p) => !ids.has(`b:${p.id}`)).flatMap((p) => p.pins.map((pin) => (pin.net ?? '').toLowerCase())));
+  for (const net of d.nets.map((n) => n.name).filter((n) => inside.has(n.toLowerCase()) && outside.has(n.toLowerCase()))) {
+    const label = local.flags.find((f) => f.text === net) ?? local.wires.find((w) => w.label?.text === net)?.label;
+    const pin = local.boxes.flatMap((b) => b.pins).find((p) => p.net === net);
+    const y = label?.y ?? pin?.y;
+    if (y !== undefined) u.ports.push({ net, y: at(y) });
+  }
+  u.ports.sort((a, b) => a.y - b.y);
+  return u;
+}
+
+/**
+ * A bus for each net, its name above its left end and its parts hanging
+ * off it in a row (on below, past six), each to ground or its far net's
+ * name below; a series part leads in to the bus from the left, from the
+ * net that reaches it.
+ */
+function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
+  const out = empty();
+  const u: Unit = { id, name, members: new Set(nodes.map((q) => q.node.id)), drawing: out, w: 0, h: 0, ports: [], side: 'WEST', bus: true };
+  const buses = new Map<string, { net: string; chain: PassiveNode[]; hangers: PassiveNode[] }>();
+  const bus = (net: string) => {
+    const b = buses.get(net.toLowerCase()) ?? { net, chain: [], hangers: [] };
+    buses.set(net.toLowerCase(), b);
+    return b;
+  };
+  for (const q of nodes) {
+    if (q.horizontal) bus(q.passive.nets.find((n) => n.toLowerCase() !== q.first.toLowerCase()) ?? q.first).chain.push(q);
+    else bus(q.first).hangers.push(q);
+  }
+  let y = UNIT_PAD + (name ? UNIT_HEAD : 0);
+  let width = 0;
+  for (const b of buses.values()) {
+    let x = UNIT_PAD;
+    let busY = y + UNIT_HEAD;
+    // The series parts along the bus line, wired from the port at the
+    // left border, the bus then on from the last one.
+    const entry = b.chain[0]?.first ?? b.net;
+    u.ports.push({ net: entry, y: busY, aside: b.chain.length === 0 });
+    let from = b.chain.length ? 0 : x;
+    for (const q of b.chain) {
+      const size = passiveSize(q.passive, true);
+      const p = placePassive(q.passive, x, busY - size.axis, size, true, q.first);
+      out.wires.push({ net: q.first, path: `M${from},${busY} H${x}` });
+      out.passives.push(p);
+      from = x + size.w;
+      x = from + Math.max(24, b.net.length * CHAR + 12);
+    }
+    // The hangers, in rows: the bus runs along their top ends, a junction
+    // at each but its ends, and goes on below from its left end.
+    const rows: PassiveNode[][] = [];
+    b.hangers.forEach((q, i) => (i % ROW_MAX ? rows[rows.length - 1].push(q) : rows.push([q])));
+    const busX = b.chain.length ? from : x;
+    rows.forEach((row, r) => {
+      const tops: Pt[] = [];
+      let rowH = 0;
+      for (const q of row) {
+        const size = passiveSize(q.passive);
+        const p = placePassive(q.passive, x, busY, size, false, q.first);
+        out.passives.push(p);
+        tops.push(p.ends[0]);
+        const e = p.ends[1];
+        if (q.end?.ground !== false) {
+          out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
+          out.grounds.push({ x: e.x, y: e.y + 6 });
+          rowH = Math.max(rowH, size.h + 6 + GROUND);
+        } else {
+          out.wires.push({ net: q.end.text, path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
+          out.flags.push({ x: e.x, y: e.y + 6, text: q.end.text });
+          rowH = Math.max(rowH, size.h + 6 + 16);
+        }
+        x += size.w + 10;
+      }
+      const pts = [{ x: busX, y: busY }, ...tops];
+      const wire: Wire = { net: b.net, path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') };
+      if (r === 0) wire.label = { x: busX, y: busY - 5, anchor: 'start', text: b.net };
+      out.wires.push(wire);
+      // A junction where a hanger meets the bus, and where it goes on below.
+      tops.forEach((t, i) => (i < tops.length - 1 || r < rows.length - 1) && out.dots.push(t));
+      if (r < rows.length - 1) {
+        out.dots.push({ x: busX, y: busY });
+        const next = busY + rowH + UNIT_HEAD;
+        out.wires.push({ net: b.net, path: `M${busX},${busY} V${next}` });
+        busY = next;
+      }
+      width = Math.max(width, x - 10);
+      x = busX;
+      y = busY + rowH;
+    });
+    y += UNIT_PAD;
+  }
+  u.w = width + UNIT_PAD;
+  u.h = y;
+  out.width = u.w;
+  out.height = u.h;
+  return u;
+}
+
+/** The bottom-right corner of everything drawn. */
+function bottomRight(r: BlockDrawing): Pt {
+  const pts: Pt[] = [
+    ...r.boxes.map((b) => ({ x: b.x + b.w, y: b.y + b.h })),
+    ...r.passives.map((p) => ({ x: p.x + p.w, y: p.y + p.h })),
+    ...r.grounds.map((g) => ({ x: g.x + 8, y: g.y + GROUND })),
+    ...r.flags.map((f) => ({ x: f.x + f.text.length * 3.6, y: f.y + 14 })),
+    ...r.wires.map(wireExtent),
+  ];
+  return { x: Math.max(0, ...pts.map((p) => p.x)), y: Math.max(0, ...pts.map((p) => p.y)) };
 }
 
 // ── helpers ───────────────────────────────────────────────────────────

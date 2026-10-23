@@ -127,7 +127,14 @@ signal reaching three parts or spanning more than a column is a net
 label at each pin; a switch, LED or battery stands aside under its net's
 name; everything else (a crystal with its load capacitors, a series
 resistor, a pin's own pull-up) is wired at the pin, the passive placed
-before the pin it feeds. `lib/symbols.ts` holds the standard
+before the pin it feeds. Subgroups are laid out first, each as one unit
+that the group's graph then places as a single node (`clusterUnits`):
+the parts hanging off one net by one part, with the series part leading
+to it, go on a bus named after the net in a faint frame, on the side of
+the part their pin is on; parts named into a subgroup (`cluster` on an
+assignment) are laid out by ELK on their own, everything inside wired,
+with a port on the frame for each net reaching it from outside.
+`lib/symbols.ts` holds the standard
 symbols' geometry (two-terminals down the y axis, transistors in a box
 with their terminals on its border); `views/project/BlockDiagram.tsx`
 draws it all as SVG and lets the user hide a generated symbol's

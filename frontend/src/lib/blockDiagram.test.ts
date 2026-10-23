@@ -55,6 +55,9 @@ function pinTexts(b: Box, p: PlacedPin): (Rect & { what: string })[] {
   return out;
 }
 
+/** Whether a rectangle lies wholly within a frame. */
+const inside = (r: Rect, f: Rect) => r.x >= f.x && r.y >= f.y && r.x + r.w <= f.x + f.w && r.y + r.h <= f.y + f.h;
+
 /** Everything drawn as a rectangle: boxes with their titles, passives, net labels. */
 function shapes(d: BlockDrawing) {
   return [
@@ -216,7 +219,8 @@ describe.each(circuits)('the block diagram of %s', (name) => {
   });
 
   it("moves a net's hanging parts aside all together, or wires them all at the pin", () => {
-    const aside = (p: (typeof d.passives)[number]) => d.flags.some((f) => f.up && f.x === p.ends[0].x && f.y < p.ends[0].y);
+    // Flagged with its net's name above it, or on a bus in a subgroup.
+    const aside = (p: (typeof d.passives)[number]) => d.flags.some((f) => f.up && f.x === p.ends[0].x && f.y < p.ends[0].y) || d.clusters.some((c) => inside(p, c));
     // By the net at its top end (a pull-up hangs from its signal), within its group.
     const hangsFrom = (p: (typeof d.passives)[number]) => d.wires.find((w) => points(w.path).some((pt) => pt.x === p.ends[0].x && pt.y === p.ends[0].y))?.net ?? '';
     const byNet = new Map<string, boolean[]>();
@@ -415,6 +419,56 @@ describe("the tester's board", () => {
   });
 });
 
+describe('subgroups', () => {
+  let d: BlockDrawing;
+  beforeAll(async () => {
+    d = await layoutBlockDiagram(circuit('Driver board'));
+  });
+  const cluster = (name: string) => d.clusters.find((c) => c.name === name)!;
+  const passive = (label: string) => d.passives.find((p) => p.passive.label === label)!;
+  const box = (title: string) => d.boxes.find((b) => b.part.title === title)!;
+
+  it('draws the parts named into one inside its frame, wired up, inside their group', () => {
+    const c = cluster('Status LED');
+    expect(c).toBeDefined();
+    for (const p of [passive('R3'), passive('D2'), box('Q2')]) expect(inside(p, c), p.x.toString()).toBe(true);
+    const frame = d.frames.find((f) => f.group.name === 'MCU')!;
+    expect(inside(c, frame)).toBe(true);
+    // The LED is wired to the transistor's collector, not standing aside.
+    const led = passive('D2');
+    expect(d.wires.some((w) => w.net === 'LED2_K' && points(w.path).some((pt) => pt.x === led.ends[0].x && pt.y === led.ends[0].y))).toBe(true);
+    expect(d.flags.some((f) => f.text === 'LED2_K')).toBe(false);
+    // Its signal reaches it from the MCU's pin by a wire, to its border.
+    const ctrl = d.wires.filter((w) => w.net === 'CTRL' && !w.thin).flatMap((w) => points(w.path));
+    const pa3 = box('U2 MCU').pins.find((p) => p.name === 'PA3')!;
+    expect(ctrl.some((pt) => pt.x === pa3.x && pt.y === pa3.y)).toBe(true);
+    expect(ctrl.some((pt) => pt.x === c.x || pt.x === c.x + c.w)).toBe(true);
+  });
+
+  it("puts a net's hanging parts on one bus named after it, in a frame of their own", () => {
+    const c = d.clusters.find((x) => x.name === '' && inside(passive('SW1'), x))!;
+    expect(c).toBeDefined();
+    expect(inside(passive('R2'), c)).toBe(true);
+    // One wire along their top ends carries the net's name; the pull-up's
+    // rail is named at its far end; the switch goes to ground.
+    const bus = d.wires.find((w) => w.net === 'BTN' && w.label?.text === 'BTN')!;
+    const pts = points(bus.path);
+    for (const p of [passive('SW1'), passive('R2')]) expect(pts.some((pt) => pt.x === p.ends[0].x && pt.y === p.ends[0].y), p.passive.label).toBe(true);
+    expect(new Set(pts.map((pt) => pt.y)).size).toBe(1);
+    expect(d.flags.some((f) => f.text === '3V3' && f.x === passive('R2').ends[1].x)).toBe(true);
+    expect(d.grounds.some((g) => g.x === passive('SW1').ends[1].x)).toBe(true);
+    // The MCU's pin gets a stub named BTN, and the subgroup sits on that pin's side of it.
+    const pa2 = box('U2 MCU').pins.find((p) => p.name === 'PA2')!;
+    expect(d.wires.some((w) => w.net === 'BTN' && w.label?.text === 'BTN' && points(w.path)[0].x === pa2.x && points(w.path)[0].y === pa2.y)).toBe(true);
+    expect(c.x + c.w).toBeLessThan(box('U2 MCU').x);
+  });
+
+  it('leaves a part alone on its net where it was', () => {
+    // D1 hangs under PA1; C2 stands by VDD with 3V3 flagged above it.
+    expect(d.clusters.some((c) => inside(passive('D1'), c) || inside(passive('C2'), c))).toBe(false);
+  });
+});
+
 describe('a board in groups', () => {
   const dg = circuit('Grouped MCU board');
   let d: BlockDrawing;
@@ -423,7 +477,6 @@ describe('a board in groups', () => {
   });
   const frame = (name: string) => d.frames.find((f) => f.group.name === name)!;
   const box = (title: string) => d.boxes.find((b) => b.part.title.split(' ')[0] === title)!;
-  const inside = (r: Rect, f: Rect) => r.x >= f.x && r.y >= f.y && r.x + r.w <= f.x + f.w && r.y + r.h <= f.y + f.h;
 
   it('frames each group, left to right in power-flow order, without overlapping', async () => {
     expect(d.frames.map((f) => f.group.name)).toEqual(['Power', 'MCU', 'Sensor']);
@@ -446,13 +499,15 @@ describe('a board in groups', () => {
     expect(inside(cap('C5'), frame('Sensor'))).toBe(true);
     // Nothing in these groups drives 3V3 (the Power group makes it), so
     // it isn't wired: each part's 3V3 pin gets a stub named 3V3, and each
-    // capacitor stands beside its part with 3V3 flagged above it.
+    // capacitor stands beside its part, on its pin's side, with 3V3
+    // flagged above it.
     for (const [c, u] of [['C4', 'U2'], ['C5', 'U3']]) {
       const pin = box(u).pins.find((p) => p.net === '3V3' && !p.tied)!;
       const top = cap(c).ends[0];
       expect(d.wires.some((w) => w.net === '3V3' && w.label?.text === '3V3' && points(w.path)[0].x === pin.x && points(w.path)[0].y === pin.y), `${u} stub`).toBe(true);
       expect(d.flags.some((f) => f.text === '3V3' && f.up && f.x === top.x && f.y < top.y), `${c} flagged`).toBe(true);
-      expect(cap(c).x, `${c} beside ${u}`).toBeGreaterThan(box(u).x + box(u).w);
+      if (pin.side === 'left') expect(cap(c).x + cap(c).w, `${c} left of ${u}`).toBeLessThan(box(u).x);
+      else expect(cap(c).x, `${c} right of ${u}`).toBeGreaterThan(box(u).x + box(u).w);
     }
   });
 
