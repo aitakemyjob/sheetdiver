@@ -5,7 +5,7 @@ import { labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDra
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -120,7 +120,8 @@ describe.each(circuits)('the block diagram of %s', (name) => {
         if (p.side === 'right') expect(p.x).toBe(b.x + b.w);
         if (p.side === 'top') expect(p.y).toBe(b.y);
         if (p.side === 'bottom') expect(p.y).toBe(b.y + b.h);
-        expect(b.body.x - b.x, b.part.title).toBe(PIN_LEN);
+        // A transistor is its symbol: the pin ends on its border.
+        expect(b.body.x - b.x, b.part.title).toBe(b.part.shape === 'ic' ? PIN_LEN : 0);
       }
   });
 
@@ -158,12 +159,12 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     const shunts = d.passives.filter((p) => p.passive.mount !== 'bridge' && p.passive.nets.length === 1);
     const pins = d.boxes.flatMap((b) => b.pins.filter((p) => p.ground)).length;
     expect(d.grounds).toHaveLength(shunts.length + pins);
-    for (const p of shunts) expect(d.grounds.some((g) => g.x === p.x + p.w / 2 && g.y > p.y + p.h)).toBe(true);
+    for (const p of shunts) expect(d.grounds.some((g) => g.x === p.ends[1].x && g.y > p.ends[1].y)).toBe(true);
   });
 
   it('names the other end of a passive between two nets, unless both are wired', () => {
     for (const p of d.passives.filter((x) => x.passive.mount !== 'bridge' && x.passive.nets.length === 2)) {
-      const flagged = d.flags.some((f) => p.passive.nets.includes(f.text) && f.x === p.x + p.w / 2);
+      const flagged = d.flags.some((f) => p.passive.nets.includes(f.text) && f.x === p.ends[1].x && f.y > p.ends[1].y);
       const wired = p.passive.nets.every((n) => d.wires.some((w) => w.net === n && !w.thin && points(w.path).some((pt) => overlaps(p, { x: pt.x, y: pt.y, w: 0, h: 0 }, 1))));
       expect(flagged || wired, p.passive.label).toBe(true);
     }
@@ -200,6 +201,18 @@ describe.each(circuits)('the block diagram of %s', (name) => {
         }
         expect(ends.has(`${p.x},${p.y}`)).toBe(true);
       }
+  });
+
+  it("attaches a wire, or its far end's ground or name, at each end of every passive's symbol", () => {
+    const ends = new Set(d.wires.flatMap((w) => points(w.path)).map((p) => `${p.x},${p.y}`));
+    for (const p of d.passives) {
+      for (const e of p.ends) expect(ends.has(`${e.x},${e.y}`), `${p.passive.label} at ${e.x},${e.y}`).toBe(true);
+      // The symbol runs down the node, or along it.
+      if (p.horizontal) expect(p.ends[0].y).toBe(p.ends[1].y);
+      else expect(p.ends[0].x).toBe(p.ends[1].x);
+      // Its terminals are the backend's, the first at the net its first end is on.
+      expect([...p.terminals].sort()).toEqual([...p.passive.ends].sort());
+    }
   });
 
   it("writes no pin number over a wire", () => {
@@ -286,7 +299,7 @@ describe('the USB-C sketch', () => {
     expect(passive('C1,C2').x).toBeLessThan(box('U2').x + box('U2').w);
     // R4 right under its CFG pin.
     expect(passive('R4').y).toBeGreaterThan(box('U2').y + box('U2').h);
-    expect(Math.abs(passive('R4').x + passive('R4').w / 2 - pin('U2', 'CFG1').x)).toBeLessThan(1);
+    expect(Math.abs(passive('R4').ends[0].x - pin('U2', 'CFG1').x)).toBeLessThan(1);
     // The Rd resistors beyond J1's CC pins.
     for (const [rd, cc] of [
       ['Rd1', 'CC1'],
@@ -340,8 +353,8 @@ describe('the MCU board', () => {
   it('draws the I2C pull-ups up to 3V3, not down to ground', async () => {
     for (const r of ['R2', 'R3']) {
       const p = d.passives.find((x) => x.passive.label === r)!;
-      expect(d.flags.find((f) => f.x === p.x + p.w / 2)).toMatchObject({ text: '3V3' });
-      expect(d.grounds.some((g) => g.x === p.x + p.w / 2 && g.y === p.y + p.h + 6)).toBe(false);
+      expect(d.flags.find((f) => f.x === p.ends[1].x)).toMatchObject({ text: '3V3' });
+      expect(d.grounds.some((g) => g.x === p.ends[1].x && g.y === p.ends[1].y + 6)).toBe(false);
     }
   });
   it('takes a wire to a part two columns away over or under the one between', async () => {
@@ -363,7 +376,7 @@ describe("the tester's board", () => {
 
   it('hangs R3 under the ILIM pin', () => {
     expect(passive('R3').y).toBeGreaterThan(pin('U1', 'ILIM').y);
-    expect(Math.abs(passive('R3').x + passive('R3').w / 2 - pin('U1', 'ILIM').x)).toBeLessThan(80);
+    expect(Math.abs(passive('R3').ends[0].x - pin('U1', 'ILIM').x)).toBeLessThan(80);
   });
 
   it('drops C3,C4 off 3V3 beyond U2, not on its wires', () => {
@@ -415,7 +428,7 @@ describe('a board in groups', () => {
     // Each is wired to its own part's 3V3 pin.
     for (const [c, u] of [['C4', 'U2'], ['C5', 'U3']]) {
       const pin = box(u).pins.find((p) => p.net === '3V3' && !p.tied)!;
-      const top = { x: cap(c).x + cap(c).w / 2, y: cap(c).y };
+      const top = cap(c).ends[0];
       const wire = d.wires.filter((w) => w.net === '3V3' && !w.thin).map((w) => points(w.path));
       expect(wire.some((pts) => pts.some((p) => p.x === pin.x && p.y === pin.y)), `${c} from ${u}`).toBe(true);
       expect(wire.some((pts) => pts.some((p) => p.x === top.x && p.y === top.y)), `${c} wired`).toBe(true);

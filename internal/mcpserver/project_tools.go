@@ -39,7 +39,7 @@ type connectionsArgs struct {
 
 type blockArgs struct {
 	Name   string `json:"name" jsonschema:"what's printed on the block diagram: J1 USB-C, Battery, R4, C1,C2"`
-	Kind   string `json:"kind,omitempty" jsonschema:"connector, module, resistor, capacitor, inductor or diode; passives are drawn hanging off their nets"`
+	Kind   string `json:"kind,omitempty" jsonschema:"what it's drawn as: connector, module or ic (a box with its pins); resistor, capacitor, capacitor-polarised, inductor, diode, schottky, zener, led, tvs, fuse, ferrite, crystal, battery or switch (its standard symbol, hanging off its nets, its ends as pins 1 and 2, A and K, or + and -); mosfet-n, mosfet-p, npn or pnp (its symbol, pins G, D, S or B, C, E)"`
 	Value  string `json:"value,omitempty" jsonschema:"printed under the name: 36.5k, 10µF, 2.2µH, TVS"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
@@ -203,7 +203,7 @@ func (s *Server) registerProjects() {
 			return text(connectionsText(d)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (assign {part: C5, supports: U3}: drawn by U3; unset, it's guessed from its nets), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
+	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM with a kind that says what they're drawn as (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF, D1 led, Q1 mosfet-n), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2 (A and K, + and -), or one pinless connection to hang it from a net to ground; a transistor's G, D, S or B, C, E), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (assign {part: C5, supports: U3}: drawn by U3; unset, it's guessed from its nets), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
 		write, func(a connectionsArgs) string { return "connections " + a.Project }, func(ctx context.Context, a connectionsArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -994,6 +994,7 @@ func connectionsText(d core.ProjectDetail) string {
 	label := map[string]string{}
 	for _, p := range c.Diagram.Parts {
 		label[p.ID] = p.Title
+		b.WriteString(symbolText(p) + "\n")
 	}
 	for _, e := range c.Diagram.Links {
 		arrow := "—"
@@ -1033,12 +1034,13 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		switch p.Mount {
 		case core.MountBridge:
-			fmt.Fprintf(&b, "%s across %s %s\n", name, part, strings.Join(p.Nets, "/"))
+			fmt.Fprintf(&b, "%s across %s %s", name, part, strings.Join(p.Nets, "/"))
 		case core.MountBelow:
-			fmt.Fprintf(&b, "%s on %s at %s, to %s\n", name, p.Nets[0], part, to)
+			fmt.Fprintf(&b, "%s on %s at %s, to %s", name, p.Nets[0], part, to)
 		default:
-			fmt.Fprintf(&b, "%s on %s (by %s), to %s\n", name, p.Nets[0], part, to)
+			fmt.Fprintf(&b, "%s on %s (by %s), to %s", name, p.Nets[0], part, to)
 		}
+		b.WriteString(endsText(p) + "\n")
 	}
 	if len(c.Pinouts) > 0 {
 		b.WriteString("\n## Pins by part\n")
@@ -1070,6 +1072,43 @@ func connectionsText(d core.ProjectDetail) string {
 		b.WriteString("none\n")
 	}
 	return b.String()
+}
+
+// symbolText says how a part is drawn: "U1 TPS63900 (ic, 11 pins, 9
+// connected)" for a generated symbol, "Q1 (mosfet-n: G=PWM D=MOTOR
+// S=GND)" for a transistor, "J1 USB-C (connector, 3 pins)" for a box
+// drawn from its connections.
+func symbolText(p core.DiagramPart) string {
+	if p.Shape != "ic" {
+		terms := make([]string, 0, len(p.Pins))
+		for _, pin := range p.Pins {
+			terms = append(terms, pin.Name+"="+pin.Net)
+		}
+		return fmt.Sprintf("%s (%s: %s)", p.Title, p.Shape, strings.Join(terms, " "))
+	}
+	if p.Full {
+		n := 0
+		for _, pin := range p.Pins {
+			if pin.Connected {
+				n++
+			}
+		}
+		return fmt.Sprintf("%s (%s, %d pins, %d connected)", p.Title, p.Kind, len(p.Pins), n)
+	}
+	return fmt.Sprintf("%s (%s, %d pins)", p.Title, p.Kind, len(p.Pins))
+}
+
+// endsText names a passive's symbol and, when its terminals aren't just
+// 1 and 2, which is at each end: " [led: anode on LED_A, cathode to ground]".
+func endsText(p core.DiagramPassive) string {
+	if len(p.Ends) != 2 || p.Ends[0] == "1" {
+		return " [" + p.Shape + "]"
+	}
+	far := "to ground"
+	if len(p.Nets) > 1 {
+		far = "on " + p.Nets[1]
+	}
+	return fmt.Sprintf(" [%s: %s on %s, %s %s]", p.Shape, p.Ends[0], p.Nets[0], p.Ends[1], far)
 }
 
 // supportsText says what a passive supports, and whether that was set or

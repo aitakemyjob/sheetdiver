@@ -275,7 +275,11 @@ describe('the palette', () => {
     expect(swatch(palette(), 'ic').fill).toBe('#26215C');
     document.documentElement.style.setProperty('--bg', '#ffffff');
     expect(darkTheme()).toBe(false);
-    expect(swatch(palette(), 'transistor')).toEqual(palette().connector);
+    expect(swatch(palette(), 'relay')).toEqual(palette().connector);
+    // The new kinds colour by family: diodes red, transistors blue, odd two-terminals grey.
+    expect(swatch(palette(), 'led')).toEqual(palette().diode);
+    expect(swatch(palette(), 'mosfet-n')).toEqual(palette().transistor);
+    expect(swatch(palette(), 'crystal')).toEqual(palette().other);
     document.documentElement.style.removeProperty('--bg');
     expect(darkTheme()).toBe(false);
   });

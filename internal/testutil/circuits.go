@@ -43,10 +43,14 @@ type CircuitNet struct {
 
 // Circuits are the boards the block diagram is tested on: the USB-C
 // to 3.3 V sketch (a connector, an eFuse and a buck-boost with their
-// passives), a battery board whose 4.2 V rail joins four parts, and a
+// passives), a battery board whose 4.2 V rail joins four parts, a
 // microcontroller board with I2C, USB data, pull-ups and an LED, and
 // that board in functional groups with decoupling capacitors that each
-// serve one part on the shared 3.3 V rail.
+// serve one part on the shared 3.3 V rail, two STM32 boards, and a
+// driver board with every standard symbol: a fuse, a polarised
+// capacitor, LEDs, a crystal with its load capacitors, a button, a
+// MOSFET switching a motor with a flyback diode, and an NPN with its
+// base resistor.
 func Circuits() []Circuit {
 	return []Circuit{
 		{
@@ -264,6 +268,30 @@ func Circuits() []Circuit {
 				{"C4", "", "U2 STM32U545"}, {"C5", "", "U2 STM32U545"}, {"C6", "", "U2 STM32U545"}, {"C7", "", "U2 STM32U545"}, {"C8", "", "U2 STM32U545"},
 				{"C9", "", "U2 STM32U545"}, {"C10", "", "U2 STM32U545"}, {"C11", "", "U2 STM32U545"}, {"C12", "", "U2 STM32U545"}, {"R3", "", "U2 STM32U545"}, {"R5", "", "D1 LED"},
 				{"Y1 FC-135", "Clock", ""}, {"C13", "", "Y1 FC-135"}, {"C14", "", "Y1 FC-135"},
+			},
+		},
+		{
+			Name:  "Driver board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS", Output: "3V3"}, {Name: "U2 MCU", Kind: "ic"}, {Name: "M1 Motor", Kind: "connector"},
+				{Name: "Q1", Kind: "mosfet-n", Value: "AO3400"}, {Name: "Q2", Kind: "npn", Value: "BC847"},
+				{Name: "F1", Kind: "fuse", Value: "500mA"}, {Name: "C1", Kind: "capacitor-polarised", Value: "100µF"}, {Name: "C2", Kind: "capacitor", Value: "10µF"},
+				{Name: "D1", Kind: "led", Value: "red"}, {Name: "R3", Kind: "resistor", Value: "1k"}, {Name: "D2", Kind: "led", Value: "green"},
+				{Name: "Y1", Kind: "crystal", Value: "8MHz"}, {Name: "C3", Kind: "capacitor", Value: "18pF"}, {Name: "C4", Kind: "capacitor", Value: "18pF"},
+				{Name: "SW1", Kind: "switch"}, {Name: "R2", Kind: "resistor", Value: "10k"}, {Name: "D3", Kind: "schottky", Value: "SS14"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS_IN", Kind: "power"}},
+			Pins: [][3]string{
+				{"VBUS_IN", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"}, {"VBUS_IN", "F1", "1"}, {"VBUS", "F1", "2"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"3V3", "U1", "SW"}, {"VBUS", "C1", ""}, {"3V3", "C2", ""},
+				{"3V3", "U2 MCU", "VDD"}, {"GND", "U2 MCU", "GND"}, {"PWM", "U2 MCU", "PA0"}, {"LED", "U2 MCU", "PA1"}, {"XIN", "U2 MCU", "XIN"}, {"XOUT", "U2 MCU", "XOUT"}, {"BTN", "U2 MCU", "PA2"}, {"CTRL", "U2 MCU", "PA3"},
+				{"LED", "D1", "A"}, {"GND", "D1", "K"},
+				{"XIN", "Y1", "1"}, {"XOUT", "Y1", "2"}, {"XIN", "C3", ""}, {"XOUT", "C4", ""},
+				{"BTN", "SW1", "1"}, {"GND", "SW1", "2"}, {"BTN", "R2", "1"}, {"3V3", "R2", "2"},
+				{"PWM", "Q1", "G"}, {"MOTOR", "Q1", "D"}, {"GND", "Q1", "S"},
+				{"VBUS", "M1 Motor", "+"}, {"MOTOR", "M1 Motor", "-"}, {"MOTOR", "D3", "A"}, {"VBUS", "D3", "K"},
+				{"CTRL", "R3", "1"}, {"BASE", "R3", "2"}, {"BASE", "Q2", "B"}, {"LED2_K", "Q2", "C"}, {"GND", "Q2", "E"}, {"3V3", "D2", "A"}, {"LED2_K", "D2", "K"},
 			},
 		},
 	}

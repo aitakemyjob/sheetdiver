@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveText } from '../../lib/api';
-import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
+import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
@@ -51,6 +52,63 @@ function SymbolPin({ p, body, color, stroke }: { p: PlacedPin; body: Rect; color
       <text x={name.x} y={name.y} textAnchor={name.anchor} dominantBaseline="central" fontSize={11} fill={color} transform={name.rotate}>
         {p.name}
       </text>
+    </g>
+  );
+}
+
+/**
+ * A two-terminal's standard symbol laid between its ends, turned round
+ * when its first terminal is the symbol's second (a diode with its
+ * cathode up); leads out to the ends, and its name and value beside it.
+ * A clear rectangle over the node takes the pointer for dragging.
+ */
+function PassiveSymbol({ p, color, text, wide }: { p: PlacedPassive; color: string; text: string; wide: boolean }) {
+  const q = p.passive;
+  const sym = twoTerminal(q.shape);
+  const flipped = p.terminals[0] === sym.terminals[1] && p.terminals[0] !== sym.terminals[0];
+  const [a, z] = flipped ? [p.ends[1], p.ends[0]] : p.ends;
+  const leads = twoTerminalLeads(sym, a, z);
+  return (
+    <g data-shape={q.shape} data-flipped={flipped || undefined}>
+      <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="transparent" stroke="none" />
+      {leads && <path d={leads} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} />}
+      <g transform={twoTerminalTransform(a, z)}>
+        <path d={sym.path} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} strokeLinejoin="round" />
+        {sym.fill && <path d={sym.fill} fill={color} stroke="none" />}
+      </g>
+      <text x={p.label.x} y={p.label.y} dominantBaseline="central" textAnchor={p.label.anchor} fontSize={12} fontWeight={500} fill={text}>
+        {q.label}
+      </text>
+      {q.value && (
+        <text x={p.label.x} y={p.label.y + 13} dominantBaseline="central" textAnchor={p.label.anchor} fontSize={10} fill={text}>
+          {q.value}
+        </text>
+      )}
+    </g>
+  );
+}
+
+/**
+ * A transistor's standard symbol in its box, its pins named at their
+ * terminals (the pin table's names: G, D, S or B, C, E).
+ */
+function TransistorSymbol({ b, color, text, wide }: { b: Box; color: string; text: string; wide: boolean }) {
+  const sym = threeTerminal(b.part.shape)!;
+  return (
+    <g data-shape={b.part.shape} transform={`translate(${b.x},${b.y})`}>
+      <rect x={0} y={0} width={b.w} height={b.h} fill="transparent" stroke="none" />
+      <path d={sym.path} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} strokeLinejoin="round" />
+      {sym.fill && <path d={sym.fill} fill={color} stroke="none" />}
+      {b.pins.map((p, i) => {
+        const t = sym.terminals[p.terminal ?? ''];
+        if (!t) return null;
+        const pos = t.x === 0 ? { x: 4, y: t.y - 6, anchor: 'start' as const } : t.y === 0 ? { x: t.x + 5, y: 12, anchor: 'start' as const } : { x: t.x + 5, y: t.y - 6, anchor: 'start' as const };
+        return (
+          <text key={i} data-pin={p.name} x={pos.x} y={pos.y} textAnchor={pos.anchor} fontSize={9} fill={text}>
+            {p.name}
+          </text>
+        );
+      })}
     </g>
   );
 }
@@ -256,10 +314,16 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
                     {b.part.title}
                   </text>
-                  <rect x={b.body.x} y={b.body.y} width={b.body.w} height={b.body.h} rx={3} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.9} />
-                  {b.pins.map((p, i) => (
-                    <SymbolPin key={i} p={p} body={b.body} color={c.text} stroke={c.stroke} />
-                  ))}
+                  {threeTerminal(b.part.shape) ? (
+                    <TransistorSymbol b={b} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
+                  ) : (
+                    <>
+                      <rect x={b.body.x} y={b.body.y} width={b.body.w} height={b.body.h} rx={3} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.9} />
+                      {b.pins.map((p, i) => (
+                        <SymbolPin key={i} p={p} body={b.body} color={c.text} stroke={c.stroke} />
+                      ))}
+                    </>
+                  )}
                 </g>
               );
             })}
@@ -276,15 +340,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   transform={dragging(q.id.split(',')[0])}
                   style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab' }}
                 >
-                  <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
-                  <text x={p.x + p.w / 2} y={p.y + (q.value ? 15 : p.h / 2)} dominantBaseline="central" textAnchor="middle" fontSize={13} fontWeight={500} fill={c.text}>
-                    {q.label}
-                  </text>
-                  {q.value && (
-                    <text x={p.x + p.w / 2} y={p.y + 30} dominantBaseline="central" textAnchor="middle" fontSize={11} fill={c.text}>
-                      {q.value}
-                    </text>
-                  )}
+                  <PassiveSymbol p={p} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
                 </g>
               );
             })}
@@ -303,7 +359,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
               // The net at a passive's far end (a pull-up's 3V3): a bar and its name.
               <g key={`f${i}`} data-flag={f.text}>
                 <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={w.stroke} strokeWidth={1.4} />
-                <text x={f.x} y={f.up ? f.y - 4 : f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
+                <text x={f.x} y={f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
                   {f.text}
                 </text>
               </g>

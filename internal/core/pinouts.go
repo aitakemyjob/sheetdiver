@@ -70,7 +70,7 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 	}
 	out := []Pinout{}
 	for _, pp := range parts {
-		if library.TwoTerminal(pp.Category) {
+		if twoTerminal(pp.Category, false) {
 			continue
 		}
 		// One table for the entry, and one per designator connected on its
@@ -97,7 +97,7 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 		}
 	}
 	for _, b := range blocks {
-		if library.TwoTerminal(b.Kind) {
+		if twoTerminal(b.Kind, true) {
 			continue
 		}
 		po := Pinout{Node: library.BlockNode(b.ID), Title: b.Name, Pins: []PinoutRow{}}

@@ -5028,8 +5028,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -6210,8 +6210,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -7374,8 +7374,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -7392,8 +7392,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -7410,8 +7410,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -8590,8 +8590,8 @@
        "guessed": true,
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -9931,8 +9931,8 @@
        "group": "MCU",
        "shape": "diode",
        "ends": [
-        "1",
-        "2"
+        "anode",
+        "cathode"
        ]
       },
       {
@@ -11926,8 +11926,8 @@
        "group": "MCU",
        "shape": "resistor",
        "ends": [
-        "1",
-        "2"
+        "2",
+        "1"
        ]
       },
       {
@@ -14768,8 +14768,8 @@
        "group": "MCU",
        "shape": "resistor",
        "ends": [
-        "1",
-        "2"
+        "2",
+        "1"
        ]
       }
      ],
@@ -15916,6 +15916,1533 @@
         "to": [
          "U2 STM32U545.PC15-OSC32_OUT",
          "C14 6.8pF"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "inputPower": 0
+  }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "Driver board"
+  },
+  "result": {
+   "project": {
+    "id": 10,
+    "name": "Driver board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [
+    {
+     "id": 5,
+     "projectId": 10,
+     "partId": 1,
+     "mpn": "SD1234",
+     "category": "buck",
+     "hasDatasheet": true,
+     "datasheetId": 1,
+     "designator": "U1",
+     "qty": 1,
+     "supplyRail": "VBUS",
+     "outputRail": "3V3"
+    }
+   ],
+   "rails": [
+    {
+     "id": 12,
+     "projectId": 10,
+     "name": "3V3",
+     "vNom": 3.3,
+     "source": "U1",
+     "loadTyp": 0,
+     "loadMax": 0,
+     "capacity": 3,
+     "capacityFrom": "SD1234 rated output (p1)",
+     "sourcePart": "U1 SD1234",
+     "consumers": [],
+     "power": 0
+    },
+    {
+     "id": 11,
+     "projectId": 10,
+     "name": "VBUS",
+     "vNom": 5,
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [
+      "U1"
+     ],
+     "power": 0,
+     "ripple": 1,
+     "rippleLimit": "U1's minimum input 4.5 V (SD1234 p1)"
+    }
+   ],
+   "checks": [
+    {
+     "level": "ok",
+     "message": "VBUS can carry up to 1 V p-p ripple; limited by U1's minimum input 4.5 V (SD1234 p1)",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "U1: VBUS maximum 5 V is within the recommended 17 V",
+     "part": "U1",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "3V3 load 0 A is 0% of 3 A",
+     "part": "U1 SD1234",
+     "rail": "3V3"
+    }
+   ],
+   "calculations": [],
+   "notes": [],
+   "connections": {
+    "nets": [
+     {
+      "id": 93,
+      "projectId": 10,
+      "name": "3V3",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 101,
+      "projectId": 10,
+      "name": "BASE",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 98,
+      "projectId": 10,
+      "name": "BTN",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 99,
+      "projectId": 10,
+      "name": "CTRL",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 90,
+      "projectId": 10,
+      "name": "GND",
+      "kind": "ground",
+      "source": "user"
+     },
+     {
+      "id": 95,
+      "projectId": 10,
+      "name": "LED",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 102,
+      "projectId": 10,
+      "name": "LED2_K",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 100,
+      "projectId": 10,
+      "name": "MOTOR",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 94,
+      "projectId": 10,
+      "name": "PWM",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 92,
+      "projectId": 10,
+      "name": "VBUS",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 91,
+      "projectId": 10,
+      "name": "VBUS_IN",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 96,
+      "projectId": 10,
+      "name": "XIN",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 97,
+      "projectId": 10,
+      "name": "XOUT",
+      "kind": "signal",
+      "source": "user"
+     }
+    ],
+    "blocks": [
+     {
+      "id": 127,
+      "projectId": 10,
+      "name": "C1",
+      "kind": "capacitor-polarised",
+      "value": "100µF",
+      "source": "user"
+     },
+     {
+      "id": 128,
+      "projectId": 10,
+      "name": "C2",
+      "kind": "capacitor",
+      "value": "10µF",
+      "source": "user"
+     },
+     {
+      "id": 133,
+      "projectId": 10,
+      "name": "C3",
+      "kind": "capacitor",
+      "value": "18pF",
+      "source": "user"
+     },
+     {
+      "id": 134,
+      "projectId": 10,
+      "name": "C4",
+      "kind": "capacitor",
+      "value": "18pF",
+      "source": "user"
+     },
+     {
+      "id": 129,
+      "projectId": 10,
+      "name": "D1",
+      "kind": "led",
+      "value": "red",
+      "source": "user"
+     },
+     {
+      "id": 131,
+      "projectId": 10,
+      "name": "D2",
+      "kind": "led",
+      "value": "green",
+      "source": "user"
+     },
+     {
+      "id": 137,
+      "projectId": 10,
+      "name": "D3",
+      "kind": "schottky",
+      "value": "SS14",
+      "source": "user"
+     },
+     {
+      "id": 126,
+      "projectId": 10,
+      "name": "F1",
+      "kind": "fuse",
+      "value": "500mA",
+      "source": "user"
+     },
+     {
+      "id": 121,
+      "projectId": 10,
+      "name": "J1 USB-C",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 123,
+      "projectId": 10,
+      "name": "M1 Motor",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 124,
+      "projectId": 10,
+      "name": "Q1",
+      "kind": "mosfet-n",
+      "value": "AO3400",
+      "source": "user"
+     },
+     {
+      "id": 125,
+      "projectId": 10,
+      "name": "Q2",
+      "kind": "npn",
+      "value": "BC847",
+      "source": "user"
+     },
+     {
+      "id": 136,
+      "projectId": 10,
+      "name": "R2",
+      "kind": "resistor",
+      "value": "10k",
+      "source": "user"
+     },
+     {
+      "id": 130,
+      "projectId": 10,
+      "name": "R3",
+      "kind": "resistor",
+      "value": "1k",
+      "source": "user"
+     },
+     {
+      "id": 135,
+      "projectId": 10,
+      "name": "SW1",
+      "kind": "switch",
+      "source": "user"
+     },
+     {
+      "id": 122,
+      "projectId": 10,
+      "name": "U2 MCU",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 132,
+      "projectId": 10,
+      "name": "Y1",
+      "kind": "crystal",
+      "value": "8MHz",
+      "source": "user"
+     }
+    ],
+    "connections": [
+     {
+      "id": 305,
+      "netId": 93,
+      "net": "3V3",
+      "entryId": 5,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "SW",
+      "pinType": "O"
+     },
+     {
+      "id": 308,
+      "netId": 93,
+      "net": "3V3",
+      "blockId": 122,
+      "pin": "VDD",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 307,
+      "netId": 93,
+      "net": "3V3",
+      "blockId": 128,
+      "source": "user",
+      "endpoint": "C2"
+     },
+     {
+      "id": 338,
+      "netId": 93,
+      "net": "3V3",
+      "blockId": 131,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "D2"
+     },
+     {
+      "id": 325,
+      "netId": 93,
+      "net": "3V3",
+      "blockId": 136,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "id": 335,
+      "netId": 101,
+      "net": "BASE",
+      "blockId": 125,
+      "pin": "B",
+      "source": "user",
+      "endpoint": "Q2"
+     },
+     {
+      "id": 334,
+      "netId": 101,
+      "net": "BASE",
+      "blockId": 130,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "id": 314,
+      "netId": 98,
+      "net": "BTN",
+      "blockId": 122,
+      "pin": "PA2",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 322,
+      "netId": 98,
+      "net": "BTN",
+      "blockId": 135,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "SW1"
+     },
+     {
+      "id": 324,
+      "netId": 98,
+      "net": "BTN",
+      "blockId": 136,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "id": 315,
+      "netId": 99,
+      "net": "CTRL",
+      "blockId": 122,
+      "pin": "PA3",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 333,
+      "netId": 99,
+      "net": "CTRL",
+      "blockId": 130,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "id": 304,
+      "netId": 90,
+      "net": "GND",
+      "entryId": 5,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "GND",
+      "pinType": "G"
+     },
+     {
+      "id": 300,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 121,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 309,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 122,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 328,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 124,
+      "pin": "S",
+      "source": "user",
+      "endpoint": "Q1"
+     },
+     {
+      "id": 337,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 125,
+      "pin": "E",
+      "source": "user",
+      "endpoint": "Q2"
+     },
+     {
+      "id": 317,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 129,
+      "pin": "K",
+      "source": "user",
+      "endpoint": "D1"
+     },
+     {
+      "id": 323,
+      "netId": 90,
+      "net": "GND",
+      "blockId": 135,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "SW1"
+     },
+     {
+      "id": 311,
+      "netId": 95,
+      "net": "LED",
+      "blockId": 122,
+      "pin": "PA1",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 316,
+      "netId": 95,
+      "net": "LED",
+      "blockId": 129,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "D1"
+     },
+     {
+      "id": 336,
+      "netId": 102,
+      "net": "LED2_K",
+      "blockId": 125,
+      "pin": "C",
+      "source": "user",
+      "endpoint": "Q2"
+     },
+     {
+      "id": 339,
+      "netId": 102,
+      "net": "LED2_K",
+      "blockId": 131,
+      "pin": "K",
+      "source": "user",
+      "endpoint": "D2"
+     },
+     {
+      "id": 330,
+      "netId": 100,
+      "net": "MOTOR",
+      "blockId": 123,
+      "pin": "-",
+      "source": "user",
+      "endpoint": "M1 Motor"
+     },
+     {
+      "id": 327,
+      "netId": 100,
+      "net": "MOTOR",
+      "blockId": 124,
+      "pin": "D",
+      "source": "user",
+      "endpoint": "Q1"
+     },
+     {
+      "id": 331,
+      "netId": 100,
+      "net": "MOTOR",
+      "blockId": 137,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "D3"
+     },
+     {
+      "id": 310,
+      "netId": 94,
+      "net": "PWM",
+      "blockId": 122,
+      "pin": "PA0",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 326,
+      "netId": 94,
+      "net": "PWM",
+      "blockId": 124,
+      "pin": "G",
+      "source": "user",
+      "endpoint": "Q1"
+     },
+     {
+      "id": 303,
+      "netId": 92,
+      "net": "VBUS",
+      "entryId": 5,
+      "pin": "3",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "VIN",
+      "pinType": "P"
+     },
+     {
+      "id": 329,
+      "netId": 92,
+      "net": "VBUS",
+      "blockId": 123,
+      "pin": "+",
+      "source": "user",
+      "endpoint": "M1 Motor"
+     },
+     {
+      "id": 302,
+      "netId": 92,
+      "net": "VBUS",
+      "blockId": 126,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "F1"
+     },
+     {
+      "id": 306,
+      "netId": 92,
+      "net": "VBUS",
+      "blockId": 127,
+      "source": "user",
+      "endpoint": "C1"
+     },
+     {
+      "id": 332,
+      "netId": 92,
+      "net": "VBUS",
+      "blockId": 137,
+      "pin": "K",
+      "source": "user",
+      "endpoint": "D3"
+     },
+     {
+      "id": 299,
+      "netId": 91,
+      "net": "VBUS_IN",
+      "blockId": 121,
+      "pin": "VBUS",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 301,
+      "netId": 91,
+      "net": "VBUS_IN",
+      "blockId": 126,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "F1"
+     },
+     {
+      "id": 312,
+      "netId": 96,
+      "net": "XIN",
+      "blockId": 122,
+      "pin": "XIN",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 318,
+      "netId": 96,
+      "net": "XIN",
+      "blockId": 132,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "Y1"
+     },
+     {
+      "id": 320,
+      "netId": 96,
+      "net": "XIN",
+      "blockId": 133,
+      "source": "user",
+      "endpoint": "C3"
+     },
+     {
+      "id": 313,
+      "netId": 97,
+      "net": "XOUT",
+      "blockId": 122,
+      "pin": "XOUT",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 319,
+      "netId": 97,
+      "net": "XOUT",
+      "blockId": 132,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "Y1"
+     },
+     {
+      "id": 321,
+      "netId": 97,
+      "net": "XOUT",
+      "blockId": 134,
+      "source": "user",
+      "endpoint": "C4"
+     }
+    ],
+    "groups": [],
+    "assignments": [],
+    "diagram": {
+     "parts": [
+      {
+       "id": "part:5",
+       "title": "U1 SD1234",
+       "mpn": "SD1234",
+       "kind": "ic",
+       "shape": "ic",
+       "full": true,
+       "column": 1,
+       "pins": [
+        {
+         "name": "VIN",
+         "number": "3",
+         "net": "VBUS",
+         "side": "top",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "VFB",
+         "number": "4",
+         "side": "left",
+         "role": "input",
+         "connected": false
+        },
+        {
+         "name": "SW",
+         "number": "2",
+         "net": "3V3",
+         "side": "right",
+         "role": "output",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "number": "1",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:121",
+       "title": "J1 USB-C",
+       "kind": "connector",
+       "shape": "ic",
+       "column": 4,
+       "pins": [
+        {
+         "name": "VBUS",
+         "net": "VBUS_IN",
+         "side": "right",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:123",
+       "title": "M1 Motor",
+       "kind": "connector",
+       "shape": "ic",
+       "column": 0,
+       "pins": [
+        {
+         "name": "+",
+         "net": "VBUS",
+         "side": "right",
+         "role": "passive",
+         "connected": true
+        },
+        {
+         "name": "-",
+         "net": "MOTOR",
+         "side": "right",
+         "role": "passive",
+         "connected": true
+        }
+       ]
+      },
+      {
+       "id": "block:124",
+       "title": "Q1",
+       "kind": "mosfet-n",
+       "shape": "mosfet-n",
+       "column": 3,
+       "pins": [
+        {
+         "name": "G",
+         "net": "PWM",
+         "side": "left",
+         "role": "other",
+         "connected": true,
+         "terminal": "gate"
+        },
+        {
+         "name": "D",
+         "net": "MOTOR",
+         "side": "top",
+         "role": "other",
+         "connected": true,
+         "terminal": "drain"
+        },
+        {
+         "name": "S",
+         "net": "GND",
+         "side": "bottom",
+         "role": "other",
+         "connected": true,
+         "terminal": "source",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:125",
+       "title": "Q2",
+       "kind": "npn",
+       "shape": "npn",
+       "column": 3,
+       "pins": [
+        {
+         "name": "B",
+         "net": "BASE",
+         "side": "left",
+         "role": "other",
+         "connected": true,
+         "terminal": "base"
+        },
+        {
+         "name": "C",
+         "net": "LED2_K",
+         "side": "top",
+         "role": "passive",
+         "connected": true,
+         "terminal": "collector"
+        },
+        {
+         "name": "E",
+         "net": "GND",
+         "side": "bottom",
+         "role": "other",
+         "connected": true,
+         "terminal": "emitter",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:122",
+       "title": "U2 MCU",
+       "kind": "ic",
+       "shape": "ic",
+       "column": 2,
+       "pins": [
+        {
+         "name": "VDD",
+         "net": "3V3",
+         "side": "left",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "PA0",
+         "net": "PWM",
+         "side": "right",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "PA1",
+         "net": "LED",
+         "side": "bottom",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "PA2",
+         "net": "BTN",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "PA3",
+         "net": "CTRL",
+         "side": "right",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "XIN",
+         "net": "XIN",
+         "side": "right",
+         "role": "other",
+         "connected": true,
+         "bridged": true
+        },
+        {
+         "name": "XOUT",
+         "net": "XOUT",
+         "side": "right",
+         "role": "other",
+         "connected": true,
+         "bridged": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      }
+     ],
+     "passives": [
+      {
+       "id": "block:127",
+       "label": "C1",
+       "value": "100µF",
+       "kind": "capacitor-polarised",
+       "mount": "wire",
+       "part": "part:5",
+       "nets": [
+        "VBUS"
+       ],
+       "supports": "part:5",
+       "guessed": true,
+       "shape": "capacitor-polarised",
+       "ends": [
+        "+",
+        "-"
+       ]
+      },
+      {
+       "id": "block:128",
+       "label": "C2",
+       "value": "10µF",
+       "kind": "capacitor",
+       "mount": "wire",
+       "part": "block:122",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:133",
+       "label": "C3",
+       "value": "18pF",
+       "kind": "capacitor",
+       "mount": "below",
+       "part": "block:122",
+       "nets": [
+        "XIN"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:134",
+       "label": "C4",
+       "value": "18pF",
+       "kind": "capacitor",
+       "mount": "below",
+       "part": "block:122",
+       "nets": [
+        "XOUT"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:129",
+       "label": "D1",
+       "value": "red",
+       "kind": "led",
+       "mount": "below",
+       "part": "block:122",
+       "nets": [
+        "LED"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "led",
+       "ends": [
+        "anode",
+        "cathode"
+       ]
+      },
+      {
+       "id": "block:131",
+       "label": "D2",
+       "value": "green",
+       "kind": "led",
+       "mount": "wire",
+       "part": "block:122",
+       "nets": [
+        "3V3",
+        "LED2_K"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "led",
+       "ends": [
+        "anode",
+        "cathode"
+       ]
+      },
+      {
+       "id": "block:137",
+       "label": "D3",
+       "value": "SS14",
+       "kind": "schottky",
+       "mount": "wire",
+       "part": "part:5",
+       "nets": [
+        "VBUS",
+        "MOTOR"
+       ],
+       "supports": "part:5",
+       "guessed": true,
+       "shape": "schottky",
+       "ends": [
+        "cathode",
+        "anode"
+       ]
+      },
+      {
+       "id": "block:126",
+       "label": "F1",
+       "value": "500mA",
+       "kind": "fuse",
+       "mount": "wire",
+       "part": "part:5",
+       "nets": [
+        "VBUS",
+        "VBUS_IN"
+       ],
+       "supports": "part:5",
+       "guessed": true,
+       "shape": "fuse",
+       "ends": [
+        "2",
+        "1"
+       ]
+      },
+      {
+       "id": "block:136",
+       "label": "R2",
+       "value": "10k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:122",
+       "nets": [
+        "BTN",
+        "3V3"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:130",
+       "label": "R3",
+       "value": "1k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:122",
+       "nets": [
+        "CTRL",
+        "BASE"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:135",
+       "label": "SW1",
+       "kind": "switch",
+       "mount": "out",
+       "part": "block:122",
+       "nets": [
+        "BTN"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "switch",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:132",
+       "label": "Y1",
+       "value": "8MHz",
+       "kind": "crystal",
+       "mount": "bridge",
+       "part": "block:122",
+       "nets": [
+        "XIN",
+        "XOUT"
+       ],
+       "supports": "block:122",
+       "guessed": true,
+       "shape": "crystal",
+       "ends": [
+        "1",
+        "2"
+       ]
+      }
+     ],
+     "nets": [
+      {
+       "name": "VBUS",
+       "kind": "power",
+       "parts": [
+        "block:123",
+        "part:5"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "parts": [
+        "part:5",
+        "block:122"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "VBUS_IN",
+       "kind": "power",
+       "parts": [
+        "block:121"
+       ],
+       "wire": "out",
+       "arrow": true
+      },
+      {
+       "name": "MOTOR",
+       "kind": "signal",
+       "parts": [
+        "block:123",
+        "block:124"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "PWM",
+       "kind": "signal",
+       "parts": [
+        "block:122",
+        "block:124"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "BASE",
+       "kind": "signal",
+       "parts": [
+        "block:125"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "LED2_K",
+       "kind": "signal",
+       "parts": [
+        "block:125"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "LED",
+       "kind": "signal",
+       "parts": [
+        "block:122"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "BTN",
+       "kind": "signal",
+       "parts": [
+        "block:122"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "CTRL",
+       "kind": "signal",
+       "parts": [
+        "block:122"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "XIN",
+       "kind": "signal",
+       "parts": [
+        "block:122"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "XOUT",
+       "kind": "signal",
+       "parts": [
+        "block:122"
+       ],
+       "wire": ""
+      }
+     ],
+     "groups": [],
+     "links": [
+      {
+       "from": "block:123",
+       "to": "part:5",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      },
+      {
+       "from": "part:5",
+       "to": "block:122",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "block:122",
+       "to": "block:124",
+       "label": "PWM",
+       "kind": "signal",
+       "nets": [
+        "PWM"
+       ]
+      },
+      {
+       "from": "block:123",
+       "to": "block:124",
+       "label": "MOTOR",
+       "kind": "signal",
+       "nets": [
+        "MOTOR"
+       ]
+      },
+      {
+       "from": "block:122",
+       "to": "block:125",
+       "label": "CTRL",
+       "kind": "signal",
+       "nets": [
+        "CTRL",
+        "BASE"
+       ]
+      }
+     ]
+    },
+    "pinouts": [
+     {
+      "node": "part:5",
+      "title": "U1 SD1234",
+      "mpn": "SD1234",
+      "pins": [
+       {
+        "number": "1",
+        "name": "GND",
+        "type": "G",
+        "role": "ground",
+        "description": "Ground pin.",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "number": "2",
+        "name": "SW",
+        "type": "O",
+        "role": "output",
+        "description": "Switch node.",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U2 MCU.VDD",
+         "C2 10µF",
+         "D2.A",
+         "R2.2"
+        ]
+       },
+       {
+        "number": "3",
+        "name": "VIN",
+        "type": "P",
+        "role": "power",
+        "description": "Input supply.",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "M1 Motor.+",
+         "F1.2",
+         "C1 100µF",
+         "D3.K"
+        ]
+       },
+       {
+        "number": "4",
+        "name": "VFB",
+        "type": "I",
+        "role": "input",
+        "description": "Feedback input.",
+        "to": []
+       }
+      ]
+     },
+     {
+      "node": "block:121",
+      "title": "J1 USB-C",
+      "pins": [
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "VBUS",
+        "net": "VBUS_IN",
+        "netKind": "power",
+        "to": [
+         "F1.1"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:123",
+      "title": "M1 Motor",
+      "pins": [
+       {
+        "name": "-",
+        "net": "MOTOR",
+        "netKind": "signal",
+        "to": [
+         "Q1.D",
+         "D3.A"
+        ]
+       },
+       {
+        "name": "+",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "U1.VIN",
+         "F1.2",
+         "C1 100µF",
+         "D3.K"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:124",
+      "title": "Q1",
+      "pins": [
+       {
+        "name": "S",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "D",
+        "net": "MOTOR",
+        "netKind": "signal",
+        "to": [
+         "M1 Motor.-",
+         "D3.A"
+        ]
+       },
+       {
+        "name": "G",
+        "net": "PWM",
+        "netKind": "signal",
+        "to": [
+         "U2 MCU.PA0"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:125",
+      "title": "Q2",
+      "pins": [
+       {
+        "name": "B",
+        "net": "BASE",
+        "netKind": "signal",
+        "to": [
+         "R3.2"
+        ]
+       },
+       {
+        "name": "E",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "C",
+        "net": "LED2_K",
+        "netKind": "signal",
+        "to": [
+         "D2.K"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:122",
+      "title": "U2 MCU",
+      "pins": [
+       {
+        "name": "VDD",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1.SW",
+         "C2 10µF",
+         "D2.A",
+         "R2.2"
+        ]
+       },
+       {
+        "name": "PA2",
+        "net": "BTN",
+        "netKind": "signal",
+        "to": [
+         "SW1.1",
+         "R2.1"
+        ]
+       },
+       {
+        "name": "PA3",
+        "net": "CTRL",
+        "netKind": "signal",
+        "to": [
+         "R3.1"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "PA1",
+        "net": "LED",
+        "netKind": "signal",
+        "to": [
+         "D1.A"
+        ]
+       },
+       {
+        "name": "PA0",
+        "net": "PWM",
+        "netKind": "signal",
+        "to": [
+         "Q1.G"
+        ]
+       },
+       {
+        "name": "XIN",
+        "net": "XIN",
+        "netKind": "signal",
+        "to": [
+         "Y1.1",
+         "C3 18pF"
+        ]
+       },
+       {
+        "name": "XOUT",
+        "net": "XOUT",
+        "netKind": "signal",
+        "to": [
+         "Y1.2",
+         "C4 18pF"
         ]
        }
       ]

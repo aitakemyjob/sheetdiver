@@ -419,6 +419,31 @@ export type PinRole = 'power' | 'ground' | 'pad' | 'input' | 'output' | 'bidir' 
 /** A symbol's outline: a rectangle with its pins, or a transistor. */
 export type PartShape = 'ic' | 'mosfet-n' | 'mosfet-p' | 'npn' | 'pnp';
 
+/** The kinds a block can be: what it's drawn as (see library.BlockKinds). */
+export const BLOCK_KINDS = [
+  'ic',
+  'connector',
+  'module',
+  'resistor',
+  'capacitor',
+  'capacitor-polarised',
+  'inductor',
+  'diode',
+  'schottky',
+  'zener',
+  'led',
+  'tvs',
+  'fuse',
+  'ferrite',
+  'crystal',
+  'battery',
+  'switch',
+  'mosfet-n',
+  'mosfet-p',
+  'npn',
+  'pnp',
+] as const;
+
 /** A standard two-terminal symbol. */
 export type PassiveShape =
   | 'resistor'
@@ -443,12 +468,12 @@ export interface DiagramPin {
   number?: string;
   /** Unset when unconnected. */
   net?: string;
-  side: 'left' | 'right' | 'top' | 'bottom' | 'inside';
+  side: 'left' | 'right' | 'top' | 'bottom';
   role: PinRole;
   connected: boolean;
   /** A transistor pin's terminal: gate, drain, source; base, collector, emitter. */
   terminal?: string;
-  /** The pin (or ground net) an inside pin is tied to. */
+  /** The pin on the same net it's tied to: drawn as a jog to that pin's wire. */
   tied?: string;
   /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
   bridged?: boolean;

@@ -182,9 +182,10 @@ type DiagramLink struct {
 // Kinds as datasheets and BOMs name them.
 var (
 	// connectorKindRe and otherKindRe are categories as datasheets and
-	// BOMs name them ("Pin header", "LED", "Tactile switch").
+	// BOMs name them ("Pin header", "Buzzer"); the two-terminals and
+	// transistors among them are in symbolKinds.
 	connectorKindRe = regexp.MustCompile(`(?i)connector|header|socket|receptacle|jack|terminal`)
-	otherKindRe     = regexp.MustCompile(`(?i)\bled|switch|button|crystal|resonator|buzzer|speaker|test ?point|jumper`)
+	otherKindRe     = regexp.MustCompile(`(?i)buzzer|speaker|test ?point|jumper`)
 	// refPinRe is a connector pin that senses a rail rather than supplying
 	// it: a debug header's target reference.
 	refPinRe = regexp.MustCompile(`(?i)^V_?T(ARGET|_?REF|G)\b|^VREF|^VTREF|^V?SENSE`)
@@ -203,29 +204,6 @@ type end struct {
 	entry   *library.ProjectPart
 }
 
-// diagramKind is how a part category or block kind is drawn.
-func diagramKind(kind string, block bool) string {
-	switch kind {
-	case "resistor", "capacitor", "inductor", "diode", "connector", "module", "ic":
-		return kind
-	case "tvs":
-		return "diode"
-	case "ferrite", "fuse":
-		return "other"
-	}
-	switch {
-	case connectorKindRe.MatchString(kind):
-		return "connector"
-	case otherKindRe.MatchString(kind):
-		// Neither makes a net nor is an IC to hang passives by.
-		return "other"
-	}
-	if block {
-		return "connector"
-	}
-	return "ic"
-}
-
 // ends lists the BOM entries and blocks, keyed by node.
 func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end, []string) {
 	out := map[string]*end{}
@@ -233,7 +211,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	for i := range parts {
 		pp := &parts[i]
 		id := library.PartNode(pp.ID)
-		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: diagramKind(pp.Category, false), value: passiveValue(pp.Role), label: firstNonEmpty(pp.Designator, pp.MPN), passive: library.TwoTerminal(pp.Category), entry: pp}
+		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: symbolKind(pp.Category, false), value: passiveValue(pp.Role), label: firstNonEmpty(pp.Designator, pp.MPN), passive: twoTerminal(pp.Category, false), entry: pp}
 		if pp.Designator == "" {
 			out[id].title = pp.MPN
 		}
@@ -241,7 +219,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	}
 	for _, b := range blocks {
 		id := library.BlockNode(b.ID)
-		out[id] = &end{id: id, title: b.Name, kind: diagramKind(b.Kind, true), value: shortValue(b.Value), label: b.Name, passive: library.TwoTerminal(b.Kind)}
+		out[id] = &end{id: id, title: b.Name, kind: symbolKind(b.Kind, true), value: shortValue(b.Value), label: b.Name, passive: twoTerminal(b.Kind, true)}
 		order = append(order, id)
 	}
 	return out, order
@@ -823,6 +801,7 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 	if !p.Full {
 		sort.SliceStable(p.Pins, func(i, j int) bool { return !p.Pins[i].Bridged && p.Pins[j].Bridged })
 	}
+	transistorSymbol(&p)
 	return p
 }
 
@@ -1093,7 +1072,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		e := b.ends[id]
 		serves := b.supports[id]
-		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: e.kind, Ends: []string{"1", "2"}, Nets: nets, Supports: serves, Guessed: b.guessed[id]}
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: passiveShape(e.kind), Nets: nets, Supports: serves, Guessed: b.guessed[id]}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {
@@ -1104,6 +1083,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 				}
 			}
 			if p.Mount != "" {
+				p.Ends = b.passiveEnds(id, p)
 				out = append(out, p)
 				continue
 			}
@@ -1150,7 +1130,8 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		default:
 			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}
-		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports
+		p.Ends = b.passiveEnds(id, p)
+		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports + "|" + strings.Join(p.Ends, "|")
 		if i, ok := merged[key]; ok {
 			out[i].ID += "," + p.ID
 			out[i].Label += "," + p.Label

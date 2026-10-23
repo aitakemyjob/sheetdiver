@@ -490,12 +490,12 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 func passiveNode(parts []library.ProjectPart, blocks []library.Block, node string) bool {
 	for _, pp := range parts {
 		if node == library.PartNode(pp.ID) || strings.HasPrefix(node, library.PartNode(pp.ID)+"/") {
-			return library.TwoTerminal(pp.Category)
+			return twoTerminal(pp.Category, false)
 		}
 	}
 	for _, b := range blocks {
 		if node == library.BlockNode(b.ID) {
-			return library.TwoTerminal(b.Kind)
+			return twoTerminal(b.Kind, true)
 		}
 	}
 	return false

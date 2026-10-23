@@ -45,15 +45,32 @@ type Block struct {
 	Source    string `json:"source"`
 }
 
-// BlockKinds are the kinds a block can be ("" is a generic block).
-var BlockKinds = []string{"ic", "connector", "module", "resistor", "capacitor", "inductor", "diode"}
+// BlockKinds are the kinds a block can be ("" is a generic block): what
+// it's drawn as on the block diagram. The two-terminals are drawn with
+// their standard symbol, hanging off a net; the transistors with theirs,
+// by terminal; the rest as a box with its pins.
+var BlockKinds = []string{
+	"ic", "connector", "module",
+	"resistor", "capacitor", "capacitor-polarised", "inductor", "diode", "schottky", "zener", "led", "tvs", "fuse", "ferrite", "crystal", "battery", "switch",
+	"mosfet-n", "mosfet-p", "npn", "pnp",
+}
 
-// TwoTerminal reports whether a block kind or part category is drawn as
-// a passive on the block diagram, hanging off a net rather than as a box
-// with pins.
+// TwoTerminal reports whether a block kind is drawn as a two-terminal
+// symbol on the block diagram, hanging off a net rather than as a box
+// with pins. A part's category goes through core's symbol mapping first.
 func TwoTerminal(kind string) bool {
 	switch kind {
-	case "resistor", "capacitor", "inductor", "diode", "tvs", "ferrite", "fuse":
+	case "resistor", "capacitor", "capacitor-polarised", "inductor", "diode", "schottky", "zener", "led", "tvs", "fuse", "ferrite", "crystal", "battery", "switch":
+		return true
+	}
+	return false
+}
+
+// Transistor reports whether a block kind is drawn as a transistor
+// symbol, its pins by terminal.
+func Transistor(kind string) bool {
+	switch kind {
+	case "mosfet-n", "mosfet-p", "npn", "pnp":
 		return true
 	}
 	return false

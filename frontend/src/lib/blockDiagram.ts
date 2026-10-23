@@ -30,6 +30,7 @@
 // the parts beside it follows where it was put (left to right stays with
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
+import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
 
 export const PITCH = 30; // between pins
@@ -96,6 +97,13 @@ export interface Wire {
 /** A passive with its place. */
 export interface PlacedPassive extends Rect {
   passive: DiagramPassive;
+  /** Its symbol's ends, where its wires attach: down the node, or along it when horizontal. */
+  ends: [Pt, Pt];
+  /** The terminal at each end (a diode's anode and cathode), as the backend names them. */
+  terminals: [string, string];
+  horizontal?: boolean;
+  /** Where its name is written (its value under it): beside a vertical symbol, above a horizontal one. */
+  label: Pt & { anchor: 'start' | 'middle' };
   /** Where its group's content starts: saved positions are relative to it. */
   origin?: Pt;
 }
@@ -110,8 +118,6 @@ export interface Frame extends Rect {
 /** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
 export interface Flag extends Pt {
   text: string;
-  /** Above the passive (a rail), else below it. */
-  up: boolean;
 }
 
 export interface BlockDrawing {
@@ -197,7 +203,7 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
   return {
     ...r,
     boxes: r.boxes.map((b) => ({ ...pt(b), body: pt(b.body), pins: b.pins.map(pt) })),
-    passives: r.passives.map(pt),
+    passives: r.passives.map((p) => ({ ...pt(p), ends: [pt(p.ends[0]), pt(p.ends[1])] as [Pt, Pt], label: pt(p.label) })),
     wires: r.wires.map((w) => ({ ...w, path: movePath(w.path, dx, dy), label: w.label && pt(w.label) })),
     grounds: r.grounds.map(pt),
     flags: r.flags.map(pt),
@@ -293,6 +299,11 @@ export function bands(pins: DiagramPin[]): { top: number; bottom: number } {
 export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
   return d.parts.map((part) => {
     const pins: PlacedPin[] = visiblePins(part, opts).map((p) => ({ ...p, x: 0, y: 0, dim: !p.connected || undefined }));
+    const tr = threeTerminal(part.shape);
+    if (tr) {
+      // A transistor is its symbol, the pin ends on the symbol's border.
+      return { part, pins, body: { x: 0, y: 0, w: tr.w, h: tr.h }, x: 0, y: 0, w: tr.w, h: tr.h };
+    }
     const on = (side: DiagramPin['side']) => pins.filter((p) => p.side === side);
     const bottomW = on('bottom').reduce((n, p) => n + bottomSlot(d, part, p), 0);
     const bodyW = Math.max(BOX_W - 2 * PIN_LEN, 12 + longest(on('left')) + 24 + longest(on('right')) + 12, 2 * TOP + on('top').length * PITCH, TOP + bottomW + TOP - PITCH);
@@ -312,6 +323,15 @@ export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
  * order (the backend ties only neighbours).
  */
 export function pinsAt(b: Box, d?: Diagram): void {
+  const tr = threeTerminal(b.part.shape);
+  if (tr) {
+    b.body = { x: b.x, y: b.y, w: b.w, h: b.h };
+    for (const p of b.pins) {
+      const t = tr.terminals[p.terminal ?? ''] ?? { x: 0, y: b.h / 2 };
+      Object.assign(p, { x: b.x + t.x, y: b.y + t.y });
+    }
+    return;
+  }
   const body = { x: b.x + PIN_LEN, y: b.y + PIN_LEN, w: b.w - 2 * PIN_LEN, h: b.h - 2 * PIN_LEN };
   b.body = body;
   const on = (side: DiagramPin['side']) => {
@@ -334,22 +354,52 @@ export function pinsAt(b: Box, d?: Diagram): void {
   }
 }
 
-/** A passive's size from its text: its name and value, no more. */
-export function passiveSize(p: DiagramPassive): { w: number; h: number } {
-  return { w: Math.ceil(Math.max(52, CHAR * Math.max(p.label.length, (p.value ?? '').length) + 18) / 2) * 2, h: p.value ? 40 : 26 };
+const SYM = 28; // the band a two-terminal symbol takes across its axis
+const SYM_LEN = 44; // a two-terminal's node along its axis: the symbol and a short lead each end
+const BRIDGE_IN = 4; // a bridging passive's ends, in from its node's top and bottom
+
+/** How wide a passive's name and value are. */
+const passiveText = (p: DiagramPassive) => Math.ceil(CHAR * Math.max(p.label.length, (p.value ?? '').length)) + 6;
+
+/**
+ * A passive's node: its symbol down the node with its name beside it,
+ * or, horizontal, along the node with its name above. `axis` is where
+ * the symbol runs: x from the left when vertical, y from the top when
+ * horizontal; its ends are at the node's border.
+ */
+export function passiveSize(p: DiagramPassive, horizontal = false): { w: number; h: number; axis: number } {
+  const text = passiveText(p);
+  if (horizontal) {
+    const above = p.value ? 28 : 16;
+    return { w: Math.max(SYM_LEN, text), h: above + SYM, axis: above + SYM / 2 };
+  }
+  return { w: SYM + text, h: SYM_LEN, axis: SYM / 2 };
+}
+
+/** Places a passive's node: its ends, which terminal is at each, and its label. */
+function placePassive(q: DiagramPassive, x: number, y: number, size: { w: number; h: number; axis: number }, horizontal: boolean, firstNet: string): PlacedPassive {
+  const ends: [Pt, Pt] = horizontal ? [{ x, y: y + size.axis }, { x: x + size.w, y: y + size.axis }] : [{ x: x + size.axis, y }, { x: x + size.axis, y: y + size.h }];
+  const [a, z] = q.ends.length === 2 ? q.ends : ['1', '2'];
+  const terminals: [string, string] = firstNet.toLowerCase() === q.nets[0].toLowerCase() ? [a, z] : [z, a];
+  const label = horizontal ? { x: x + size.w / 2, y: y + 8, anchor: 'middle' as const } : { x: x + SYM + 2, y: y + size.h / 2 - (q.value ? 6 : 0), anchor: 'start' as const };
+  return { passive: q, x, y, w: size.w, h: size.h, ends, terminals, horizontal: horizontal || undefined, label };
 }
 
 // ── graph ─────────────────────────────────────────────────────────────
 
 /** How a passive's far end is shown: a ground symbol, or the net it goes to. */
-type End = { ground: true } | { ground: false; text: string; up: boolean };
+type End = { ground: true } | { ground: false; text: string };
 
-/** A passive as a node: its size and its far end. */
+/** A passive as a node: its size, the net at its first end, and its far end. */
 interface PassiveNode {
   passive: DiagramPassive;
   node: ElkNode;
-  w: number;
-  h: number;
+  size: { w: number; h: number; axis: number };
+  horizontal: boolean;
+  /** The net at its first end (the top, or the left). */
+  first: string;
+  /** Bridging two pins: the side its ports are on, facing them. */
+  bridge?: 'EAST' | 'WEST';
   /** Shown at its far end, for a passive with one wired net. */
   end?: End;
 }
@@ -359,8 +409,7 @@ interface BelowPassive {
   passive: DiagramPassive;
   box: Box;
   pin: PlacedPin;
-  w: number;
-  h: number;
+  size: { w: number; h: number; axis: number };
   end: End;
 }
 
@@ -484,9 +533,9 @@ function graph(d: Diagram, boxes: Box[]): Built {
       if (p.tied || p.dim) return;
       const q = p.side === 'bottom' && !p.ground ? under(b, p) : undefined;
       if (q) {
-        const { w, h } = passiveSize(q);
-        built.below.push({ passive: q, box: b, pin: p, w, h, end: q.nets[1] ? { ground: false, text: q.nets[1], up: false } : { ground: true } });
-        bottom = Math.max(bottom, DROP + h + GROUND + 14);
+        const size = passiveSize(q);
+        built.below.push({ passive: q, box: b, pin: p, size, end: q.nets[1] ? { ground: false, text: q.nets[1] } : { ground: true } });
+        bottom = Math.max(bottom, DROP + size.h + GROUND + 14);
       }
       const side = p.side === 'left' ? 'WEST' : p.side === 'right' ? 'EAST' : p.side === 'top' ? 'NORTH' : 'SOUTH';
       ports.push({ id: `${id}/${i}`, x: p.x - b.x, y: p.y - b.y, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
@@ -509,7 +558,6 @@ function graph(d: Diagram, boxes: Box[]): Built {
   const boxesOn = (net: string) => new Set(endsOf(net).map((e) => e.id.split('/')[0]));
   for (const q of d.passives) {
     if (built.below.some((u) => u.passive === q)) continue;
-    const { w, h } = passiveSize(q);
     const id = `q:${q.id}`;
     const nets = q.nets.filter((n) => boxesOn(n).size > 0);
     if (nets.length === 0) continue; // between passives only: not drawn
@@ -518,16 +566,21 @@ function graph(d: Diagram, boxes: Box[]): Built {
       const box = boxes.find((b) => b.part.id === q.part);
       const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && !p.tied && !p.dim)).filter((p): p is PlacedPin => !!p);
       if (pins.length === 2) {
-        // Beside the pins it bridges, its ports facing them.
+        // Beside the pins it bridges, its ports on the side facing them
+        // and its symbol down the node just inside, a short lead from
+        // each port; its name on the far side.
         const dy = Math.abs(pins[0].y - pins[1].y);
         const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
-        const node: ElkNode = { id, width: 58, height: Math.max(44, dy + 30), layoutOptions, ports: [], labels: [] };
+        const size = { ...passiveSize(q), h: Math.max(SYM_LEN, dy + 30) };
+        size.axis = side === 'EAST' ? size.w - SYM / 2 : SYM / 2;
+        const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [], labels: [] };
+        const upper = pins[0].y <= pins[1].y ? 0 : 1;
         q.nets.forEach((n, i) => {
-          node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? 58 : 0, y: 15 + (pins[i].y > pins[1 - i].y ? dy : 0), width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
+          node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? size.w : 0, y: i === upper ? BRIDGE_IN : size.h - BRIDGE_IN, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
           addEnd({ id: `${id}/${i}`, net: n, side, passive: true });
         });
         children.push(node);
-        built.passives.push({ passive: q, node, w: 58, h: node.height! });
+        built.passives.push({ passive: q, node, size, horizontal: false, first: q.nets[upper], bridge: side });
         continue;
       }
     }
@@ -539,26 +592,28 @@ function graph(d: Diagram, boxes: Box[]): Built {
       // the one not at the part it serves.
       const driven = (n: string) => endsOf(n).some((e) => e.side === 'EAST');
       const [a, z] = driven(nets[1]) && !driven(nets[0]) ? [nets[1], nets[0]] : !driven(nets[0]) && boxesOn(nets[0]).has(`b:${q.supports}`) ? [nets[1], nets[0]] : [nets[0], nets[1]];
-      const node: ElkNode = { id, width: w, height: h, layoutOptions, ports: [] };
-      node.ports!.push({ id: `${id}/0`, x: 0, y: h / 2, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'WEST' } });
-      node.ports!.push({ id: `${id}/1`, x: w, y: h / 2, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'EAST' } });
+      const size = passiveSize(q, true);
+      const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [] };
+      node.ports!.push({ id: `${id}/0`, x: 0, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'WEST' } });
+      node.ports!.push({ id: `${id}/1`, x: size.w, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'EAST' } });
       addEnd({ id: `${id}/0`, net: a, side: 'WEST', passive: true, series: true });
       addEnd({ id: `${id}/1`, net: z, side: 'EAST', passive: true, series: true });
       children.push(node);
-      built.passives.push({ passive: q, node, w, h });
+      built.passives.push({ passive: q, node, size, horizontal: true, first: a });
       continue;
     }
     // Hanging from one net, its far end named below: a pull-up from the
     // signal, with its rail's name; else from the first net drawn.
     const rail = pullUp ? q.nets.find(power)! : undefined;
     const net = pullUp ? q.nets.find((n) => n !== rail)! : nets[0];
-    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets.find((n) => n !== net)!, up: false } : { ground: true };
-    const r = room(w, 0, GROUND + 10);
-    const node: ElkNode = { id, width: w, height: h, layoutOptions: { ...layoutOptions, ...r.layoutOptions }, labels: r.labels, ports: [] };
-    node.ports!.push({ id: `${id}/0`, x: w / 2, y: 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'NORTH' } });
+    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets.find((n) => n !== net)! } : { ground: true };
+    const size = passiveSize(q);
+    const r = room(size.w, 0, GROUND + 10);
+    const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions: { ...layoutOptions, ...r.layoutOptions }, labels: r.labels, ports: [] };
+    node.ports!.push({ id: `${id}/0`, x: size.axis, y: 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'NORTH' } });
     addEnd({ id: `${id}/0`, net, side: 'NORTH', passive: true });
     children.push(node);
-    built.passives.push({ passive: q, node, w, h, end });
+    built.passives.push({ passive: q, node, size, horizontal: false, first: net, end });
   }
 
   // Nets. One leaving the group (or the board) from a pin nothing in the
@@ -672,35 +727,41 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
       }
     }
   }
+  // The far end of a passive hanging from a net: a ground symbol, or
+  // the name of the net it goes to (a pull-up's rail).
+  const farEnd = (p: PlacedPassive, end: End) => {
+    const e = p.ends[1];
+    if (end.ground) {
+      out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
+      out.grounds.push({ x: e.x, y: e.y + 6 });
+    } else {
+      out.wires.push({ net: end.text, path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
+      out.flags.push({ x: e.x, y: e.y + 6, text: end.text });
+    }
+  };
   // Passives, with their far end below (or a pull-up's rail above).
   for (const q of built.passives) {
     const n = placed.get(q.node.id)!;
-    const p: PlacedPassive = { passive: q.passive, x: at(n.x ?? 0), y: at(n.y ?? 0), w: q.w, h: q.h };
-    out.passives.push(p);
-    if (!q.end) continue;
-    const cx = p.x + p.w / 2;
-    if (q.end.ground) {
-      out.wires.push({ net: 'GND', path: `M${cx},${p.y + p.h} V${p.y + p.h + 6}`, thin: true });
-      out.grounds.push({ x: cx, y: p.y + p.h + 6 });
-    } else {
-      const y = q.end.up ? p.y : p.y + p.h;
-      out.wires.push({ net: q.end.text, path: `M${cx},${y} V${y + (q.end.up ? -6 : 6)}`, thin: true });
-      out.flags.push({ x: cx, y: y + (q.end.up ? -6 : 6), text: q.end.text, up: q.end.up });
+    const p = placePassive(q.passive, at(n.x ?? 0), at(n.y ?? 0), q.size, q.horizontal, q.first);
+    if (q.bridge) {
+      // The symbol between the leads from its ports.
+      const px = q.bridge === 'EAST' ? p.x + p.w : p.x;
+      p.ends = [
+        { x: p.ends[0].x, y: p.y + BRIDGE_IN },
+        { x: p.ends[1].x, y: p.y + p.h - BRIDGE_IN },
+      ];
+      const other = q.passive.nets.find((n) => n !== q.first) ?? q.first;
+      p.ends.forEach((e, i) => out.wires.push({ net: i === 0 ? q.first : other, path: `M${px},${e.y} H${e.x}`, thin: true }));
     }
+    out.passives.push(p);
+    if (q.end) farEnd(p, q.end);
   }
   // Passives under a bottom pin, each on its own drop to the pin.
   for (const u of built.below) {
-    const p: PlacedPassive = { passive: u.passive, x: at(u.pin.x - u.w / 2), y: at(u.pin.y + DROP), w: u.w, h: u.h };
+    const p = placePassive(u.passive, at(u.pin.x - u.size.axis), at(u.pin.y + DROP), u.size, false, u.passive.nets[0]);
     out.passives.push(p);
     out.wires.push({ net: u.passive.nets[0], path: `M${u.pin.x},${u.pin.y} V${p.y}`, thin: true });
-    const cx = p.x + p.w / 2;
-    if (u.end.ground) {
-      out.wires.push({ net: 'GND', path: `M${cx},${p.y + p.h} V${p.y + p.h + 6}`, thin: true });
-      out.grounds.push({ x: cx, y: p.y + p.h + 6 });
-    } else {
-      out.wires.push({ net: u.end.text, path: `M${cx},${p.y + p.h} V${p.y + p.h + 6}`, thin: true });
-      out.flags.push({ x: cx, y: p.y + p.h + 6, text: u.end.text, up: false });
-    }
+    farEnd(p, u.end);
   }
   // Stubs: straight out of their pin, named at the end.
   for (const st of built.stubs) {

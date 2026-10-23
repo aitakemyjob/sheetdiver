@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -298,13 +299,6 @@ func TestColumnsSurviveALoop(t *testing.T) {
 }
 
 func TestDiagramKinds(t *testing.T) {
-	for in, want := range map[[2]string]string{
-		{"tvs", ""}: "diode", {"ferrite", ""}: "other", {"buck", ""}: "ic", {"", "block"}: "connector", {"module", "block"}: "module",
-	} {
-		if got := diagramKind(in[0], in[1] == "block"); got != want {
-			t.Errorf("diagramKind(%q, %v) = %s, want %s", in[0], in[1] == "block", got, want)
-		}
-	}
 	for in, want := range map[string]string{"10µF": "10µF", "10µF input bulk": "10µF", "0Ω": "0Ω", "3V3 LDO": "", "2.2µH, shielded": "2.2µH"} {
 		if got := passiveValue(in); got != want {
 			t.Errorf("passiveValue(%q) = %q, want %q", in, got, want)
@@ -543,13 +537,51 @@ func TestDebugHeaderAndSeriesResistor(t *testing.T) {
 	}
 }
 
-func TestDiagramKindsOfCategories(t *testing.T) {
-	for cat, want := range map[string]string{
-		"LED": "other", "Tactile switch": "other", "Crystal": "other", "Pin header": "connector", "USB-C receptacle": "connector",
-		"capacitor": "capacitor", "Microcontroller": "ic", "tvs": "diode",
-	} {
-		if got := diagramKind(cat, false); got != want {
-			t.Errorf("diagramKind(%q) = %q, want %q", cat, got, want)
+func TestSymbolsOfTheDriverBoard(t *testing.T) {
+	s := newService(t)
+	d := drawn{t, buildCircuit(t, s, circuit("Driver board")).Connections.Diagram}
+	// A library part with a pin table is a generated symbol; a block of a
+	// transistor kind whose pins are its terminals is a transistor.
+	if got := d.pins("U1"); got != "VIN:top#3 VFB:left#4? SW:right#2 GND:bottom#1⏚" {
+		t.Errorf("U1 pins = %s", got)
+	}
+	for title, want := range map[string]string{"Q1": "mosfet-n G=gate:left D=drain:top S=source:bottom⏚", "Q2": "npn B=base:left C=collector:top E=emitter:bottom⏚"} {
+		p := d.part(title)
+		var pins []string
+		for _, pin := range p.Pins {
+			g := ""
+			if pin.Ground {
+				g = "⏚"
+			}
+			pins = append(pins, pin.Name+"="+pin.Terminal+":"+pin.Side+g)
 		}
+		if got := p.Shape + " " + strings.Join(pins, " "); got != want {
+			t.Errorf("%s = %s, want %s", title, got, want)
+		}
+	}
+	// Each two-terminal has its symbol and its terminals at its nets: as
+	// its pins were connected (D3's cathode on VBUS), else by default
+	// (D1 conducts into ground).
+	var got []string
+	for _, p := range d.Passives {
+		got = append(got, fmt.Sprintf("%s %s %s/%s on %s", p.Label, p.Shape, p.Ends[0], p.Ends[1], strings.Join(p.Nets, "+")))
+	}
+	sort.Strings(got)
+	want := []string{
+		"C1 capacitor-polarised +/- on VBUS",
+		"C2 capacitor 1/2 on 3V3",
+		"C3 capacitor 1/2 on XIN",
+		"C4 capacitor 1/2 on XOUT",
+		"D1 led anode/cathode on LED",
+		"D2 led anode/cathode on 3V3+LED2_K",
+		"D3 schottky cathode/anode on VBUS+MOTOR",
+		"F1 fuse 2/1 on VBUS+VBUS_IN",
+		"R2 resistor 1/2 on BTN+3V3",
+		"R3 resistor 1/2 on CTRL+BASE",
+		"SW1 switch 1/2 on BTN",
+		"Y1 crystal 1/2 on XIN+XOUT",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("passives:\n%s", strings.Join(got, "\n"))
 	}
 }
