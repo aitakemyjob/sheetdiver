@@ -6,9 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +24,7 @@ import (
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/aitakemyjob/sheetdiver/internal/api"
+	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 )
 
@@ -130,18 +134,47 @@ func (d *Desktop) startup(ctx context.Context) {
 	}()
 }
 
-// runGUI starts the MCP server and opens the desktop window. A port
-// conflict is shown in the UI rather than preventing startup.
+// focus brings the window forward, for a second launch of the app.
+func (d *Desktop) focus() {
+	if ctx := d.ctx.Load(); ctx != nil {
+		wruntime.WindowUnminimise(*ctx)
+		wruntime.WindowShow(*ctx)
+	}
+}
+
+// instanceID names the app's single-instance lock: one window per
+// settings file, so launching SheetDiver again (from the menu, or by an
+// agent's extension) brings the open window forward instead of opening
+// another that fights it for the MCP port and the library. Apps started
+// on another config (SHEETDIVER_CONFIG) still run side by side.
+func instanceID() string {
+	p, _ := config.DefaultPath()
+	h := fnv.New64a()
+	h.Write([]byte(p)) //nolint:errcheck // a hash.Hash never fails
+	return fmt.Sprintf("sheetdiver-%x", h.Sum64())
+}
+
+// runGUI opens the desktop window and, once it is the only instance,
+// starts the MCP server. A port conflict is shown in the UI rather than
+// preventing startup.
 func runGUI(port int) error {
 	a, err := bootstrap(port, false)
 	if err != nil {
 		return err
 	}
-	// The MCP server failing to bind (e.g. port in use) must not stop the UI;
-	// the status bar surfaces the error.
-	_ = a.server.Start()
-	go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
 	desk := newDesktop(a.api, a.core)
+	// Wails holds the single-instance lock by the time the page loads (a
+	// second launch has handed over and exited), so the server and
+	// background work start then, not before.
+	var started sync.Once
+	start := func(context.Context) {
+		started.Do(func() {
+			// The MCP server failing to bind (e.g. port in use) must not
+			// stop the UI; the status bar surfaces the error.
+			_ = a.server.Start()
+			go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
+		})
+	}
 	bg := &options.RGBA{R: 11, G: 17, B: 32, A: 255} // Deep Dive --bg
 	return wails.Run(&options.App{
 		Title:            "SheetDiver",
@@ -153,6 +186,11 @@ func runGUI(port int) error {
 		AssetServer:      &assetserver.Options{Assets: assets, Handler: a.server.AssetHandler()},
 		DragAndDrop:      &options.DragAndDrop{EnableFileDrop: true, DisableWebViewDrop: true},
 		OnStartup:        desk.startup,
+		OnDomReady:       start,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               instanceID(),
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) { desk.focus() },
+		},
 		OnShutdown: func(context.Context) {
 			// Wails' context never expires; Shutdown bounds its own wait.
 			_ = a.server.Shutdown(context.Background())

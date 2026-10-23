@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,18 +57,20 @@ func serveOn(t *testing.T, port int, h http.Handler) {
 	t.Cleanup(func() { s.Close() })
 }
 
-// connect runs b with an in-memory client and returns the connected
-// client session, the bridge's result and the client's connect error.
-func connect(t *testing.T, b *Bridge) (*mcp.ClientSession, <-chan error, error) {
+// connect relays an in-memory client to the app on port, and returns the
+// client session and Relay's result.
+func connect(t *testing.T, port int) (*mcp.ClientSession, <-chan error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 	client, server := mcp.NewInMemoryTransports()
-	b.Local = server
 	done := make(chan error, 1)
-	go func() { done <- b.Run(ctx) }()
+	go func() { done <- Relay(ctx, server, Endpoint(port)) }()
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, client, nil)
-	return cs, done, err
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cs, done
 }
 
 // echo calls the echo tool through cs.
@@ -82,92 +83,22 @@ func echo(t *testing.T, cs *mcp.ClientSession) string {
 	return res.Content[0].(*mcp.TextContent).Text
 }
 
-func TestBridgeRelaysToTheRunningApp(t *testing.T) {
+func TestRelayToTheRunningApp(t *testing.T) {
 	port := freePort(t)
 	serveOn(t, port, fakeApp(t))
-	b := &Bridge{Port: port, Starter: startFunc(func(string) error { t.Error("started a running app"); return nil })}
-	cs, done, err := connect(t, b)
-	if err != nil {
-		t.Fatal(err)
+	if !Running(context.Background(), BaseURL(port)) {
+		t.Fatal("the app isn't seen running")
 	}
+	cs, done := connect(t, port)
 	if got := echo(t, cs); got != "hi" {
 		t.Errorf("echo = %q", got)
 	}
 	cs.Close()
 	if err := <-done; err != nil {
-		t.Errorf("run: %v", err)
+		t.Errorf("relay: %v", err)
 	}
-}
-
-// startFunc adapts a function to Starter.
-type startFunc func(string) error
-
-func (f startFunc) Start(p string) error { return f(p) }
-
-func TestBridgeStartsTheApp(t *testing.T) {
-	port := freePort(t)
-	// Something else holds the port until the app is started, then the app
-	// answers a little later.
-	var up atomic.Bool
-	app := fakeApp(t)
-	serveOn(t, port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !up.Load() {
-			http.Error(w, "starting", http.StatusServiceUnavailable)
-			return
-		}
-		app.ServeHTTP(w, r)
-	}))
-	var started string
-	b := &Bridge{
-		Port: port,
-		App:  Chain{AppPath(""), AppPath(filepath.Join(t.TempDir(), "gone")), fixed("/opt/sheetdiver")},
-		Starter: startFunc(func(p string) error {
-			started = p
-			time.AfterFunc(300*time.Millisecond, func() { up.Store(true) })
-			return nil
-		}),
-		Poll: 50 * time.Millisecond,
-	}
-	cs, _, err := connect(t, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cs.Close()
-	if started != "/opt/sheetdiver" {
-		t.Errorf("started %q", started)
-	}
-	if got := echo(t, cs); got != "hi" {
-		t.Errorf("echo = %q", got)
-	}
-}
-
-// fixed is a locator that always finds path.
-type fixed string
-
-func (f fixed) Locate() (string, bool) { return string(f), true }
-
-func TestBridgeExplainsAMissingApp(t *testing.T) {
-	cases := []struct {
-		name string
-		b    Bridge
-		want string
-	}{
-		{"not allowed to start", Bridge{}, "Open the SheetDiver app"},
-		{"not found", Bridge{Starter: startFunc(func(string) error { return nil }), App: Chain{}}, "wasn't found"},
-		{"start fails", Bridge{Starter: startFunc(func(string) error { return errors.New("access denied") }), App: fixed(`C:\SheetDiver\sheetdiver.exe`)}, "access denied"},
-		{"never answers", Bridge{Starter: startFunc(func(string) error { return nil }), App: fixed("x"), StartTimeout: 200 * time.Millisecond, Poll: 50 * time.Millisecond}, "doesn't answer"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			c.b.Port = freePort(t)
-			_, done, err := connect(t, &c.b)
-			if err == nil || !strings.Contains(err.Error(), c.want) {
-				t.Fatalf("connect error = %v, want %q", err, c.want)
-			}
-			if err := <-done; err != nil {
-				t.Errorf("run: %v", err)
-			}
-		})
+	if Running(context.Background(), BaseURL(freePort(t))) {
+		t.Error("nothing listening is seen running")
 	}
 }
 
@@ -194,23 +125,6 @@ func TestResolvePort(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "none.json")); err == nil {
 		t.Error("reading the port wrote a settings file")
-	}
-}
-
-func TestBesideFindsTheApp(t *testing.T) {
-	dir := t.TempDir()
-	if _, ok := (Beside{Dir: dir}).Locate(); ok {
-		t.Error("found an app in an empty folder")
-	}
-	app := filepath.Join(dir, AppExecutable)
-	if err := os.WriteFile(app, nil, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := (Beside{Dir: dir}).Locate(); !ok || got != app {
-		t.Errorf("Beside = %q, %v", got, ok)
-	}
-	if _, ok := AppPath(dir).Locate(); ok {
-		t.Error("a folder isn't an app")
 	}
 }
 

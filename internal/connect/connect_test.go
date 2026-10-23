@@ -86,25 +86,19 @@ func TestWindowsExtensionCarriesTheConsoleBridge(t *testing.T) {
 	if s.Type != "binary" || s.EntryPoint != "server/sheetdiver-mcp.exe" || s.MCPConfig.Command != "${__dirname}/server/sheetdiver-mcp.exe" {
 		t.Errorf("server = %+v", s)
 	}
-	want := []string{"--port", "${user_config.port}", "--launch=${user_config.launch}", "--app", `C:\Program Files\SheetDiver\sheetdiver.exe`}
+	// The same bundle works for any install: no path to the app in it.
+	want := []string{"--port", "${user_config.port}"}
 	if !slices.Equal(s.MCPConfig.Args, want) {
 		t.Errorf("args = %q", s.MCPConfig.Args)
 	}
 	if _, set := s.MCPConfig.Env["SHEETDIVER_APP"]; set {
 		t.Error("the bridge doesn't need the app's path in its environment")
 	}
-	if m.UserConfig["port"].Type != "number" || m.UserConfig["launch"].Type != "boolean" {
+	if m.UserConfig["port"].Type != "number" || len(m.UserConfig) != 1 {
 		t.Errorf("user_config = %+v", m.UserConfig)
 	}
 	if !slices.Equal(m.Compatibility.Platforms, []string{"win32"}) || m.Compatibility.Runtimes != nil {
 		t.Errorf("compatibility = %+v", m.Compatibility)
-	}
-
-	// A release's extension works with any install.
-	b, _ = Extension{Version: "v0.1.0", Platform: "windows", Bridge: bridge}.Build()
-	_ = json.Unmarshal(unzip(t, b)["manifest.json"], &m)
-	if slices.Contains(m.Server.MCPConfig.Args, "--app") {
-		t.Errorf("args = %q", m.Server.MCPConfig.Args)
 	}
 }
 
@@ -180,6 +174,90 @@ func TestLauncherRunsTheBridgeOnClaudesPipes(t *testing.T) {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err == nil || !strings.Contains(stderr.String(), "save the extension again") {
 		t.Errorf("missing app: %v %q", err, stderr.String())
+	}
+}
+
+// launch runs the launcher with SheetDiver replaced by script, giving it
+// stdin, and returns its stdout, stderr and exit code.
+func launch(t *testing.T, script string, stdin *os.File) (string, string, int) {
+	t.Helper()
+	node, err := exec.LookPath("node")
+	if err != nil || runtime.GOOS == "windows" {
+		t.Skip("needs node and a shell script")
+	}
+	dir := t.TempDir()
+	app := filepath.Join(dir, "sheetdiver")
+	if err := os.WriteFile(app, []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := Extension{Version: "v1.0.0", Command: app, Platform: "linux"}.Build()
+	js := filepath.Join(dir, "index.js")
+	if err := os.WriteFile(js, unzip(t, b)["server/index.js"], 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(node, js)
+	cmd.Env = append(os.Environ(), "SHEETDIVER_APP="+app)
+	cmd.Stdin = stdin
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	err = cmd.Run()
+	code := 0
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		code = exit.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	return out.String(), errOut.String(), code
+}
+
+// input is a file holding s, for a process's stdin.
+func input(t *testing.T, s string) *os.File {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "stdin")
+	if err := os.WriteFile(p, []byte(s), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { f.Close() })
+	return f
+}
+
+func TestLauncherPipesStdioRatherThanInheritingIt(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("reads /proc")
+	}
+	// The launcher's stdin is a file; SheetDiver must get the launcher's
+	// own pipes, never the launcher's handles.
+	// (Node's pipes are socket pairs on Unix.)
+	out, _, code := launch(t, "readlink /proc/self/fd/0 /proc/self/fd/1\n", input(t, ""))
+	fds := strings.Fields(out)
+	if code != 0 || len(fds) != 2 {
+		t.Fatalf("readlink: %q, exit %d", out, code)
+	}
+	for _, fd := range fds {
+		if !strings.HasPrefix(fd, "pipe:") && !strings.HasPrefix(fd, "socket:") {
+			t.Errorf("SheetDiver's stdio is %q, want the launcher's pipes", fd)
+		}
+	}
+}
+
+func TestLauncherReportsWhySheetDiverStopped(t *testing.T) {
+	_, stderr, code := launch(t, "echo 'library is locked' >&2\nexit 7\n", input(t, ""))
+	if code != 7 || !strings.Contains(stderr, "library is locked") || !strings.Contains(stderr, "exited with status 7") {
+		t.Errorf("exit %d, stderr %q", code, stderr)
+	}
+}
+
+func TestLauncherDeliversRepliesAfterClaudeClosesItsInput(t *testing.T) {
+	// Claude sends a request and closes its input at once, as its version
+	// probe does; the reply comes a little later and must still arrive.
+	out, _, code := launch(t, "read line\nsleep 0.3\necho \"reply to $line\"\n", input(t, "probe\n"))
+	if code != 0 || out != "reply to probe\n" {
+		t.Errorf("out %q, exit %d", out, code)
 	}
 }
 

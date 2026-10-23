@@ -76,9 +76,9 @@ var ErrNoBridge = errors.New(BridgeName + " isn't installed beside SheetDiver; r
 type Extension struct {
 	// Version is the app's version ("v0.1.0", or "dev").
 	Version string
-	// Command is the SheetDiver executable the extension runs. On Windows
-	// it's only a hint for starting a closed app, and may be "" (a
-	// release's extension, for any install).
+	// Command is the SheetDiver executable the extension runs. Windows'
+	// extension carries its own bridge and doesn't use it, so it may be ""
+	// there (a release's extension, for any install).
 	Command string
 	// Platform is runtime.GOOS of the machine it's for (default: this one).
 	Platform string

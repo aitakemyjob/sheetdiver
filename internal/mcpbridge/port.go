@@ -1,9 +1,9 @@
 // Package mcpbridge connects a stdio MCP client (Claude Desktop, Codex…)
 // to the running SheetDiver app by relaying JSON-RPC messages between
 // stdin/stdout and the app's streamable HTTP endpoint
-// (http://127.0.0.1:<port>/mcp). It has no UI and no library of its own,
-// so it builds into a small console program (cmd/sheetdiver-mcp) as well
-// as the app's own "mcp" subcommand.
+// (http://127.0.0.1:<port>/mcp), and finds the app's port. It has no UI
+// and no library of its own; internal/mcpstdio uses it for the app's
+// "mcp" subcommand and the console program cmd/sheetdiver-mcp.
 //
 // Only protocol messages go to stdout; everything else is logged to
 // stderr, where the client keeps it as the server's log.

@@ -1,7 +1,9 @@
-// Command sheetdiver-mcp is SheetDiver's stdio MCP bridge as a small
-// console program, for clients that launch servers over stdio (Claude
-// Desktop's extension, Codex, …). It relays to the running SheetDiver app
-// and starts the app when it isn't open.
+// Command sheetdiver-mcp is SheetDiver's stdio MCP server as a console
+// program, for clients that launch servers over stdio (Claude Desktop's
+// extension, Codex, …). It does what "sheetdiver mcp" does: relays to the
+// running SheetDiver app, or serves the library itself while the app is
+// closed. It has no window and starts nothing, so a client can run copies
+// of it freely.
 //
 // The desktop app is a windowed program; on Windows that can't be a
 // client's stdio server, so the installer ships this beside it. Build it
@@ -11,7 +13,7 @@
 //
 // Usage:
 //
-//	sheetdiver-mcp [-port N] [-app PATH] [-launch=false]
+//	sheetdiver-mcp [-port N] [-standalone]
 //
 // Stdout carries only MCP messages; logs go to stderr.
 package main
@@ -26,9 +28,8 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/aitakemyjob/sheetdiver/internal/mcpbridge"
+	"github.com/aitakemyjob/sheetdiver/internal/mcpstdio"
 )
 
 // version is set at build time: -ldflags "-X main.version=v1.2.3".
@@ -36,24 +37,24 @@ var version = "dev"
 
 // options are the command line's settings.
 type options struct {
-	port    int
-	app     string
-	launch  bool
-	version bool
+	port       int
+	standalone bool
+	version    bool
 }
 
-// parseArgs reads the command line. Claude Desktop fills --port and
-// --launch from the extension's settings, which can come through blank
-// or unexpected; those fall back to the defaults (the port from
-// SheetDiver's settings, starting the app) instead of a usage error,
-// which would end the session without telling Claude why.
+// parseArgs reads the command line. Claude Desktop fills --port from the
+// extension's settings, which can come through blank or unexpected; that
+// falls back to the port in SheetDiver's settings instead of a usage
+// error, which would end the session without telling Claude why.
 func parseArgs(args []string) (options, error) {
 	fl := flag.NewFlagSet("sheetdiver-mcp", flag.ContinueOnError)
 	fl.SetOutput(os.Stderr)
 	port := fl.String("port", "", "the app's MCP port (default: from SheetDiver's settings, else 47480)")
-	app := fl.String("app", "", "SheetDiver executable to start when it isn't running (default: found beside this program or from the installer's record)")
-	launch := fl.String("launch", "true", "start SheetDiver when it isn't running (true or false)")
+	standalone := fl.Bool("standalone", false, "serve the library directly even when the app is running")
 	showVersion := fl.Bool("version", false, "print the version")
+	// Earlier extensions passed these; they no longer do anything.
+	fl.String("app", "", "ignored")
+	fl.String("launch", "", "ignored")
 	// Accept "sheetdiver mcp"'s argument, so either command line works.
 	if len(args) > 0 && args[0] == "mcp" {
 		args = args[1:]
@@ -61,22 +62,17 @@ func parseArgs(args []string) (options, error) {
 	if err := fl.Parse(args); err != nil {
 		return options{}, err
 	}
-	o := options{app: *app, launch: true, version: *showVersion}
+	o := options{standalone: *standalone, version: *showVersion}
 	// A number setting can arrive as "47480" or "47480.0".
 	if p, err := strconv.ParseFloat(*port, 64); err == nil && p == float64(int(p)) {
 		o.port = int(p) // out of range is "not given" (mcpbridge.FixedPort)
 	} else if *port != "" {
 		slog.Warn("sheetdiver-mcp: ignoring --port " + strconv.Quote(*port) + "; using SheetDiver's settings")
 	}
-	if l, err := strconv.ParseBool(*launch); err == nil {
-		o.launch = l
-	} else if *launch != "" {
-		slog.Warn("sheetdiver-mcp: ignoring --launch " + strconv.Quote(*launch) + "; starting SheetDiver when it's closed")
-	}
 	return o, nil
 }
 
-// main parses the flags and runs the bridge until the client disconnects.
+// main parses the flags and serves the client until it disconnects.
 func main() {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	o, err := parseArgs(os.Args[1:])
@@ -87,18 +83,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "sheetdiver-mcp", version)
 		return
 	}
-
-	b := &mcpbridge.Bridge{
-		Port:  mcpbridge.ResolvePort(mcpbridge.FixedPort(o.port), mcpbridge.SettingsPort{}),
-		Local: &mcp.StdioTransport{},
-		App:   append(mcpbridge.Chain{mcpbridge.AppPath(o.app)}, mcpbridge.DefaultLocators()...),
-	}
-	if o.launch {
-		b.Starter = mcpbridge.Detached{}
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := b.Run(ctx); err != nil {
+	err = mcpstdio.Serve(ctx, mcpstdio.Options{
+		Port:       mcpbridge.ResolvePort(mcpbridge.FixedPort(o.port), mcpbridge.SettingsPort{}),
+		Standalone: o.standalone,
+		Version:    version,
+	})
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "sheetdiver-mcp:", err)
 		os.Exit(1)
 	}
