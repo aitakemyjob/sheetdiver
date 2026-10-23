@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
-import { labelRect, layoutBlockDiagram, overlaps, separate, type BlockDrawing, type Box, type Pt } from './blockDiagram';
+import { labelRect, layoutBlockDiagram, overlaps, separate, type BlockDrawing, type Box, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -52,7 +52,7 @@ describe.each(circuits)('the block diagram of %s', (name) => {
   const d = layoutBlockDiagram(circuit(name));
 
   it('draws every part and passive once', () => {
-    expect(d.boxes.map((b) => b.part.id)).toEqual(circuit(name).parts.map((p) => p.id));
+    expect(d.boxes.map((b) => b.part.id).sort()).toEqual(circuit(name).parts.map((p) => p.id).sort());
     expect(d.passives.map((p) => p.passive.id).sort()).toEqual(circuit(name).passives.map((p) => p.id).sort());
   });
 
@@ -278,3 +278,66 @@ describe("the tester's board", () => {
   });
 });
 
+
+describe('a board in groups', () => {
+  const dg = circuit('Grouped MCU board');
+  const d = layoutBlockDiagram(dg);
+  const frame = (name: string) => d.frames.find((f) => f.group.name === name)!;
+  const box = (title: string) => d.boxes.find((b) => b.part.title.split(' ')[0] === title)!;
+  const inside = (r: Rect, f: Rect) => r.x >= f.x && r.y >= f.y && r.x + r.w <= f.x + f.w && r.y + r.h <= f.y + f.h;
+
+  it('frames each group, left to right in power-flow order, without overlapping', () => {
+    expect(d.frames.map((f) => f.group.name)).toEqual(['Power', 'MCU', 'Sensor']);
+    for (let i = 1; i < d.frames.length; i++) expect(d.frames[i].x).toBeGreaterThan(d.frames[i - 1].x + d.frames[i - 1].w);
+    expect(frame('Power').group.description).toBe('USB 5 V to 3.3 V');
+  });
+
+  it('draws each part, and the passives hanging from it, inside its group, below the header', () => {
+    for (const b of d.boxes) {
+      const f = frame(b.part.group!);
+      expect(inside({ x: b.x, y: b.y - 30, w: b.w, h: b.h + 30 }, f), b.part.title).toBe(true);
+      expect(b.y - 30).toBeGreaterThan(f.y + f.header);
+    }
+    for (const p of d.passives) expect(inside(p, frame(p.passive.group!)), p.passive.label).toBe(true);
+  });
+
+  it('hangs each decoupling capacitor by the part it serves, not together on the rail', () => {
+    const cap = (label: string) => d.passives.find((p) => p.passive.label === label)!;
+    expect(inside(cap('C4'), frame('MCU'))).toBe(true);
+    expect(inside(cap('C5'), frame('Sensor'))).toBe(true);
+    // Each hangs from a wire leaving its own part's 3V3 pin.
+    for (const [c, u] of [['C4', 'U2'], ['C5', 'U3']]) {
+      const pin = box(u).pins.find((p) => p.net === '3V3' && !p.tied)!;
+      const stub = d.wires.find((w) => w.net === '3V3' && w.path.startsWith(`M${pin.x},${pin.y} H`))!;
+      const end = Number(/H(-?[\d.]+)/.exec(stub.path)![1]);
+      const mid = cap(c).x + cap(c).w / 2;
+      expect(mid, c).toBeGreaterThanOrEqual(Math.min(pin.x, end));
+      expect(mid, c).toBeLessThanOrEqual(Math.max(pin.x, end));
+    }
+  });
+
+  it('labels a net leaving its group, and runs no wire between groups', () => {
+    for (const w of d.wires) {
+      const xs = points(w.path).map((p) => p.x);
+      const owners = d.frames.filter((f) => xs.some((x) => x >= f.x && x <= f.x + f.w));
+      expect(owners.length, `${w.net}: ${w.path}`).toBeLessThanOrEqual(1);
+    }
+    const labels = d.wires.filter((w) => w.label?.text === '3V3');
+    expect(labels).toHaveLength(3); // a stub in each group
+  });
+
+  it('keeps a part dragged in a group where it was put, relative to its frame', () => {
+    const moved = layoutBlockDiagram({ ...dg, parts: dg.parts.map((p) => (p.title.startsWith('U3') ? { ...p, x: 300, y: 200 } : p)) });
+    const u3 = moved.boxes.find((b) => b.part.title.startsWith('U3'))!;
+    expect(u3.x).toBe(u3.origin!.x + 300);
+    expect(u3.y).toBe(u3.origin!.y + 200);
+    // The other groups don't move.
+    for (const name of ['Power', 'MCU']) expect(moved.frames.find((f) => f.group.name === name)).toEqual(frame(name));
+  });
+
+  it('draws a board without groups as one drawing, unframed', () => {
+    const plain = layoutBlockDiagram(circuit('MCU board'));
+    expect(plain.frames).toEqual([]);
+    expect(plain.boxes.every((b) => b.origin === undefined)).toBe(true);
+  });
+});

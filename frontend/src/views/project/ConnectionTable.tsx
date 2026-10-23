@@ -4,13 +4,8 @@ import { api, saveText } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import type { ConnectionRow, Pin, ProjectDetail } from '../../lib/types';
 import { Checks } from '../../components/Checks';
-import { change, marked } from './connections';
-
-/** What an entry can be connected as: its designators, and each one when it has several. */
-export function designators(d: string): string[] {
-  const each = d.split(/[,;\s]+/).filter(Boolean);
-  return each.length > 1 ? [d, ...each] : [d];
-}
+import { change, designators, endpoints as endpointsOf, marked } from './connections';
+import { Groups } from './Groups';
 
 /** The CSV of a connection table. */
 export function connectionsCSV(d: ProjectDetail): string {
@@ -61,7 +56,7 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
   };
   // Each designator of an entry with several ("R1,R2") can be connected
   // on its own, as well as the entry as a whole.
-  const endpoints = [...d.parts.flatMap((p) => designators(p.designator || p.mpn)), ...c.blocks.map((b) => b.name)];
+  const endpoints = endpointsOf(d);
   return (
     <div className="col" style={{ gap: 16 }}>
       {checks.length > 0 && (
@@ -117,7 +112,7 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
         {c.nets.length === 0 ? (
           <div className="muted">No connections yet. Put pins on nets above, or ask your agent to draft them (set_connections).</div>
         ) : (
-          <table className="dtable">
+          <table className="dtable" aria-label="Connection table">
             <thead>
               <tr>
                 <th>Net</th>
@@ -223,6 +218,7 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
           </form>
         </div>
       </div>
+      <Groups d={d} onChange={onChange} />
     </div>
   );
 }

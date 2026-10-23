@@ -258,6 +258,14 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 	for _, pin := range cir.Pins {
 		ch.Connect = append(ch.Connect, core.ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
 	}
+	for _, g := range cir.Groups {
+		desc, notes := g.Description, g.Notes
+		ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: &desc, Notes: &notes})
+	}
+	for _, a := range cir.Assign {
+		group, supports := a[1], a[2]
+		ch.Assign = append(ch.Assign, core.AssignChange{Part: a[0], Group: &group, Supports: &supports})
+	}
 	if problems, err := c.ChangeConnections(ctx, cir.Name, ch, library.SourceUser); err != nil || len(problems) > 0 {
 		t.Fatalf("%s: %v %q", cir.Name, err, problems)
 	}

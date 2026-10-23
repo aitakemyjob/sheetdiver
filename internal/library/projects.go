@@ -303,6 +303,10 @@ func (s *Store) RemoveProjectPart(ctx context.Context, projectID, id int64) erro
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM project_layout WHERE project_id = ? AND (node = ? OR node LIKE ?)`, projectID, PartNode(id), PartNode(id)+"/%"); err != nil {
 		return err
 	}
+	// Likewise its group, and what it supports or is supported by.
+	if err := s.forgetNode(ctx, projectID, PartNode(id)); err != nil {
+		return err
+	}
 	s.touch(ctx, projectID)
 	return nil
 }

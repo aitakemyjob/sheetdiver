@@ -249,12 +249,29 @@ func writeConnections(b *strings.Builder, c Connections) {
 		ids := map[string]string{}
 		for i, p := range c.Diagram.Parts {
 			ids[p.ID] = fmt.Sprintf("n%d", i)
+		}
+		node := func(p DiagramPart, indent string) {
 			label := strings.ReplaceAll(p.Title, `"`, "'")
 			if p.Kind == "connector" {
-				fmt.Fprintf(b, "  %s([\"%s\"])\n", ids[p.ID], label)
+				fmt.Fprintf(b, "%s%s([\"%s\"])\n", indent, ids[p.ID], label)
 			} else {
-				fmt.Fprintf(b, "  %s[\"%s\"]\n", ids[p.ID], label)
+				fmt.Fprintf(b, "%s%s[\"%s\"]\n", indent, ids[p.ID], label)
 			}
+		}
+		for _, p := range c.Diagram.Parts {
+			if p.Group == "" {
+				node(p, "  ")
+			}
+		}
+		// Each group as a subgraph around its parts.
+		for i, g := range c.Diagram.Groups {
+			fmt.Fprintf(b, "  subgraph g%d[\"%s\"]\n", i, strings.ReplaceAll(g.Name, `"`, "'"))
+			for _, p := range c.Diagram.Parts {
+				if strings.EqualFold(p.Group, g.Name) {
+					node(p, "    ")
+				}
+			}
+			b.WriteString("  end\n")
 		}
 		for _, e := range c.Diagram.Links {
 			arrow := "---"

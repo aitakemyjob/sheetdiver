@@ -15,7 +15,12 @@
 //
 // What it promises, for any board (tested on several): nothing overlaps,
 // no wire crosses another net's wire, nothing sits on another net's wire.
-import type { Diagram, DiagramPart, DiagramPassive, DiagramPin } from './types';
+//
+// A board in functional groups is laid out a group at a time (groups
+// share no wires: a net between groups is a labelled stub in each), each
+// framed with its name, description and notes, left to right in power
+// flow order. Saved positions in a group are relative to its frame.
+import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
 
 export const PITCH = 30; // between pins
 export const TOP = 30; // first pin below a box's top
@@ -48,6 +53,8 @@ export type PlacedPin = DiagramPin & Pt;
 export interface Box extends Rect {
   part: DiagramPart;
   pins: PlacedPin[];
+  /** Where its group's content starts: saved positions are relative to it. */
+  origin?: Pt;
 }
 
 /** A wire (an SVG path) with an optional net label. */
@@ -63,6 +70,15 @@ export interface Wire {
 /** A passive with its place. */
 export interface PlacedPassive extends Rect {
   passive: DiagramPassive;
+  /** Where its group's content starts: saved positions are relative to it. */
+  origin?: Pt;
+}
+
+/** A group's frame, with what's written at its top. */
+export interface Frame extends Rect {
+  group: DiagramGroup;
+  /** Height of the header with its name, description and notes. */
+  header: number;
 }
 
 export interface BlockDrawing {
@@ -75,12 +91,19 @@ export interface BlockDrawing {
   flags: Flag[];
   /** Junctions: where a drop leaves a wire. */
   dots: Pt[];
+  /** Group frames, behind everything else. */
+  frames: Frame[];
   width: number;
   height: number;
 }
 
-/** Lays out a block diagram. */
+/** Lays out a block diagram: whole, or a group at a time. */
 export function layoutBlockDiagram(d: Diagram): BlockDrawing {
+  return d.groups?.length ? layoutGroups(d) : layoutWhole(d);
+}
+
+/** Lays out a block diagram (or one group of it) as one drawing. */
+function layoutWhole(d: Diagram): BlockDrawing {
   const boxes = measure(d);
   place(boxes, d);
   facing(boxes, d);
@@ -101,9 +124,118 @@ export function layoutBlockDiagram(d: Diagram): BlockDrawing {
     grounds: [...r.grounds, ...h.grounds],
     flags: h.flags,
     dots: [...r.dots, ...h.dots],
+    frames: [],
     width: Math.max(320, ...extents.map((e) => e.x)) + PAD,
     height: Math.max(160, ...extents.map((e) => e.y)) + PAD,
   };
+}
+
+// ── groups ────────────────────────────────────────────────────────────
+
+const GROUP_GAP = 60; // between group frames
+const HEADER_LINE = 20; // a description or notes line in a frame's header
+
+/** A frame's header height: its name, then its description and notes. */
+export function headerHeight(g: DiagramGroup): number {
+  return 34 + (g.description ? HEADER_LINE : 0) + (g.notes ? HEADER_LINE : 0);
+}
+
+/** The part of a diagram in one group ("" for none), its columns renumbered from 0. */
+export function groupDiagram(d: Diagram, group: string): Diagram {
+  const inGroup = (g?: string) => (g ?? '').toLowerCase() === group.toLowerCase();
+  const parts = d.parts.filter((p) => inGroup(p.group));
+  const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);
+  return {
+    parts: parts.map((p) => ({ ...p, column: columns.indexOf(p.column) })),
+    nets: d.nets.filter((n) => inGroup(n.group)),
+    passives: d.passives.filter((q) => inGroup(q.group)),
+    groups: [],
+    links: [],
+  };
+}
+
+/** Moves an SVG path of absolute M, L, H and V commands. */
+export function movePath(path: string, dx: number, dy: number): string {
+  return path.replace(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g, (_, cmd: string, a: string, b?: string) => {
+    if (cmd === 'H') return `H${Number(a) + dx}`;
+    if (cmd === 'V') return `V${Number(a) + dy}`;
+    return `${cmd}${Number(a) + dx},${Number(b) + dy}`;
+  });
+}
+
+/** The top-left corner of everything drawn: boxes with their titles, passives, wires and their labels, symbols. */
+export function topLeft(r: BlockDrawing): Pt {
+  const pts: Pt[] = [
+    ...r.boxes.map((b) => ({ x: b.x, y: b.y - TITLE })),
+    ...r.passives,
+    ...r.grounds,
+    ...r.flags.map((f) => ({ x: f.x - f.text.length * 3.6, y: f.y - 12 })),
+    ...r.dots,
+    ...r.wires.flatMap((w) => [
+      ...[...w.path.matchAll(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g)].map(([, c, a, b]) => (c === 'V' ? { x: Infinity, y: Number(a) } : { x: Number(a), y: c === 'H' ? Infinity : Number(b) })),
+      ...(w.label ? [labelRect(w.label)] : []),
+    ]),
+  ];
+  return { x: Math.min(...pts.map((p) => p.x)), y: Math.min(...pts.map((p) => p.y)) };
+}
+
+/** Moves a whole drawing by (dx, dy). */
+export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawing {
+  const pt = <T extends Pt>(p: T): T => ({ ...p, x: p.x + dx, y: p.y + dy });
+  return {
+    ...r,
+    boxes: r.boxes.map((b) => ({ ...pt(b), pins: b.pins.map(pt) })),
+    passives: r.passives.map(pt),
+    wires: r.wires.map((w) => ({ ...w, path: movePath(w.path, dx, dy), label: w.label && pt(w.label) })),
+    grounds: r.grounds.map(pt),
+    flags: r.flags.map(pt),
+    dots: r.dots.map(pt),
+    frames: r.frames.map(pt),
+  };
+}
+
+/**
+ * Lays out each group on its own, framed, left to right in the backend's
+ * order, then the parts in no group. Saved positions are relative to
+ * their group's content, so moving a part in one group never moves
+ * another group's parts.
+ */
+function layoutGroups(d: Diagram): BlockDrawing {
+  const out: BlockDrawing = { boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], width: 0, height: 0 };
+  let x = 0;
+  const clusters: (DiagramGroup | undefined)[] = [...d.groups, undefined];
+  for (const group of clusters) {
+    const sub = groupDiagram(d, group?.name ?? '');
+    if (!sub.parts.length) continue;
+    const header = group ? headerHeight(group) : 0;
+    // What's drawn starts a margin inside the frame, however far its stubs
+    // and passives reach out from the boxes.
+    const drawn = layoutWhole(sub);
+    const corner = topLeft(drawn);
+    const dx = x + PAD - Math.min(PAD, corner.x);
+    const dy = header + PAD - Math.min(PAD, corner.y);
+    const origin = { x: dx, y: dy };
+    const local = moveDrawing(drawn, dx, dy);
+    local.width = drawn.width + (dx - x);
+    local.height = drawn.height + (dy - header);
+    // Boxes keep their own column (the group's layout renumbers them).
+    const column = new Map(d.parts.map((p) => [p.id, p.column]));
+    local.boxes = local.boxes.map((b) => ({ ...b, part: { ...b.part, column: column.get(b.part.id) ?? b.part.column } }));
+    // The frame fits what's drawn, and the header's text.
+    const textWidth = group ? 24 + 7.2 * Math.max(group.name.length * 1.15, (group.description ?? '').length, (group.notes ?? '').length + 7) : 0;
+    const w = Math.max(local.width, textWidth);
+    if (group) out.frames.push({ x: x + 12, y: 12, w: w - 24, h: header + local.height - 24, group, header });
+    out.boxes.push(...local.boxes.map((b) => ({ ...b, origin })));
+    out.passives.push(...local.passives.map((p) => ({ ...p, origin })));
+    out.wires.push(...local.wires);
+    out.grounds.push(...local.grounds);
+    out.flags.push(...local.flags);
+    out.dots.push(...local.dots);
+    out.width = x + w;
+    out.height = Math.max(out.height, header + local.height);
+    x += w + GROUP_GAP;
+  }
+  return out;
 }
 
 // ── measure ───────────────────────────────────────────────────────────
@@ -366,7 +498,8 @@ export function route(d: Diagram, boxes: Box[]): Routed {
     for (const side of ['right', 'left'] as const) {
       const dir = side === 'right' ? 1 : -1;
       let far = side === 'right' && d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge') ? 120 : 0;
-      const outs = b.pins.filter((p) => p.side === side && byName.get(p.net)?.wire === 'out').sort((p, q) => q.y - p.y);
+      // A pin tied to another joins that pin's stub (below), not a stub of its own.
+      const outs = b.pins.filter((p) => p.side === side && !p.tied && byName.get(p.net)?.wire === 'out').sort((p, q) => q.y - p.y);
       for (const p of outs) {
         const n = byName.get(p.net)!;
         const drops = d.passives.filter((q) => q.mount === 'out' && q.nets[0] === p.net).length;

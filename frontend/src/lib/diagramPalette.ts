@@ -17,6 +17,7 @@ const palettes: Record<'light' | 'dark', Record<string, Swatch>> = {
     inductor: { fill: '#FAEEDA', stroke: '#854F0B', text: '#633806' },
     other: { fill: '#F1EFE8', stroke: '#5F5E5A', text: '#444441' },
     wire: { fill: 'none', stroke: '#898781', text: '#52514E' },
+    group: { fill: '#FAF9F5', stroke: '#B4B2A9', text: '#444441' },
   },
   dark: {
     ic: { fill: '#26215C', stroke: '#AFA9EC', text: '#CECBF6' },
@@ -28,6 +29,7 @@ const palettes: Record<'light' | 'dark', Record<string, Swatch>> = {
     inductor: { fill: '#412402', stroke: '#EF9F27', text: '#FAC775' },
     other: { fill: '#2C2C2A', stroke: '#B4B2A9', text: '#D3D1C7' },
     wire: { fill: 'none', stroke: '#8B8A85', text: '#B4B2A9' },
+    group: { fill: '#1E1E1C', stroke: '#5F5E5A', text: '#D3D1C7' },
   },
 };
 

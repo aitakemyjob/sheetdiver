@@ -8,6 +8,21 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Added
+- **Functional groups on the block diagram:** put parts in groups (Power,
+  MCU, Sensors) in the Connections tab, or have your agent do it. Each
+  group is drawn in its own frame with its description and notes. Wires
+  stay inside a group; a net that also runs in another group ends in a
+  stub with its name, so a rail shared by the whole board no longer
+  draws wires across it. A board without groups is drawn as before; the
+  report's Mermaid chart shows each group as a subgraph. (#72)
+- **Passives drawn by the part they support:** say which part a passive
+  supports (a decoupling capacitor and its IC), and it hangs by that
+  part's pin and is drawn in that part's group. Alike passives on one
+  rail are only merged when they serve the same part, so C4 and C5 for
+  two ICs on 3V3 no longer clump together at the regulator. Left unset,
+  a passive whose nets reach only one part supports that part. (#71)
+
 ### Changed
 - **Windows: `sheetdiver-mcp.exe` works like `sheetdiver mcp`.** It relays
   to the open app, or serves your library itself while the app is closed,

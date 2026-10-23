@@ -348,6 +348,24 @@ CREATE TABLE project_layout (
 );
 `, `
 ALTER TABLE project_connections ADD COLUMN ref TEXT NOT NULL DEFAULT '';
+`, `
+CREATE TABLE project_groups (
+	id INTEGER PRIMARY KEY,
+	project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	name TEXT NOT NULL COLLATE NOCASE,
+	description TEXT NOT NULL DEFAULT '',
+	notes TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'user',
+	UNIQUE(project_id, name)
+);
+CREATE TABLE project_assignments (
+	project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	node TEXT NOT NULL,
+	group_id INTEGER REFERENCES project_groups(id) ON DELETE SET NULL,
+	supports TEXT NOT NULL DEFAULT '',
+	source TEXT NOT NULL DEFAULT 'user',
+	PRIMARY KEY (project_id, node)
+);
 `}
 
 // migrate applies pending schema migrations.

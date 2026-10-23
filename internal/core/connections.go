@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -16,6 +17,10 @@ type Connections struct {
 	Nets        []library.Net   `json:"nets"`
 	Blocks      []library.Block `json:"blocks"`
 	Connections []ConnectionRow `json:"connections"`
+	// Groups are the project's functional groups; Assignments put parts
+	// and blocks in them and say what they support.
+	Groups      []library.Group `json:"groups"`
+	Assignments []AssignmentRow `json:"assignments"`
 	Diagram     Diagram         `json:"diagram"`
 	// Pinouts is, for each part and block that isn't a passive, every
 	// pin with what it's connected to: the reference table per part.
@@ -30,6 +35,42 @@ type ConnectionRow struct {
 	Endpoint string `json:"endpoint"`
 	PinName  string `json:"pinName,omitempty"`
 	PinType  string `json:"pinType,omitempty"`
+}
+
+// AssignmentRow is an assignment with the names of what it's about: the
+// part or block (Endpoint) and the one it supports (SupportsEndpoint).
+type AssignmentRow struct {
+	library.Assignment
+	Endpoint         string `json:"endpoint"`
+	SupportsEndpoint string `json:"supportsEndpoint,omitempty"`
+}
+
+// assignmentRows names each assignment's nodes.
+func assignmentRows(parts []library.ProjectPart, blocks []library.Block, as []library.Assignment) []AssignmentRow {
+	out := make([]AssignmentRow, 0, len(as))
+	for _, a := range as {
+		out = append(out, AssignmentRow{Assignment: a, Endpoint: nodeLabel(parts, blocks, a.Node), SupportsEndpoint: nodeLabel(parts, blocks, a.Supports)})
+	}
+	return out
+}
+
+// nodeLabel names a node: a BOM entry's designator (or part number), one
+// of its designators, or a block's name.
+func nodeLabel(parts []library.ProjectPart, blocks []library.Block, node string) string {
+	for _, pp := range parts {
+		if node == library.PartNode(pp.ID) {
+			return entryLabel(pp)
+		}
+		if strings.HasPrefix(node, library.PartNode(pp.ID)+"/") {
+			return strings.TrimPrefix(node, library.PartNode(pp.ID)+"/")
+		}
+	}
+	for _, b := range blocks {
+		if node == library.BlockNode(b.ID) {
+			return b.Name
+		}
+	}
+	return node
 }
 
 // connections loads a project's connection table, builds its diagram and
@@ -77,7 +118,15 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		}
 		out.Connections = append(out.Connections, row)
 	}
-	out.Diagram = diagram(parts, out.Blocks, out.Nets, out.Connections, layout)
+	if out.Groups, err = s.Lib.Groups(ctx, p.ID); err != nil {
+		return out, nil, err
+	}
+	assigns, err := s.Lib.Assignments(ctx, p.ID)
+	if err != nil {
+		return out, nil, err
+	}
+	out.Assignments = assignmentRows(parts, out.Blocks, assigns)
+	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns})
 	out.Pinouts = pinouts(parts, out.Blocks, out.Nets, out.Connections, pins)
 	return out, connectionChecks(parts, rails, out.Nets, out.Connections, pins), nil
 }
@@ -155,12 +204,14 @@ func entryLabel(pp library.ProjectPart) string {
 }
 
 // ConnectionsChange edits a project's connection table and block
-// diagram. Blocks are applied first, then nets, connections and
-// positions.
+// diagram. Blocks are applied first, then groups, nets, connections,
+// assignments and positions.
 type ConnectionsChange struct {
 	Blocks      []BlockChange    `json:"blocks,omitempty"`
+	Groups      []GroupChange    `json:"groups,omitempty"`
 	Nets        []NetChange      `json:"nets,omitempty"`
 	Connect     []ConnectChange  `json:"connect,omitempty"`
+	Assign      []AssignChange   `json:"assign,omitempty"`
 	Positions   []PositionChange `json:"positions,omitempty"`
 	ResetLayout bool             `json:"resetLayout,omitempty"`
 }
@@ -172,6 +223,24 @@ type BlockChange struct {
 	Value  string `json:"value,omitempty"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
+}
+
+// GroupChange adds or updates a functional group (unset fields are
+// kept), or removes it, leaving its parts ungrouped.
+type GroupChange struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+	Notes       *string `json:"notes,omitempty"`
+	Remove      bool    `json:"remove,omitempty"`
+}
+
+// AssignChange puts a part or block (a designator, part number or block
+// name) in a group and/or says which part it supports; unset fields are
+// kept, "" clears one. A group that doesn't exist is created.
+type AssignChange struct {
+	Part     string  `json:"part"`
+	Group    *string `json:"group,omitempty"`
+	Supports *string `json:"supports,omitempty"`
 }
 
 // NetChange sets a net's kind, bus, I/O voltage or notes (unset fields
@@ -226,6 +295,7 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 			problems = append(problems, fmt.Sprintf("block %s: %v", b.Name, err))
 		}
 	}
+	problems = append(problems, s.changeGroups(ctx, p.ID, ch.Groups, source)...)
 	nets, err := s.Lib.Nets(ctx, p.ID)
 	if err != nil {
 		return nil, err
@@ -301,6 +371,11 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 			problems = append(problems, fmt.Sprintf("%s %s on %s: %v", ref, pinRef, cc.Net, err))
 		}
 	}
+	more, err := s.assign(ctx, p.ID, parts, blocks, ch.Assign, source)
+	if err != nil {
+		return problems, err
+	}
+	problems = append(problems, more...)
 	if ch.ResetLayout {
 		if err := s.Lib.ClearLayout(ctx, p.ID); err != nil {
 			return problems, err
@@ -309,13 +384,8 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	for _, pc := range ch.Positions {
 		node := pc.Node
 		if !strings.HasPrefix(node, "part:") && !strings.HasPrefix(node, "block:") {
-			to := endpoint(parts, blocks, node)
-			switch {
-			case to.entry != 0:
-				node = library.RefNode(to.entry, to.ref)
-			case to.block != 0:
-				node = library.BlockNode(to.block)
-			default:
+			var ok bool
+			if node, ok = nodeOfName(parts, blocks, node); !ok {
 				problems = append(problems, fmt.Sprintf("%s: %v", pc.Node, errEndpoint))
 				continue
 			}
@@ -326,6 +396,101 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	}
 	s.ProjectChanged(p.Name, "connections")
 	return problems, nil
+}
+
+// changeGroups applies group changes, returning what couldn't be done.
+func (s *Service) changeGroups(ctx context.Context, projectID int64, changes []GroupChange, source string) []string {
+	var problems []string
+	if len(changes) == 0 {
+		return problems
+	}
+	groups, err := s.Lib.Groups(ctx, projectID)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	for _, gc := range changes {
+		if gc.Remove {
+			if err := s.Lib.DeleteGroup(ctx, projectID, gc.Name); err != nil {
+				problems = append(problems, fmt.Sprintf("group %s: %v", gc.Name, err))
+			}
+			continue
+		}
+		g := library.Group{ProjectID: projectID, Name: gc.Name, Source: source}
+		for _, old := range groups {
+			if strings.EqualFold(old.Name, strings.TrimSpace(gc.Name)) {
+				g.Description, g.Notes = old.Description, old.Notes
+			}
+		}
+		if gc.Description != nil {
+			g.Description = *gc.Description
+		}
+		if gc.Notes != nil {
+			g.Notes = *gc.Notes
+		}
+		if _, err := s.Lib.SetGroup(ctx, g); err != nil {
+			problems = append(problems, fmt.Sprintf("group %s: %v", gc.Name, err))
+		}
+	}
+	return problems
+}
+
+// assign applies assignment changes, returning what couldn't be done.
+func (s *Service) assign(ctx context.Context, projectID int64, parts []library.ProjectPart, blocks []library.Block, changes []AssignChange, source string) ([]string, error) {
+	var problems []string
+	if len(changes) == 0 {
+		return problems, nil
+	}
+	existing, err := s.Lib.Assignments(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for _, ac := range changes {
+		node, ok := nodeOfName(parts, blocks, ac.Part)
+		if !ok {
+			problems = append(problems, fmt.Sprintf("%s: %v", ac.Part, errEndpoint))
+			continue
+		}
+		a := library.Assignment{Node: node, Source: source}
+		for _, old := range existing {
+			if old.Node == node {
+				a.Group, a.Supports = old.Group, old.Supports
+			}
+		}
+		if ac.Group != nil {
+			a.Group = *ac.Group
+		}
+		if ac.Supports != nil {
+			a.Supports = ""
+			if name := strings.TrimSpace(*ac.Supports); name != "" {
+				to, ok := nodeOfName(parts, blocks, name)
+				if !ok {
+					problems = append(problems, fmt.Sprintf("%s supports %s: %v", ac.Part, name, errEndpoint))
+					continue
+				}
+				a.Supports = to
+			}
+		}
+		if err := s.Lib.Assign(ctx, projectID, a); err != nil {
+			problems = append(problems, fmt.Sprintf("%s: %v", ac.Part, err))
+			continue
+		}
+		existing = slices.DeleteFunc(existing, func(x library.Assignment) bool { return x.Node == node })
+		existing = append(existing, a)
+	}
+	return problems, nil
+}
+
+// nodeOfName finds the block-diagram node a designator, part number or
+// block name names.
+func nodeOfName(parts []library.ProjectPart, blocks []library.Block, name string) (string, bool) {
+	to := endpoint(parts, blocks, strings.TrimSpace(name))
+	switch {
+	case to.entry != 0:
+		return library.RefNode(to.entry, to.ref), true
+	case to.block != 0:
+		return library.BlockNode(to.block), true
+	}
+	return "", false
 }
 
 // target is what a connection names: a BOM entry (with Ref, one of its

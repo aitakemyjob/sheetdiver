@@ -433,6 +433,8 @@ export interface DiagramPart {
   mpn?: string;
   kind: string;
   column: number;
+  /** The group it's drawn in. */
+  group?: string;
   pins: DiagramPin[];
   /** Where it was dragged to. */
   x?: number;
@@ -448,18 +450,35 @@ export interface DiagramPassive {
   mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge';
   part: string;
   nets: string[];
+  /** The part it serves. */
+  supports?: string;
+  /** The group it's drawn in (its part's). */
+  group?: string;
   /** Where it was dragged to. */
   x?: number;
   y?: number;
 }
 
-/** A drawn net: the parts on it in column order, and how its wire runs. */
+/**
+ * A net's wire within one group: the parts there on it in column order,
+ * and how its wire runs. Offboard: the net also runs in other groups.
+ */
 export interface DiagramNet {
   name: string;
   kind: string;
+  group?: string;
   parts: string[];
   wire: 'between' | 'lane' | 'out' | '';
   arrow?: boolean;
+  offboard?: boolean;
+}
+
+/** A functional group: a frame around its parts, with its description and notes. */
+export interface DiagramGroup {
+  name: string;
+  description?: string;
+  notes?: string;
+  parts: string[];
 }
 
 /** Two parts sharing nets (the report's chart, agents). */
@@ -476,13 +495,36 @@ export interface Diagram {
   parts: DiagramPart[];
   passives: DiagramPassive[];
   nets: DiagramNet[];
+  /** Groups with something drawn in them, in power-flow order. */
+  groups: DiagramGroup[];
   links: DiagramLink[];
+}
+
+/** A project's functional group. */
+export interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  notes?: string;
+  source: string;
+}
+
+/** Where a part or block belongs: its group, and the part it supports. */
+export interface Assignment {
+  node: string;
+  endpoint: string;
+  group?: string;
+  supports?: string;
+  supportsEndpoint?: string;
+  source: string;
 }
 
 export interface Connections {
   nets: Net[];
   blocks: Block[];
   connections: ConnectionRow[];
+  groups: Group[];
+  assignments: Assignment[];
   diagram: Diagram;
   /** Each part's pins and what they're connected to. */
   pinouts: Pinout[];
@@ -501,6 +543,9 @@ export interface ConnectionsChange {
   blocks?: { name: string; kind?: string; value?: string; notes?: string; remove?: boolean }[];
   nets?: { name: string; kind?: string; bus?: string; voltage?: number; notes?: string; remove?: boolean }[];
   connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
+  groups?: { name: string; description?: string; notes?: string; remove?: boolean }[];
+  /** Unset fields are kept; "" clears one. */
+  assign?: { part: string; group?: string; supports?: string }[];
   positions?: { node: string; x: number; y: number }[];
   resetLayout?: boolean;
 }

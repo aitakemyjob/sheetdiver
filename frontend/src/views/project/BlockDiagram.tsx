@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveText } from '../../lib/api';
-import { layoutBlockDiagram, type Box } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, type Box, type Pt } from '../../lib/blockDiagram';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
@@ -33,7 +33,8 @@ export function fitView(width: number, height: number, screenW: number, screenH:
 export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; highlight?: string; onChange: () => void }) {
   const s = useStore();
   const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>({});
-  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  // Positions in a group are saved relative to its frame (origin).
+  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number; origin: Pt } | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [pan, setPan] = useState<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -78,10 +79,10 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     const m = content.current?.getScreenCTM?.();
     return m && typeof DOMPoint !== 'undefined' ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : { x: e.clientX, y: e.clientY };
   };
-  const grab = (e: PointerEvent, id: string, r: { x: number; y: number }) => {
+  const grab = (e: PointerEvent, id: string, r: Pt & { origin?: Pt }) => {
     const p = at(e);
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ id, dx: p.x - r.x, dy: p.y - r.y });
+    setDrag({ id, dx: p.x - r.x, dy: p.y - r.y, origin: r.origin ?? { x: 0, y: 0 } });
   };
   const startPan = (e: PointerEvent) => {
     if (e.target !== svg.current) return; // the background, not a part
@@ -94,7 +95,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       setView((v) => ({ k: v?.k ?? 1, x: p.vx + e.clientX - p.x, y: p.vy + e.clientY - p.y }));
     } else if (drag) {
       const p = at(e);
-      setMoved((m) => ({ ...m, [drag.id]: { x: Math.max(0, Math.round(p.x - drag.dx)), y: Math.max(0, Math.round(p.y - drag.dy)) } }));
+      const pos = { x: Math.max(0, Math.round(p.x - drag.dx - drag.origin.x)), y: Math.max(0, Math.round(p.y - drag.dy - drag.origin.y)) };
+      setMoved((m) => ({ ...m, [drag.id]: pos }));
     }
   };
   const drop = () => {
@@ -168,6 +170,24 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
             </marker>
           </defs>
           <g ref={content} data-view transform={`translate(${view?.x ?? 0},${view?.y ?? 0}) scale(${view?.k ?? 1})`}>
+            {drawing.frames.map((f) => (
+              <g key={f.group.name} data-group={f.group.name}>
+                <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={8} fill={pal.group.fill} stroke={pal.group.stroke} strokeWidth={1} strokeDasharray="6 4" />
+                <text x={f.x + 14} y={f.y + 22} fontSize={15} fontWeight={700} fill={pal.group.text}>
+                  {f.group.name}
+                </text>
+                {f.group.description && (
+                  <text x={f.x + 14} y={f.y + 42} fontSize={12} fill={pal.group.text}>
+                    {f.group.description}
+                  </text>
+                )}
+                {f.group.notes && (
+                  <text x={f.x + 14} y={f.y + (f.group.description ? 62 : 42)} fontSize={12} fontStyle="italic" fill={pal.group.text}>
+                    Notes: {f.group.notes}
+                  </text>
+                )}
+              </g>
+            ))}
             {drawing.wires.map((x, i) => {
               const on = marked(hl, x.net);
               return (

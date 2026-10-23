@@ -11,6 +11,15 @@ type Circuit struct {
 	// Pins puts pins on nets: {net, designator or block, pin}; an empty
 	// pin connects a block (a passive) without one.
 	Pins [][3]string
+	// Groups are functional groups; Assign puts parts in them and says
+	// what they support: {designator or block, group, supports}.
+	Groups []CircuitGroup
+	Assign [][3]string
+}
+
+// CircuitGroup is a functional group of a board.
+type CircuitGroup struct {
+	Name, Description, Notes string
 }
 
 // CircuitRail is a supply rail and its voltage.
@@ -35,7 +44,9 @@ type CircuitNet struct {
 // Circuits are the boards the block diagram is tested on: the USB-C
 // to 3.3 V sketch (a connector, an eFuse and a buck-boost with their
 // passives), a battery board whose 4.2 V rail joins four parts, and a
-// microcontroller board with I2C, USB data, pull-ups and an LED.
+// microcontroller board with I2C, USB data, pull-ups and an LED, and
+// that board in functional groups with decoupling capacitors that each
+// serve one part on the shared 3.3 V rail.
 func Circuits() []Circuit {
 	return []Circuit{
 		{
@@ -120,6 +131,38 @@ func Circuits() []Circuit {
 				{"D+", "U2 ESP32-C3", "GPIO19"}, {"D-", "U2 ESP32-C3", "GPIO18"}, {"SDA", "U2 ESP32-C3", "GPIO8"}, {"SCL", "U2 ESP32-C3", "GPIO9"}, {"LED", "U2 ESP32-C3", "GPIO2"}, {"LED", "LED1", ""},
 				{"3V3", "U3 BME280", "VDD"}, {"3V3", "U3 BME280", "CSB"}, {"GND", "U3 BME280", "GND"}, {"SDA", "U3 BME280", "SDA"}, {"SCL", "U3 BME280", "SCL"},
 				{"SDA", "R2", "1"}, {"3V3", "R2", "2"}, {"SCL", "R3", "1"}, {"3V3", "R3", "2"},
+			},
+		},
+		{
+			Name:  "Grouped MCU board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS", Output: "3V3"}, {Name: "U2 ESP32-C3", Kind: "ic"}, {Name: "U3 BME280", Kind: "ic"},
+				{Name: "C1", Kind: "capacitor", Value: "1µF"}, {Name: "C2", Kind: "capacitor", Value: "1µF"}, {Name: "C3", Kind: "capacitor", Value: "1µF"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"},
+				{Name: "R1", Kind: "resistor", Value: "10k"}, {Name: "R2", Kind: "resistor", Value: "4.7k"}, {Name: "R3", Kind: "resistor", Value: "4.7k"}, {Name: "LED1", Kind: "diode", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "SDA", Bus: "I2C"}, {Name: "SCL", Bus: "I2C"}, {Name: "D+", Bus: "USB"}, {Name: "D-", Bus: "USB"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"D+", "J1 USB-C", "D+"}, {"D-", "J1 USB-C", "D-"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"3V3", "U1", "SW"}, {"VBUS", "C1", ""}, {"3V3", "C2", ""},
+				{"3V3", "U2 ESP32-C3", "3V3"}, {"GND", "U2 ESP32-C3", "GND"}, {"EN", "U2 ESP32-C3", "EN"}, {"EN", "R1", "1"}, {"3V3", "R1", "2"}, {"EN", "C3", ""},
+				{"D+", "U2 ESP32-C3", "GPIO19"}, {"D-", "U2 ESP32-C3", "GPIO18"}, {"SDA", "U2 ESP32-C3", "GPIO8"}, {"SCL", "U2 ESP32-C3", "GPIO9"}, {"LED", "U2 ESP32-C3", "GPIO2"}, {"LED", "LED1", ""},
+				{"3V3", "U3 BME280", "VDD"}, {"3V3", "U3 BME280", "CSB"}, {"GND", "U3 BME280", "GND"}, {"SDA", "U3 BME280", "SDA"}, {"SCL", "U3 BME280", "SCL"},
+				{"SDA", "R2", "1"}, {"3V3", "R2", "2"}, {"SCL", "R3", "1"}, {"3V3", "R3", "2"},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""},
+			},
+			Groups: []CircuitGroup{
+				{Name: "Power", Description: "USB 5 V to 3.3 V", Notes: "Keep the buck's input loop short."},
+				{Name: "MCU", Description: "ESP32-C3 with USB and status LED"},
+				{Name: "Sensor", Description: "BME280 on I2C"},
+			},
+			Assign: [][3]string{
+				{"J1 USB-C", "Power", ""}, {"U1", "Power", ""}, {"U2 ESP32-C3", "MCU", ""}, {"U3 BME280", "Sensor", ""},
+				// Each decoupling capacitor serves one part on the 3.3 V rail.
+				{"C2", "", "U1"}, {"C4", "", "U2 ESP32-C3"}, {"C5", "", "U3 BME280"},
+				// The pull-ups sit with the sensor.
+				{"R2", "Sensor", ""}, {"R3", "Sensor", ""},
 			},
 		},
 	}

@@ -21,24 +21,45 @@ import (
 // the box ("EN→IN"), and ground pins are a label. Passives (resistors,
 // capacitors, inductors, diodes) aren't boxes: they hang off the net or
 // pin they serve. Ground isn't drawn.
+//
+// Parts can be put in groups (Power, MCU), drawn framed with their
+// description and notes. Wires run only inside a group: a net that also
+// runs in another group is drawn as a labelled stub there instead, so
+// the drawing stays readable however many parts share a rail. A passive
+// hangs by the part it supports (set, or the only part its nets reach)
+// and is drawn in that part's group.
 type Diagram struct {
 	Parts    []DiagramPart    `json:"parts"`
 	Passives []DiagramPassive `json:"passives"`
 	Nets     []DiagramNet     `json:"nets"`
+	// Groups are the groups with something drawn in them, in power-flow
+	// order. Parts in no group are drawn outside any frame.
+	Groups []DiagramGroup `json:"groups"`
 	// Links join parts that share a net, for a diagram without pins (the
 	// report's Mermaid chart) and for agents.
 	Links []DiagramLink `json:"links"`
 }
 
+// DiagramGroup is a functional group: a frame around its Parts (and the
+// passives hanging from them) with its name, description and notes.
+type DiagramGroup struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Notes       string   `json:"notes,omitempty"`
+	Parts       []string `json:"parts"`
+}
+
 // DiagramPart is a box: a BOM entry or block that isn't a passive. ID is
 // its node ("part:<entry id>", "block:<block id>"); Column orders the
-// boxes along the power flow; X and Y are where it was dragged to.
+// boxes along the power flow; Group is the group it's drawn in ("" for
+// none); X and Y are where it was dragged to.
 type DiagramPart struct {
 	ID     string       `json:"id"`
 	Title  string       `json:"title"`
 	MPN    string       `json:"mpn,omitempty"`
 	Kind   string       `json:"kind"`
 	Column int          `json:"column"`
+	Group  string       `json:"group,omitempty"`
 	Pins   []DiagramPin `json:"pins"`
 	X      *float64     `json:"x,omitempty"`
 	Y      *float64     `json:"y,omitempty"`
@@ -79,14 +100,18 @@ const (
 	WireNone = ""
 )
 
-// DiagramNet is a net that's drawn: the parts with a pin on it, in
-// column order, and how its wire runs.
+// DiagramNet is a net's wire within one group: the parts there with a
+// pin on it, in column order, and how the wire runs. A net in several
+// groups has one per group, each Offboard: it also runs elsewhere, and
+// its name says where.
 type DiagramNet struct {
-	Name  string   `json:"name"`
-	Kind  string   `json:"kind"`
-	Parts []string `json:"parts"`
-	Wire  string   `json:"wire"`
-	Arrow bool     `json:"arrow,omitempty"`
+	Name     string   `json:"name"`
+	Kind     string   `json:"kind"`
+	Group    string   `json:"group,omitempty"`
+	Parts    []string `json:"parts"`
+	Wire     string   `json:"wire"`
+	Arrow    bool     `json:"arrow,omitempty"`
+	Offboard bool     `json:"offboard,omitempty"`
 }
 
 // Where a passive hangs.
@@ -103,20 +128,23 @@ const (
 	MountBridge = "bridge"
 )
 
-// DiagramPassive is a passive (or several alike on one net: "C1,C2")
-// and where it hangs, from Nets[0]. Its other end is ground, or Nets[1]
-// (a pull-up's rail; for a bridge, the other pin's net). X and Y are
-// where it was placed, if it was.
+// DiagramPassive is a passive (or several alike on one net, serving the
+// same part: "C1,C2") and where it hangs, from Nets[0]. Its other end is
+// ground, or Nets[1] (a pull-up's rail; for a bridge, the other pin's
+// net). Supports is the part it serves, when known; Group the group it's
+// drawn in. X and Y are where it was placed, if it was.
 type DiagramPassive struct {
-	ID    string   `json:"id"`
-	Label string   `json:"label"`
-	Value string   `json:"value,omitempty"`
-	Kind  string   `json:"kind"`
-	Mount string   `json:"mount"`
-	Part  string   `json:"part"`
-	Nets  []string `json:"nets"`
-	X     *float64 `json:"x,omitempty"`
-	Y     *float64 `json:"y,omitempty"`
+	ID       string   `json:"id"`
+	Label    string   `json:"label"`
+	Value    string   `json:"value,omitempty"`
+	Kind     string   `json:"kind"`
+	Mount    string   `json:"mount"`
+	Part     string   `json:"part"`
+	Nets     []string `json:"nets"`
+	Supports string   `json:"supports,omitempty"`
+	Group    string   `json:"group,omitempty"`
+	X        *float64 `json:"x,omitempty"`
+	Y        *float64 `json:"y,omitempty"`
 }
 
 // DiagramLink says two parts share nets: Kind "power" (From feeds To) or
@@ -221,6 +249,19 @@ func nodeOf(r ConnectionRow) string {
 	return library.BlockNode(r.BlockID)
 }
 
+// diagramInput is what a block diagram is drawn from: the BOM, the
+// blocks, the connection table, the saved layout, and the groups and
+// assignments.
+type diagramInput struct {
+	parts   []library.ProjectPart
+	blocks  []library.Block
+	nets    []library.Net
+	rows    []ConnectionRow
+	layout  []library.Position
+	groups  []library.Group
+	assigns []library.Assignment
+}
+
 // diagramBuilder holds what building a diagram needs.
 type diagramBuilder struct {
 	ends     map[string]*end
@@ -232,12 +273,20 @@ type diagramBuilder struct {
 	mains    []string                   // boxes, in BOM then block order
 	passives map[string][]string        // passive → its non-ground nets
 	columns  map[string]int
+	assigned map[string]library.Assignment // node → its assignment
+	groupOf  map[string]string             // box → its group
+	supports map[string]string             // passive → the box it serves
 }
 
 // diagram builds the block diagram of a project's connection table.
-func diagram(parts []library.ProjectPart, blocks []library.Block, nets []library.Net, rows []ConnectionRow, layout []library.Position) Diagram {
-	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{}}
-	b.ends, b.order = ends(parts, blocks)
+func diagram(in diagramInput) Diagram {
+	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
+		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}}
+	b.ends, b.order = ends(in.parts, in.blocks)
+	for _, a := range in.assigns {
+		b.assigned[a.Node] = a
+	}
+	nets, rows, layout := in.nets, in.rows, in.layout
 	for _, n := range nets {
 		b.kinds[strings.ToLower(n.Name)] = n.Kind
 		b.buses[strings.ToLower(n.Name)] = n.Bus
@@ -272,7 +321,8 @@ func diagram(parts []library.ProjectPart, blocks []library.Block, nets []library
 	}
 	links := b.links()
 	b.columns = columnsOf(b.mains, links)
-	d := Diagram{Parts: []DiagramPart{}, Passives: []DiagramPassive{}, Nets: []DiagramNet{}, Links: []DiagramLink{}}
+	b.assign()
+	d := Diagram{Parts: []DiagramPart{}, Passives: []DiagramPassive{}, Nets: []DiagramNet{}, Groups: []DiagramGroup{}, Links: []DiagramLink{}}
 	pos := map[string]library.Position{}
 	for _, p := range layout {
 		pos[p.Node] = p
@@ -294,8 +344,127 @@ func diagram(parts []library.ProjectPart, blocks []library.Block, nets []library
 			d.Passives[i].X, d.Passives[i].Y = &x, &y
 		}
 	}
+	d.Groups = groups(in.groups, d.Parts)
 	d.Links = links
 	return d
+}
+
+// assignment is a node's assignment; a designator of an entry with
+// several ("part:3/R1") falls back to its entry's.
+func (b *diagramBuilder) assignment(id string) library.Assignment {
+	if a, ok := b.assigned[id]; ok {
+		return a
+	}
+	if i := strings.Index(id, "/"); i > 0 {
+		return b.assigned[id[:i]]
+	}
+	return library.Assignment{}
+}
+
+// box is the drawn box a node names: itself, or the entry of one of its
+// designators ("part:3" for "part:3/R1" drawn whole, and the reverse).
+func (b *diagramBuilder) box(node string) (string, bool) {
+	if node == "" {
+		return "", false
+	}
+	if contains(b.mains, node) {
+		return node, true
+	}
+	for _, m := range b.mains {
+		if strings.HasPrefix(m, node+"/") || strings.HasPrefix(node, m+"/") {
+			return m, true
+		}
+	}
+	return "", false
+}
+
+// assign decides each box's group and each passive's part and group: a
+// box is in its group, or the group of the box it supports; a passive
+// serves the box it's set to support, else the only box its nets reach,
+// and is drawn in its group, else in that box's.
+func (b *diagramBuilder) assign() {
+	for _, id := range b.mains {
+		if a := b.assignment(id); a.Group != "" {
+			b.groupOf[id] = a.Group
+		}
+	}
+	for _, id := range b.mains {
+		if _, ok := b.groupOf[id]; ok {
+			continue
+		}
+		if to, ok := b.box(b.assignment(id).Supports); ok && to != id {
+			if g := b.groupOf[to]; g != "" {
+				b.groupOf[id] = g
+			}
+		}
+	}
+	for _, id := range b.order {
+		if len(b.passives[id]) == 0 {
+			continue
+		}
+		if to, ok := b.box(b.assignment(id).Supports); ok {
+			b.supports[id] = to
+			continue
+		}
+		var reach []string
+		for _, net := range b.passives[id] {
+			for _, m := range b.mainsOn(net) {
+				if !contains(reach, m) {
+					reach = append(reach, m)
+				}
+			}
+		}
+		if len(reach) == 1 {
+			b.supports[id] = reach[0]
+		}
+	}
+}
+
+// passiveGroup is the group a passive belongs in: its own, else its
+// part's.
+func (b *diagramBuilder) passiveGroup(id string) string {
+	if g := b.assignment(id).Group; g != "" {
+		return g
+	}
+	return b.groupOf[b.supports[id]]
+}
+
+// groups lists the groups with a box drawn in them, ordered along the
+// power flow (by their first box's column), then by name.
+func groups(defined []library.Group, parts []DiagramPart) []DiagramGroup {
+	byName := map[string]*DiagramGroup{}
+	first := map[string]int{}
+	var order []string
+	for _, p := range parts {
+		if p.Group == "" {
+			continue
+		}
+		k := strings.ToLower(p.Group)
+		g := byName[k]
+		if g == nil {
+			g = &DiagramGroup{Name: p.Group, Parts: []string{}}
+			for _, dg := range defined {
+				if strings.EqualFold(dg.Name, p.Group) {
+					g.Name, g.Description, g.Notes = dg.Name, dg.Description, dg.Notes
+				}
+			}
+			byName[k], first[k] = g, p.Column
+			order = append(order, k)
+		}
+		g.Parts = append(g.Parts, p.ID)
+		first[k] = min(first[k], p.Column)
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		if first[order[i]] != first[order[j]] {
+			return first[order[i]] < first[order[j]]
+		}
+		return order[i] < order[j]
+	})
+	out := make([]DiagramGroup, 0, len(order))
+	for _, k := range order {
+		out = append(out, *byName[k])
+	}
+	return out
 }
 
 // drives reports whether a box drives a net: it makes the rail (an
@@ -463,7 +632,7 @@ func columnsOf(ids []string, links []DiagramLink) map[string]int {
 // part builds a box: its pins on their sides.
 func (b *diagramBuilder) part(id string) DiagramPart {
 	e := b.ends[id]
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Column: b.columns[id], Pins: []DiagramPin{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
 	var mine []ConnectionRow
 	for _, r := range b.rows {
 		if nodeOf(r) == id {
@@ -591,7 +760,8 @@ func output(r ConnectionRow) bool {
 	return outputName.MatchString(pinName(r))
 }
 
-// nets says how each net with a pin on a box is drawn.
+// nets says how each net with a pin on a box is drawn: one wire per
+// group the net has pins in, each Offboard when there are several.
 func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 	col := map[string]int{}
 	for _, p := range parts {
@@ -601,25 +771,39 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 		part string
 		pin  DiagramPin
 	}
-	byNet := map[string][]at{}
-	var names []string
+	type piece struct {
+		net, group string
+	}
+	byPiece := map[piece][]at{}
+	var order []piece
+	groupsOf := map[string]int{} // net (lower case) → how many groups it's in
 	for _, p := range parts {
 		for _, pin := range p.Pins {
 			if pin.Side == SideInside || pin.Ground {
 				continue
 			}
-			k := strings.ToLower(pin.Net)
-			if _, ok := byNet[k]; !ok {
-				names = append(names, pin.Net)
+			k := piece{strings.ToLower(pin.Net), strings.ToLower(p.Group)}
+			if _, ok := byPiece[k]; !ok {
+				order = append(order, k)
+				groupsOf[k.net]++
 			}
-			byNet[k] = append(byNet[k], at{p.ID, pin})
+			byPiece[k] = append(byPiece[k], at{p.ID, pin})
 		}
 	}
+	// A net's pieces together, in the order the net first appears.
+	first := map[string]int{}
+	for i, k := range order {
+		if _, ok := first[k.net]; !ok {
+			first[k.net] = i
+		}
+	}
+	sort.SliceStable(order, func(i, j int) bool { return first[order[i].net] < first[order[j].net] })
 	out := []DiagramNet{}
-	for _, name := range names {
-		pins := byNet[strings.ToLower(name)]
+	for _, k := range order {
+		pins := byPiece[k]
 		sort.SliceStable(pins, func(i, j int) bool { return col[pins[i].part] < col[pins[j].part] })
-		n := DiagramNet{Name: name, Kind: b.kinds[strings.ToLower(name)], Parts: []string{}}
+		name := pins[0].pin.Net
+		n := DiagramNet{Name: name, Kind: b.kinds[k.net], Group: b.groupOf[pins[0].part], Parts: []string{}, Offboard: groupsOf[k.net] > 1}
 		for _, p := range pins {
 			n.Parts = append(n.Parts, p.part)
 		}
@@ -628,9 +812,11 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 			n.Wire = WireLane
 		case len(pins) == 2:
 			n.Wire = WireBetween
-		case pins[0].pin.Side == SideBottom || pins[0].pin.Bridged:
+		case !n.Offboard && (pins[0].pin.Side == SideBottom || pins[0].pin.Bridged):
 			n.Wire = WireNone
 		default:
+			// A stub leaving the box, labelled: off the board, or to the
+			// same net in another group.
 			n.Wire = WireOut
 			e := b.ends[pins[0].part]
 			n.Arrow = pins[0].pin.Side == SideRight && (n.Kind == library.NetPower || e.entry != nil && strings.EqualFold(e.entry.OutputRail, name) || outputName.MatchString(pins[0].pin.Name))
@@ -640,11 +826,14 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 	return out
 }
 
-// mount says where each passive hangs, merging alike ones on one net.
+// mount says where each passive hangs: from its net's wire in the group
+// of the part it serves (beside that part on a lane), merging alike
+// passives that serve the same part.
 func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []DiagramPassive {
-	byNet := map[string]DiagramNet{}
+	byNet := map[string][]DiagramNet{} // net (lower case) → its wires, one per group
 	for _, n := range nets {
-		byNet[strings.ToLower(n.Name)] = n
+		k := strings.ToLower(n.Name)
+		byNet[k] = append(byNet[k], n)
 	}
 	pinOf := func(part, net string) (DiagramPin, bool) {
 		for _, p := range parts {
@@ -659,23 +848,27 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		return DiagramPin{}, false
 	}
+	groupOf := map[string]string{}
+	for _, p := range parts {
+		groupOf[p.ID] = p.Group
+	}
 	out := []DiagramPassive{}
-	merged := map[string]int{} // net|value|kind → index in out
+	merged := map[string]int{} // nets|value|kind|part → index in out
 	for _, id := range b.order {
 		nets := b.passives[id]
 		if len(nets) == 0 {
 			continue
 		}
 		e := b.ends[id]
-		label := e.label
-		p := DiagramPassive{ID: id, Label: label, Value: e.value, Kind: e.kind, Nets: nets}
+		serves := b.supports[id]
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Nets: nets, Supports: serves}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {
 				a, okA := pinOf(part.ID, nets[0])
 				z, okZ := pinOf(part.ID, nets[1])
 				if okA && okZ && a.Bridged && z.Bridged {
-					p.Mount, p.Part = MountBridge, part.ID
+					p.Mount, p.Part, p.Group = MountBridge, part.ID, part.Group
 				}
 			}
 			if p.Mount != "" {
@@ -689,15 +882,23 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 				p.Nets = []string{nets[1], nets[0]}
 			}
 		}
-		n, ok := byNet[strings.ToLower(p.Nets[0])]
+		wires, ok := byNet[strings.ToLower(p.Nets[0])]
 		if !ok {
 			continue // between passives only: not drawn
 		}
+		n := pickWire(wires, serves, b.passiveGroup(id))
+		p.Group = n.Group
 		switch n.Wire {
 		case WireBetween:
 			p.Mount, p.Part = MountWire, n.Parts[0]
 		case WireLane:
 			p.Mount, p.Part = MountLane, n.Parts[0]
+			if contains(n.Parts, serves) {
+				// Beside the part it serves, not with every other passive on
+				// the rail.
+				p.Part = serves
+				break
+			}
 			for _, part := range n.Parts {
 				if pin, _ := pinOf(part, n.Name); pin.Side == SideRight {
 					p.Mount, p.Part = MountLane, part
@@ -709,7 +910,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		default:
 			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}
-		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind
+		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports
 		if i, ok := merged[key]; ok {
 			out[i].ID += "," + p.ID
 			out[i].Label += "," + p.Label
@@ -719,6 +920,23 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		out = append(out, p)
 	}
 	return out
+}
+
+// pickWire chooses which of a net's wires (one per group) a passive
+// hangs from: the one reaching the part it serves, else the one in its
+// group, else the first.
+func pickWire(wires []DiagramNet, serves, group string) DiagramNet {
+	for _, n := range wires {
+		if serves != "" && contains(n.Parts, serves) {
+			return n
+		}
+	}
+	for _, n := range wires {
+		if strings.EqualFold(n.Group, group) {
+			return n
+		}
+	}
+	return wires[0]
 }
 
 // containsFold reports whether list has s, ignoring case.

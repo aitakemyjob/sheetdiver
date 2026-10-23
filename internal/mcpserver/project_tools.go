@@ -29,6 +29,8 @@ type connectionsArgs struct {
 	Blocks    []blockArgs           `json:"blocks,omitempty" jsonschema:"things off the BOM the board connects to (Battery, USB-C, a sensor still to be chosen); added before the connections, so they can be connected"`
 	Nets      []netArgs             `json:"nets,omitempty" jsonschema:"set a net's kind, bus or I/O voltage, or remove it with its connections. Nets are also created by connecting to them; a net named like a rail is that rail, GND/VSS are ground"`
 	Connect   []connectArgs         `json:"connect,omitempty" jsonschema:"pins to put on nets (or take off): one entry per pin"`
+	Groups    []groupArgs           `json:"groups,omitempty" jsonschema:"functional groups (Power, MCU, Sensors), each drawn as a frame with its description and notes; wires run inside a group, and a net reaching other groups is a labelled stub"`
+	Assign    []assignArgs          `json:"assign,omitempty" jsonschema:"put parts and blocks in groups, and say which part a passive (or other part) supports, so it's drawn beside that part: a decoupling capacitor by its IC"`
 	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"place blocks on the block diagram: node (designator, part number or block name), x and y in pixels, left to right"`
 	// ResetLayout forgets saved positions.
 	ResetLayout bool `json:"reset_layout,omitempty" jsonschema:"go back to the automatic layout"`
@@ -41,6 +43,19 @@ type blockArgs struct {
 	Value  string `json:"value,omitempty" jsonschema:"printed under the name: 36.5k, 10µF, 2.2µH, TVS"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
+}
+
+type groupArgs struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty" jsonschema:"what the group does, shown under its name: USB 5 V to 3.3 V"`
+	Notes       *string `json:"notes,omitempty" jsonschema:"design notes shown in the frame: keep the input loop short"`
+	Remove      bool    `json:"remove,omitempty" jsonschema:"remove the group; its parts are drawn ungrouped"`
+}
+
+type assignArgs struct {
+	Part     string  `json:"part" jsonschema:"BOM designator, one designator of an entry with several (C1 of C1,C2), part number, or block name"`
+	Group    *string `json:"group,omitempty" jsonschema:"group to draw it in (created if new); empty to take it out of its group"`
+	Supports *string `json:"supports,omitempty" jsonschema:"the part it serves (C5 supports U3); empty to clear. Unset, a passive whose nets reach one part serves that part"`
 }
 
 type netArgs struct {
@@ -188,7 +203,7 @@ func (s *Server) registerProjects() {
 			return text(connectionsText(d)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
+	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (drawn beside it: a decoupling capacitor by its IC), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
 		write, func(a connectionsArgs) string { return "connections " + a.Project }, func(ctx context.Context, a connectionsArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -203,6 +218,12 @@ func (s *Server) registerProjects() {
 			}
 			for _, cn := range a.Connect {
 				ch.Connect = append(ch.Connect, core.ConnectChange{Net: cn.Net, Part: cn.Part, Pin: cn.Pin, Notes: cn.Notes, Remove: cn.Remove})
+			}
+			for _, g := range a.Groups {
+				ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: g.Description, Notes: g.Notes, Remove: g.Remove})
+			}
+			for _, as := range a.Assign {
+				ch.Assign = append(ch.Assign, core.AssignChange{Part: as.Part, Group: as.Group, Supports: as.Supports})
 			}
 			problems, err := c.ChangeConnections(ctx, name, ch, library.SourceAgent)
 			if err != nil {
@@ -974,10 +995,32 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		fmt.Fprintf(&b, "%s %s %s: %s (%s)\n", label[e.From], arrow, label[e.To], e.Label, e.Kind)
 	}
+	for _, g := range c.Diagram.Groups {
+		members := make([]string, 0, len(g.Parts))
+		for _, id := range g.Parts {
+			members = append(members, label[id])
+		}
+		for _, p := range c.Diagram.Passives {
+			if strings.EqualFold(p.Group, g.Name) {
+				members = append(members, p.Label)
+			}
+		}
+		fmt.Fprintf(&b, "group %s: %s", g.Name, strings.Join(members, ", "))
+		if g.Description != "" {
+			b.WriteString(" — " + g.Description)
+		}
+		if g.Notes != "" {
+			b.WriteString(" (notes: " + g.Notes + ")")
+		}
+		b.WriteString("\n")
+	}
 	// The passives, as the app draws them: strapping that the links above
 	// don't show.
 	for _, p := range c.Diagram.Passives {
 		name := strings.TrimSpace(p.Label + " " + p.Value)
+		if p.Supports != "" && p.Supports != p.Part {
+			name += " (supports " + label[p.Supports] + ")"
+		}
 		part := label[p.Part]
 		to := "ground"
 		if len(p.Nets) > 1 {

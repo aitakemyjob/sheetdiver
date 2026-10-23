@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -41,6 +42,14 @@ func buildCircuit(t *testing.T, s *Service, c testutil.Circuit) ProjectDetail {
 	}
 	for _, pin := range c.Pins {
 		ch.Connect = append(ch.Connect, ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
+	}
+	for _, g := range c.Groups {
+		desc, notes := g.Description, g.Notes
+		ch.Groups = append(ch.Groups, GroupChange{Name: g.Name, Description: &desc, Notes: &notes})
+	}
+	for _, a := range c.Assign {
+		group, supports := a[1], a[2]
+		ch.Assign = append(ch.Assign, AssignChange{Part: a[0], Group: &group, Supports: &supports})
 	}
 	problems, err := s.ChangeConnections(ctx, c.Name, ch, library.SourceUser)
 	if err != nil || len(problems) > 0 {
@@ -293,5 +302,188 @@ func TestDiagramKinds(t *testing.T) {
 	}
 	if shortValue("input bulk for U2 VIN") != "input bulk …" || shortValue("TVS") != "TVS" || shortValue("10µF input bulk for U2") != "10µF" {
 		t.Error("a long description is cut to its value, or 12 characters")
+	}
+}
+
+func TestPassivesHangByThePartTheySupport(t *testing.T) {
+	// Issue 71: decoupling capacitors on a shared rail used to hang
+	// together at the regulator. Marked with the part each serves, they
+	// hang beside it, and alike ones serving different parts stay apart.
+	c := circuit("Grouped MCU board")
+	unmarked := c
+	unmarked.Groups, unmarked.Assign = nil, nil
+	d := drawn{t, buildCircuit(t, newService(t), unmarked).Connections.Diagram}
+	if got := d.passives(); !slices.Contains(got, "C4,C5 100nF lane U1 on 3V3") {
+		t.Errorf("unmarked: %q", got)
+	}
+
+	marked := c
+	marked.Name, marked.Groups, marked.Assign = "Marked", nil, nil
+	for _, a := range c.Assign {
+		if a[2] != "" {
+			marked.Assign = append(marked.Assign, a)
+		}
+	}
+	d = drawn{t, buildCircuit(t, newService(t), marked).Connections.Diagram}
+	got := d.passives()
+	for _, want := range []string{"C2 1µF lane U1 on 3V3", "C4 100nF lane U2 on 3V3", "C5 100nF lane U3 on 3V3"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("marked: want %q in %q", want, got)
+		}
+	}
+	if len(d.Groups) != 0 {
+		t.Errorf("no groups were made: %+v", d.Groups)
+	}
+	for _, p := range d.Passives {
+		if p.Label == "C4" && p.Supports != d.part("U2").ID {
+			t.Errorf("C4 supports %q", p.Supports)
+		}
+	}
+
+	// Unmarked, a passive whose nets reach one part serves it.
+	usb := drawn{t, buildCircuit(t, newService(t), circuit("USB-C to 3V3")).Connections.Diagram}
+	for _, p := range usb.Passives {
+		if p.Label == "R4" && p.Supports != usb.part("U2").ID {
+			t.Errorf("R4 (U2's CFG1 resistor) supports %q", p.Supports)
+		}
+		if strings.HasPrefix(p.Label, "C1") && p.Supports != "" {
+			t.Errorf("C1 sits between U1 and U2 and serves neither alone: %q", p.Supports)
+		}
+	}
+}
+
+func TestDiagramInGroups(t *testing.T) {
+	// Issue 72: parts in groups, wires only inside a group, and a net that
+	// runs between groups drawn as a labelled stub in each.
+	d := drawn{t, buildCircuit(t, newService(t), circuit("Grouped MCU board")).Connections.Diagram}
+	var names []string
+	for _, g := range d.Groups {
+		names = append(names, g.Name+":"+strings.Join(g.Parts, ","))
+	}
+	j1, u1, u2, u3 := d.part("J1").ID, d.part("U1").ID, d.part("U2").ID, d.part("U3").ID
+	want := []string{"Power:" + u1 + "," + j1, "MCU:" + u2, "Sensor:" + u3}
+	if strings.Join(names, " ") != strings.Join(want, " ") {
+		t.Errorf("groups = %q, want %q", names, want)
+	}
+	if g := d.Groups[0]; g.Description != "USB 5 V to 3.3 V" || g.Notes != "Keep the buck's input loop short." {
+		t.Errorf("Power = %+v", g)
+	}
+	if d.part("U2").Group != "MCU" || d.part("J1").Group != "Power" {
+		t.Errorf("parts' groups: U2 %q, J1 %q", d.part("U2").Group, d.part("J1").Group)
+	}
+
+	// VBUS stays inside Power: one wire, not labelled as going elsewhere.
+	var vbus, rail []DiagramNet
+	for _, n := range d.Nets {
+		switch n.Name {
+		case "VBUS":
+			vbus = append(vbus, n)
+		case "3V3":
+			rail = append(rail, n)
+		}
+	}
+	if len(vbus) != 1 || vbus[0].Group != "Power" || vbus[0].Wire != WireBetween || vbus[0].Offboard {
+		t.Errorf("VBUS = %+v", vbus)
+	}
+	// 3V3 runs in all three groups: a labelled stub in each.
+	if len(rail) != 3 {
+		t.Fatalf("3V3 = %+v", rail)
+	}
+	for _, n := range rail {
+		if n.Wire != WireOut || !n.Offboard || len(n.Parts) != 1 {
+			t.Errorf("3V3 in %s = %+v", n.Group, n)
+		}
+	}
+
+	// Passives are drawn in the group of the part they serve (or their own).
+	got := d.passives()
+	for _, w := range []string{"C2 1µF out U1 on 3V3", "C4 100nF out U2 on 3V3", "C5 100nF out U3 on 3V3", "R2 4.7k out U3 on SDA+3V3", "R1 10k out U2 on EN+3V3"} {
+		if !slices.Contains(got, w) {
+			t.Errorf("want %q in %q", w, got)
+		}
+	}
+	for _, p := range d.Passives {
+		owner := ""
+		for _, part := range d.Parts {
+			if part.ID == p.Part {
+				owner = part.Group
+			}
+		}
+		if p.Group != owner {
+			t.Errorf("%s is drawn in %q but hangs from a part in %q", p.Label, p.Group, owner)
+		}
+	}
+}
+
+func TestAssignChanges(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	buildCircuit(t, s, circuit("USB-C to 3V3"))
+	str := func(v string) *string { return &v }
+	problems, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{
+		Groups: []GroupChange{{Name: "Input", Description: str("USB-C with protection")}},
+		Assign: []AssignChange{
+			{Part: "J1 USB-C", Group: str("Input")},
+			{Part: "U1 TPS25200", Group: str("input")},
+			{Part: "C3", Supports: str("U2 TPS63900")},
+			{Part: "U9", Group: str("Input")},
+			{Part: "C4", Supports: str("U9")},
+		},
+	}, library.SourceAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 2 || !strings.Contains(problems[0], "U9") || !strings.Contains(problems[1], "C4 supports U9") {
+		t.Errorf("problems = %q", problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "USB-C to 3V3")
+	c := d.Connections
+	if len(c.Groups) != 1 || c.Groups[0].Description != "USB-C with protection" || c.Groups[0].Source != library.SourceAgent {
+		t.Errorf("groups = %+v", c.Groups)
+	}
+	byName := map[string]AssignmentRow{}
+	for _, a := range c.Assignments {
+		byName[a.Endpoint] = a
+	}
+	if byName["J1 USB-C"].Group != "Input" || byName["C3"].SupportsEndpoint != "U2 TPS63900" || byName["C3"].Group != "" {
+		t.Errorf("assignments = %+v", c.Assignments)
+	}
+
+	// Unset fields are kept; "" clears one.
+	if _, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{Assign: []AssignChange{{Part: "C3", Group: str("Input")}, {Part: "J1 USB-C", Group: str("")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "USB-C to 3V3")
+	byName = map[string]AssignmentRow{}
+	for _, a := range d.Connections.Assignments {
+		byName[a.Endpoint] = a
+	}
+	if a := byName["C3"]; a.Group != "Input" || a.SupportsEndpoint != "U2 TPS63900" {
+		t.Errorf("C3 = %+v", a)
+	}
+	if _, ok := byName["J1 USB-C"]; ok {
+		t.Errorf("J1's assignment was cleared: %+v", byName["J1 USB-C"])
+	}
+	// The group's description survives an update that doesn't set it.
+	if _, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{Groups: []GroupChange{{Name: "Input", Notes: str("ESD first")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "USB-C to 3V3")
+	if g := d.Connections.Groups[0]; g.Description != "USB-C with protection" || g.Notes != "ESD first" {
+		t.Errorf("group = %+v", g)
+	}
+}
+
+func TestReportDrawsGroupsAsSubgraphs(t *testing.T) {
+	s := newService(t)
+	buildCircuit(t, s, circuit("Grouped MCU board"))
+	md, err := s.ProjectReport(context.Background(), "Grouped MCU board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`subgraph g0["Power"]`, `subgraph g1["MCU"]`, `subgraph g2["Sensor"]`, "  end\n"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("report lacks %q:\n%s", want, md)
+		}
 	}
 }

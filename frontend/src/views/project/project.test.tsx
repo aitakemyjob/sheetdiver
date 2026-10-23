@@ -6,7 +6,8 @@ import { fakeBackend, recorded, type FakeBackend } from '../../test/backend';
 import { ProjectView } from '../ProjectView';
 import { darkTheme, palette, swatch } from '../../lib/diagramPalette';
 import { fitView, zoomAbout } from './BlockDiagram';
-import { connectionsCSV, designators } from './ConnectionTable';
+import { connectionsCSV } from './ConnectionTable';
+import { designators } from './connections';
 import { pinoutsCSV } from './PinTables';
 
 let b: FakeBackend;
@@ -61,7 +62,7 @@ describe('project block diagram, pins and connections', () => {
   it('lists the connection table and connects a pin', async () => {
     b.on('connections.change', () => ({ problems: ['U2 has no pin “99” in its pin table (saved as given)'] }));
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    const table = await screen.findByRole('table');
+    const table = await screen.findByRole('table', { name: 'Connection table' });
     // Each net with the pins on it, names from the pin table.
     const sda = within(table).getByText('SDA').closest('tr')!;
     expect(sda).toBeInTheDocument();
@@ -77,7 +78,7 @@ describe('project block diagram, pins and connections', () => {
 
   it('edits nets and blocks', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    await screen.findByRole('table');
+    await screen.findByRole('table', { name: 'Connection table' });
     fireEvent.change(screen.getByLabelText('SDA kind'), { target: { value: 'power' } });
     await waitFor(() => expect(b.callsTo('connections.change')[0]).toMatchObject({ nets: [{ name: 'SDA', kind: 'power' }] }));
     fireEvent.change(screen.getByLabelText('New block'), { target: { value: 'USB-C' } });
@@ -194,9 +195,47 @@ describe('project block diagram, pins and connections', () => {
     expect(await screen.findByText('No pins yet')).toBeInTheDocument();
   });
 
+  it('puts parts in groups and says what they support', async () => {
+    render(<ProjectView params={{ project: 'Grouped MCU board', tab: 'connections' }} />);
+    const table = await screen.findByRole('table', { name: 'Groups and support' });
+    // The groups, with their description and notes.
+    expect(screen.getByLabelText("Power's description")).toHaveValue('USB 5 V to 3.3 V');
+    expect(screen.getByLabelText("Power's notes")).toHaveValue("Keep the buck's input loop short.");
+    // Each part's group and what it supports: set, or guessed.
+    expect(within(table).getByLabelText("U1's group")).toHaveValue('Power');
+    expect(within(table).getByLabelText('What C4 supports')).toHaveValue('U2 ESP32-C3');
+    const c3 = within(table).getByLabelText('What C3 supports') as HTMLSelectElement;
+    expect(c3.value).toBe('');
+    expect(c3.options[0].text).toBe('auto (U2)');
+    // Unset, a passive is drawn in the group of the part it supports.
+    expect((within(table).getByLabelText("C4's group") as HTMLSelectElement).options[0].text).toBe('auto (MCU)');
+
+    fireEvent.change(within(table).getByLabelText("C3's group"), { target: { value: 'Sensor' } });
+    await waitFor(() => expect(b.callsTo('connections.change')[0]).toEqual({ project: 'Grouped MCU board', assign: [{ part: 'C3', group: 'Sensor' }] }));
+    fireEvent.change(within(table).getByLabelText('What C4 supports'), { target: { value: '' } });
+    await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ assign: [{ part: 'C4', supports: '' }] }));
+    const notes = screen.getByLabelText("MCU's notes");
+    fireEvent.change(notes, { target: { value: 'Antenna clear of copper' } });
+    fireEvent.blur(notes);
+    await waitFor(() => expect(b.callsTo('connections.change')[2]).toMatchObject({ groups: [{ name: 'MCU', notes: 'Antenna clear of copper' }] }));
+    fireEvent.change(screen.getByLabelText('New group'), { target: { value: 'Debug' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Group$/ }));
+    await waitFor(() => expect(b.callsTo('connections.change')[3]).toMatchObject({ groups: [{ name: 'Debug' }] }));
+    fireEvent.click(screen.getByRole('button', { name: /Remove Sensor/ }));
+    await waitFor(() => expect(b.callsTo('connections.change')[4]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
+  });
+
+  it('frames each group on the block diagram', async () => {
+    render(<ProjectView params={{ project: 'Grouped MCU board', tab: 'diagram' }} />);
+    await screen.findByRole('img', { name: /Block diagram/ });
+    const frames = document.querySelectorAll('[data-group]');
+    expect([...frames].map((f) => f.getAttribute('data-group'))).toEqual(['Power', 'MCU', 'Sensor']);
+    expect(screen.getByText('Notes: Keep the buck\'s input loop short.')).toBeInTheDocument();
+  });
+
   it('edits rows, buses and nets in the connection table', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    await screen.findByRole('table');
+    await screen.findByRole('table', { name: 'Connection table' });
     fireEvent.click(screen.getAllByRole('button', { name: 'Disconnect' })[0]);
     await waitFor(() => expect(b.callsTo('connections.change')[0]).toMatchObject({ connect: [{ remove: true }] }));
     const bus = screen.getByLabelText('SDA bus');

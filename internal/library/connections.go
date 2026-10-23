@@ -209,7 +209,10 @@ func (s *Store) DeleteBlock(ctx context.Context, projectID int64, name string) e
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM project_blocks WHERE id = ?`, id); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM project_layout WHERE project_id = ? AND node = ?`, projectID, BlockNode(id))
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM project_layout WHERE project_id = ? AND node = ?`, projectID, BlockNode(id)); err != nil {
+		return err
+	}
+	err := s.forgetNode(ctx, projectID, BlockNode(id))
 	s.touch(ctx, projectID)
 	return err
 }

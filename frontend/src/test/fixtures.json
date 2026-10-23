@@ -3278,6 +3278,8 @@
       "endpoint": "Battery"
      }
     ],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [
       {
@@ -3362,6 +3364,7 @@
        "arrow": true
       }
      ],
+     "groups": [],
      "links": [
       {
        "from": "part:2",
@@ -3472,10 +3475,13 @@
     "nets": [],
     "blocks": [],
     "connections": [],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [],
      "passives": [],
      "nets": [],
+     "groups": [],
      "links": []
     },
     "pinouts": []
@@ -4770,6 +4776,8 @@
       "endpoint": "D1"
      }
     ],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [
       {
@@ -4921,7 +4929,8 @@
        "part": "block:4",
        "nets": [
         "3V3"
-       ]
+       ],
+       "supports": "block:4"
       },
       {
        "id": "block:5",
@@ -4944,7 +4953,8 @@
        "nets": [
         "LX1",
         "LX2"
-       ]
+       ],
+       "supports": "block:4"
       },
       {
        "id": "block:8",
@@ -4955,7 +4965,8 @@
        "part": "block:3",
        "nets": [
         "ILIM"
-       ]
+       ],
+       "supports": "block:3"
       },
       {
        "id": "block:14",
@@ -4966,7 +4977,8 @@
        "part": "block:4",
        "nets": [
         "CFG1"
-       ]
+       ],
+       "supports": "block:4"
       },
       {
        "id": "block:15",
@@ -4977,7 +4989,8 @@
        "part": "block:4",
        "nets": [
         "CFG3"
-       ]
+       ],
+       "supports": "block:4"
       },
       {
        "id": "block:16",
@@ -4988,7 +5001,8 @@
        "part": "block:4",
        "nets": [
         "CFG2"
-       ]
+       ],
+       "supports": "block:4"
       },
       {
        "id": "block:6",
@@ -4999,7 +5013,8 @@
        "part": "block:2",
        "nets": [
         "CC1"
-       ]
+       ],
+       "supports": "block:2"
       },
       {
        "id": "block:7",
@@ -5010,7 +5025,8 @@
        "part": "block:2",
        "nets": [
         "CC2"
-       ]
+       ],
+       "supports": "block:2"
       }
      ],
      "nets": [
@@ -5106,6 +5122,7 @@
        "wire": ""
       }
      ],
+     "groups": [],
      "links": [
       {
        "from": "block:2",
@@ -5754,6 +5771,8 @@
       "endpoint": "R1"
      }
     ],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [
       {
@@ -5970,7 +5989,8 @@
        "nets": [
         "LX1",
         "LX2"
-       ]
+       ],
+       "supports": "block:21"
       },
       {
        "id": "block:28",
@@ -5981,7 +6001,8 @@
        "part": "block:18",
        "nets": [
         "CHRG"
-       ]
+       ],
+       "supports": "block:18"
       },
       {
        "id": "block:25",
@@ -5992,7 +6013,8 @@
        "part": "block:18",
        "nets": [
         "PROG"
-       ]
+       ],
+       "supports": "block:18"
       }
      ],
      "nets": [
@@ -6076,6 +6098,7 @@
        "wire": ""
       }
      ],
+     "groups": [],
      "links": [
       {
        "from": "block:17",
@@ -6902,6 +6925,8 @@
       "endpoint": "D1"
      }
     ],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [
       {
@@ -7060,7 +7085,8 @@
        "part": "block:31",
        "nets": [
         "3V3"
-       ]
+       ],
+       "supports": "block:31"
       },
       {
        "id": "block:32",
@@ -7082,7 +7108,8 @@
        "part": "block:29",
        "nets": [
         "CC1"
-       ]
+       ],
+       "supports": "block:29"
       },
       {
        "id": "block:34",
@@ -7093,7 +7120,8 @@
        "part": "block:29",
        "nets": [
         "CC2"
-       ]
+       ],
+       "supports": "block:29"
       },
       {
        "id": "block:42",
@@ -7105,7 +7133,8 @@
        "nets": [
         "LX1",
         "LX2"
-       ]
+       ],
+       "supports": "block:31"
       },
       {
        "id": "block:35",
@@ -7116,7 +7145,8 @@
        "part": "block:29",
        "nets": [
         "CC1"
-       ]
+       ],
+       "supports": "block:29"
       },
       {
        "id": "block:36",
@@ -7127,7 +7157,8 @@
        "part": "block:29",
        "nets": [
         "CC2"
-       ]
+       ],
+       "supports": "block:29"
       },
       {
        "id": "block:37",
@@ -7138,7 +7169,8 @@
        "part": "block:30",
        "nets": [
         "ILIM"
-       ]
+       ],
+       "supports": "block:30"
       },
       {
        "id": "block:43",
@@ -7149,7 +7181,8 @@
        "part": "block:31",
        "nets": [
         "CFG1"
-       ]
+       ],
+       "supports": "block:31"
       },
       {
        "id": "block:44",
@@ -7160,7 +7193,8 @@
        "part": "block:31",
        "nets": [
         "CFG3"
-       ]
+       ],
+       "supports": "block:31"
       }
      ],
      "nets": [
@@ -7248,6 +7282,7 @@
        "wire": ""
       }
      ],
+     "groups": [],
      "links": [
       {
        "from": "block:29",
@@ -7963,6 +7998,8 @@
       "endpoint": "C1"
      }
     ],
+    "groups": [],
+    "assignments": [],
     "diagram": {
      "parts": [
       {
@@ -8136,7 +8173,8 @@
        "part": "block:46",
        "nets": [
         "EN"
-       ]
+       ],
+       "supports": "block:46"
       },
       {
        "id": "block:54",
@@ -8147,7 +8185,8 @@
        "part": "block:46",
        "nets": [
         "LED"
-       ]
+       ],
+       "supports": "block:46"
       },
       {
        "id": "block:51",
@@ -8259,6 +8298,7 @@
        "wire": ""
       }
      ],
+     "groups": [],
      "links": [
       {
        "from": "block:45",
@@ -8503,6 +8543,1342 @@
          "U2 ESP32-C3.3V3",
          "U3 BME280.CSB",
          "C2 1µF",
+         "R1.2",
+         "R2.2",
+         "R3.2"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "SCL",
+        "net": "SCL",
+        "netKind": "signal",
+        "to": [
+         "U2 ESP32-C3.GPIO9",
+         "R3.1"
+        ]
+       },
+       {
+        "name": "SDA",
+        "net": "SDA",
+        "netKind": "signal",
+        "to": [
+         "U2 ESP32-C3.GPIO8",
+         "R2.1"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "inputPower": 0
+  }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "Grouped MCU board"
+  },
+  "result": {
+   "project": {
+    "id": 7,
+    "name": "Grouped MCU board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [
+    {
+     "id": 4,
+     "projectId": 7,
+     "partId": 1,
+     "mpn": "SD1234",
+     "category": "buck",
+     "hasDatasheet": true,
+     "datasheetId": 1,
+     "designator": "U1",
+     "qty": 1,
+     "supplyRail": "VBUS",
+     "outputRail": "3V3"
+    }
+   ],
+   "rails": [
+    {
+     "id": 6,
+     "projectId": 7,
+     "name": "3V3",
+     "vNom": 3.3,
+     "source": "U1",
+     "loadTyp": 0,
+     "loadMax": 0,
+     "capacity": 3,
+     "capacityFrom": "SD1234 rated output (p1)",
+     "sourcePart": "U1 SD1234",
+     "consumers": [],
+     "power": 0
+    },
+    {
+     "id": 5,
+     "projectId": 7,
+     "name": "VBUS",
+     "vNom": 5,
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [
+      "U1"
+     ],
+     "power": 0,
+     "ripple": 1,
+     "rippleLimit": "U1's minimum input 4.5 V (SD1234 p1)"
+    }
+   ],
+   "checks": [
+    {
+     "level": "ok",
+     "message": "VBUS can carry up to 1 V p-p ripple; limited by U1's minimum input 4.5 V (SD1234 p1)",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "U1: VBUS maximum 5 V is within the recommended 17 V",
+     "part": "U1",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "3V3 load 0 A is 0% of 3 A",
+     "part": "U1 SD1234",
+     "rail": "3V3"
+    }
+   ],
+   "calculations": [],
+   "notes": [],
+   "connections": {
+    "nets": [
+     {
+      "id": 53,
+      "projectId": 7,
+      "name": "3V3",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 50,
+      "projectId": 7,
+      "name": "D+",
+      "kind": "signal",
+      "bus": "USB",
+      "source": "user"
+     },
+     {
+      "id": 51,
+      "projectId": 7,
+      "name": "D-",
+      "kind": "signal",
+      "bus": "USB",
+      "source": "user"
+     },
+     {
+      "id": 54,
+      "projectId": 7,
+      "name": "EN",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 47,
+      "projectId": 7,
+      "name": "GND",
+      "kind": "ground",
+      "source": "user"
+     },
+     {
+      "id": 55,
+      "projectId": 7,
+      "name": "LED",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 49,
+      "projectId": 7,
+      "name": "SCL",
+      "kind": "signal",
+      "bus": "I2C",
+      "source": "user"
+     },
+     {
+      "id": 48,
+      "projectId": 7,
+      "name": "SDA",
+      "kind": "signal",
+      "bus": "I2C",
+      "source": "user"
+     },
+     {
+      "id": 52,
+      "projectId": 7,
+      "name": "VBUS",
+      "kind": "power",
+      "source": "user"
+     }
+    ],
+    "blocks": [
+     {
+      "id": 58,
+      "projectId": 7,
+      "name": "C1",
+      "kind": "capacitor",
+      "value": "1µF",
+      "source": "user"
+     },
+     {
+      "id": 59,
+      "projectId": 7,
+      "name": "C2",
+      "kind": "capacitor",
+      "value": "1µF",
+      "source": "user"
+     },
+     {
+      "id": 60,
+      "projectId": 7,
+      "name": "C3",
+      "kind": "capacitor",
+      "value": "1µF",
+      "source": "user"
+     },
+     {
+      "id": 61,
+      "projectId": 7,
+      "name": "C4",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 62,
+      "projectId": 7,
+      "name": "C5",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 55,
+      "projectId": 7,
+      "name": "J1 USB-C",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 66,
+      "projectId": 7,
+      "name": "LED1",
+      "kind": "diode",
+      "value": "green",
+      "source": "user"
+     },
+     {
+      "id": 63,
+      "projectId": 7,
+      "name": "R1",
+      "kind": "resistor",
+      "value": "10k",
+      "source": "user"
+     },
+     {
+      "id": 64,
+      "projectId": 7,
+      "name": "R2",
+      "kind": "resistor",
+      "value": "4.7k",
+      "source": "user"
+     },
+     {
+      "id": 65,
+      "projectId": 7,
+      "name": "R3",
+      "kind": "resistor",
+      "value": "4.7k",
+      "source": "user"
+     },
+     {
+      "id": 56,
+      "projectId": 7,
+      "name": "U2 ESP32-C3",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 57,
+      "projectId": 7,
+      "name": "U3 BME280",
+      "kind": "ic",
+      "source": "user"
+     }
+    ],
+    "connections": [
+     {
+      "id": 137,
+      "netId": 53,
+      "net": "3V3",
+      "entryId": 4,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "SW",
+      "pinType": "O"
+     },
+     {
+      "id": 140,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 56,
+      "pin": "3V3",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 153,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 57,
+      "pin": "CSB",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "id": 152,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 57,
+      "pin": "VDD",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "id": 139,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 59,
+      "source": "user",
+      "endpoint": "C2"
+     },
+     {
+      "id": 161,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 61,
+      "source": "user",
+      "endpoint": "C4"
+     },
+     {
+      "id": 162,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 62,
+      "source": "user",
+      "endpoint": "C5"
+     },
+     {
+      "id": 144,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 63,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R1"
+     },
+     {
+      "id": 158,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 64,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "id": 160,
+      "netId": 53,
+      "net": "3V3",
+      "blockId": 65,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "id": 132,
+      "netId": 50,
+      "net": "D+",
+      "blockId": 55,
+      "pin": "D+",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 146,
+      "netId": 50,
+      "net": "D+",
+      "blockId": 56,
+      "pin": "GPIO19",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 133,
+      "netId": 51,
+      "net": "D-",
+      "blockId": 55,
+      "pin": "D-",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 147,
+      "netId": 51,
+      "net": "D-",
+      "blockId": 56,
+      "pin": "GPIO18",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 142,
+      "netId": 54,
+      "net": "EN",
+      "blockId": 56,
+      "pin": "EN",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 145,
+      "netId": 54,
+      "net": "EN",
+      "blockId": 60,
+      "source": "user",
+      "endpoint": "C3"
+     },
+     {
+      "id": 143,
+      "netId": 54,
+      "net": "EN",
+      "blockId": 63,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R1"
+     },
+     {
+      "id": 136,
+      "netId": 47,
+      "net": "GND",
+      "entryId": 4,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "GND",
+      "pinType": "G"
+     },
+     {
+      "id": 134,
+      "netId": 47,
+      "net": "GND",
+      "blockId": 55,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 141,
+      "netId": 47,
+      "net": "GND",
+      "blockId": 56,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 154,
+      "netId": 47,
+      "net": "GND",
+      "blockId": 57,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "id": 150,
+      "netId": 55,
+      "net": "LED",
+      "blockId": 56,
+      "pin": "GPIO2",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 151,
+      "netId": 55,
+      "net": "LED",
+      "blockId": 66,
+      "source": "user",
+      "endpoint": "LED1"
+     },
+     {
+      "id": 149,
+      "netId": 49,
+      "net": "SCL",
+      "blockId": 56,
+      "pin": "GPIO9",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 156,
+      "netId": 49,
+      "net": "SCL",
+      "blockId": 57,
+      "pin": "SCL",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "id": 159,
+      "netId": 49,
+      "net": "SCL",
+      "blockId": 65,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "id": 148,
+      "netId": 48,
+      "net": "SDA",
+      "blockId": 56,
+      "pin": "GPIO8",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "id": 155,
+      "netId": 48,
+      "net": "SDA",
+      "blockId": 57,
+      "pin": "SDA",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "id": 157,
+      "netId": 48,
+      "net": "SDA",
+      "blockId": 64,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "id": 135,
+      "netId": 52,
+      "net": "VBUS",
+      "entryId": 4,
+      "pin": "3",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "VIN",
+      "pinType": "P"
+     },
+     {
+      "id": 131,
+      "netId": 52,
+      "net": "VBUS",
+      "blockId": 55,
+      "pin": "VBUS",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 138,
+      "netId": 52,
+      "net": "VBUS",
+      "blockId": 58,
+      "source": "user",
+      "endpoint": "C1"
+     }
+    ],
+    "groups": [
+     {
+      "id": 2,
+      "projectId": 7,
+      "name": "MCU",
+      "description": "ESP32-C3 with USB and status LED",
+      "source": "user"
+     },
+     {
+      "id": 1,
+      "projectId": 7,
+      "name": "Power",
+      "description": "USB 5 V to 3.3 V",
+      "notes": "Keep the buck's input loop short.",
+      "source": "user"
+     },
+     {
+      "id": 3,
+      "projectId": 7,
+      "name": "Sensor",
+      "description": "BME280 on I2C",
+      "source": "user"
+     }
+    ],
+    "assignments": [
+     {
+      "node": "block:55",
+      "group": "Power",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "node": "block:56",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "U2 ESP32-C3"
+     },
+     {
+      "node": "block:57",
+      "group": "Sensor",
+      "source": "user",
+      "endpoint": "U3 BME280"
+     },
+     {
+      "node": "block:59",
+      "supports": "part:4",
+      "source": "user",
+      "endpoint": "C2",
+      "supportsEndpoint": "U1"
+     },
+     {
+      "node": "block:61",
+      "supports": "block:56",
+      "source": "user",
+      "endpoint": "C4",
+      "supportsEndpoint": "U2 ESP32-C3"
+     },
+     {
+      "node": "block:62",
+      "supports": "block:57",
+      "source": "user",
+      "endpoint": "C5",
+      "supportsEndpoint": "U3 BME280"
+     },
+     {
+      "node": "block:64",
+      "group": "Sensor",
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "node": "block:65",
+      "group": "Sensor",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "node": "part:4",
+      "group": "Power",
+      "source": "user",
+      "endpoint": "U1"
+     }
+    ],
+    "diagram": {
+     "parts": [
+      {
+       "id": "part:4",
+       "title": "U1 SD1234",
+       "mpn": "SD1234",
+       "kind": "ic",
+       "column": 1,
+       "group": "Power",
+       "pins": [
+        {
+         "name": "VIN",
+         "net": "VBUS",
+         "side": "left"
+        },
+        {
+         "name": "SW",
+         "net": "3V3",
+         "side": "right"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:55",
+       "title": "J1 USB-C",
+       "kind": "connector",
+       "column": 0,
+       "group": "Power",
+       "pins": [
+        {
+         "name": "VBUS",
+         "net": "VBUS",
+         "side": "right"
+        },
+        {
+         "name": "D+",
+         "net": "D+",
+         "side": "right"
+        },
+        {
+         "name": "D-",
+         "net": "D-",
+         "side": "right"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:56",
+       "title": "U2 ESP32-C3",
+       "kind": "ic",
+       "column": 2,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "3V3",
+         "net": "3V3",
+         "side": "left"
+        },
+        {
+         "name": "EN",
+         "net": "EN",
+         "side": "left"
+        },
+        {
+         "name": "GPIO19",
+         "net": "D+",
+         "side": "left"
+        },
+        {
+         "name": "GPIO18",
+         "net": "D-",
+         "side": "left"
+        },
+        {
+         "name": "GPIO8",
+         "net": "SDA",
+         "side": "right"
+        },
+        {
+         "name": "GPIO9",
+         "net": "SCL",
+         "side": "right"
+        },
+        {
+         "name": "GPIO2",
+         "net": "LED",
+         "side": "bottom"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:57",
+       "title": "U3 BME280",
+       "kind": "ic",
+       "column": 3,
+       "group": "Sensor",
+       "pins": [
+        {
+         "name": "VDD",
+         "net": "3V3",
+         "side": "left"
+        },
+        {
+         "name": "CSB",
+         "net": "3V3",
+         "side": "inside",
+         "tied": "VDD"
+        },
+        {
+         "name": "SDA",
+         "net": "SDA",
+         "side": "left"
+        },
+        {
+         "name": "SCL",
+         "net": "SCL",
+         "side": "left"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      }
+     ],
+     "passives": [
+      {
+       "id": "block:58",
+       "label": "C1",
+       "value": "1µF",
+       "kind": "capacitor",
+       "mount": "wire",
+       "part": "block:55",
+       "nets": [
+        "VBUS"
+       ],
+       "group": "Power"
+      },
+      {
+       "id": "block:59",
+       "label": "C2",
+       "value": "1µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "part:4",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "part:4",
+       "group": "Power"
+      },
+      {
+       "id": "block:60",
+       "label": "C3",
+       "value": "1µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:56",
+       "nets": [
+        "EN"
+       ],
+       "supports": "block:56",
+       "group": "MCU"
+      },
+      {
+       "id": "block:61",
+       "label": "C4",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:56",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:56",
+       "group": "MCU"
+      },
+      {
+       "id": "block:62",
+       "label": "C5",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:57",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:57",
+       "group": "Sensor"
+      },
+      {
+       "id": "block:66",
+       "label": "LED1",
+       "value": "green",
+       "kind": "diode",
+       "mount": "below",
+       "part": "block:56",
+       "nets": [
+        "LED"
+       ],
+       "supports": "block:56",
+       "group": "MCU"
+      },
+      {
+       "id": "block:63",
+       "label": "R1",
+       "value": "10k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:56",
+       "nets": [
+        "EN",
+        "3V3"
+       ],
+       "group": "MCU"
+      },
+      {
+       "id": "block:64",
+       "label": "R2",
+       "value": "4.7k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:57",
+       "nets": [
+        "SDA",
+        "3V3"
+       ],
+       "group": "Sensor"
+      },
+      {
+       "id": "block:65",
+       "label": "R3",
+       "value": "4.7k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:57",
+       "nets": [
+        "SCL",
+        "3V3"
+       ],
+       "group": "Sensor"
+      }
+     ],
+     "nets": [
+      {
+       "name": "VBUS",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "block:55",
+        "part:4"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "part:4"
+       ],
+       "wire": "out",
+       "arrow": true,
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "Sensor",
+       "parts": [
+        "block:57"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "D+",
+       "kind": "signal",
+       "group": "Power",
+       "parts": [
+        "block:55"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "D+",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "D-",
+       "kind": "signal",
+       "group": "Power",
+       "parts": [
+        "block:55"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "D-",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "EN",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "SDA",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SDA",
+       "kind": "signal",
+       "group": "Sensor",
+       "parts": [
+        "block:57"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SCL",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SCL",
+       "kind": "signal",
+       "group": "Sensor",
+       "parts": [
+        "block:57"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "LED",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:56"
+       ],
+       "wire": ""
+      }
+     ],
+     "groups": [
+      {
+       "name": "Power",
+       "description": "USB 5 V to 3.3 V",
+       "notes": "Keep the buck's input loop short.",
+       "parts": [
+        "part:4",
+        "block:55"
+       ]
+      },
+      {
+       "name": "MCU",
+       "description": "ESP32-C3 with USB and status LED",
+       "parts": [
+        "block:56"
+       ]
+      },
+      {
+       "name": "Sensor",
+       "description": "BME280 on I2C",
+       "parts": [
+        "block:57"
+       ]
+      }
+     ],
+     "links": [
+      {
+       "from": "block:55",
+       "to": "part:4",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      },
+      {
+       "from": "block:55",
+       "to": "block:56",
+       "label": "USB",
+       "kind": "signal",
+       "nets": [
+        "D+",
+        "D-"
+       ]
+      },
+      {
+       "from": "part:4",
+       "to": "block:56",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "part:4",
+       "to": "block:57",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "block:56",
+       "to": "block:57",
+       "label": "I2C",
+       "kind": "signal",
+       "nets": [
+        "SDA",
+        "SCL"
+       ]
+      }
+     ]
+    },
+    "pinouts": [
+     {
+      "node": "part:4",
+      "title": "U1 SD1234",
+      "mpn": "SD1234",
+      "pins": [
+       {
+        "number": "1",
+        "name": "GND",
+        "type": "G",
+        "description": "Ground pin.",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "number": "2",
+        "name": "SW",
+        "type": "O",
+        "description": "Switch node.",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U2 ESP32-C3.3V3",
+         "U3 BME280.CSB",
+         "U3 BME280.VDD",
+         "C2 1µF",
+         "C4 100nF",
+         "C5 100nF",
+         "R1.2",
+         "R2.2",
+         "R3.2"
+        ]
+       },
+       {
+        "number": "3",
+        "name": "VIN",
+        "type": "P",
+        "description": "Input supply.",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 USB-C.VBUS",
+         "C1 1µF"
+        ]
+       },
+       {
+        "number": "4",
+        "name": "VFB",
+        "type": "I",
+        "description": "Feedback input.",
+        "to": []
+       }
+      ]
+     },
+     {
+      "node": "block:55",
+      "title": "J1 USB-C",
+      "pins": [
+       {
+        "name": "D+",
+        "net": "D+",
+        "netKind": "signal",
+        "to": [
+         "U2 ESP32-C3.GPIO19"
+        ]
+       },
+       {
+        "name": "D-",
+        "net": "D-",
+        "netKind": "signal",
+        "to": [
+         "U2 ESP32-C3.GPIO18"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "VBUS",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "U1.VIN",
+         "C1 1µF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:56",
+      "title": "U2 ESP32-C3",
+      "pins": [
+       {
+        "name": "3V3",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1.SW",
+         "U3 BME280.CSB",
+         "U3 BME280.VDD",
+         "C2 1µF",
+         "C4 100nF",
+         "C5 100nF",
+         "R1.2",
+         "R2.2",
+         "R3.2"
+        ]
+       },
+       {
+        "name": "GPIO19",
+        "net": "D+",
+        "netKind": "signal",
+        "to": [
+         "J1 USB-C.D+"
+        ]
+       },
+       {
+        "name": "GPIO18",
+        "net": "D-",
+        "netKind": "signal",
+        "to": [
+         "J1 USB-C.D-"
+        ]
+       },
+       {
+        "name": "EN",
+        "net": "EN",
+        "netKind": "signal",
+        "to": [
+         "C3 1µF",
+         "R1.1"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "GPIO2",
+        "net": "LED",
+        "netKind": "signal",
+        "to": [
+         "LED1 green"
+        ]
+       },
+       {
+        "name": "GPIO9",
+        "net": "SCL",
+        "netKind": "signal",
+        "to": [
+         "U3 BME280.SCL",
+         "R3.1"
+        ]
+       },
+       {
+        "name": "GPIO8",
+        "net": "SDA",
+        "netKind": "signal",
+        "to": [
+         "U3 BME280.SDA",
+         "R2.1"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:57",
+      "title": "U3 BME280",
+      "pins": [
+       {
+        "name": "CSB",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1.SW",
+         "U2 ESP32-C3.3V3",
+         "U3 BME280.VDD",
+         "C2 1µF",
+         "C4 100nF",
+         "C5 100nF",
+         "R1.2",
+         "R2.2",
+         "R3.2"
+        ]
+       },
+       {
+        "name": "VDD",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1.SW",
+         "U2 ESP32-C3.3V3",
+         "U3 BME280.CSB",
+         "C2 1µF",
+         "C4 100nF",
+         "C5 100nF",
          "R1.2",
          "R2.2",
          "R3.2"
