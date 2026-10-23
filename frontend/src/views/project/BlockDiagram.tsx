@@ -394,7 +394,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
               // The net at a passive's far end (a pull-up's 3V3): a bar and its name.
               <g key={`f${i}`} data-flag={f.text}>
                 <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={w.stroke} strokeWidth={1.4} />
-                <text x={f.x} y={f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
+                <text x={f.x} y={f.up ? f.y - 4 : f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
                   {f.text}
                 </text>
               </g>

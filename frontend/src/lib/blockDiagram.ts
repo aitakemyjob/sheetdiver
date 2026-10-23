@@ -118,6 +118,8 @@ export interface Frame extends Rect {
 /** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
 export interface Flag extends Pt {
   text: string;
+  /** Above the passive (the rail it hangs from), else below it. */
+  up?: boolean;
 }
 
 export interface BlockDrawing {
@@ -357,6 +359,8 @@ export function pinsAt(b: Box, d?: Diagram): void {
 const SYM = 28; // the band a two-terminal symbol takes across its axis
 const SYM_LEN = 44; // a two-terminal's node along its axis: the symbol and a short lead each end
 const BRIDGE_IN = 4; // a bridging passive's ends, in from its node's top and bottom
+/** The shapes drawn aside under their net's name rather than wired at a pin: what a person works, not what a pin needs. */
+const ASIDE = new Set(['switch', 'led', 'battery']);
 
 /** How wide a passive's name and value are. */
 const passiveText = (p: DiagramPassive) => Math.ceil(CHAR * Math.max(p.label.length, (p.value ?? '').length)) + 6;
@@ -400,6 +404,8 @@ interface PassiveNode {
   first: string;
   /** Bridging two pins: the side its ports are on, facing them. */
   bridge?: 'EAST' | 'WEST';
+  /** Standing aside from its pin: its net's name is flagged above it instead of a wire. */
+  flag?: string;
   /** Shown at its far end, for a passive with one wired net. */
   end?: End;
 }
@@ -423,7 +429,7 @@ const DROP = 30; // from a bottom pin down to the passive under it
 interface Stub {
   port: string;
   net: string;
-  side: 'left' | 'right' | 'top';
+  side: 'left' | 'right' | 'top' | 'bottom';
   arrow?: boolean;
 }
 
@@ -462,6 +468,10 @@ const option = {
     'elk.layered.thoroughness': '50',
     'elk.layered.crossingMinimization.greedySwitch.type': 'TWO_SIDED',
     'elk.layered.unnecessaryBendpoints': 'true',
+    // Puts each node level with what it's wired to (shortest wires), so a
+    // passive sits beside its pin rather than where a stack of them
+    // happens to centre.
+    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
     // Nodes in a layer keep the order they're given where crossings allow:
     // boxes first, so passives hang below them rather than stacking above.
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
@@ -619,32 +629,80 @@ function graph(d: Diagram, boxes: Box[]): Built {
   // Nets. One leaving the group (or the board) from a pin nothing in the
   // group is wired to is a stub out of that pin, named; an output leaving
   // the board ends in an arrow, with what hangs off it branching from
-  // the stub. The rest are edges from the pin that drives the net to each
-  // other pin, the first between two boxes (else the first at all)
-  // carrying its name.
+  // the stub. A rail nothing in the group drives (3V3 in the MCU group,
+  // made in the Power group) isn't wired at all, as on a schematic: each
+  // pin on it gets a stub with its name, and each capacitor on it stands
+  // in a row by the part it serves with the rail's name above it. The
+  // rest are edges from the pin that drives the net to each other pin,
+  // the first between two boxes (else the first at all) carrying its
+  // name; with nothing driving it, each passive on it comes before the
+  // pin it feeds (a pull-up left of an input), not after it at the end of
+  // a wire round the box.
   const portOf = new Map<string, ElkPort>();
   for (const n of children) for (const port of n.ports ?? []) portOf.set(port.id, port);
+  const stub = (e: PortEnd, net: string, arrow: boolean) => {
+    const side = e.side === 'EAST' ? 'right' : e.side === 'NORTH' ? 'top' : e.side === 'SOUTH' ? 'bottom' : 'left';
+    built.stubs.push({ port: e.id, net, side, arrow: side === 'right' && arrow });
+    portOf.get(e.id)!.labels = [{ text: net, width: net.length * CHAR + 16 + (arrow ? 12 : 0), height: 14 }];
+    built.labelled.add(net);
+  };
+  const column = new Map(d.parts.map((p) => [`b:${p.id}`, p.column]));
+  const passiveOf = (e: PortEnd) => built.passives.find((x) => `${x.node.id}/0` === e.id);
+  // Stands aside under its net's name rather than wired at the pin, placed
+  // in a row by the part it serves (ghost edges, not drawn, chain the row).
+  const aside = (e: PortEnd, net: string, by: PortEnd) => {
+    const q = passiveOf(e);
+    if (!q) return;
+    q.flag = net;
+    const row = built.passives.filter((x) => x.flag && x.passive.part === q.passive.part && x !== q);
+    edges.push({ id: `g:${net}:${e.id}`, sources: [row.length ? `${row[row.length - 1].node.id}/0` : by.id], targets: [e.id] });
+  };
   for (const n of d.nets) {
     const ports = endsOf(n.name);
     if (ports.length === 0) continue;
     const boxPorts = ports.filter((e) => !e.passive);
     const fromPassive = ports.find((e) => e.passive && e.side === 'EAST');
-    // Nothing in the group drives it: a passive on it (an input
-    // capacitor, a pull-up) comes first, before the box it feeds, rather
-    // than after it at the end of a wire round the box.
-    const source = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH') ?? ports.find((e) => e.passive) ?? ports[0];
-    const leaves = n.offboard || (n.wire === 'out' && !ports.some((e) => e.series));
-    const alone = boxPorts.length === 1 && ports.length === 1;
-    if (leaves && (alone || n.arrow) && !source.passive && source.side !== 'SOUTH') {
-      const side = source.side === 'EAST' ? 'right' : source.side === 'NORTH' ? 'top' : 'left';
-      built.stubs.push({ port: source.id, net: n.name, side, arrow: side === 'right' && n.arrow });
-      portOf.get(source.id)!.labels = [{ text: n.name, width: n.name.length * CHAR + 16 + (n.arrow ? 12 : 0), height: 14 }];
-      built.labelled.add(n.name);
-    }
-    const sinks = ports.filter((e) => e !== source);
+    const driver = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH');
+    const series = ports.some((e) => e.series);
+    const hung = ports.filter((e) => e.passive && !e.series);
+    const rail = !driver && !series && kinds.get(n.name.toLowerCase()) === 'power' && boxPorts.length > 0;
+    const serves = hung.map((e) => passiveOf(e)?.passive.supports).find(Boolean);
+    const home = driver ?? boxPorts.find((e) => e.id.startsWith(`b:${serves}/`)) ?? boxPorts[0];
+    // What stays wired at the pin: a crystal, its load capacitors and the
+    // other passives of the pin's own net. A switch, button, LED or
+    // battery, and every capacitor on a rail, stands aside under the
+    // net's name.
+    const standsAside = (e: PortEnd) => rail || ASIDE.has(passiveOf(e)?.passive.shape ?? '');
+    if (home) for (const e of hung.filter(standsAside)) aside(e, n.name, home);
+    const wiredPassives = hung.filter((e) => !standsAside(e));
+    // Which pins are labelled rather than wired: every pin of a rail; of
+    // a signal reaching three parts, or two more than a column apart (a
+    // long wire round everything between), every pin but the one its
+    // passives are wired at; and any pin left with nothing wired to it.
+    const boxIds = [...new Set(boxPorts.map((e) => e.id.split('/')[0]))];
+    const far = !series && (boxIds.length >= 3 || (boxIds.length === 2 && Math.abs((column.get(boxIds[0]) ?? 0) - (column.get(boxIds[1]) ?? 0)) >= 2));
+    const wiredPins = rail ? [] : far ? boxPorts.filter((e) => e === home && wiredPassives.length > 0) : boxPorts;
+    const wired = [...wiredPins, ...wiredPassives, ...ports.filter((e) => e.series)];
+    const leaves = n.offboard || (n.wire === 'out' && !series);
+    for (const e of boxPorts) if (!wiredPins.includes(e) && e.side !== 'SOUTH') stub(e, n.name, false);
+    // A pin alone on its net (the rest is in another group, or off the
+    // board) gets a stub with its name; an output leaving the board ends
+    // in an arrow, with what hangs off it branching from the stub.
+    if (wired.length === 1 && !wired[0].passive && wired[0].side !== 'SOUTH') stub(wired[0], n.name, leaves && !!n.arrow);
+    if (wired.length < 2) continue;
+    if (leaves && n.arrow && driver && !driver.passive && driver.side !== 'SOUTH') stub(driver, n.name, true);
+    // Edges from the pin that drives the net to each other end, the first
+    // between two boxes (else the first at all) carrying its name; with
+    // nothing driving it, each passive comes before the pin it feeds (a
+    // pull-up left of an input), not after it at the end of a wire round
+    // the box.
+    const source = driver ?? wired.find((e) => e.passive) ?? wired[0];
+    const sinks = wired.filter((e) => e !== source);
     const between = sinks.find((e) => !e.passive && !source.passive);
+    const feeds = !driver && wiredPins[0];
     sinks.forEach((e, i) => {
-      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [source.id], targets: [e.id] };
+      const fromPin = feeds && e.passive ? [e.id, feeds.id] : [source.id, e.id];
+      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [fromPin[0]], targets: [fromPin[1]] };
       if (!built.labelled.has(n.name) && (e === between || (!between && i === 0))) {
         built.named.add(edge.id);
         built.labelled.add(n.name);
@@ -652,6 +710,24 @@ function graph(d: Diagram, boxes: Box[]): Built {
       edges.push(edge);
     });
   }
+  // Nodes in a layer keep this order where crossings allow: boxes first,
+  // then the passives in the order of the pins they feed down each box,
+  // so a crystal sits by its oscillator pins, not above the whole part.
+  const boxIndex = new Map(children.filter((c) => c.id.startsWith('b:')).map((c, i) => [c.id, i]));
+  const anchor = (c: ElkNode): [number, number] => {
+    const q = built.passives.find((x) => x.node === c);
+    for (const net of q?.passive.nets ?? []) {
+      const e = endsOf(net).find((x) => !x.passive);
+      if (e) return [boxIndex.get(e.id.split('/')[0]) ?? 0, portOf.get(e.id)?.y ?? 0];
+    }
+    return [Infinity, 0];
+  };
+  const rank = new Map(children.map((c) => [c.id, c.id.startsWith('b:') ? [-1, boxIndex.get(c.id) ?? 0] : anchor(c)]));
+  children.sort((a, b) => {
+    const [ia, ya] = rank.get(a.id)!;
+    const [ib, yb] = rank.get(b.id)!;
+    return ia - ib || ya - yb;
+  });
   return built;
 }
 
@@ -743,6 +819,12 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
   for (const q of built.passives) {
     const n = placed.get(q.node.id)!;
     const p = placePassive(q.passive, at(n.x ?? 0), at(n.y ?? 0), q.size, q.horizontal, q.first);
+    if (q.flag) {
+      // Its net's name above it, as a schematic's power port or net label.
+      const e = p.ends[0];
+      out.wires.push({ net: q.flag, path: `M${e.x},${e.y} V${e.y - 6}`, thin: true });
+      out.flags.push({ x: e.x, y: e.y - 6, text: q.flag, up: true });
+    }
     if (q.bridge) {
       // The symbol between the leads from its ports.
       const px = q.bridge === 'EAST' ? p.x + p.w : p.x;
@@ -772,6 +854,10 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
       out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y - 24}`, label: { x: p.x, y: p.y - 28, anchor: 'middle', text: st.net } });
       continue;
     }
+    if (st.side === 'bottom') {
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y + 24}`, label: { x: p.x, y: p.y + 40, anchor: 'middle', text: st.net } });
+      continue;
+    }
     const dir = st.side === 'right' ? 1 : -1;
     const len = st.net.length * CHAR + 16 + (st.arrow ? 12 : 0);
     const end = p.x + dir * len;
@@ -781,6 +867,7 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
   // piece of the wire that carries it (ELK would give each label a layer
   // of its own, which spreads the drawing).
   for (const e of r.edges ?? []) {
+    if (e.id.startsWith('g:')) continue; // a ghost edge, for placement only
     const net = e.id.slice(2, e.id.lastIndexOf(':'));
     (e.sections ?? []).forEach((s, k) => {
       const pts = [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => ({ x: at(p.x), y: at(p.y) }));

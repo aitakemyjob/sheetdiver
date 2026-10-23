@@ -119,7 +119,15 @@ nodes, the name of a net leaving the group as a port label so its stub
 is straight, a net as edges from the pin that drives it) and ELK's
 result back into the drawing; dragged parts are hints to ELK's
 interactive crossing minimisation, which keeps their order in their
-layer and routes the wires again. `lib/symbols.ts` holds the standard
+layer and routes the wires again. Which nets become wires and which
+become labels follows schematic practice, decided per net in `graph()`:
+grounds are symbols at each pin; a rail nothing in the group drives is a
+power port at each pin with its capacitors in a row beside the part; a
+signal reaching three parts or spanning more than a column is a net
+label at each pin; a switch, LED or battery stands aside under its net's
+name; everything else (a crystal with its load capacitors, a series
+resistor, a pin's own pull-up) is wired at the pin, the passive placed
+before the pin it feeds. `lib/symbols.ts` holds the standard
 symbols' geometry (two-terminals down the y axis, transistors in a box
 with their terminals on its border); `views/project/BlockDiagram.tsx`
 draws it all as SVG and lets the user hide a generated symbol's

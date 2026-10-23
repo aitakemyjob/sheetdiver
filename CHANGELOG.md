@@ -31,7 +31,21 @@ every merged pull request.
   pins at G, D, S or B, C, E. A BOM entry's category maps to its symbol
   the same way, so a part categorised LED or crystal is drawn as one.
   The connections text for agents names each part's shape and each
-  passive's symbol and terminals. (#74)
+  passive's symbol and terminals. A resistor or capacitor from the
+  library shows its value under its name, from its role ("BOOT0 10k
+  pull-down") or its part's description. (#74)
+- **Wired like a schematic.** Inside a group, what stays wired at a pin
+  is what a reader needs there: a crystal and its load capacitors, a
+  series resistor, the pin's own pull-up or capacitor. A rail nothing in
+  the group drives (3V3 in the MCU group, made in the Power group) isn't
+  wired at all: each pin on it gets a power port with its name, and its
+  decoupling capacitors stand in a row beside the part under the rail's
+  name. A signal reaching three parts, or two parts more than a column
+  apart, is a net label at each pin instead of a wire round everything
+  between. Switches, buttons, LEDs and batteries stand aside under their
+  net's name. Passives sit beside the pin they feed, in pin order, and
+  the layout keeps every node level with what it's wired to, so the
+  drawing reads left to right instead of down a tangle. (#74)
 - **Functional groups on the block diagram:** put parts in groups (Power,
   MCU, Sensors) in the Connections tab, or have your agent do it. Each
   group is drawn in its own frame with its description and notes. Wires

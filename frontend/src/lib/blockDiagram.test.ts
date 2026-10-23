@@ -246,11 +246,13 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     for (const w of d.wires) {
       const pts = points(w.path);
       if (pts.slice(1).some((p, i) => p.x === pts[i].x && p.y === pts[i].y)) short.push(`${w.net}: ${w.path}`);
-      // A label in the middle of a wire sits over one of its pieces.
+      // A label in the middle of a wire sits over one of its pieces, or
+      // at the end of a stub up or down from a pin.
       if (w.label?.anchor === 'middle' && !w.thin) {
         const r = labelRect(w.label);
         const under = pts.slice(1).some((p, i) => p.y === pts[i].y && Math.abs(p.y - w.label!.y) < 30 && Math.min(p.x, pts[i].x) <= r.x + 2 && Math.max(p.x, pts[i].x) >= r.x + r.w - 2);
-        if (!under) short.push(`${w.net} label on ${w.path}`);
+        const atEnd = pts.slice(1).some((p, i) => p.x === pts[i].x && p.x === w.label!.x && Math.abs(p.y - w.label!.y) < 20);
+        if (!under && !atEnd) short.push(`${w.net} label on ${w.path}`);
       }
     }
     expect(short).toEqual([]);
@@ -336,12 +338,17 @@ describe('the USB-C sketch', () => {
 });
 
 describe('the battery board', () => {
-  it('draws a rail joining four parts as a bus from its driver, with junctions', async () => {
+  it('names a rail joining four parts at each pin, as a schematic does, rather than wiring round them all', async () => {
     const d = await layoutBlockDiagram(circuit('Battery board'));
-    const rail = segments(d).filter((s) => s.net === '4.2V');
-    // A vertical carries it, with a branch to each part it feeds.
-    expect(rail.filter((s) => s.x1 === s.x2 && s.y2 - s.y1 > 100).length).toBeGreaterThanOrEqual(1);
-    expect(d.dots.length).toBeGreaterThan(0);
+    const pins = d.boxes.flatMap((b) => b.pins.filter((p) => p.net === '4.2V' && !p.tied && !p.dim).map((p) => ({ part: b.part.title, ...p })));
+    expect(pins.length).toBe(4);
+    for (const p of pins) {
+      const stub = d.wires.find((w) => w.net === '4.2V' && w.label?.text === '4.2V' && points(w.path)[0].x === p.x && points(w.path)[0].y === p.y);
+      expect(stub, `${p.part} ${p.name}`).toBeDefined();
+      expect(Math.abs(points(stub!.path).at(-1)!.x - p.x) + Math.abs(points(stub!.path).at(-1)!.y - p.y)).toBeLessThan(120);
+    }
+    // No long wire carries it.
+    expect(segments(d).filter((s) => s.net === '4.2V' && s.x2 - s.x1 + s.y2 - s.y1 > 120)).toEqual([]);
   });
 });
 
@@ -425,13 +432,15 @@ describe('a board in groups', () => {
     const cap = (label: string) => d.passives.find((p) => p.passive.label === label)!;
     expect(inside(cap('C4'), frame('MCU'))).toBe(true);
     expect(inside(cap('C5'), frame('Sensor'))).toBe(true);
-    // Each is wired to its own part's 3V3 pin.
+    // Nothing in these groups drives 3V3 (the Power group makes it), so
+    // it isn't wired: each part's 3V3 pin gets a stub named 3V3, and each
+    // capacitor stands beside its part with 3V3 flagged above it.
     for (const [c, u] of [['C4', 'U2'], ['C5', 'U3']]) {
       const pin = box(u).pins.find((p) => p.net === '3V3' && !p.tied)!;
       const top = cap(c).ends[0];
-      const wire = d.wires.filter((w) => w.net === '3V3' && !w.thin).map((w) => points(w.path));
-      expect(wire.some((pts) => pts.some((p) => p.x === pin.x && p.y === pin.y)), `${c} from ${u}`).toBe(true);
-      expect(wire.some((pts) => pts.some((p) => p.x === top.x && p.y === top.y)), `${c} wired`).toBe(true);
+      expect(d.wires.some((w) => w.net === '3V3' && w.label?.text === '3V3' && points(w.path)[0].x === pin.x && points(w.path)[0].y === pin.y), `${u} stub`).toBe(true);
+      expect(d.flags.some((f) => f.text === '3V3' && f.up && f.x === top.x && f.y < top.y), `${c} flagged`).toBe(true);
+      expect(cap(c).x, `${c} beside ${u}`).toBeGreaterThan(box(u).x + box(u).w);
     }
   });
 
