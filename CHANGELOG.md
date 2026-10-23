@@ -75,8 +75,11 @@ every merged pull request.
   wire named, a pin with nothing keeping its named stub) instead of
   leaving them under a flag; a TVS by its connector and a resistor by
   the output connector get their wire; switches, LEDs and batteries are
-  wired like anything else. The connections text lists subgroups of
-  parts in no group too.
+  wired like anything else. Which parts form a subgroup is now decided
+  by the backend and carried on the diagram, so the connections text
+  lists every subgroup the drawing shows, the automatic ones included
+  ("3V3 at U2 (C4, C5)", "after L1 (C3)"), and those of parts in no
+  group.
 - **Subgroups within a group:** the parts hanging off one net (the
   VDD decoupling, a button and its pull-up, an LED and its resistor)
   are moved aside together and wired up as one unit in a faint frame

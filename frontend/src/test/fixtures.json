@@ -3399,7 +3399,8 @@
         "SDA"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -3510,7 +3511,8 @@
      "passives": [],
      "nets": [],
      "groups": [],
-     "links": []
+     "links": [],
+     "subgroups": []
     },
     "pinouts": []
    },
@@ -5273,7 +5275,8 @@
         "5V_PROT"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -6371,7 +6374,8 @@
         "3V3"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -7629,7 +7633,8 @@
         "5V_PROT"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -8768,7 +8773,8 @@
         "SCL"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -10204,7 +10210,8 @@
         "SCL"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -12224,6 +12231,18 @@
        "nets": [
         "PA5",
         "LED_A"
+       ]
+      }
+     ],
+     "subgroups": [
+      {
+       "group": "MCU",
+       "kind": "rail",
+       "net": "3V3",
+       "members": [
+        "block:84,block:78,block:79,block:80,block:81,block:82,block:83",
+        "block:85",
+        "block:86"
        ]
       }
      ]
@@ -15274,7 +15293,8 @@
         "LED_A"
        ]
       }
-     ]
+     ],
+     "subgroups": []
     },
     "pinouts": [
      {
@@ -17327,6 +17347,18 @@
         "BASE"
        ]
       }
+     ],
+     "subgroups": [
+      {
+       "name": "Status LED",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:125",
+        "block:131",
+        "block:130"
+       ]
+      }
      ]
     },
     "pinouts": [
@@ -18218,6 +18250,34 @@
         "3V3"
        ]
       }
+     ],
+     "subgroups": [
+      {
+       "name": "Out",
+       "group": "Output",
+       "kind": "named",
+       "members": [
+        "block:141"
+       ]
+      },
+      {
+       "name": "PWR LED",
+       "group": "Output",
+       "kind": "named",
+       "members": [
+        "block:146",
+        "block:145"
+       ]
+      },
+      {
+       "group": "Power",
+       "kind": "chain",
+       "net": "3V3",
+       "members": [
+        "block:143",
+        "block:144"
+       ]
+      }
      ]
     },
     "pinouts": [
@@ -18908,6 +18968,24 @@
        "kind": "power",
        "nets": [
         "VBUS"
+       ]
+      }
+     ],
+     "subgroups": [
+      {
+       "kind": "chain",
+       "net": "VOUT",
+       "members": [
+        "block:149",
+        "block:150"
+       ]
+      },
+      {
+       "kind": "chain",
+       "net": "LEDK",
+       "members": [
+        "block:152",
+        "block:153"
        ]
       }
      ]

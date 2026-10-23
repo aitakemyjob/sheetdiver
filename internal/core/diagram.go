@@ -42,6 +42,9 @@ type Diagram struct {
 	// Links join parts that share a net, for a diagram without pins (the
 	// report's Mermaid chart) and for agents.
 	Links []DiagramLink `json:"links"`
+	// Subgroups are the sets of parts laid out and wired up as one unit
+	// inside their group (see subgroups.go).
+	Subgroups []DiagramSubgroup `json:"subgroups"`
 }
 
 // DiagramGroup is a functional group: a frame around its Parts (and the
@@ -389,7 +392,7 @@ func diagram(in diagramInput) Diagram {
 	links := b.links()
 	b.columns = columnsOf(b.mains, links)
 	b.assign()
-	d := Diagram{Parts: []DiagramPart{}, Passives: []DiagramPassive{}, Nets: []DiagramNet{}, Groups: []DiagramGroup{}, Links: []DiagramLink{}}
+	d := Diagram{Parts: []DiagramPart{}, Passives: []DiagramPassive{}, Nets: []DiagramNet{}, Groups: []DiagramGroup{}, Links: []DiagramLink{}, Subgroups: []DiagramSubgroup{}}
 	pos := map[string]library.Position{}
 	for _, p := range layout {
 		pos[p.Node] = p
@@ -413,7 +416,35 @@ func diagram(in diagramInput) Diagram {
 	}
 	d.Groups = groups(in.groups, d.Parts)
 	d.Links = links
+	d.Subgroups = subgroups(b.subgroupFacts(d))
 	return d
+}
+
+// subgroupFacts is what the subgroup rules decide on for a drawn diagram:
+// a rail is undriven in a group when no part of the group on it drives
+// it; a net is drawn in a group when a part of the group is on it.
+func (b *diagramBuilder) subgroupFacts(d Diagram) subgroupFacts {
+	netsIn := map[string]DiagramNet{}
+	for _, n := range d.Nets {
+		netsIn[strings.ToLower(n.Name)+"|"+strings.ToLower(n.Group)] = n
+	}
+	drawn := func(net, group string) bool {
+		_, ok := netsIn[strings.ToLower(net)+"|"+strings.ToLower(group)]
+		return ok
+	}
+	undriven := func(net, group string) bool {
+		n, ok := netsIn[strings.ToLower(net)+"|"+strings.ToLower(group)]
+		if !ok || n.Kind != library.NetPower {
+			return false
+		}
+		for _, id := range n.Parts {
+			if b.drives(id, net) {
+				return false
+			}
+		}
+		return true
+	}
+	return subgroupFacts{parts: d.Parts, passives: d.Passives, undriven: undriven, drawn: drawn}
 }
 
 // assignment is a node's assignment; a designator of an entry with

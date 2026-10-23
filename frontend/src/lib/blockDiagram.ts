@@ -30,9 +30,9 @@
 // the parts beside it follows where it was put (left to right stays with
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
-import { undrivenRail, wire, type NetContext, type NetEnd } from './diagram/wiring';
+import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
-import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
+import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
 
 export const PITCH = 30; // between pins
 export const TOP = 25; // first pin below a body's top
@@ -179,6 +179,7 @@ export function groupDiagram(d: Diagram, group: string): Diagram {
     passives: d.passives.filter((q) => inGroup(q.group)),
     groups: [],
     links: [],
+    subgroups: d.subgroups.filter((sg) => inGroup(sg.group)),
   };
 }
 
@@ -416,8 +417,6 @@ interface PassiveNode {
   first: string;
   /** Bridging two pins: the side its ports are on, facing them. */
   bridge?: 'EAST' | 'WEST';
-  /** Hanging off a rail nothing in the group drives, wired from its part's pin: the rail's name. */
-  flag?: string;
   /** Shown at its far end, for a passive with one wired net. */
   end?: End;
 }
@@ -705,13 +704,6 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   for (const n of d.nets) {
     const ctx: NetContext = { name: n.name, power: kinds.get(n.name.toLowerCase()) === 'power', offboard: !!n.offboard, out: n.wire === 'out', arrow: !!n.arrow, ends: endsOf(n.name).map(netEnd) };
     const plan = wire(ctx);
-    if (plan.rule === undrivenRail.name) {
-      // What hangs off a rail by one part may share a bus (clusterUnits).
-      for (const e of ctx.ends) {
-        const q = e.kind === 'passive' && !e.series ? passiveOf(endById.get(e.id)!) : undefined;
-        if (q) q.flag = n.name;
-      }
-    }
     for (const st of plan.stubs) stub(endById.get(st.end)!, n.name, st.arrow);
     plan.edges.forEach((e, i) => {
       const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [e.from], targets: [e.to] };
@@ -958,72 +950,23 @@ const UNIT_HEAD = 18; // a bus's name above it, and the frame's
 const ROW_MAX = 6; // parts hanging off one bus before it goes on below
 
 /**
- * The subgroups of a diagram: the parts named into one, each pulling the
- * rest of its net's hanging parts in with it; and, of what hangs off a
- * rail by one part, any two or more together on one bus.
+ * The subgroups the backend found (Diagram.subgroups, one rule each in
+ * internal/core/subgroups.go), each laid out as a unit: a chain on a bus
+ * after its lead; a rail's passives on a bus; a named one on a bus too,
+ * or, with a box in it, its own layout. Each faces the part its first
+ * signal (else its first net) comes from: a subgroup off a pin on a
+ * part's left goes to the left of it.
  */
 async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Promise<Unit[]> {
   const plain = graph(d, boxes);
-  const nodeOf = new Map(plain.passives.map((q) => [q.node.id, q]));
-  const key = (s: string) => s.toLowerCase();
-  // Named: parts and passives with the same name, and the whole of a net
-  // whose hanging parts one of them is among.
-  const named = new Map<string, { name: string; ids: Set<string> }>();
-  const name = (id: string, cluster?: string) => {
-    if (!cluster) return;
-    const c = named.get(key(cluster)) ?? { name: cluster, ids: new Set<string>() };
-    c.ids.add(id);
-    named.set(key(cluster), c);
-  };
-  for (const p of d.parts) name(`b:${p.id}`, p.cluster);
-  for (const q of d.passives) name(`q:${q.id}`, q.cluster);
-  const taken = new Set<string>();
-  for (const c of named.values()) {
-    for (const id of [...c.ids]) {
-      const q = nodeOf.get(id);
-      if (!q?.flag) continue;
-      for (const x of plain.passives) if (x.flag === q.flag && x.passive.part === q.passive.part) c.ids.add(x.node.id);
-    }
-    for (const id of c.ids) taken.add(id);
-  }
-  // Automatic: what stands aside on one net by one part, with the series
-  // part its net is reached through.
-  const auto = new Map<string, { name: string; ids: Set<string> }>();
-  for (const q of plain.passives) {
-    if (!q.flag || taken.has(q.node.id)) continue;
-    const k = `${key(q.flag)}|${q.passive.part}`;
-    const c = auto.get(k) ?? { name: q.flag, ids: new Set<string>() };
-    c.ids.add(q.node.id);
-    auto.set(k, c);
-  }
-  for (const q of plain.passives) {
-    if (!q.horizontal || taken.has(q.node.id)) continue;
-    const down = q.passive.nets.find((n) => key(n) !== key(q.first));
-    const c = [...auto.values()].find((x) => down && key(x.name) === key(down));
-    c?.ids.add(q.node.id);
-  }
-  // Chains: a passive reached only through another (C2 on VOUT after
-  // L1, an LED after its series resistor; in a group, a capacitor whose
-  // net reaches no part of the group but through the inductor) goes on
-  // a bus after it, which leads in from the net it hangs on. One named
-  // into a subgroup takes its lead along; the lead leaves any row.
-  const chained = chainHangers(d, plain);
+  const nodeId = (id: string) => (d.parts.some((p) => p.id === id) ? `b:${id}` : `q:${id}`);
   const units: Unit[] = [];
-  const chains = new Map<string, { lead: PassiveNode; hangers: PassiveNode[] }>();
-  for (const [id, { lead, node }] of chained) {
-    if (taken.has(id) || taken.has(lead.node.id)) continue;
-    const c = chains.get(lead.node.id) ?? { lead, hangers: [] };
-    c.hangers.push(node);
-    chains.set(lead.node.id, c);
+  for (const [i, sg] of d.subgroups.entries()) {
+    const ids = new Set(sg.members.map(nodeId));
+    const id = `u:${sg.kind}:${i}`;
+    if ([...ids].some((x) => x.startsWith('b:'))) units.push(await layoutUnit(id, sg.name ?? '', ids, d, boxes, opts));
+    else units.push(busUnit(id, sg.name ?? '', busNodes(sg, plain, d)));
   }
-  for (const [id, c] of chains) {
-    for (const bucket of auto.values()) bucket.ids.delete(id);
-    units.push(busUnit(`u:chain:${id}`, '', [{ ...c.lead, horizontal: true, flag: undefined, end: undefined }, ...c.hangers]));
-  }
-  for (const [k, c] of named) units.push(await unit(`u:${k}`, c.name, c.ids, d, plain, boxes, opts, chained));
-  for (const [k, c] of auto) if (c.ids.size >= 2) units.push(await unit(`u:auto:${k}`, '', c.ids, d, plain, boxes, opts, chained));
-  // Each faces the part its first signal (else its first net) comes
-  // from: a subgroup off a pin on a part's left goes to the left of it.
   const power = new Set(d.nets.filter((n) => n.kind === 'power').map((n) => n.name.toLowerCase()));
   for (const u of units) {
     const net = [...u.ports].sort((a, b) => Number(power.has(a.net.toLowerCase())) - Number(power.has(b.net.toLowerCase())))[0]?.net.toLowerCase();
@@ -1034,6 +977,48 @@ async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Prom
     }
   }
   return units;
+}
+
+/**
+ * The passive nodes of a bus subgroup, from the plain layout of the
+ * diagram: a lead (a chain's first member, or a member another member
+ * hangs off the far net of) runs along the bus; a member not drawn on
+ * its own, its net reaching no part here, hangs off the bus.
+ */
+function busNodes(sg: DiagramSubgroup, plain: Built, d: Diagram): PassiveNode[] {
+  const key = (s: string) => s.toLowerCase();
+  const nodeOf = new Map(plain.passives.map((q) => [q.node.id, q]));
+  const passiveOf = (id: string) => d.passives.find((q) => q.id === id)!;
+  const farOf = (x: PassiveNode) => (x.end?.ground === false ? key(x.end.text) : x.passive.nets.find((n) => key(n) !== key(x.first)));
+  const members = sg.members;
+  const leads = new Set<string>();
+  if (sg.kind === 'chain') leads.add(members[0]);
+  for (const m of members) {
+    if (nodeOf.has(`q:${m}`)) continue;
+    const q = passiveOf(m);
+    for (const l of members) {
+      const ln = nodeOf.get(`q:${l}`);
+      if (l !== m && ln && !ln.horizontal && !ln.bridge && q.nets.some((n) => key(n) === farOf(ln))) leads.add(l);
+    }
+  }
+  const nodes: PassiveNode[] = [];
+  for (const m of members) {
+    const ln = nodeOf.get(`q:${m}`);
+    if (ln && leads.has(m)) {
+      nodes.push({ ...ln, horizontal: true, end: undefined });
+      continue;
+    }
+    if (ln) {
+      nodes.push(ln);
+      continue;
+    }
+    const q = passiveOf(m);
+    const lead = [...leads].map((l) => nodeOf.get(`q:${l}`)).find((x) => x && q.nets.some((n) => key(n) === farOf(x)));
+    const net = (lead && q.nets.find((n) => key(n) === farOf(lead))) ?? sg.net ?? q.nets[0];
+    const other = q.nets.find((n) => key(n) !== key(net));
+    nodes.push({ passive: q, node: { id: `q:${m}` }, size: passiveSize(q), horizontal: false, first: net, end: other ? { ground: false, text: other } : { ground: true } });
+  }
+  return nodes;
 }
 
 /** Turns a bus subgroup round, so its entry is on its right. */
@@ -1059,47 +1044,13 @@ function mirror(u: Unit): void {
   r.dots = r.dots.map(pt);
 }
 
-/** A passive reached only through another: its node, and the passive it chains off. */
-type Chained = { node: PassiveNode; lead: PassiveNode };
-
-/**
- * The passives not drawn on their own (no net of theirs reaches a part
- * here), each with the drawn passive whose far net it is on: the one the
- * backend says it chains off, else the first found.
- */
-function chainHangers(d: Diagram, plain: Built): Map<string, Chained> {
-  const key = (s: string) => s.toLowerCase();
-  const drawn = new Set([...plain.passives.map((q) => q.node.id), ...plain.below.map((u) => `q:${u.passive.id}`)]);
-  const farOf = (x: PassiveNode) => (x.end?.ground === false ? key(x.end.text) : x.passive.nets.find((n) => key(n) !== key(x.first)));
-  const out = new Map<string, Chained>();
-  for (const q of d.passives) {
-    const id = `q:${q.id}`;
-    if (drawn.has(id)) continue;
-    const leads = plain.passives.filter((x) => !x.horizontal && !x.bridge && q.nets.some((n) => key(n) === farOf(x)));
-    const lead = (q.mount === 'chain' && leads.find((x) => x.node.id === `q:${q.part}`)) || leads[0];
-    if (!lead) continue;
-    const net = q.nets.find((n) => key(n) === farOf(lead))!;
-    const other = q.nets.find((n) => key(n) !== key(net));
-    const end: End = other ? { ground: false, text: other } : { ground: true };
-    out.set(id, { lead, node: { passive: q, node: { id }, size: passiveSize(q), horizontal: false, first: net, end } });
-  }
-  return out;
-}
-
-/** Lays a subgroup out: a bus with its parts hanging off it, or, with a box among them, its own layout. */
-async function unit(id: string, name: string, ids: Set<string>, d: Diagram, plain: Built, boxes: Box[], opts: LayoutOptions, chained: Map<string, Chained>): Promise<Unit> {
+/** Lays a subgroup with a box in it out on its own, inside its frame. */
+async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram, boxes: Box[], opts: LayoutOptions): Promise<Unit> {
   const parts = boxes.filter((b) => ids.has(`b:${b.part.id}`)).map((b) => b.part);
-  if (parts.length === 0) {
-    // Chained members bring their lead, which runs along the bus.
-    const hangers = [...ids].map((x) => chained.get(x)).filter((c): c is Chained => !!c);
-    const leads = new Map(hangers.map((c) => [c.lead.node.id, c.lead]));
-    const members = plain.passives.filter((q) => ids.has(q.node.id) && !leads.has(q.node.id));
-    return busUnit(id, name, [...[...leads.values()].map((l) => ({ ...l, horizontal: true, flag: undefined, end: undefined })), ...members, ...hangers.map((c) => c.node)]);
-  }
   const passives = d.passives.filter((q) => ids.has(`q:${q.id}`));
   const strip = <T extends { x?: number; y?: number; cluster?: string }>(p: T): T => ({ ...p, x: undefined, y: undefined, cluster: undefined });
   const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);
-  const sub: Diagram = { parts: parts.map((p) => ({ ...strip(p), column: columns.indexOf(p.column) })), passives: passives.map(strip), nets: d.nets, groups: [], links: [] };
+  const sub: Diagram = { parts: parts.map((p) => ({ ...strip(p), column: columns.indexOf(p.column) })), passives: passives.map(strip), nets: d.nets, groups: [], links: [], subgroups: [] };
   const drawn = await layoutOne(sub, opts, false);
   const corner = topLeft(drawn);
   const local = moveDrawing(drawn, UNIT_PAD - corner.x, UNIT_PAD + UNIT_HEAD - corner.y);

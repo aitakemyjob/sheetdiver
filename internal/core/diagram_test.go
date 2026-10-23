@@ -745,6 +745,15 @@ func TestTheBuckBoardPlacesByWhatIsSaid(t *testing.T) {
 	if d2, r4 := byLabel["D2"], byLabel["R4"]; d2.Mount != MountChain || d2.Part != r4.ID || r4.Part != "block:4" || d2.Group != "Output" {
 		t.Errorf("D2 = %+v, R4 = %+v", d2, r4)
 	}
+	// The subgroups the drawing follows: J2 as named; D2 named with its
+	// lead R4; C3, whose rail reaches no part of Power, after L1.
+	var sgs []string
+	for _, sg := range dg.Subgroups {
+		sgs = append(sgs, sg.Kind+":"+sg.Name+"@"+sg.Group+" "+strings.Join(sg.Members, ","))
+	}
+	if want := []string{"named:Out@Output block:4", "named:PWR LED@Output block:9,block:8", "chain:@Power block:6,block:7"}; strings.Join(sgs, "; ") != strings.Join(want, "; ") {
+		t.Errorf("subgroups = %q", sgs)
+	}
 }
 
 func TestAssignmentsSaidButNotSeenAreReported(t *testing.T) {

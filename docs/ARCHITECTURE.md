@@ -130,10 +130,16 @@ each pin; everything else (a crystal with its load capacitors, a series
 resistor, a pin's own pull-up, a button and its resistor) is wired at
 the pin. One rule places and wires a passive: it gets a wire from what
 it's placed by, an IC pin, a connector pin or the previous passive in a
-chain, on that pin's side of the part. Subgroups are laid out first,
-each as one unit that the group's graph then places as a single node
-(`clusterUnits`): the parts hanging off one rail by one part, with the
-series part leading
+chain, on that pin's side of the part. Which ends of a net are wired to
+which, and which get a named stub, is decided by `lib/diagram/wiring.ts`:
+a chain of rules (an undriven rail, a far signal, the wired net) over
+facts about the net alone, each unit-tested on small contexts; `graph()`
+only turns the plan into ELK edges. Which parts form a subgroup is the
+backend's decision (`internal/core/subgroups.go`, a rule chain too:
+named, chain, rail), carried in `Diagram.subgroups` so the drawing and
+the agent's text agree. Subgroups are laid out first, each as one unit
+that the group's graph then places as a single node (`clusterUnits`):
+the parts hanging off one rail by one part, with the series part leading
 to it, go on a bus named after the net in a faint frame, on the side of
 the part their pin is on; parts named into a subgroup (`cluster` on an
 assignment) are laid out by ELK on their own, everything inside wired,

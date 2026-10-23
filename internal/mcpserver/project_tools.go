@@ -1039,7 +1039,7 @@ func connectionsText(d core.ProjectDetail) string {
 			}
 		}
 		fmt.Fprintf(&b, "group %s: %s", g.Name, strings.Join(members, ", "))
-		if t := subgroupsText(c.Diagram, g.Name, label); t != "" {
+		if t := subgroupsText(c.Diagram, g.Name, label, passiveLabels(c.Diagram)); t != "" {
 			b.WriteString("; subgroups: " + t)
 		}
 		drawnGroups[strings.ToLower(g.Name)] = true
@@ -1058,7 +1058,7 @@ func connectionsText(d core.ProjectDetail) string {
 			fmt.Fprintf(&b, "group %s: no connected parts yet\n", g.Name)
 		}
 	}
-	if t := subgroupsText(c.Diagram, "", label); t != "" {
+	if t := subgroupsText(c.Diagram, "", label, passiveLabels(c.Diagram)); t != "" {
 		b.WriteString("subgroups in no group: " + t + "\n")
 	}
 	// The passives, as the app draws them: strapping that the links above
@@ -1166,34 +1166,49 @@ func passiveLabelOf(dg core.Diagram, id string) string {
 	return id
 }
 
-// subgroupsText lists a group's subgroups with their members, in the
-// order they were named: "VDD (C4, C5), BTN (SW1, R2)"; "" for none.
-func subgroupsText(dg core.Diagram, group string, label map[string]string) string {
-	var names []string
-	members := map[string][]string{}
-	add := func(cluster, member string) {
-		if cluster == "" {
-			return
-		}
-		k := strings.ToLower(cluster)
-		if _, ok := members[k]; !ok {
-			names = append(names, cluster)
-		}
-		members[k] = append(members[k], member)
-	}
-	for _, p := range dg.Parts {
-		if strings.EqualFold(p.Group, group) {
-			add(p.Cluster, label[p.ID])
-		}
-	}
+// passiveLabels names each drawn passive by its id.
+func passiveLabels(dg core.Diagram) map[string]string {
+	out := map[string]string{}
 	for _, p := range dg.Passives {
-		if strings.EqualFold(p.Group, group) {
-			add(p.Cluster, p.Label)
-		}
+		out[p.ID] = p.Label
 	}
-	out := make([]string, 0, len(names))
-	for _, n := range names {
-		out = append(out, n+" ("+strings.Join(members[strings.ToLower(n)], ", ")+")")
+	return out
+}
+
+// subgroupsText lists a group's subgroups with their members, as the
+// diagram draws them: "PWR LED (R4, D2)" as named; "3V3 at U2 (C4, C5)"
+// for a rail's capacitors by one part; "after L1 (C3)" for a chain.
+// "" for none.
+func subgroupsText(dg core.Diagram, group string, label, passive map[string]string) string {
+	name := func(id string) string {
+		if l, ok := label[id]; ok {
+			return l
+		}
+		return passive[id]
+	}
+	var out []string
+	for _, sg := range dg.Subgroups {
+		if !strings.EqualFold(sg.Group, group) {
+			continue
+		}
+		var members []string
+		for _, id := range sg.Members {
+			members = append(members, name(id))
+		}
+		switch sg.Kind {
+		case core.SubgroupChain:
+			out = append(out, "after "+members[0]+" ("+strings.Join(members[1:], ", ")+")")
+		case core.SubgroupRail:
+			by := ""
+			for _, p := range dg.Passives {
+				if p.ID == sg.Members[0] {
+					by = " at " + label[p.Part]
+				}
+			}
+			out = append(out, sg.Net+by+" ("+strings.Join(members, ", ")+")")
+		default:
+			out = append(out, sg.Name+" ("+strings.Join(members, ", ")+")")
+		}
 	}
 	return strings.Join(out, ", ")
 }

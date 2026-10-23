@@ -558,6 +558,22 @@ export interface DiagramLink {
 }
 
 /** A project's block diagram: what's drawn; the app decides where (lib/blockDiagram.ts). */
+/**
+ * A set of a group's parts laid out and wired up as one unit in a faint
+ * frame: as named, or found by the backend's rules (internal/core/subgroups.go).
+ */
+export interface DiagramSubgroup {
+  /** As named; "" for one a rule found. */
+  name?: string;
+  group?: string;
+  /** "rail": passives on a rail nothing in the group drives, by one part; "chain": a passive reached only through another, which leads. */
+  kind: 'named' | 'rail' | 'chain';
+  /** The rail, or the net a chain hangs on. */
+  net?: string;
+  /** Node ids, parts and passives; a chain's lead first. */
+  members: string[];
+}
+
 export interface Diagram {
   parts: DiagramPart[];
   passives: DiagramPassive[];
@@ -565,6 +581,7 @@ export interface Diagram {
   /** Groups with something drawn in them, in power-flow order. */
   groups: DiagramGroup[];
   links: DiagramLink[];
+  subgroups: DiagramSubgroup[];
 }
 
 /** A project's functional group. */
