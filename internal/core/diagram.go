@@ -510,13 +510,8 @@ func (b *diagramBuilder) assign() {
 	}
 }
 
-// guessSupport is the box a passive serves when nothing says so, from
-// the boxes on its nets: a protection diode serves the connector it
-// guards; anything else serves the IC there (over connectors and
-// modules, which bring a net in or take it off the board), and of
-// several ICs, the one that doesn't drive the net (a bulk capacitor
-// between an eFuse's output and a regulator's VIN serves the regulator).
-// "" when that isn't one box.
+// guessSupport is the part a passive supports when nothing says: the
+// support rules' call (support.go) on the parts its nets reach.
 func (b *diagramBuilder) guessSupport(id string) string {
 	var reach []string
 	for _, net := range b.passives[id] {
@@ -526,43 +521,13 @@ func (b *diagramBuilder) guessSupport(id string) string {
 			}
 		}
 	}
-	ofKind := func(ids []string, kind string) []string {
-		var out []string
-		for _, m := range ids {
-			if b.ends[m].kind == kind {
-				out = append(out, m)
-			}
-		}
-		return out
-	}
-	switch b.ends[id].kind {
-	case "diode", "tvs", "zener", "schottky":
-		// Protection goes by what it protects: the connector.
-		if c := ofKind(reach, "connector"); len(c) == 1 {
-			return c[0]
-		}
-	}
-	pool := ofKind(reach, "ic")
-	if len(pool) == 0 {
-		pool = reach
-	}
-	if len(pool) == 1 {
-		return pool[0]
-	}
-	var uses []string
-	for _, m := range pool {
-		drives := false
-		for _, net := range b.passives[id] {
-			drives = drives || b.drives(m, net)
-		}
-		if !drives {
-			uses = append(uses, m)
-		}
-	}
-	if len(uses) == 1 {
-		return uses[0]
-	}
-	return ""
+	return guessSupport(supportFacts{
+		kind:   b.ends[id].kind,
+		nets:   b.passives[id],
+		reach:  reach,
+		kindOf: func(m string) string { return b.ends[m].kind },
+		drives: b.drives,
+	})
 }
 
 // passiveGroup is the group a passive belongs in: its own, else its
@@ -1241,7 +1206,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		// By the part it serves when that part is on the net, reaches it
 		// through a series passive (the output capacitor after the
 		// inductor), or is the rail's source.
-		byServed := serves != "" && (contains(n.Parts, serves) || contains(b.throughPassives(n.Name), serves) || b.sourceOf(serves, n.Name))
+		byServed := placedBy(serves, n.Parts, b.throughPassives(n.Name), b.sourceOf(serves, n.Name))
 		switch n.Wire {
 		case WireBetween:
 			p.Mount, p.Part = MountWire, n.Parts[0]

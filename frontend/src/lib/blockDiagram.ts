@@ -30,6 +30,7 @@
 // the parts beside it follows where it was put (left to right stays with
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
+import { hang, type FarEnd } from './diagram/hanging';
 import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
@@ -405,7 +406,7 @@ function placePassive(q: DiagramPassive, x: number, y: number, size: { w: number
 // ── graph ─────────────────────────────────────────────────────────────
 
 /** How a passive's far end is shown: a ground symbol, or the net it goes to. */
-type End = { ground: true } | { ground: false; text: string };
+type End = FarEnd;
 
 /** A passive as a node: its size, the net at its first end, and its far end. */
 interface PassiveNode {
@@ -589,64 +590,58 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
     if (built.below.some((u) => u.passive === q)) continue;
     const id = `q:${q.id}`;
     if (member.has(id)) continue; // drawn inside its subgroup
-    const nets = q.nets.filter((n) => boxesOn(n).size > 0);
-    if (nets.length === 0) continue; // between passives only: not drawn
     const layoutOptions = { 'elk.portConstraints': 'FIXED_POS' };
-    if (q.mount === 'bridge' && q.nets.length === 2) {
-      const box = boxes.find((b) => b.part.id === q.part);
-      const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && !p.tied && !p.dim)).filter((p): p is PlacedPin => !!p);
-      if (pins.length === 2) {
-        // Beside the pins it bridges, its ports on the side facing them
-        // and its symbol down the node just inside, a short lead from
-        // each port; its name on the far side.
-        const dy = Math.abs(pins[0].y - pins[1].y);
-        const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
-        const size = { ...passiveSize(q), h: Math.max(SYM_LEN, dy + 30) };
-        size.axis = side === 'EAST' ? size.w - SYM / 2 : SYM / 2;
-        const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [], labels: [] };
-        const upper = pins[0].y <= pins[1].y ? 0 : 1;
-        q.nets.forEach((n, i) => {
-          node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? size.w : 0, y: i === upper ? BRIDGE_IN : size.h - BRIDGE_IN, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
-          addEnd({ id: `${id}/${i}`, net: n, side, passive: true });
-        });
-        children.push(node);
-        built.passives.push({ passive: q, node, size, horizontal: false, first: q.nets[upper], bridge: side });
-        continue;
-      }
+    // How it's drawn is the hanging rules' call (lib/diagram/hanging.ts).
+    const box = boxes.find((b) => b.part.id === q.part);
+    const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && !p.tied && !p.dim)).filter((p): p is PlacedPin => !!p);
+    const how = hang({
+      nets: q.nets,
+      mount: q.mount,
+      supports: q.supports,
+      reaching: boxesOn,
+      power: (n) => kinds.get(n.toLowerCase()) === 'power',
+      driven: (n) => endsOf(n).some((e) => e.side === 'EAST'),
+      bridged: pins.length === 2,
+    });
+    if (!how) continue; // between passives only: not drawn on its own
+    if (how.kind === 'bridge') {
+      // Beside the pins it bridges, its ports on the side facing them
+      // and its symbol down the node just inside, a short lead from
+      // each port; its name on the far side.
+      const dy = Math.abs(pins[0].y - pins[1].y);
+      const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
+      const size = { ...passiveSize(q), h: Math.max(SYM_LEN, dy + 30) };
+      size.axis = side === 'EAST' ? size.w - SYM / 2 : SYM / 2;
+      const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [], labels: [] };
+      const upper = pins[0].y <= pins[1].y ? 0 : 1;
+      q.nets.forEach((n, i) => {
+        node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? size.w : 0, y: i === upper ? BRIDGE_IN : size.h - BRIDGE_IN, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
+        addEnd({ id: `${id}/${i}`, net: n, side, passive: true });
+      });
+      children.push(node);
+      built.passives.push({ passive: q, node, size, horizontal: false, first: q.nets[upper], bridge: side });
+      continue;
     }
-    // A pull-up hangs from its signal, its rail named at the far end,
-    // when the signal reaches a part here; else it hangs from the rail
-    // and the far net is named (a resistor feeding an LED off 3V3).
-    const power = (n: string) => kinds.get(n.toLowerCase()) === 'power';
-    const pullUp = q.nets.length === 2 && power(q.nets[0]) !== power(q.nets[1]) && boxesOn(q.nets.find((n) => !power(n))!).size > 0;
-    const series = !pullUp && nets.length === 2 && !setsEqual(boxesOn(nets[0]), boxesOn(nets[1]));
-    if (series) {
-      // Upstream is the net something drives (a right-side pin), else
-      // the one not at the part it serves.
-      const driven = (n: string) => endsOf(n).some((e) => e.side === 'EAST');
-      const [a, z] = driven(nets[1]) && !driven(nets[0]) ? [nets[1], nets[0]] : !driven(nets[0]) && boxesOn(nets[0]).has(`b:${q.supports}`) ? [nets[1], nets[0]] : [nets[0], nets[1]];
+    if (how.kind === 'series') {
+      // Along the node, upstream at its left end.
       const size = passiveSize(q, true);
       const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [] };
       node.ports!.push({ id: `${id}/0`, x: 0, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'WEST' } });
       node.ports!.push({ id: `${id}/1`, x: size.w, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'EAST' } });
-      addEnd({ id: `${id}/0`, net: a, side: 'WEST', passive: true, series: true });
-      addEnd({ id: `${id}/1`, net: z, side: 'EAST', passive: true, series: true });
+      addEnd({ id: `${id}/0`, net: how.upstream, side: 'WEST', passive: true, series: true });
+      addEnd({ id: `${id}/1`, net: how.downstream, side: 'EAST', passive: true, series: true });
       children.push(node);
-      built.passives.push({ passive: q, node, size, horizontal: true, first: a });
+      built.passives.push({ passive: q, node, size, horizontal: true, first: how.upstream });
       continue;
     }
-    // Hanging from one net, its far end named below: a pull-up from the
-    // signal, with its rail's name; else from the first net drawn.
-    const rail = pullUp ? q.nets.find(power)! : undefined;
-    const net = pullUp ? q.nets.find((n) => n !== rail)! : nets[0];
-    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets.find((n) => n !== net)! } : { ground: true };
+    // Hanging from one net, its far end named below.
     const size = passiveSize(q);
     const r = room(size.w, 0, GROUND + 10);
     const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions: { ...layoutOptions, ...r.layoutOptions }, labels: r.labels, ports: [] };
     node.ports!.push({ id: `${id}/0`, x: size.axis, y: 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'NORTH' } });
-    addEnd({ id: `${id}/0`, net, side: 'NORTH', passive: true });
+    addEnd({ id: `${id}/0`, net: how.from, side: 'NORTH', passive: true });
     children.push(node);
-    built.passives.push({ passive: q, node, size, horizontal: false, first: net, end });
+    built.passives.push({ passive: q, node, size, horizontal: false, first: how.from, end: how.far });
   }
 
   // Subgroups: each a node the size of its frame, the nets reaching it
@@ -736,10 +731,6 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   return built;
 }
 
-/** Whether two sets hold the same members. */
-function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  return a.size === b.size && [...a].every((x) => b.has(x));
-}
 
 // ── layout ────────────────────────────────────────────────────────────
 
