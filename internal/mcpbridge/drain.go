@@ -29,7 +29,11 @@ func (d Drain) Connect(ctx context.Context) (mcp.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &drainConn{Connection: c, timeout: orDefault(d.Timeout, 30*time.Second), pending: map[jsonrpc.ID]struct{}{}}, nil
+	timeout := d.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	return &drainConn{Connection: c, timeout: timeout, pending: map[jsonrpc.ID]struct{}{}}, nil
 }
 
 // drainConn tracks the client's requests that haven't been answered yet.

@@ -130,11 +130,10 @@ Windows choose **More info → Run anyway** in SmartScreen.
    *Claude Desktop › Save Claude Desktop extension*. Then in Claude Desktop
    open Settings › Extensions › Advanced settings › **Install Extension…**
    and pick the saved `sheetdiver.mcpb`. On Windows, each release also has
-   the extension as `sheetdiver_windows_amd64.mcpb`; it starts SheetDiver
-   when Claude connects and the app is closed (switch that off in the
-   extension's settings). That one finds SheetDiver through the
-   installer; if you use the zip, save the extension from the app instead,
-   so it knows where SheetDiver is. The dialog also has the add commands
+   the extension as `sheetdiver_windows_amd64.mcpb`, which works with any
+   install. Like `sheetdiver mcp`, the extension uses the open app (so
+   what the agent shows appears in its window) and serves your library
+   itself while the app is closed. The dialog also has the add commands
    and config files for Codex, Gemini CLI, Windsurf and others, with this
    copy's path filled in, and saves each file on request.
 
@@ -154,7 +153,7 @@ Windows choose **More info → Run anyway** in SmartScreen.
 sheetdiver                    launch the desktop app
 sheetdiver serve              headless; open the same UI in your browser
 sheetdiver mcp                stdio MCP bridge to the running app
-sheetdiver-mcp [-port N]      the same bridge as a console program (Windows' stdio clients)
+sheetdiver-mcp [-port N]      the same as a console program (Windows' stdio clients)
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)

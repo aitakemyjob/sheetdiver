@@ -34,30 +34,25 @@ func (e Extension) server() (server, error) {
 		if len(e.Bridge) == 0 {
 			return nil, ErrNoBridge
 		}
-		return binaryServer{bridge: e.Bridge, app: e.Command}, nil
+		return binaryServer{bridge: e.Bridge}, nil
 	}
 	return nodeServer{app: e.Command}, nil
 }
 
 // binaryServer runs the console bridge carried in the bundle. It's
 // Windows' server: the windowed app can't serve stdio there, and it
-// doesn't depend on where SheetDiver is installed.
+// doesn't depend on where SheetDiver is installed. Like "sheetdiver mcp",
+// it relays to the running app or serves the library itself.
 type binaryServer struct {
 	bridge []byte
-	// app is the installed app, a hint for starting it when it's closed
-	// ("" lets the bridge find it from the installer's record).
-	app string
 }
 
 // bridgeEntry is the bridge's path in the bundle.
 const bridgeEntry = "server/" + BridgeName
 
-// section runs the bundled bridge with the user's port and launch settings.
+// section runs the bundled bridge with the user's port setting.
 func (s binaryServer) section(env map[string]string) map[string]any {
-	args := []string{"--port", "${user_config.port}", "--launch=${user_config.launch}"}
-	if s.app != "" {
-		args = append(args, "--app", s.app)
-	}
+	args := []string{"--port", "${user_config.port}"}
 	return map[string]any{
 		"type":        "binary",
 		"entry_point": bridgeEntry,
@@ -69,7 +64,7 @@ func (s binaryServer) section(env map[string]string) map[string]any {
 	}
 }
 
-// userConfig offers the port and whether to start a closed app.
+// userConfig offers the port.
 func (binaryServer) userConfig() map[string]any {
 	return map[string]any{
 		"port": map[string]any{
@@ -79,13 +74,6 @@ func (binaryServer) userConfig() map[string]any {
 			"default":     0,
 			"min":         0,
 			"max":         65535,
-			"required":    false,
-		},
-		"launch": map[string]any{
-			"type":        "boolean",
-			"title":       "Start SheetDiver when it's closed",
-			"description": "Open the SheetDiver app when Claude connects and it isn't running.",
-			"default":     true,
 			"required":    false,
 		},
 	}
@@ -106,20 +94,45 @@ type nodeServer struct {
 	app string
 }
 
-// launcher is the Node server: it runs SheetDiver's stdio bridge with
-// Claude Desktop's own pipes.
+// launcher is the Node server: it runs SheetDiver's stdio bridge and
+// passes Claude Desktop's messages through.
+//
+// Stdio is piped through the launcher, not inherited: the Node that
+// Claude Desktop runs extensions with may not hand its own stdio on to a
+// child, which then finds its input closed and exits without a word
+// ("Version negotiation failed: the connection closed during the
+// server/discover probe"). Every way SheetDiver can fail is written to
+// stderr, which Claude Desktop keeps in the server's log.
 const launcher = `// SheetDiver for Claude Desktop: starts "sheetdiver mcp" (the stdio
 // bridge to the SheetDiver app) at the path saved in the extension.
+'use strict';
 const { spawn } = require('node:child_process');
 
 const command = process.env.SHEETDIVER_APP;
-const child = spawn(command, ['mcp'], { stdio: 'inherit', windowsHide: true });
+const log = (msg) => process.stderr.write('sheetdiver: ' + msg + '\n');
+
+const child = spawn(command, ['mcp'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+process.stdin.pipe(child.stdin);
+child.stdout.pipe(process.stdout);
+child.stderr.pipe(process.stderr);
+// Claude ends the session by closing our input: pass that on, so
+// SheetDiver answers what it was asked and exits.
+process.stdin.on('end', () => child.stdin.end());
+// Writing to a SheetDiver that has exited: 'close' below reports why.
+child.stdin.on('error', () => {});
+
 child.on('error', (err) => {
-  console.error('sheetdiver: cannot start ' + command + ': ' + err.message +
+  log('cannot start ' + command + ': ' + err.message +
     '. If SheetDiver moved, save the extension again (Connect an agent > Claude Desktop) and reinstall it (Settings > Extensions > Advanced settings > Install Extension).');
   process.exit(1);
 });
-child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
+// 'close' comes once SheetDiver's output has all been read.
+child.on('close', (code, signal) => {
+  if (signal) log(command + ' mcp was stopped by ' + signal);
+  else if (code !== 0) log(command + ' mcp exited with status ' + code);
+  // Exit once its last replies have reached Claude.
+  process.stdout.write('', () => process.exit(signal ? 1 : (code ?? 0)));
+});
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
 `
 

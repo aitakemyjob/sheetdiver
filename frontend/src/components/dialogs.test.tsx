@@ -141,7 +141,7 @@ describe('ConnectAgent', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save Claude Desktop extension/ }));
     await waitFor(() => expect(b.callsTo('file.save')[0]).toEqual({ name: 'sheetdiver.mcpb', data: btoa('PK') }));
     await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Claude Desktop extension saved' }));
-    expect(screen.getByText(/opens the app when Claude needs it/)).toBeInTheDocument();
+    expect(screen.getByText(/works wherever SheetDiver is installed/)).toBeInTheDocument();
     // The hand-written config runs the installed console bridge, not a "sheetdiver" on PATH.
     expect(screen.getByText(/"command": "C:\\\\Program Files\\\\SheetDiver\\\\sheetdiver-mcp.exe",\s+"args": \[\]/)).toBeInTheDocument();
   });

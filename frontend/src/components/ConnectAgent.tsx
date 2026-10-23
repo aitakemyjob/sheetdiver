@@ -57,7 +57,7 @@ export function connectSnippets(url: string, stdio: StdioCommand, platform: stri
     Windsurf: [{ note: `Add to ${home}.codeium${win ? '\\' : '/'}windsurf${win ? '\\' : '/'}mcp_config.json:`, text: json({ mcpServers: { sheetdiver: { serverUrl: url } } }), file: 'mcp_config.json' }],
     Other: [
       { note: 'Streamable HTTP endpoint:', text: url },
-      { note: args.length === 0 ? 'Or launch over stdio (bridges to the running app, and starts it if it is closed):' : 'Or launch over stdio (bridges to the running app, or serves the library itself while it is closed):', text: commandLine },
+      { note: 'Or launch over stdio (bridges to the running app, or serves the library itself while it is closed):', text: commandLine },
     ],
   };
 }
@@ -65,7 +65,7 @@ export function connectSnippets(url: string, stdio: StdioCommand, platform: stri
 /** What the saved Claude Desktop extension depends on, on platform. */
 export function extensionNote(platform: string): string {
   return platform === 'windows'
-    ? 'It carries its own bridge to SheetDiver and opens the app when Claude needs it.'
+    ? 'It carries its own bridge to SheetDiver, so it works wherever SheetDiver is installed.'
     : 'It runs this copy of SheetDiver, so save and install it again if you move the app.';
 }
 

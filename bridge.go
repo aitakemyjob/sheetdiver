@@ -2,15 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/aitakemyjob/sheetdiver/internal/mcpbridge"
-	"github.com/aitakemyjob/sheetdiver/internal/mcpserver"
+	"github.com/aitakemyjob/sheetdiver/internal/mcpstdio"
 )
 
 // runMCP connects a stdio MCP client (e.g. Claude Desktop) to the running
@@ -20,17 +17,9 @@ import (
 func runMCP(port int, standalone bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	port = mcpbridge.ResolvePort(mcpbridge.FixedPort(port), mcpbridge.SettingsPort{})
-	if !standalone && mcpbridge.Running(ctx, mcpbridge.BaseURL(port)) {
-		return mcpbridge.Relay(ctx, &mcp.StdioTransport{}, mcpbridge.Endpoint(port))
-	}
-	fmt.Fprintln(os.Stderr, "sheetdiver: app not running on", mcpbridge.BaseURL(port), "- serving MCP standalone over stdio")
-	a, err := bootstrap(port, false)
-	if err != nil {
-		return err
-	}
-	defer a.core.Close()
-	// Answer what the client already asked before stopping when it closes
-	// stdin.
-	return mcpserver.New(a.core).Run(ctx, mcpbridge.Drain{Transport: &mcp.StdioTransport{}})
+	return mcpstdio.Serve(ctx, mcpstdio.Options{
+		Port:       mcpbridge.ResolvePort(mcpbridge.FixedPort(port), mcpbridge.SettingsPort{}),
+		Standalone: standalone,
+		Version:    version,
+	})
 }

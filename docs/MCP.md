@@ -5,6 +5,13 @@ at `http://127.0.0.1:47480/mcp` (streamable HTTP), and over stdio through
 `sheetdiver mcp` (on Windows, `sheetdiver-mcp.exe`, installed beside the
 app). Every call appears in the app's agent activity feed.
 
+Protocol versions: the HTTP endpoint, and stdio while the app is open
+(relayed to it), speak MCP up to `2025-11-25` with the `initialize`
+handshake; clients that probe with `server/discover` are told so and fall
+back to it. Stdio while the app is closed also speaks the stateless
+`2026-07-28`. Serving `2026-07-28` over HTTP is planned
+([#68](https://github.com/aitakemyjob/sheetdiver/issues/68)).
+
 Conventions:
 
 - A **part** argument accepts a base part number (`TPS563200`), an orderable

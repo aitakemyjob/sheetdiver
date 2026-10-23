@@ -8,7 +8,27 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Changed
+- **Windows: `sheetdiver-mcp.exe` works like `sheetdiver mcp`.** It relays
+  to the open app, or serves your library itself while the app is closed,
+  instead of starting SheetDiver. Claude Desktop now starts a short-lived
+  copy of each server to check its protocol version, and a copy that
+  opened the app (or kept Claude waiting while it did) broke that check.
+  The Windows extension's *Start SheetDiver* setting is gone.
+- **One SheetDiver window at a time.** Launching SheetDiver again brings
+  the open window forward instead of opening a second app that competes
+  for the MCP port and the library. (Apps on different settings files,
+  `SHEETDIVER_CONFIG`, still run side by side.)
+
 ### Fixed
+- **macOS/Linux: the Claude Desktop extension exited at once ("version
+  negotiation failed", "server transport closed unexpectedly").** Its
+  launcher handed SheetDiver its own stdio, which the Node that Claude
+  Desktop runs extensions with may not pass on, so SheetDiver found its
+  input closed and stopped without a word. The launcher now pipes the
+  messages through itself, and reports on stderr (in Claude Desktop's
+  server log) why SheetDiver stopped if it does. Save the extension again
+  from the connect dialog and reinstall it.
 - **Claude Desktop couldn't start SheetDiver ("version negotiation
   failed").** Claude Desktop probes a server by sending a request and
   closing its input straight away, and `sheetdiver mcp` stopped without
