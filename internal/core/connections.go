@@ -461,6 +461,36 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 	if err != nil {
 		return nil, err
 	}
+	conns, err := s.Lib.Connections(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	rails, err := s.Lib.Rails(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	netsOf := func(node string) []string {
+		var out []string
+		for _, c := range conns {
+			if connectionNode(c) == node && !contains(out, c.Net) {
+				out = append(out, c.Net)
+			}
+		}
+		// A part is on the rail it makes, wired to it or not: its output
+		// rail, or one that names it as the source.
+		for _, pp := range parts {
+			if node == library.PartNode(pp.ID) && pp.OutputRail != "" {
+				out = append(out, pp.OutputRail)
+			}
+		}
+		label := nodeLabel(parts, blocks, node)
+		for _, r := range rails {
+			if r.Source != "" && (strings.EqualFold(r.Source, label) || strings.EqualFold(r.Source, strings.Fields(label + " ")[0])) {
+				out = append(out, r.Name)
+			}
+		}
+		return out
+	}
 	for _, ac := range changes {
 		node, ok := nodeOfName(parts, blocks, ac.Part)
 		if !ok {
@@ -492,6 +522,17 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 					problems = append(problems, fmt.Sprintf("%s supports %s: the other way round? A passive supports the part it serves: part %s, supports %s", ac.Part, name, name, ac.Part))
 					continue
 				}
+				if passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
+					problems = append(problems, fmt.Sprintf("%s supports %s: a passive supports the IC or connector it serves, not another passive", ac.Part, name))
+					continue
+				}
+				// Said, but not seen: the part isn't on the passive's nets. It's
+				// still drawn by it when a net reaches it through a passive or
+				// is a rail it's the source of; the agent is told either way.
+				mine, theirs := netsOf(node), netsOf(to)
+				if len(mine) > 0 && !slices.ContainsFunc(mine, func(n string) bool { return containsFold(theirs, n) }) {
+					problems = append(problems, fmt.Sprintf("%s supports %s, which isn't on %s's nets (%s): drawn by it only if a net reaches it through a passive or is a rail it's the source of", ac.Part, name, ac.Part, strings.Join(mine, ", ")))
+				}
 				a.Supports = to
 			}
 		}
@@ -512,6 +553,14 @@ func plainRails(rs []RailStatus) []library.Rail {
 		out[i] = r.Rail
 	}
 	return out
+}
+
+// connectionNode is the block-diagram node a connection is on.
+func connectionNode(c library.Connection) string {
+	if c.EntryID != 0 {
+		return library.RefNode(c.EntryID, c.Ref)
+	}
+	return library.BlockNode(c.BlockID)
 }
 
 // passiveNode reports whether a node is drawn as a passive (a resistor,

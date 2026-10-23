@@ -23,7 +23,7 @@ func buildCircuit(t *testing.T, s *Service, c testutil.Circuit) ProjectDetail {
 	}
 	for _, r := range c.Rails {
 		v := r.V
-		if _, err := s.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v}); err != nil {
+		if _, err := s.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v, Source: r.Source}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -51,6 +51,10 @@ func buildCircuit(t *testing.T, s *Service, c testutil.Circuit) ProjectDetail {
 	for _, a := range c.Assign {
 		group, supports := a[1], a[2]
 		ch.Assign = append(ch.Assign, AssignChange{Part: a[0], Group: &group, Supports: &supports})
+	}
+	for _, cl := range c.Cluster {
+		cluster := cl[1]
+		ch.Assign = append(ch.Assign, AssignChange{Part: cl[0], Cluster: &cluster})
 	}
 	problems, err := s.ChangeConnections(ctx, c.Name, ch, library.SourceUser)
 	if err != nil || len(problems) > 0 {
@@ -592,8 +596,9 @@ func TestSymbolsOfTheDriverBoard(t *testing.T) {
 		}
 	}
 	// Each two-terminal has its symbol and its terminals at its nets: as
-	// its pins were connected (D3's cathode on VBUS), else by default
-	// (D1 conducts into ground).
+	// its pins were connected (D3's cathode on VBUS; it goes by the motor
+	// connector it protects, so it hangs from MOTOR), else by default (D1
+	// conducts into ground).
 	var got []string
 	for _, p := range d.Passives {
 		got = append(got, fmt.Sprintf("%s %s %s/%s on %s", p.Label, p.Shape, p.Ends[0], p.Ends[1], strings.Join(p.Nets, "+")))
@@ -606,7 +611,7 @@ func TestSymbolsOfTheDriverBoard(t *testing.T) {
 		"C4 capacitor 1/2 on XOUT",
 		"D1 led anode/cathode on LED",
 		"D2 led anode/cathode on 3V3+LED2_K",
-		"D3 schottky cathode/anode on VBUS+MOTOR",
+		"D3 schottky anode/cathode on MOTOR+VBUS",
 		"F1 fuse 2/1 on VBUS+VBUS_IN",
 		"R2 resistor 1/2 on BTN+3V3",
 		"R3 resistor 1/2 on CTRL+BASE",
@@ -701,5 +706,76 @@ func TestPassivesReachedOnlyThroughAnotherAreChained(t *testing.T) {
 	}
 	if !slices.ContainsFunc(got, func(s string) bool { return strings.HasPrefix(s, "R4 100k ") && strings.HasSuffix(s, " U1 on FB+VOUT") }) {
 		t.Errorf("R4 = %q", got)
+	}
+}
+
+func TestTheBuckBoardPlacesByWhatIsSaid(t *testing.T) {
+	s := newService(t)
+	d := buildCircuit(t, s, circuit("Buck board"))
+	dg := drawn{t, d.Connections.Diagram}
+	byLabel := map[string]DiagramPassive{}
+	for _, p := range dg.Passives {
+		byLabel[p.Label] = p
+	}
+	// C3 is set to support U1 and is in Power: U1 isn't on 3V3 (its
+	// inductor leads there) but is the rail's source, so C3 goes by U1
+	// and stays in Power, not by the output connector in Output.
+	if c3 := byLabel["C3"]; c3.Part != "block:3" || c3.Group != "Power" || c3.Supports != "block:3" || c3.Guessed {
+		t.Errorf("C3 = %+v", c3)
+	}
+	// The TVS on VBUS goes by the connector it protects, not the buck.
+	if d1 := byLabel["D1"]; d1.Part != "block:1" || d1.Supports != "block:1" || !d1.Guessed {
+		t.Errorf("D1 = %+v", d1)
+	}
+	// U1 drives 3V3 as its source: a power link to the output connector.
+	if links := dg.links(); !slices.ContainsFunc(links, func(l string) bool {
+		return strings.Contains(l, "U1") && strings.Contains(l, "power") && strings.Contains(l, "J2")
+	}) {
+		t.Errorf("links = %q", links)
+	}
+	a := map[string]AssignmentRow{}
+	for _, r := range d.Connections.Assignments {
+		a[r.Endpoint] = r
+	}
+	if a["J2 OUT"].Cluster != "Out" || a["D2"].Cluster != "LED" {
+		t.Errorf("clusters = %+v", d.Connections.Assignments)
+	}
+}
+
+func TestAssignmentsSaidButNotSeenAreReported(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "warn", ""); err != nil {
+		t.Fatal(err)
+	}
+	ch := ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "U1", Kind: "ic"}, {Name: "U2", Kind: "ic"}, {Name: "C1", Kind: "capacitor"}, {Name: "L1", Kind: "inductor"}},
+		Connect: []ConnectChange{{Net: "A", Part: "U1", Pin: "1"}, {Net: "B", Part: "U2", Pin: "1"}, {Net: "B", Part: "C1"}, {Net: "A", Part: "L1", Pin: "1"}, {Net: "B", Part: "L1", Pin: "2"}},
+		Groups:  []GroupChange{{Name: "Empty"}},
+	}
+	if problems, err := s.ChangeConnections(ctx, "warn", ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	// Supporting a part not on its nets is applied with a warning; a
+	// passive supporting a passive is refused.
+	str := func(v string) *string { return &v }
+	problems, err := s.ChangeConnections(ctx, "warn", ConnectionsChange{Assign: []AssignChange{{Part: "C1", Supports: str("U1")}, {Part: "C1", Supports: str("L1")}}}, library.SourceUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 2 || !strings.Contains(problems[0], "C1 supports U1, which isn't on C1's nets (B)") || !strings.Contains(problems[1], "not another passive") {
+		t.Errorf("problems = %q", problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "warn")
+	for _, r := range d.Connections.Assignments {
+		if r.Endpoint == "C1" && r.SupportsEndpoint != "U1" {
+			t.Errorf("C1 = %+v", r)
+		}
+	}
+	// C1 is still drawn by U1: B reaches U1 through L1.
+	for _, p := range d.Connections.Diagram.Passives {
+		if p.Label == "C1" && p.Part != "block:1" {
+			t.Errorf("C1 drawn by %s", p.Part)
+		}
 	}
 }

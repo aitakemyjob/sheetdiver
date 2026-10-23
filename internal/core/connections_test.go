@@ -535,3 +535,55 @@ func TestPinRenamesKeepConnections(t *testing.T) {
 		t.Errorf("by position: %v", got)
 	}
 }
+
+func TestDesignatorsChangedKeepTheirConnections(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, _ := s.Lib.CreateProject(ctx, "board", "")
+	pp, err := s.AddToProject(ctx, "board", "SD1235", library.ProjectPart{Designator: "C2", Role: "100nF"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "3V3", Part: "C2"}}}, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	refs := func() map[string]string {
+		t.Helper()
+		d, _ := s.ProjectDetail(ctx, "board")
+		out := map[string]string{}
+		for _, r := range d.Connections.Connections {
+			out[r.Endpoint] = r.Net
+		}
+		return out
+	}
+	// Expanded to two designators: the connection is C2's.
+	pp.Designator, pp.Qty = "C2,C4", 2
+	if err := s.Lib.UpdateProjectPart(ctx, pp); err != nil {
+		t.Fatal(err)
+	}
+	if got := refs(); got["C2"] != "3V3" || len(got) != 1 {
+		t.Errorf("after expanding: %v", got)
+	}
+	if problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "VBAT", Part: "C4"}}}, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	// Renamed in place: each keeps its own.
+	pp.Designator = "C12,C14"
+	if err := s.Lib.UpdateProjectPart(ctx, pp); err != nil {
+		t.Fatal(err)
+	}
+	if got := refs(); got["C12"] != "3V3" || got["C14"] != "VBAT" {
+		t.Errorf("after renaming: %v", got)
+	}
+	// Collapsed to one: the first's connection is the entry's.
+	pp.Designator, pp.Qty = "C12", 1
+	if err := s.Lib.UpdateProjectPart(ctx, pp); err != nil {
+		t.Fatal(err)
+	}
+	if got := refs(); got["C12"] != "3V3" {
+		t.Errorf("after collapsing: %v", got)
+	}
+	if cs, _ := s.Lib.Connections(ctx, p.ID); len(cs) != 2 || cs[0].Ref == "C12" {
+		t.Errorf("rows = %+v", cs)
+	}
+}

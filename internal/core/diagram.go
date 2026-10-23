@@ -504,7 +504,9 @@ func (b *diagramBuilder) guessSupport(id string) string {
 		}
 		return out
 	}
-	if b.ends[id].kind == "diode" {
+	switch b.ends[id].kind {
+	case "diode", "tvs", "zener", "schottky":
+		// Protection goes by what it protects: the connector.
 		if c := ofKind(reach, "connector"); len(c) == 1 {
 			return c[0]
 		}
@@ -600,6 +602,13 @@ func (b *diagramBuilder) drives(id, net string) bool {
 			return false
 		}
 	}
+	// Nor one a part makes without a pin on it: the rail's source, whose
+	// inductor leads there.
+	for _, o := range b.mains {
+		if o != id && b.ends[o].kind != "connector" && b.makes(o, net) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -611,10 +620,8 @@ func (b *diagramBuilder) makes(id, net string) bool {
 	if e.entry != nil && strings.EqualFold(e.entry.OutputRail, net) && !strings.EqualFold(e.entry.SupplyRail, net) {
 		return true
 	}
-	if src := b.sources[strings.ToLower(net)]; src != "" && !e.passive && (e.entry == nil || !strings.EqualFold(e.entry.SupplyRail, net)) {
-		if strings.EqualFold(src, e.label) || strings.EqualFold(src, e.mpn) || strings.EqualFold(src, strings.Fields(e.title + " ")[0]) {
-			return true
-		}
+	if b.sourceOf(id, net) {
+		return true
 	}
 	for _, r := range b.onNet[strings.ToLower(net)] {
 		if nodeOf(r) == id && output(r) {
@@ -622,6 +629,17 @@ func (b *diagramBuilder) makes(id, net string) bool {
 		}
 	}
 	return false
+}
+
+// sourceOf reports whether a part is what the rail says supplies it (by
+// designator, part number or name), and the rail isn't its own supply.
+func (b *diagramBuilder) sourceOf(id, net string) bool {
+	e := b.ends[id]
+	if e == nil || e.passive || (e.entry != nil && strings.EqualFold(e.entry.SupplyRail, net)) {
+		return false
+	}
+	src := b.sources[strings.ToLower(net)]
+	return src != "" && (strings.EqualFold(src, e.label) || strings.EqualFold(src, e.mpn) || strings.EqualFold(src, strings.Fields(e.title + " ")[0]))
 }
 
 // splitEnd adds the end of one designator of a BOM entry with several
@@ -652,13 +670,10 @@ func (b *diagramBuilder) ground(net string) bool {
 // whose rail goes everywhere), in order.
 func (b *diagramBuilder) throughPassives(net string) []string {
 	out := b.mainsOn(net)
-	if b.kinds[strings.ToLower(net)] == library.NetPower {
-		return out
-	}
 	for _, q := range b.passivesOn(net) {
 		if nets := b.passives[q]; len(nets) == 2 {
 			for _, n := range nets {
-				if strings.EqualFold(n, net) || b.kinds[strings.ToLower(n)] == library.NetPower {
+				if strings.EqualFold(n, net) || !b.carries(q, net, n) {
 					continue
 				}
 				for _, o := range b.mainsOn(n) {
@@ -670,6 +685,22 @@ func (b *diagramBuilder) throughPassives(net string) []string {
 		}
 	}
 	return out
+}
+
+// carries reports whether a passive between two nets carries one on to
+// the other: any passive between signals; between a rail and anything,
+// only what passes power (an inductor, ferrite, fuse or diode), never a
+// pull-up, whose rail goes everywhere.
+func (b *diagramBuilder) carries(q, a, z string) bool {
+	power := b.kinds[strings.ToLower(a)] == library.NetPower || b.kinds[strings.ToLower(z)] == library.NetPower
+	if !power {
+		return true
+	}
+	switch b.ends[q].kind {
+	case "inductor", "ferrite", "fuse", "diode", "schottky":
+		return true
+	}
+	return false
 }
 
 // mainsOn lists the boxes with a pin on a net, in order.
@@ -756,7 +787,7 @@ func (b *diagramBuilder) links() []DiagramLink {
 	// Not through a pull-up: its rail goes everywhere.
 	for _, q := range b.order {
 		nets := b.passives[q]
-		if len(nets) != 2 || b.kinds[strings.ToLower(nets[0])] == library.NetPower || b.kinds[strings.ToLower(nets[1])] == library.NetPower {
+		if len(nets) != 2 || !b.carries(q, nets[0], nets[1]) {
 			continue
 		}
 		for _, from := range b.mainsOn(nets[0]) {
@@ -764,14 +795,22 @@ func (b *diagramBuilder) links() []DiagramLink {
 				if from == to || !b.drives(from, nets[0]) && b.drives(to, nets[1]) {
 					continue
 				}
-				k := key{from, to, "signal"}
+				// Power when the passive carries a rail (the inductor to
+				// the output rail), labelled with the rail.
+				kind, label := "signal", nets[0]
+				for _, n := range nets {
+					if b.kinds[strings.ToLower(n)] == library.NetPower {
+						kind, label = "power", n
+					}
+				}
+				k := key{from, to, kind}
 				if _, ok := byKey[k]; ok {
 					continue
 				}
-				if _, ok := byKey[key{to, from, "signal"}]; ok {
+				if _, ok := byKey[key{to, from, kind}]; ok {
 					continue
 				}
-				byKey[k] = &DiagramLink{From: from, To: to, Kind: "signal", Nets: []string{nets[0], nets[1]}, Label: nets[0]}
+				byKey[k] = &DiagramLink{From: from, To: to, Kind: kind, Nets: []string{nets[0], nets[1]}, Label: label}
 				order = append(order, k)
 			}
 		}
@@ -1166,16 +1205,21 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			continue
 		}
 		n := pickWire(wires, serves, b.passiveGroup(id))
-		p.Group = n.Group
+		// In its own group when it has one, else its wire's.
+		p.Group = firstNonEmpty(b.assignment(id).Group, n.Group)
+		// By the part it serves when that part is on the net, reaches it
+		// through a series passive (the output capacitor after the
+		// inductor), or is the rail's source.
+		byServed := serves != "" && (contains(n.Parts, serves) || contains(b.throughPassives(n.Name), serves) || b.sourceOf(serves, n.Name))
 		switch n.Wire {
 		case WireBetween:
 			p.Mount, p.Part = MountWire, n.Parts[0]
-			if contains(n.Parts, serves) {
+			if byServed {
 				p.Part = serves // by the part it serves, at its end of the wire
 			}
 		case WireLane:
 			p.Mount, p.Part = MountLane, n.Parts[0]
-			if contains(n.Parts, serves) {
+			if byServed {
 				// Beside the part it serves, not with every other passive on
 				// the rail.
 				p.Part = serves
@@ -1189,6 +1233,9 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			}
 		case WireOut:
 			p.Mount, p.Part = MountOut, n.Parts[0]
+			if byServed {
+				p.Part = serves
+			}
 		default:
 			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}

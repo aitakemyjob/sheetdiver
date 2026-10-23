@@ -5,7 +5,7 @@ import { labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDra
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board', 'Boost board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board', 'Boost board', 'Buck board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -488,6 +488,31 @@ describe('subgroups', () => {
       expect(net.some((pt) => pt.x === p.x && pt.y === p.y), `${pin} wired`).toBe(true);
       expect(net.some((pt) => pt.x === l.ends[0].x && pt.y === l.ends[0].y), `${lead} wired`).toBe(true);
     }
+  });
+
+  it('takes a connector, and a chained passive with its lead, into a named subgroup', async () => {
+    const b = await layoutBlockDiagram(circuit('Buck board'));
+    const passive = (label: string) => b.passives.find((p) => p.passive.label === label)!;
+    const box = (title: string) => b.boxes.find((t) => t.part.title.startsWith(title))!;
+    const frame = (name: string) => b.frames.find((f) => f.group.name === name)!;
+    // J2 alone in "Out", inside the Output group's frame, its 3V3 named at its pin.
+    const out = b.clusters.find((c) => c.name === 'Out')!;
+    expect(inside(box('J2'), out)).toBe(true);
+    expect(inside(out, frame('Output'))).toBe(true);
+    // D2 named into "LED" brings R4, which leads in from POK.
+    const led = b.clusters.find((c) => c.name === 'LED')!;
+    expect(inside(passive('D2'), led)).toBe(true);
+    expect(inside(passive('R4'), led)).toBe(true);
+    expect(passive('R4').horizontal).toBe(true);
+    // C3 is in Power with U1, which its net reaches only through L1: on a bus after it.
+    const c3 = b.clusters.find((c) => inside(passive('C3'), c))!;
+    expect(inside(c3, frame('Power'))).toBe(true);
+    expect(inside(passive('L1'), c3)).toBe(true);
+    // The TVS is wired at the connector it protects.
+    const d1 = passive('D1');
+    const vbus = box('J1').pins.find((p) => p.net === 'VBUS')!;
+    const pts = b.wires.filter((w) => w.net === 'VBUS' && !w.thin).flatMap((w) => points(w.path));
+    expect(pts.some((pt) => pt.x === vbus.x && pt.y === vbus.y) && pts.some((pt) => pt.x === d1.ends[0].x && pt.y === d1.ends[0].y)).toBe(true);
   });
 
   it('leaves a part alone on its net where it was', () => {

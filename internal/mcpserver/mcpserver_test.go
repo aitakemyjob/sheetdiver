@@ -442,7 +442,7 @@ func TestConnectionsTools(t *testing.T) {
 			{"net": "SDA", "part": "U2", "pin": "4"},
 			{"net": "SCL", "part": "U3", "pin": "1"},
 		},
-	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
+	}, "problems (what couldn't be applied", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
 		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: pins that must be connected aren't: GND (1)")
 	// Links come from the connection table: U1 makes 3V3 in the BOM but
 	// has no pin on it here.
@@ -464,9 +464,9 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("set_connections", map[string]any{
 		"groups": []map[string]any{{"name": "Power", "description": "Battery to 3V3", "notes": "keep the loop small"}},
 		"assign": []map[string]any{{"part": "U1", "group": "Power"}, {"part": "Battery", "group": "Power"}, {"part": "U2", "group": "Load"}, {"part": "C9", "supports": "U1"}, {"part": "U7", "group": "Power"}},
-	}, "not applied:", "U7: not in the BOM", "group Power: U1 SD1234, Battery", "— Battery to 3V3 (notes: keep the loop small)", "group Load: U2 SD1235", "C9 10µF (supports U1 SD1234) on 3V3 (by U2 SD1235)",
+	}, "problems (what couldn't be applied", "U7: not in the BOM", "group Power: U1 SD1234, Battery", "— Battery to 3V3 (notes: keep the loop small)", "group Load: U2 SD1235", "C9 10µF (supports U1 SD1234) on 3V3 (by U1 SD1234)",
 		// Each assignment's result is listed back.
-		"assignments now:", "C9: group Load (its part's); supports U1 SD1234; hangs by U2 SD1235", "U1: group Power")
+		"assignments now:", "C9: group Load (its part's); supports U1 SD1234; hangs by U1 SD1234", "U1: group Power")
 	// Clearing a support says what it's guessed to be now; the wrong way
 	// round is refused with the right way.
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": ""}, {"part": "U1", "supports": "C9"}}},

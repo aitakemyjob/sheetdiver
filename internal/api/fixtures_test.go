@@ -237,7 +237,7 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 	}
 	for _, r := range cir.Rails {
 		v := r.V
-		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v}); err != nil {
+		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v, Source: r.Source}); err != nil {
 			t.Fatal(err)
 		}
 	}

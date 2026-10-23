@@ -706,7 +706,10 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = [], inside = false): Bu
     const driver = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH');
     const series = ports.some((e) => e.series);
     const hung = ports.filter((e) => e.passive && !e.series);
-    const rail = !driver && !series && kinds.get(n.name.toLowerCase()) === 'power' && boxPorts.length > 0;
+    // A rail nothing here drives is named at each pin, its capacitors
+    // standing beside their parts; between just two parts with nothing
+    // hanging off it, one wire does.
+    const rail = !driver && !series && kinds.get(n.name.toLowerCase()) === 'power' && boxPorts.length > 0 && !(boxPorts.length === 2 && hung.length === 0);
     const serves = hung.map((e) => passiveOf(e)?.passive.supports).find(Boolean);
     const home = driver ?? boxPorts.find((e) => e.id.startsWith(`b:${serves}/`)) ?? boxPorts[0];
     // What stays wired at the pin: a crystal, its load capacitors and the
@@ -1042,27 +1045,25 @@ async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Prom
     c?.ids.add(q.node.id);
   }
   // Chains: a passive reached only through another (C2 on VOUT after
-  // L1, an LED after its series resistor) goes on a bus after it, which
-  // leads in from the net it hangs on; the lead leaves any row it was in.
+  // L1, an LED after its series resistor; in a group, a capacitor whose
+  // net reaches no part of the group but through the inductor) goes on
+  // a bus after it, which leads in from the net it hangs on. One named
+  // into a subgroup takes its lead along; the lead leaves any row.
+  const chained = chainHangers(d, plain);
+  const units: Unit[] = [];
   const chains = new Map<string, { lead: PassiveNode; hangers: PassiveNode[] }>();
-  for (const q of d.passives) {
-    if (q.mount !== 'chain') continue;
-    const lead = nodeOf.get(`q:${q.part}`);
-    if (!lead || lead.horizontal || lead.bridge || taken.has(lead.node.id)) continue;
-    const far = lead.passive.nets.find((n) => key(n) !== key(lead.first));
-    if (!far || key(far) !== key(q.nets[0])) continue;
+  for (const [id, { lead, node }] of chained) {
+    if (taken.has(id) || taken.has(lead.node.id)) continue;
     const c = chains.get(lead.node.id) ?? { lead, hangers: [] };
-    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets[1] } : { ground: true };
-    c.hangers.push({ passive: q, node: { id: `q:${q.id}` }, size: passiveSize(q), horizontal: false, first: q.nets[0], end });
+    c.hangers.push(node);
     chains.set(lead.node.id, c);
   }
-  const units: Unit[] = [];
   for (const [id, c] of chains) {
     for (const bucket of auto.values()) bucket.ids.delete(id);
     units.push(busUnit(`u:chain:${id}`, '', [{ ...c.lead, horizontal: true, flag: undefined, end: undefined }, ...c.hangers]));
   }
-  for (const [k, c] of named) units.push(await unit(`u:${k}`, c.name, c.ids, d, plain, boxes, opts));
-  for (const [k, c] of auto) if (c.ids.size >= 2) units.push(await unit(`u:auto:${k}`, '', c.ids, d, plain, boxes, opts));
+  for (const [k, c] of named) units.push(await unit(`u:${k}`, c.name, c.ids, d, plain, boxes, opts, chained));
+  for (const [k, c] of auto) if (c.ids.size >= 2) units.push(await unit(`u:auto:${k}`, '', c.ids, d, plain, boxes, opts, chained));
   // Each faces the part its first signal (else its first net) comes
   // from: a subgroup off a pin on a part's left goes to the left of it.
   const power = new Set(d.nets.filter((n) => n.kind === 'power').map((n) => n.name.toLowerCase()));
@@ -1100,10 +1101,43 @@ function mirror(u: Unit): void {
   r.dots = r.dots.map(pt);
 }
 
+/** A passive reached only through another: its node, and the passive it chains off. */
+type Chained = { node: PassiveNode; lead: PassiveNode };
+
+/**
+ * The passives not drawn on their own (no net of theirs reaches a part
+ * here), each with the drawn passive whose far net it is on: the one the
+ * backend says it chains off, else the first found.
+ */
+function chainHangers(d: Diagram, plain: Built): Map<string, Chained> {
+  const key = (s: string) => s.toLowerCase();
+  const drawn = new Set([...plain.passives.map((q) => q.node.id), ...plain.below.map((u) => `q:${u.passive.id}`)]);
+  const farOf = (x: PassiveNode) => (x.end?.ground === false ? key(x.end.text) : x.passive.nets.find((n) => key(n) !== key(x.first)));
+  const out = new Map<string, Chained>();
+  for (const q of d.passives) {
+    const id = `q:${q.id}`;
+    if (drawn.has(id)) continue;
+    const leads = plain.passives.filter((x) => !x.horizontal && !x.bridge && q.nets.some((n) => key(n) === farOf(x)));
+    const lead = (q.mount === 'chain' && leads.find((x) => x.node.id === `q:${q.part}`)) || leads[0];
+    if (!lead) continue;
+    const net = q.nets.find((n) => key(n) === farOf(lead))!;
+    const other = q.nets.find((n) => key(n) !== key(net));
+    const end: End = other ? { ground: false, text: other } : { ground: true };
+    out.set(id, { lead, node: { passive: q, node: { id }, size: passiveSize(q), horizontal: false, first: net, end } });
+  }
+  return out;
+}
+
 /** Lays a subgroup out: a bus with its parts hanging off it, or, with a box among them, its own layout. */
-async function unit(id: string, name: string, ids: Set<string>, d: Diagram, plain: Built, boxes: Box[], opts: LayoutOptions): Promise<Unit> {
+async function unit(id: string, name: string, ids: Set<string>, d: Diagram, plain: Built, boxes: Box[], opts: LayoutOptions, chained: Map<string, Chained>): Promise<Unit> {
   const parts = boxes.filter((b) => ids.has(`b:${b.part.id}`)).map((b) => b.part);
-  if (parts.length === 0) return busUnit(id, name, plain.passives.filter((q) => ids.has(q.node.id)));
+  if (parts.length === 0) {
+    // Chained members bring their lead, which runs along the bus.
+    const hangers = [...ids].map((x) => chained.get(x)).filter((c): c is Chained => !!c);
+    const leads = new Map(hangers.map((c) => [c.lead.node.id, c.lead]));
+    const members = plain.passives.filter((q) => ids.has(q.node.id) && !leads.has(q.node.id));
+    return busUnit(id, name, [...[...leads.values()].map((l) => ({ ...l, horizontal: true, flag: undefined, end: undefined })), ...members, ...hangers.map((c) => c.node)]);
+  }
   const passives = d.passives.filter((q) => ids.has(`q:${q.id}`));
   const strip = <T extends { x?: number; y?: number; cluster?: string }>(p: T): T => ({ ...p, x: undefined, y: undefined, cluster: undefined });
   const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);

@@ -262,7 +262,7 @@ func (s *Server) registerProjects() {
 			}
 			var b strings.Builder
 			if len(problems) > 0 {
-				b.WriteString("not applied:\n")
+				b.WriteString("problems (what couldn't be applied, or was applied with a warning):\n")
 				for _, p := range problems {
 					b.WriteString("  " + p + "\n")
 				}
@@ -1027,6 +1027,7 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		fmt.Fprintf(&b, "%s %s %s: %s (%s)\n", label[e.From], arrow, label[e.To], e.Label, e.Kind)
 	}
+	drawnGroups := map[string]bool{}
 	for _, g := range c.Diagram.Groups {
 		members := make([]string, 0, len(g.Parts))
 		for _, id := range g.Parts {
@@ -1041,6 +1042,7 @@ func connectionsText(d core.ProjectDetail) string {
 		if t := subgroupsText(c.Diagram, g.Name, label); t != "" {
 			b.WriteString("; subgroups: " + t)
 		}
+		drawnGroups[strings.ToLower(g.Name)] = true
 		if g.Description != "" {
 			b.WriteString(" — " + g.Description)
 		}
@@ -1048,6 +1050,12 @@ func connectionsText(d core.ProjectDetail) string {
 			b.WriteString(" (notes: " + g.Notes + ")")
 		}
 		b.WriteString("\n")
+	}
+	// A group defined but drawn empty is still a group.
+	for _, g := range c.Groups {
+		if !drawnGroups[strings.ToLower(g.Name)] {
+			fmt.Fprintf(&b, "group %s: no connected parts yet\n", g.Name)
+		}
 	}
 	// The passives, as the app draws them: strapping that the links above
 	// don't show.
@@ -1144,6 +1152,16 @@ func endsText(p core.DiagramPassive) string {
 	return fmt.Sprintf(" [%s: %s on %s, %s %s]", p.Shape, p.Ends[0], p.Nets[0], p.Ends[1], far)
 }
 
+// passiveLabelOf names a drawn passive by its id.
+func passiveLabelOf(dg core.Diagram, id string) string {
+	for _, p := range dg.Passives {
+		if p.ID == id {
+			return p.Label
+		}
+	}
+	return id
+}
+
 // subgroupsText lists a group's subgroups with their members, in the
 // order they were named: "VDD (C4, C5), BTN (SW1, R2)"; "" for none.
 func subgroupsText(dg core.Diagram, group string, label map[string]string) string {
@@ -1215,7 +1233,11 @@ func assignedText(d core.ProjectDetail, part string) string {
 		if t := supportsText(p, label); t != "" {
 			supports = strings.TrimSuffix(strings.TrimPrefix(t, " (supports "), ")")
 		}
-		return fmt.Sprintf("%s: group %s%s; supports %s; hangs by %s", part, orNone(group), cluster, supports, label[p.Part])
+		by := "hangs by " + label[p.Part]
+		if p.Mount == core.MountChain {
+			by = "after " + passiveLabelOf(c.Diagram, p.Part)
+		}
+		return fmt.Sprintf("%s: group %s%s; supports %s; %s", part, orNone(group), cluster, supports, by)
 	}
 	for _, p := range c.Diagram.Parts {
 		if strings.EqualFold(strings.Fields(p.Title)[0], part) || strings.EqualFold(p.Title, part) {

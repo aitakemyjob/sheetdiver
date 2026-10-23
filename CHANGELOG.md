@@ -113,6 +113,34 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **Where a passive goes, as said.** A passive set to support a part
+  goes by that part when the part is on its net, reaches it through an
+  inductor, fuse or diode (the output capacitor after the inductor), or
+  is the source of the rail; a passive's own group wins over the group
+  of the part it's drawn by (C3 assigned to Power stays in Power). A
+  protection diode of any kind (TVS, Zener, Schottky) is guessed by the
+  connector it protects, not the IC. A rail nothing in a group drives
+  that joins just two parts with nothing hanging off it is one wire,
+  not a label at each pin. Series links through an inductor, ferrite,
+  fuse or diode count on rails too (the U1 → 3V3 power link), while a
+  pull-up's rail still goes nowhere.
+- **Subgroups take chained passives and boxes.** A chained passive
+  named into a subgroup brings the passive it chains off (the LED with
+  its resistor); a capacitor whose net reaches no part of its group but
+  through the inductor chains off it there; a connector or IC named
+  into a subgroup is laid out inside it.
+- **Changing designators keeps connections.** An entry given a second
+  designator (C2 → C2,C4) keeps its connections on C2; renamed
+  designators keep theirs one by one; collapsed to one, the first's
+  stay.
+- **Recorded pins stay recorded.** Re-extracting a datasheet no longer
+  puts the extractor's pin rows back beside a pin table someone
+  recorded (the MAX77827's garbled rows).
+- **Nothing is overridden silently.** `set_connections` reports a
+  support set to a part not on the passive's nets (still applied; the
+  reply says when it will be drawn by it), refuses a passive said to
+  support another passive, lists groups with no connected parts, and
+  the assignments reply says "after R4" for a chained passive.
 - **A rail's source makes its net.** A rail whose source is a part
   (`set_rail` with `source: U1`) is driven by that part on the block
   diagram even when its pin there isn't typed as an output: the power

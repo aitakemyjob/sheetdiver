@@ -229,10 +229,18 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 				return err
 			}
 		}
-		for _, p := range in.Pins {
-			p.DatasheetID, p.Source = dsID, SourceAuto
-			if _, err := insertPin(ctx, tx, p); err != nil {
-				return err
+		// Extracted pins only until someone records the table: recorded
+		// pins are the table, and the extractor's rows don't come back.
+		var recordedPins int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM pins WHERE datasheet_id = ? AND source != ?`, dsID, SourceAuto).Scan(&recordedPins); err != nil {
+			return err
+		}
+		if recordedPins == 0 {
+			for _, p := range in.Pins {
+				p.DatasheetID, p.Source = dsID, SourceAuto
+				if _, err := insertPin(ctx, tx, p); err != nil {
+					return err
+				}
 			}
 		}
 		return reindexDatasheet(ctx, tx, dsID)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -272,20 +273,75 @@ func (s *Store) AddProjectPart(ctx context.Context, pp ProjectPart) (ProjectPart
 	return pp, nil
 }
 
-// UpdateProjectPart saves a project part's placement details.
+// UpdateProjectPart saves a project part's placement details. Its
+// connections follow its designators: an entry of one designator given
+// several (C2 → C2,C4) keeps its connections on the first; one renamed
+// keeps them under the new name, designator by designator; several
+// collapsed to one keep the first's.
 func (s *Store) UpdateProjectPart(ctx context.Context, pp ProjectPart) error {
 	if pp.Qty <= 0 {
 		pp.Qty = 1
 	}
-	res, err := s.db.ExecContext(ctx, `UPDATE project_parts SET designator = ?, qty = ?, role = ?, supply_rail = ?, output_rail = ?, i_typ = ?, i_max = ?, variant = ?, notes = ? WHERE id = ? AND project_id = ?`,
-		pp.Designator, pp.Qty, pp.Role, pp.SupplyRail, pp.OutputRail, nullFloat(pp.ITyp), nullFloat(pp.IMax), pp.Variant, pp.Notes, pp.ID, pp.ProjectID)
+	var was string
+	if err := s.db.QueryRowContext(ctx, `SELECT designator FROM project_parts WHERE id = ? AND project_id = ?`, pp.ID, pp.ProjectID).Scan(&was); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("project part %d: %w", pp.ID, ErrNotFound)
+		}
+		return err
+	}
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `UPDATE project_parts SET designator = ?, qty = ?, role = ?, supply_rail = ?, output_rail = ?, i_typ = ?, i_max = ?, variant = ?, notes = ? WHERE id = ? AND project_id = ?`,
+			pp.Designator, pp.Qty, pp.Role, pp.SupplyRail, pp.OutputRail, nullFloat(pp.ITyp), nullFloat(pp.IMax), pp.Variant, pp.Notes, pp.ID, pp.ProjectID); err != nil {
+			return err
+		}
+		return rerefConnections(ctx, tx, pp.ID, Designators(was), Designators(pp.Designator))
+	})
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("project part %d: %w", pp.ID, ErrNotFound)
-	}
 	s.touch(ctx, pp.ProjectID)
+	return nil
+}
+
+// Designators splits an entry's designators ("C2, C4" → C2, C4).
+func Designators(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' || r == ';' })
+}
+
+// rerefConnections moves an entry's connections to its designators as
+// they are now: a connection of the whole entry (ref "") goes on the
+// first of several; one on the i-th designator goes on the i-th now; of
+// several collapsed to one, the first's stay and become the entry's.
+func rerefConnections(ctx context.Context, tx *sql.Tx, entryID int64, was, now []string) error {
+	if slices.Equal(was, now) {
+		return nil
+	}
+	set := func(from, to string) error {
+		_, err := tx.ExecContext(ctx, `UPDATE project_connections SET ref = ? WHERE entry_id = ? AND ref = ?`, to, entryID, from)
+		return err
+	}
+	switch {
+	case len(now) > 1 && len(was) <= 1:
+		if err := set("", now[0]); err != nil {
+			return err
+		}
+		if len(was) == 1 {
+			return set(was[0], now[0])
+		}
+		return nil
+	case len(now) <= 1 && len(was) > 1:
+		if err := set(was[0], ""); err != nil {
+			return err
+		}
+		return nil
+	}
+	for i, from := range was {
+		if i < len(now) && from != now[i] {
+			if err := set(from, now[i]); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

@@ -25,10 +25,11 @@ type CircuitGroup struct {
 	Name, Description, Notes string
 }
 
-// CircuitRail is a supply rail and its voltage.
+// CircuitRail is a supply rail, its voltage and what supplies it.
 type CircuitRail struct {
-	Name string
-	V    float64
+	Name   string
+	V      float64
+	Source string
 }
 
 // CircuitPart is a library part in the BOM (Ref set) or a block.
@@ -299,6 +300,31 @@ func Circuits() []Circuit {
 			Groups:  []CircuitGroup{{Name: "MCU", Description: "The controller, its clock, button and status LED"}},
 			Assign:  [][3]string{{"U2 MCU", "MCU", ""}, {"Q2", "MCU", ""}},
 			Cluster: [][2]string{{"Q2", "Status LED"}, {"R3", "Status LED"}, {"D2", "Status LED"}},
+		},
+		{
+			// A tester's buck board: USB-C in with a TVS, a buck whose
+			// inductor leads to the 3V3 rail it is the source of, the output
+			// capacitor set to support it, an output connector on the rail
+			// in a subgroup of its own, and an LED behind its resistor off
+			// the power-good pin, named into a subgroup.
+			Name:  "Buck board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5, Source: "USB"}, {Name: "3V3", V: 3.3, Source: "U1"}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "D1", Kind: "tvs", Value: "5V"}, {Name: "U1 BUCK", Kind: "ic"}, {Name: "J2 OUT", Kind: "connector"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "L1", Kind: "inductor", Value: "2.2µH"}, {Name: "C3", Kind: "capacitor", Value: "22µF"},
+				{Name: "R4", Kind: "resistor", Value: "1k"}, {Name: "D2", Kind: "led", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"}, {"VBUS", "D1", ""},
+				{"VBUS", "U1 BUCK", "IN"}, {"VBUS", "U1 BUCK", "EN"}, {"GND", "U1 BUCK", "GND"}, {"LX", "U1 BUCK", "LX"}, {"POK", "U1 BUCK", "POK"},
+				{"LX", "L1", "1"}, {"3V3", "L1", "2"}, {"VBUS", "C1", ""}, {"3V3", "C3", ""},
+				{"3V3", "J2 OUT", "1"}, {"GND", "J2 OUT", "2"},
+				{"POK", "R4", "1"}, {"LEDK", "R4", "2"}, {"LEDK", "D2", "A"}, {"GND", "D2", "K"},
+			},
+			Groups:  []CircuitGroup{{Name: "Input"}, {Name: "Power"}, {Name: "Output"}},
+			Assign:  [][3]string{{"J1 USB-C", "Input", ""}, {"U1 BUCK", "Power", ""}, {"C3", "Power", "U1 BUCK"}, {"J2 OUT", "Output", ""}},
+			Cluster: [][2]string{{"J2 OUT", "Out"}, {"D2", "LED"}},
 		},
 		{
 			// Passives reached only through another passive: the output
