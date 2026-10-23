@@ -486,6 +486,28 @@ func TestAssignChanges(t *testing.T) {
 	if _, ok := byName["J1 USB-C"]; ok {
 		t.Errorf("J1's assignment was cleared: %+v", byName["J1 USB-C"])
 	}
+	// A subgroup is kept with the rest, drawn on the part, and "" clears it.
+	if _, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{Assign: []AssignChange{{Part: "C3", Cluster: str(" VIN ")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "USB-C to 3V3")
+	for _, a := range d.Connections.Assignments {
+		if a.Endpoint == "C3" && (a.Cluster != "VIN" || a.Group != "Input" || a.SupportsEndpoint != "U2 TPS63900") {
+			t.Errorf("C3 = %+v", a)
+		}
+	}
+	if i := slices.IndexFunc(d.Connections.Diagram.Passives, func(p DiagramPassive) bool { return p.Label == "C3" }); i < 0 || d.Connections.Diagram.Passives[i].Cluster != "VIN" {
+		t.Errorf("C3 drawn = %+v", d.Connections.Diagram.Passives)
+	}
+	if _, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{Assign: []AssignChange{{Part: "C3", Cluster: str("")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "USB-C to 3V3")
+	for _, a := range d.Connections.Assignments {
+		if a.Endpoint == "C3" && (a.Cluster != "" || a.Group != "Input") {
+			t.Errorf("C3 after clearing = %+v", a)
+		}
+	}
 	// The group's description survives an update that doesn't set it.
 	if _, err := s.ChangeConnections(ctx, "USB-C to 3V3", ConnectionsChange{Groups: []GroupChange{{Name: "Input", Notes: str("ESD first")}}}, library.SourceUser); err != nil {
 		t.Fatal(err)

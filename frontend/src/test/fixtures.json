@@ -16607,8 +16607,42 @@
       "endpoint": "C4"
      }
     ],
-    "groups": [],
-    "assignments": [],
+    "groups": [
+     {
+      "id": 11,
+      "projectId": 10,
+      "name": "MCU",
+      "description": "The controller, its clock, button and status LED",
+      "source": "user"
+     }
+    ],
+    "assignments": [
+     {
+      "node": "block:122",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "node": "block:125",
+      "group": "MCU",
+      "cluster": "Status LED",
+      "source": "user",
+      "endpoint": "Q2"
+     },
+     {
+      "node": "block:130",
+      "cluster": "Status LED",
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "node": "block:131",
+      "cluster": "Status LED",
+      "source": "user",
+      "endpoint": "D2"
+     }
+    ],
     "diagram": {
      "parts": [
       {
@@ -16741,6 +16775,8 @@
        "kind": "npn",
        "shape": "npn",
        "column": 3,
+       "group": "MCU",
+       "cluster": "Status LED",
        "pins": [
         {
          "name": "B",
@@ -16775,6 +16811,7 @@
        "kind": "ic",
        "shape": "ic",
        "column": 2,
+       "group": "MCU",
        "pins": [
         {
          "name": "VDD",
@@ -16786,7 +16823,7 @@
         {
          "name": "PA0",
          "net": "PWM",
-         "side": "right",
+         "side": "left",
          "role": "other",
          "connected": true
         },
@@ -16862,13 +16899,14 @@
        "label": "C2",
        "value": "10µF",
        "kind": "capacitor",
-       "mount": "wire",
+       "mount": "out",
        "part": "block:122",
        "nets": [
         "3V3"
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -16887,6 +16925,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -16905,6 +16944,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -16923,6 +16963,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "led",
        "ends": [
         "anode",
@@ -16934,7 +16975,7 @@
        "label": "D2",
        "value": "green",
        "kind": "led",
-       "mount": "wire",
+       "mount": "out",
        "part": "block:122",
        "nets": [
         "3V3",
@@ -16942,6 +16983,8 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
+       "cluster": "Status LED",
        "shape": "led",
        "ends": [
         "anode",
@@ -16999,6 +17042,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "resistor",
        "ends": [
         "1",
@@ -17018,6 +17062,8 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
+       "cluster": "Status LED",
        "shape": "resistor",
        "ends": [
         "1",
@@ -17035,6 +17081,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "switch",
        "ends": [
         "1",
@@ -17054,6 +17101,7 @@
        ],
        "supports": "block:122",
        "guessed": true,
+       "group": "MCU",
        "shape": "crystal",
        "ends": [
         "1",
@@ -17075,10 +17123,21 @@
        "name": "3V3",
        "kind": "power",
        "parts": [
-        "part:5",
+        "part:5"
+       ],
+       "wire": "out",
+       "arrow": true,
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "MCU",
+       "parts": [
         "block:122"
        ],
-       "wire": "between"
+       "wire": "out",
+       "offboard": true
       },
       {
        "name": "VBUS_IN",
@@ -17102,14 +17161,25 @@
        "name": "PWM",
        "kind": "signal",
        "parts": [
-        "block:122",
         "block:124"
        ],
-       "wire": "between"
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "PWM",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:122"
+       ],
+       "wire": "out",
+       "offboard": true
       },
       {
        "name": "BASE",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:125"
        ],
@@ -17118,6 +17188,7 @@
       {
        "name": "LED2_K",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:125"
        ],
@@ -17126,6 +17197,7 @@
       {
        "name": "LED",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:122"
        ],
@@ -17134,6 +17206,7 @@
       {
        "name": "BTN",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:122"
        ],
@@ -17142,6 +17215,7 @@
       {
        "name": "CTRL",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:122"
        ],
@@ -17150,6 +17224,7 @@
       {
        "name": "XIN",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:122"
        ],
@@ -17158,13 +17233,23 @@
       {
        "name": "XOUT",
        "kind": "signal",
+       "group": "MCU",
        "parts": [
         "block:122"
        ],
        "wire": ""
       }
      ],
-     "groups": [],
+     "groups": [
+      {
+       "name": "MCU",
+       "description": "The controller, its clock, button and status LED",
+       "parts": [
+        "block:125",
+        "block:122"
+       ]
+      }
+     ],
      "links": [
       {
        "from": "block:123",

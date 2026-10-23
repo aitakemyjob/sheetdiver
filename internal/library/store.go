@@ -366,6 +366,8 @@ CREATE TABLE project_assignments (
 	source TEXT NOT NULL DEFAULT 'user',
 	PRIMARY KEY (project_id, node)
 );
+`, `
+ALTER TABLE project_assignments ADD COLUMN cluster TEXT NOT NULL DEFAULT '';
 `}
 
 // migrate applies pending schema migrations.

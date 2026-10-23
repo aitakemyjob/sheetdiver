@@ -56,6 +56,7 @@ type assignArgs struct {
 	Part     string  `json:"part" jsonschema:"what's being assigned: a BOM designator (C5), one designator of an entry with several (C1 of C1,C2), a part number, or a block name. For supports, this is the passive"`
 	Group    *string `json:"group,omitempty" jsonschema:"group to draw it in (created if new); \"\" takes it out of its group; omit to keep it"`
 	Supports *string `json:"supports,omitempty" jsonschema:"the part this passive serves, drawn beside it: U3 for {part: C5} when C5 decouples U3. \"\" clears it, and the passive's support is guessed again (the IC on its nets, preferring one it feeds over one that drives the net; a protection diode by its connector); omit to keep it"`
+	Cluster  *string `json:"cluster,omitempty" jsonschema:"subgroup within its group to wire it up in with the other parts given the same name, drawn as one unit in a faint frame: VDD for the decoupling capacitors, BTN for a button and its pull-up. Parts hanging off one net already stand aside together without this; name one to pull more in, or to split them. \"\" takes it out; omit to keep it"`
 }
 
 type netArgs struct {
@@ -1014,6 +1015,9 @@ func connectionsText(d core.ProjectDetail) string {
 			}
 		}
 		fmt.Fprintf(&b, "group %s: %s", g.Name, strings.Join(members, ", "))
+		if t := subgroupsText(c.Diagram, g.Name, label); t != "" {
+			b.WriteString("; subgroups: " + t)
+		}
 		if g.Description != "" {
 			b.WriteString(" — " + g.Description)
 		}
@@ -1111,6 +1115,38 @@ func endsText(p core.DiagramPassive) string {
 	return fmt.Sprintf(" [%s: %s on %s, %s %s]", p.Shape, p.Ends[0], p.Nets[0], p.Ends[1], far)
 }
 
+// subgroupsText lists a group's subgroups with their members, in the
+// order they were named: "VDD (C4, C5), BTN (SW1, R2)"; "" for none.
+func subgroupsText(dg core.Diagram, group string, label map[string]string) string {
+	var names []string
+	members := map[string][]string{}
+	add := func(cluster, member string) {
+		if cluster == "" {
+			return
+		}
+		k := strings.ToLower(cluster)
+		if _, ok := members[k]; !ok {
+			names = append(names, cluster)
+		}
+		members[k] = append(members[k], member)
+	}
+	for _, p := range dg.Parts {
+		if strings.EqualFold(p.Group, group) {
+			add(p.Cluster, label[p.ID])
+		}
+	}
+	for _, p := range dg.Passives {
+		if strings.EqualFold(p.Group, group) {
+			add(p.Cluster, p.Label)
+		}
+	}
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		out = append(out, n+" ("+strings.Join(members[strings.ToLower(n)], ", ")+")")
+	}
+	return strings.Join(out, ", ")
+}
+
 // supportsText says what a passive supports, and whether that was set or
 // guessed: " (supports U3)", " (supports U3, guessed)"; "" for nothing.
 func supportsText(p core.DiagramPassive, label map[string]string) string {
@@ -1131,11 +1167,14 @@ func assignedText(d core.ProjectDetail, part string) string {
 	for _, p := range c.Diagram.Parts {
 		label[p.ID] = p.Title
 	}
-	group, supports := "", "no part"
+	group, supports, cluster := "", "no part", ""
 	for _, a := range c.Assignments {
 		if strings.EqualFold(a.Endpoint, part) {
-			group = a.Group
+			group, cluster = a.Group, a.Cluster
 		}
+	}
+	if cluster != "" {
+		cluster = "; subgroup " + cluster
 	}
 	for _, p := range c.Diagram.Passives {
 		if !slices.ContainsFunc(strings.Split(p.Label, ","), func(l string) bool { return strings.EqualFold(l, part) }) {
@@ -1147,11 +1186,11 @@ func assignedText(d core.ProjectDetail, part string) string {
 		if t := supportsText(p, label); t != "" {
 			supports = strings.TrimSuffix(strings.TrimPrefix(t, " (supports "), ")")
 		}
-		return fmt.Sprintf("%s: group %s; supports %s; hangs by %s", part, orNone(group), supports, label[p.Part])
+		return fmt.Sprintf("%s: group %s%s; supports %s; hangs by %s", part, orNone(group), cluster, supports, label[p.Part])
 	}
 	for _, p := range c.Diagram.Parts {
 		if strings.EqualFold(strings.Fields(p.Title)[0], part) || strings.EqualFold(p.Title, part) {
-			return fmt.Sprintf("%s: group %s", part, orNone(p.Group))
+			return fmt.Sprintf("%s: group %s%s", part, orNone(p.Group), cluster)
 		}
 	}
 	return part + ": not drawn (it isn't connected)"

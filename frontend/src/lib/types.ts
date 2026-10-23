@@ -493,6 +493,8 @@ export interface DiagramPart {
   column: number;
   /** The group it's drawn in. */
   group?: string;
+  /** The subgroup it's wired up in with the group's other parts of that name. */
+  cluster?: string;
   pins: DiagramPin[];
   /** Where it was dragged to. */
   x?: number;
@@ -513,6 +515,8 @@ export interface DiagramPassive {
   guessed?: boolean;
   /** The group it's drawn in (its part's). */
   group?: string;
+  /** The subgroup it's wired up in (see DiagramPart.cluster). */
+  cluster?: string;
   /** The standard symbol it's drawn with, and its terminals at nets[0]'s end and the far end. */
   shape: PassiveShape | string;
   ends: string[];
@@ -571,13 +575,14 @@ export interface Group {
   source: string;
 }
 
-/** Where a part or block belongs: its group, and the part it supports. */
+/** Where a part or block belongs: its group, the part it supports, and its subgroup. */
 export interface Assignment {
   node: string;
   endpoint: string;
   group?: string;
   supports?: string;
   supportsEndpoint?: string;
+  cluster?: string;
   source: string;
 }
 
@@ -607,7 +612,7 @@ export interface ConnectionsChange {
   connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
   groups?: { name: string; description?: string; notes?: string; remove?: boolean }[];
   /** Unset fields are kept; "" clears one. */
-  assign?: { part: string; group?: string; supports?: string }[];
+  assign?: { part: string; group?: string; supports?: string; cluster?: string }[];
   positions?: { node: string; x: number; y: number }[];
   resetLayout?: boolean;
 }

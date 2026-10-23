@@ -64,6 +64,14 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Subgroups within a group:** the parts hanging off one net (the
+  VDD decoupling, a button and its pull-up, an LED and its resistor)
+  are moved aside together and wired up as one unit in a faint frame
+  inside their group, bus first, instead of each standing alone where
+  it happened to land. Name a subgroup yourself (`cluster` in
+  `set_connections`, the Subgroup column in the Connections tab) to pull
+  more parts into one, or to split them; the reply names each part's
+  group, subgroup and support. (#73)
 
 ### Changed
 - **One rule for what a pin is** (`internal/pinrole`), from its type

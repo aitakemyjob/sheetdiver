@@ -251,15 +251,20 @@ describe('project block diagram, pins and connections', () => {
     await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ assign: [{ part: 'C4', supports: '' }] }));
     // Clearing says it worked, and what happens now.
     await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: "C4 no longer has a set support: it's guessed from its nets" }));
+    // A subgroup is typed and sent when the field is left.
+    const sub = within(table).getByLabelText("C4's subgroup");
+    fireEvent.change(sub, { target: { value: ' VDD ' } });
+    fireEvent.blur(sub);
+    await waitFor(() => expect(b.callsTo('connections.change').at(-1)).toMatchObject({ assign: [{ part: 'C4', cluster: 'VDD' }] }));
     const notes = screen.getByLabelText("MCU's notes");
     fireEvent.change(notes, { target: { value: 'Antenna clear of copper' } });
     fireEvent.blur(notes);
-    await waitFor(() => expect(b.callsTo('connections.change')[2]).toMatchObject({ groups: [{ name: 'MCU', notes: 'Antenna clear of copper' }] }));
+    await waitFor(() => expect(b.callsTo('connections.change')[3]).toMatchObject({ groups: [{ name: 'MCU', notes: 'Antenna clear of copper' }] }));
     fireEvent.change(screen.getByLabelText('New group'), { target: { value: 'Debug' } });
     fireEvent.click(screen.getByRole('button', { name: /^Group$/ }));
-    await waitFor(() => expect(b.callsTo('connections.change')[3]).toMatchObject({ groups: [{ name: 'Debug' }] }));
+    await waitFor(() => expect(b.callsTo('connections.change')[4]).toMatchObject({ groups: [{ name: 'Debug' }] }));
     fireEvent.click(screen.getByRole('button', { name: /Remove Sensor/ }));
-    await waitFor(() => expect(b.callsTo('connections.change')[4]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
+    await waitFor(() => expect(b.callsTo('connections.change')[5]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
   });
 
   it('frames each group on the block diagram', async () => {

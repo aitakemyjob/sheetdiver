@@ -72,7 +72,7 @@ var sideOrder = map[string]int{SideTop: 0, SideLeft: 1, SideRight: 2, SideBottom
 // pin, connected or not, on its side in number order, then any
 // connection the table doesn't have (as the pin tables list them).
 func (b *diagramBuilder) fullSymbol(id string, e *end, table []library.Pin, mine []ConnectionRow) DiagramPart {
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Full: true, Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Full: true, Column: b.columns[id], Group: b.groupOf[id], Cluster: b.assignment(id).Cluster, Pins: []DiagramPin{}}
 	used := map[int64]bool{}
 	for _, pin := range table {
 		dp := DiagramPin{Name: pin.Name, Number: pin.Number, Role: string(roleOf(pin))}

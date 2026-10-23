@@ -12,9 +12,12 @@ type Circuit struct {
 	// pin connects a block (a passive) without one.
 	Pins [][3]string
 	// Groups are functional groups; Assign puts parts in them and says
-	// what they support: {designator or block, group, supports}.
-	Groups []CircuitGroup
-	Assign [][3]string
+	// what they support: {designator or block, group, supports}; Cluster
+	// names the subgroup a part is wired up in: {designator or block,
+	// subgroup}.
+	Groups  []CircuitGroup
+	Assign  [][3]string
+	Cluster [][2]string
 }
 
 // CircuitGroup is a functional group of a board.
@@ -293,6 +296,9 @@ func Circuits() []Circuit {
 				{"VBUS", "M1 Motor", "+"}, {"MOTOR", "M1 Motor", "-"}, {"MOTOR", "D3", "A"}, {"VBUS", "D3", "K"},
 				{"CTRL", "R3", "1"}, {"BASE", "R3", "2"}, {"BASE", "Q2", "B"}, {"LED2_K", "Q2", "C"}, {"GND", "Q2", "E"}, {"3V3", "D2", "A"}, {"LED2_K", "D2", "K"},
 			},
+			Groups:  []CircuitGroup{{Name: "MCU", Description: "The controller, its clock, button and status LED"}},
+			Assign:  [][3]string{{"U2 MCU", "MCU", ""}, {"Q2", "MCU", ""}},
+			Cluster: [][2]string{{"Q2", "Status LED"}, {"R3", "Status LED"}, {"D2", "Status LED"}},
 		},
 	}
 }

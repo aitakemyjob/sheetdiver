@@ -250,12 +250,14 @@ type GroupChange struct {
 }
 
 // AssignChange puts a part or block (a designator, part number or block
-// name) in a group and/or says which part it supports; unset fields are
-// kept, "" clears one. A group that doesn't exist is created.
+// name) in a group, says which part it supports and/or names the
+// subgroup it's wired up in with the other parts of that name; unset
+// fields are kept, "" clears one. A group that doesn't exist is created.
 type AssignChange struct {
 	Part     string  `json:"part"`
 	Group    *string `json:"group,omitempty"`
 	Supports *string `json:"supports,omitempty"`
+	Cluster  *string `json:"cluster,omitempty"`
 }
 
 // NetChange sets a net's kind, bus, I/O voltage or notes (unset fields
@@ -468,11 +470,14 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		a := library.Assignment{Node: node, Source: source}
 		for _, old := range existing {
 			if old.Node == node {
-				a.Group, a.Supports = old.Group, old.Supports
+				a.Group, a.Supports, a.Cluster = old.Group, old.Supports, old.Cluster
 			}
 		}
 		if ac.Group != nil {
 			a.Group = *ac.Group
+		}
+		if ac.Cluster != nil {
+			a.Cluster = strings.TrimSpace(*ac.Cluster)
 		}
 		if ac.Supports != nil {
 			a.Supports = ""

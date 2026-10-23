@@ -20,13 +20,16 @@ type Group struct {
 }
 
 // Assignment says where a block-diagram node belongs: the group it's
-// drawn in, and the node it supports (a decoupling capacitor for U1),
-// beside which it's drawn. Node and Supports are nodes ("part:3",
-// "part:3/R1", "block:2"); Group is the group's name.
+// drawn in, the node it supports (a decoupling capacitor for U1), beside
+// which it's drawn, and the subgroup within its group it's wired up in
+// with the other parts of that name (the VDD decoupling, a button and
+// its pull-up). Node and Supports are nodes ("part:3", "part:3/R1",
+// "block:2"); Group is the group's name and Cluster the subgroup's.
 type Assignment struct {
 	Node     string `json:"node"`
 	Group    string `json:"group,omitempty"`
 	Supports string `json:"supports,omitempty"`
+	Cluster  string `json:"cluster,omitempty"`
 	Source   string `json:"source"`
 }
 
@@ -86,7 +89,7 @@ func (s *Store) DeleteGroup(ctx context.Context, projectID int64, name string) e
 
 // Assignments lists where a project's nodes belong, by node.
 func (s *Store) Assignments(ctx context.Context, projectID int64) ([]Assignment, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT a.node, IFNULL(g.name, ''), a.supports, a.source
+	rows, err := s.db.QueryContext(ctx, `SELECT a.node, IFNULL(g.name, ''), a.supports, a.cluster, a.source
 		FROM project_assignments a LEFT JOIN project_groups g ON g.id = a.group_id WHERE a.project_id = ? ORDER BY a.node`, projectID)
 	if err != nil {
 		return nil, err
@@ -95,7 +98,7 @@ func (s *Store) Assignments(ctx context.Context, projectID int64) ([]Assignment,
 	out := []Assignment{}
 	for rows.Next() {
 		var a Assignment
-		if err := rows.Scan(&a.Node, &a.Group, &a.Supports, &a.Source); err != nil {
+		if err := rows.Scan(&a.Node, &a.Group, &a.Supports, &a.Cluster, &a.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -103,10 +106,11 @@ func (s *Store) Assignments(ctx context.Context, projectID int64) ([]Assignment,
 	return out, rows.Err()
 }
 
-// Assign sets a node's group and what it supports, replacing both; a
-// group that doesn't exist yet is created. Neither set forgets the node.
+// Assign sets a node's group, what it supports and its subgroup,
+// replacing all three; a group that doesn't exist yet is created. None
+// set forgets the node.
 func (s *Store) Assign(ctx context.Context, projectID int64, a Assignment) error {
-	a.Node, a.Group, a.Supports = strings.TrimSpace(a.Node), strings.TrimSpace(a.Group), strings.TrimSpace(a.Supports)
+	a.Node, a.Group, a.Supports, a.Cluster = strings.TrimSpace(a.Node), strings.TrimSpace(a.Group), strings.TrimSpace(a.Supports), strings.TrimSpace(a.Cluster)
 	if a.Node == "" {
 		return errors.New("an assignment is for a part or block")
 	}
@@ -116,7 +120,7 @@ func (s *Store) Assign(ctx context.Context, projectID int64, a Assignment) error
 	if a.Source == "" {
 		a.Source = SourceUser
 	}
-	if a.Group == "" && a.Supports == "" {
+	if a.Group == "" && a.Supports == "" && a.Cluster == "" {
 		_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND node = ?`, projectID, a.Node)
 		s.touch(ctx, projectID)
 		return err
@@ -129,9 +133,9 @@ func (s *Store) Assign(ctx context.Context, projectID int64, a Assignment) error
 		}
 		group = sql.NullInt64{Int64: id, Valid: true}
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO project_assignments (project_id, node, group_id, supports, source) VALUES (?,?,?,?,?)
-		ON CONFLICT(project_id, node) DO UPDATE SET group_id = excluded.group_id, supports = excluded.supports, source = excluded.source`,
-		projectID, a.Node, group, a.Supports, a.Source)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO project_assignments (project_id, node, group_id, supports, cluster, source) VALUES (?,?,?,?,?,?)
+		ON CONFLICT(project_id, node) DO UPDATE SET group_id = excluded.group_id, supports = excluded.supports, cluster = excluded.cluster, source = excluded.source`,
+		projectID, a.Node, group, a.Supports, a.Cluster, a.Source)
 	if err != nil {
 		return err
 	}
@@ -168,6 +172,6 @@ func (s *Store) forgetNode(ctx context.Context, projectID int64, node string) er
 // pruneAssignments drops assignments left with neither a group nor
 // anything they support.
 func (s *Store) pruneAssignments(ctx context.Context, projectID int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND group_id IS NULL AND supports = ''`, projectID)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND group_id IS NULL AND supports = '' AND cluster = ''`, projectID)
 	return err
 }

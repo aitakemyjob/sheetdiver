@@ -66,12 +66,15 @@ type DiagramPart struct {
 	// a transistor ("mosfet-n", "mosfet-p", "npn", "pnp").
 	Shape string `json:"shape"`
 	// Full means Pins is the whole pin table, connected or not.
-	Full   bool         `json:"full,omitempty"`
-	Column int          `json:"column"`
-	Group  string       `json:"group,omitempty"`
-	Pins   []DiagramPin `json:"pins"`
-	X      *float64     `json:"x,omitempty"`
-	Y      *float64     `json:"y,omitempty"`
+	Full   bool   `json:"full,omitempty"`
+	Column int    `json:"column"`
+	Group  string `json:"group,omitempty"`
+	// Cluster is the subgroup it was put in: the parts of a group with
+	// the same cluster are laid out and wired together as one unit.
+	Cluster string       `json:"cluster,omitempty"`
+	Pins    []DiagramPin `json:"pins"`
+	X       *float64     `json:"x,omitempty"`
+	Y       *float64     `json:"y,omitempty"`
 }
 
 // Pin sides on a symbol.
@@ -160,6 +163,8 @@ type DiagramPassive struct {
 	Supports string   `json:"supports,omitempty"`
 	Guessed  bool     `json:"guessed,omitempty"`
 	Group    string   `json:"group,omitempty"`
+	// Cluster is the subgroup it was put in (see DiagramPart.Cluster).
+	Cluster string `json:"cluster,omitempty"`
 	// Shape is the standard symbol it's drawn with (resistor, capacitor,
 	// led…); Ends are its terminals at Nets[0]'s end and the far end
 	// (["anode", "cathode"], ["1", "2"], ["+", "-"]).
@@ -840,7 +845,7 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 // connectedSymbol builds the symbol of a block, or of a part without a
 // pin table: its connected pins only, each on the side it faces.
 func (b *diagramBuilder) connectedSymbol(id string, e *end, mine []ConnectionRow) DiagramPart {
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Cluster: b.assignment(id).Cluster, Pins: []DiagramPin{}}
 	// One pin per net gets the wire, the main one (IN over EN); the others
 	// are written tied to it. Pins stay in the order they were entered.
 	type wiredPin struct {
@@ -1104,7 +1109,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		e := b.ends[id]
 		serves := b.supports[id]
-		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: passiveShape(e.kind), Nets: nets, Supports: serves, Guessed: b.guessed[id]}
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: passiveShape(e.kind), Nets: nets, Supports: serves, Guessed: b.guessed[id], Cluster: b.assignment(id).Cluster}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {
@@ -1163,7 +1168,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}
 		p.Ends = b.passiveEnds(id, p)
-		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports + "|" + strings.Join(p.Ends, "|")
+		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports + "|" + strings.ToLower(p.Cluster) + "|" + strings.Join(p.Ends, "|")
 		if i, ok := merged[key]; ok {
 			out[i].ID += "," + p.ID
 			out[i].Label += "," + p.Label
@@ -1238,8 +1243,8 @@ func orderPins(parts []DiagramPart, nets []DiagramNet) {
 		return 2
 	}
 	for i := range parts {
-		if parts[i].Full {
-			continue // a generated symbol keeps its number order
+		if parts[i].Full || parts[i].Shape != "ic" {
+			continue // a generated symbol keeps its number order, a transistor its terminals'
 		}
 		sort.SliceStable(parts[i].Pins, func(a, b int) bool { return rank(parts[i].Pins[a]) < rank(parts[i].Pins[b]) })
 	}
