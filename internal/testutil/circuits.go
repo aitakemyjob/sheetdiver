@@ -208,5 +208,63 @@ func Circuits() []Circuit {
 				{"C9", "", "U2 STM32G0"}, {"C10", "", "U2 STM32G0"}, {"C11", "", "U2 STM32G0"}, {"C12", "", "U2 STM32G0"}, {"R5", "", "D1 LED"},
 			},
 		},
+		{
+			// A tester's STM32U545 USB-C board as entered, in five groups:
+			// parts with two pins of one name on a net (J1's VBUS, U1's IN
+			// and OUT), a crystal in a group of its own, switches on BOOT0
+			// and NRST, an LED behind a series resistor, and a pull-up
+			// between the regulator's POK and 3V3.
+			Name:  "U545 USB-C board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 TYPE-C", Kind: "connector"}, {Name: "U3 USBLC6", Kind: "ic"}, {Name: "R1", Kind: "resistor", Value: "5.1k"}, {Name: "R2", Kind: "resistor", Value: "5.1k"},
+				{Name: "U1 MAX77827", Kind: "ic"}, {Name: "L1", Kind: "inductor", Value: "1µH"}, {Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "10µF"},
+				{Name: "C3", Kind: "capacitor", Value: "22µF"}, {Name: "R4", Kind: "resistor", Value: "100k"},
+				{Name: "J2 SWD", Kind: "connector"},
+				{Name: "U2 STM32U545", Kind: "ic"}, {Name: "D1 LED", Kind: "ic"}, {Name: "SW1 Reset", Kind: "ic"}, {Name: "SW2 Boot", Kind: "ic"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"}, {Name: "C6", Kind: "capacitor", Value: "100nF"}, {Name: "C7", Kind: "capacitor", Value: "100nF"},
+				{Name: "C8", Kind: "capacitor", Value: "100nF"}, {Name: "C9", Kind: "capacitor", Value: "100nF"}, {Name: "C10", Kind: "capacitor", Value: "4.7µF"}, {Name: "C11", Kind: "capacitor", Value: "100nF"}, {Name: "C12", Kind: "capacitor", Value: "100nF"},
+				{Name: "R3", Kind: "resistor", Value: "10k"}, {Name: "R5", Kind: "resistor", Value: "1k"},
+				{Name: "Y1 FC-135", Kind: "ic"}, {Name: "C13", Kind: "capacitor", Value: "6.8pF"}, {Name: "C14", Kind: "capacitor", Value: "6.8pF"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS", Kind: "power"}, {Name: "3V3", Kind: "power"}, {Name: "USB_DP", Bus: "USB"}, {Name: "USB_DM", Bus: "USB"}, {Name: "SWDIO", Bus: "SWD"}, {Name: "SWCLK", Bus: "SWD"}, {Name: "SWO", Bus: "SWD"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 TYPE-C", "VBUS"}, {"VBUS", "J1 TYPE-C", "VBUS"}, {"USB_DP", "J1 TYPE-C", "DP1"}, {"USB_DP", "J1 TYPE-C", "DP2"}, {"USB_DM", "J1 TYPE-C", "DN1"}, {"USB_DM", "J1 TYPE-C", "DN2"},
+				{"CC1", "J1 TYPE-C", "CC1"}, {"CC2", "J1 TYPE-C", "CC2"}, {"GND", "J1 TYPE-C", "GND"}, {"GND", "J1 TYPE-C", "SHIELD"},
+				{"VBUS", "U3 USBLC6", "VBUS"}, {"USB_DP", "U3 USBLC6", "I/O1"}, {"USB_DP", "U3 USBLC6", "I/O1"}, {"USB_DM", "U3 USBLC6", "I/O2"}, {"USB_DM", "U3 USBLC6", "I/O2"}, {"GND", "U3 USBLC6", "GND"},
+				{"CC1", "R1", ""}, {"CC2", "R2", ""},
+				{"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "EN"}, {"VBUS", "U1 MAX77827", "BIAS"}, {"POK", "U1 MAX77827", "POK"},
+				{"3V3", "U1 MAX77827", "OUT"}, {"3V3", "U1 MAX77827", "OUT"}, {"3V3", "U1 MAX77827", "OUTS"}, {"LX1", "U1 MAX77827", "LX1"}, {"LX2", "U1 MAX77827", "LX2"},
+				{"GND", "U1 MAX77827", "SEL"}, {"GND", "U1 MAX77827", "AGND"}, {"GND", "U1 MAX77827", "PGND"}, {"GND", "U1 MAX77827", "FPWM"},
+				{"LX1", "L1", "1"}, {"LX2", "L1", "2"}, {"VBUS", "C1", ""}, {"VBUS", "C2", ""}, {"3V3", "C3", ""}, {"3V3", "R4", "1"}, {"POK", "R4", "2"},
+				{"3V3", "J2 SWD", "1"}, {"SWDIO", "J2 SWD", "2"}, {"SWCLK", "J2 SWD", "4"}, {"SWO", "J2 SWD", "6"}, {"NRST", "J2 SWD", "10"}, {"GND", "J2 SWD", "3"}, {"GND", "J2 SWD", "5"}, {"GND", "J2 SWD", "9"},
+				{"POK", "U2 STM32U545", "PA0"}, {"LED", "U2 STM32U545", "PA5"}, {"USB_DM", "U2 STM32U545", "PA11"}, {"USB_DP", "U2 STM32U545", "PA12"},
+				{"SWDIO", "U2 STM32U545", "PA13"}, {"SWCLK", "U2 STM32U545", "PA14"}, {"SWO", "U2 STM32U545", "PB3"},
+				{"NRST", "U2 STM32U545", "NRST"}, {"BOOT0", "U2 STM32U545", "PH3-BOOT0"}, {"3V3", "U2 STM32U545", "VBAT"}, {"3V3", "U2 STM32U545", "VDDA"},
+				{"3V3", "U2 STM32U545", "VDD"}, {"3V3", "U2 STM32U545", "VDD"}, {"3V3", "U2 STM32U545", "VDD"}, {"VCAP", "U2 STM32U545", "VCAP"},
+				{"OSC32_IN", "U2 STM32U545", "PC14-OSC32_IN"}, {"OSC32_OUT", "U2 STM32U545", "PC15-OSC32_OUT"}, {"GND", "U2 STM32U545", "VSSA"}, {"GND", "U2 STM32U545", "VSS"},
+				{"LED_A", "D1 LED", "A"}, {"GND", "D1 LED", "K"}, {"LED", "R5", "1"}, {"LED_A", "R5", "2"},
+				{"BOOT0", "SW2 Boot", "B"}, {"BOOT0", "SW2 Boot", "B"}, {"3V3", "SW2 Boot", "A"}, {"3V3", "SW2 Boot", "A"}, {"BOOT0", "R3", ""},
+				{"NRST", "SW1 Reset", "A"}, {"NRST", "SW1 Reset", "A"}, {"GND", "SW1 Reset", "B"}, {"NRST", "C9", ""},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""}, {"3V3", "C6", ""}, {"3V3", "C7", ""}, {"3V3", "C8", ""}, {"3V3", "C11", ""}, {"3V3", "C12", ""}, {"VCAP", "C10", ""},
+				{"OSC32_IN", "Y1 FC-135", "1"}, {"OSC32_OUT", "Y1 FC-135", "2"}, {"OSC32_IN", "C13", ""}, {"OSC32_OUT", "C14", ""},
+			},
+			Groups: []CircuitGroup{
+				{Name: "USB Input", Description: "USB-C 5 V sink with ESD", Notes: "Separate 5.1k per CC pin; USBLC6 close to J1"},
+				{Name: "Power", Description: "MAX77827 5 V → 3.3 V buck-boost", Notes: "C1/C3 tight to IN/OUT; short LX loop"},
+				{Name: "Debug", Description: "SWD on MIPI-10 (ST-LINK)"},
+				{Name: "MCU", Description: "STM32U545CET6 with decoupling, reset, BOOT0, user LED", Notes: "One 100 nF per VDD pin; VCAP 4.7 µF close to pin 22"},
+				{Name: "Clock", Description: "32.768 kHz LSE", Notes: "Guard ring to GND; keep traces <5 mm"},
+			},
+			Assign: [][3]string{
+				{"J1 TYPE-C", "USB Input", ""}, {"U3 USBLC6", "USB Input", ""}, {"R1", "", "J1 TYPE-C"}, {"R2", "", "J1 TYPE-C"},
+				{"U1 MAX77827", "Power", ""}, {"C1", "", "U1 MAX77827"}, {"C2", "", "U1 MAX77827"}, {"C3", "", "U1 MAX77827"}, {"R4", "", "U1 MAX77827"},
+				{"J2 SWD", "Debug", ""},
+				{"U2 STM32U545", "MCU", ""}, {"D1 LED", "MCU", ""}, {"SW1 Reset", "MCU", ""}, {"SW2 Boot", "MCU", ""},
+				{"C4", "", "U2 STM32U545"}, {"C5", "", "U2 STM32U545"}, {"C6", "", "U2 STM32U545"}, {"C7", "", "U2 STM32U545"}, {"C8", "", "U2 STM32U545"},
+				{"C9", "", "U2 STM32U545"}, {"C10", "", "U2 STM32U545"}, {"C11", "", "U2 STM32U545"}, {"C12", "", "U2 STM32U545"}, {"R3", "", "U2 STM32U545"}, {"R5", "", "D1 LED"},
+				{"Y1 FC-135", "Clock", ""}, {"C13", "", "Y1 FC-135"}, {"C14", "", "Y1 FC-135"},
+			},
+		},
 	}
 }

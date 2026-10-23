@@ -270,7 +270,8 @@ function reach(d: Diagram, b: Box, side: 'left' | 'right'): number {
   const out = d.nets.filter((n) => n.wire === 'out' && b.part.pins.some((p) => p.side === side && p.net === n.name));
   const drops = out.reduce((n, net) => n + d.passives.filter((q) => q.mount === 'out' && q.nets[0] === net.name).length, 0);
   const bridged = side === 'right' && d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge') ? 120 : 0;
-  return bridged + out.length * 30 + drops * 80;
+  const longest = Math.max(0, ...out.map((n) => n.name.length * 7.5 + 20));
+  return bridged + (out.length ? Math.max(60, longest) : 0) + drops * 80;
 }
 
 /** The parts each part shares a net with (ground aside). */
@@ -557,15 +558,18 @@ export function route(d: Diagram, boxes: Box[], over?: (channel: number) => bool
       let far = side === 'right' && d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge') ? 120 : 0;
       // A pin tied to another joins that pin's stub (below), not a stub of its own.
       const outs = b.pins.filter((p) => p.side === side && !p.tied && byName.get(p.net)?.wire === 'out').sort((p, q) => q.y - p.y);
+      // A stub is as long as its label needs, past the lowest stub below
+      // it that has something hanging (so its own drop clears them); a
+      // stack of plain stubs is all one length.
       for (const p of outs) {
         const n = byName.get(p.net)!;
         const drops = d.passives.filter((q) => q.mount === 'out' && q.nets[0] === p.net).length;
-        const len = far + 30 + drops * 80 + (n.arrow ? 40 : 30);
+        const len = far + Math.max(60, p.net.length * 7.5 + 20) + drops * 80 + (n.arrow ? 10 : 0);
         const end = p.x + dir * len;
         const wire: Wire = { net: p.net, path: `M${p.x},${p.y} H${end}`, arrow: n.arrow, label: { x: end - dir * (n.arrow ? 12 : 4), y: p.y - 7, anchor: side === 'right' ? 'end' : 'start', text: p.net } };
         wires.push(wire);
         add({ net: p.net, x1: Math.min(p.x + dir * (far + 20), end), x2: Math.max(p.x + dir * (far + 20), end), y: p.y, stub: { wire, pin: p, dir } });
-        far = len;
+        if (drops) far = len;
       }
       reachOf.set(`${b.part.id}:${side}`, far);
     }

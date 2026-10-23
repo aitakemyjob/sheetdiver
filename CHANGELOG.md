@@ -41,6 +41,15 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **Block diagram, from a tester's USB-C board**: a part's second pin of
+  the same name on a net (a USB-C connector's two VBUS pins, a
+  regulator's two IN and OUT pins) got a wire of its own, drawn as a
+  zero-length stub with the net's name over the pin; it is now tied to
+  the first like any other. A net reaching another group (a crystal's
+  pins to the MCU) was put on the bottom of its box with no wire or
+  label; it now leaves a side as a labelled stub. Stubs leaving a box
+  are one length, sized to their labels, instead of each longer than
+  the one below.
 - **Imports named a part by LCSC's file id** ("2304140030") when the PDF
   itself named no part clearly: a distributor's file name
   (`2304140030_STMicroelectronics-STM32G031K8T6_C432211.pdf`) now gives

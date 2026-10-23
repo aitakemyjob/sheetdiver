@@ -12021,5 +12021,3077 @@
    },
    "inputPower": 0
   }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "U545 USB-C board"
+  },
+  "result": {
+   "project": {
+    "id": 9,
+    "name": "U545 USB-C board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [],
+   "rails": [
+    {
+     "id": 10,
+     "projectId": 9,
+     "name": "3V3",
+     "vNom": 3.3,
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [],
+     "power": 0
+    },
+    {
+     "id": 9,
+     "projectId": 9,
+     "name": "VBUS",
+     "vNom": 5,
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [],
+     "power": 0
+    }
+   ],
+   "checks": [],
+   "calculations": [],
+   "notes": [],
+   "connections": {
+    "nets": [
+     {
+      "id": 72,
+      "projectId": 9,
+      "name": "3V3",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 85,
+      "projectId": 9,
+      "name": "BOOT0",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 78,
+      "projectId": 9,
+      "name": "CC1",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 79,
+      "projectId": 9,
+      "name": "CC2",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 70,
+      "projectId": 9,
+      "name": "GND",
+      "kind": "ground",
+      "source": "user"
+     },
+     {
+      "id": 84,
+      "projectId": 9,
+      "name": "LED",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 89,
+      "projectId": 9,
+      "name": "LED_A",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 81,
+      "projectId": 9,
+      "name": "LX1",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 82,
+      "projectId": 9,
+      "name": "LX2",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 83,
+      "projectId": 9,
+      "name": "NRST",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 87,
+      "projectId": 9,
+      "name": "OSC32_IN",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 88,
+      "projectId": 9,
+      "name": "OSC32_OUT",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 80,
+      "projectId": 9,
+      "name": "POK",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 76,
+      "projectId": 9,
+      "name": "SWCLK",
+      "kind": "signal",
+      "bus": "SWD",
+      "source": "user"
+     },
+     {
+      "id": 75,
+      "projectId": 9,
+      "name": "SWDIO",
+      "kind": "signal",
+      "bus": "SWD",
+      "source": "user"
+     },
+     {
+      "id": 77,
+      "projectId": 9,
+      "name": "SWO",
+      "kind": "signal",
+      "bus": "SWD",
+      "source": "user"
+     },
+     {
+      "id": 74,
+      "projectId": 9,
+      "name": "USB_DM",
+      "kind": "signal",
+      "bus": "USB",
+      "source": "user"
+     },
+     {
+      "id": 73,
+      "projectId": 9,
+      "name": "USB_DP",
+      "kind": "signal",
+      "bus": "USB",
+      "source": "user"
+     },
+     {
+      "id": 71,
+      "projectId": 9,
+      "name": "VBUS",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 86,
+      "projectId": 9,
+      "name": "VCAP",
+      "kind": "signal",
+      "source": "user"
+     }
+    ],
+    "blocks": [
+     {
+      "id": 98,
+      "projectId": 9,
+      "name": "C1",
+      "kind": "capacitor",
+      "value": "10µF",
+      "source": "user"
+     },
+     {
+      "id": 113,
+      "projectId": 9,
+      "name": "C10",
+      "kind": "capacitor",
+      "value": "4.7µF",
+      "source": "user"
+     },
+     {
+      "id": 114,
+      "projectId": 9,
+      "name": "C11",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 115,
+      "projectId": 9,
+      "name": "C12",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 119,
+      "projectId": 9,
+      "name": "C13",
+      "kind": "capacitor",
+      "value": "6.8pF",
+      "source": "user"
+     },
+     {
+      "id": 120,
+      "projectId": 9,
+      "name": "C14",
+      "kind": "capacitor",
+      "value": "6.8pF",
+      "source": "user"
+     },
+     {
+      "id": 99,
+      "projectId": 9,
+      "name": "C2",
+      "kind": "capacitor",
+      "value": "10µF",
+      "source": "user"
+     },
+     {
+      "id": 100,
+      "projectId": 9,
+      "name": "C3",
+      "kind": "capacitor",
+      "value": "22µF",
+      "source": "user"
+     },
+     {
+      "id": 107,
+      "projectId": 9,
+      "name": "C4",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 108,
+      "projectId": 9,
+      "name": "C5",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 109,
+      "projectId": 9,
+      "name": "C6",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 110,
+      "projectId": 9,
+      "name": "C7",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 111,
+      "projectId": 9,
+      "name": "C8",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 112,
+      "projectId": 9,
+      "name": "C9",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 104,
+      "projectId": 9,
+      "name": "D1 LED",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 92,
+      "projectId": 9,
+      "name": "J1 TYPE-C",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 102,
+      "projectId": 9,
+      "name": "J2 SWD",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 97,
+      "projectId": 9,
+      "name": "L1",
+      "kind": "inductor",
+      "value": "1µH",
+      "source": "user"
+     },
+     {
+      "id": 94,
+      "projectId": 9,
+      "name": "R1",
+      "kind": "resistor",
+      "value": "5.1k",
+      "source": "user"
+     },
+     {
+      "id": 95,
+      "projectId": 9,
+      "name": "R2",
+      "kind": "resistor",
+      "value": "5.1k",
+      "source": "user"
+     },
+     {
+      "id": 116,
+      "projectId": 9,
+      "name": "R3",
+      "kind": "resistor",
+      "value": "10k",
+      "source": "user"
+     },
+     {
+      "id": 101,
+      "projectId": 9,
+      "name": "R4",
+      "kind": "resistor",
+      "value": "100k",
+      "source": "user"
+     },
+     {
+      "id": 117,
+      "projectId": 9,
+      "name": "R5",
+      "kind": "resistor",
+      "value": "1k",
+      "source": "user"
+     },
+     {
+      "id": 105,
+      "projectId": 9,
+      "name": "SW1 Reset",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 106,
+      "projectId": 9,
+      "name": "SW2 Boot",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 96,
+      "projectId": 9,
+      "name": "U1 MAX77827",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 103,
+      "projectId": 9,
+      "name": "U2 STM32U545",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 93,
+      "projectId": 9,
+      "name": "U3 USBLC6",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 118,
+      "projectId": 9,
+      "name": "Y1 FC-135",
+      "kind": "ic",
+      "source": "user"
+     }
+    ],
+    "connections": [
+     {
+      "id": 237,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 96,
+      "pin": "OUT",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 238,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 96,
+      "pin": "OUTS",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 249,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 100,
+      "source": "user",
+      "endpoint": "C3"
+     },
+     {
+      "id": 250,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 101,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R4"
+     },
+     {
+      "id": 252,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 102,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 269,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 103,
+      "pin": "VBAT",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 271,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 103,
+      "pin": "VDD",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 270,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 103,
+      "pin": "VDDA",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 282,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 106,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "SW2 Boot"
+     },
+     {
+      "id": 287,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 107,
+      "source": "user",
+      "endpoint": "C4"
+     },
+     {
+      "id": 288,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 108,
+      "source": "user",
+      "endpoint": "C5"
+     },
+     {
+      "id": 289,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 109,
+      "source": "user",
+      "endpoint": "C6"
+     },
+     {
+      "id": 290,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 110,
+      "source": "user",
+      "endpoint": "C7"
+     },
+     {
+      "id": 291,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 111,
+      "source": "user",
+      "endpoint": "C8"
+     },
+     {
+      "id": 292,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 114,
+      "source": "user",
+      "endpoint": "C11"
+     },
+     {
+      "id": 293,
+      "netId": 72,
+      "net": "3V3",
+      "blockId": 115,
+      "source": "user",
+      "endpoint": "C12"
+     },
+     {
+      "id": 268,
+      "netId": 85,
+      "net": "BOOT0",
+      "blockId": 103,
+      "pin": "PH3-BOOT0",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 281,
+      "netId": 85,
+      "net": "BOOT0",
+      "blockId": 106,
+      "pin": "B",
+      "source": "user",
+      "endpoint": "SW2 Boot"
+     },
+     {
+      "id": 283,
+      "netId": 85,
+      "net": "BOOT0",
+      "blockId": 116,
+      "source": "user",
+      "endpoint": "R3"
+     },
+     {
+      "id": 223,
+      "netId": 78,
+      "net": "CC1",
+      "blockId": 92,
+      "pin": "CC1",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 231,
+      "netId": 78,
+      "net": "CC1",
+      "blockId": 94,
+      "source": "user",
+      "endpoint": "R1"
+     },
+     {
+      "id": 224,
+      "netId": 79,
+      "net": "CC2",
+      "blockId": 92,
+      "pin": "CC2",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 232,
+      "netId": 79,
+      "net": "CC2",
+      "blockId": 95,
+      "source": "user",
+      "endpoint": "R2"
+     },
+     {
+      "id": 225,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 92,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 226,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 92,
+      "pin": "SHIELD",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 230,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 93,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U3 USBLC6"
+     },
+     {
+      "id": 242,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 96,
+      "pin": "AGND",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 244,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 96,
+      "pin": "FPWM",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 243,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 96,
+      "pin": "PGND",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 241,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 96,
+      "pin": "SEL",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 257,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 102,
+      "pin": "3",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 258,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 102,
+      "pin": "5",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 259,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 102,
+      "pin": "9",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 276,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 103,
+      "pin": "VSS",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 275,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 103,
+      "pin": "VSSA",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 278,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 104,
+      "pin": "K",
+      "source": "user",
+      "endpoint": "D1 LED"
+     },
+     {
+      "id": 285,
+      "netId": 70,
+      "net": "GND",
+      "blockId": 105,
+      "pin": "B",
+      "source": "user",
+      "endpoint": "SW1 Reset"
+     },
+     {
+      "id": 261,
+      "netId": 84,
+      "net": "LED",
+      "blockId": 103,
+      "pin": "PA5",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 279,
+      "netId": 84,
+      "net": "LED",
+      "blockId": 117,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 277,
+      "netId": 89,
+      "net": "LED_A",
+      "blockId": 104,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "D1 LED"
+     },
+     {
+      "id": 280,
+      "netId": 89,
+      "net": "LED_A",
+      "blockId": 117,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 239,
+      "netId": 81,
+      "net": "LX1",
+      "blockId": 96,
+      "pin": "LX1",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 245,
+      "netId": 81,
+      "net": "LX1",
+      "blockId": 97,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "L1"
+     },
+     {
+      "id": 240,
+      "netId": 82,
+      "net": "LX2",
+      "blockId": 96,
+      "pin": "LX2",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 246,
+      "netId": 82,
+      "net": "LX2",
+      "blockId": 97,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "L1"
+     },
+     {
+      "id": 256,
+      "netId": 83,
+      "net": "NRST",
+      "blockId": 102,
+      "pin": "10",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 267,
+      "netId": 83,
+      "net": "NRST",
+      "blockId": 103,
+      "pin": "NRST",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 284,
+      "netId": 83,
+      "net": "NRST",
+      "blockId": 105,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "SW1 Reset"
+     },
+     {
+      "id": 286,
+      "netId": 83,
+      "net": "NRST",
+      "blockId": 112,
+      "source": "user",
+      "endpoint": "C9"
+     },
+     {
+      "id": 273,
+      "netId": 87,
+      "net": "OSC32_IN",
+      "blockId": 103,
+      "pin": "PC14-OSC32_IN",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 295,
+      "netId": 87,
+      "net": "OSC32_IN",
+      "blockId": 118,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "Y1 FC-135"
+     },
+     {
+      "id": 297,
+      "netId": 87,
+      "net": "OSC32_IN",
+      "blockId": 119,
+      "source": "user",
+      "endpoint": "C13"
+     },
+     {
+      "id": 274,
+      "netId": 88,
+      "net": "OSC32_OUT",
+      "blockId": 103,
+      "pin": "PC15-OSC32_OUT",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 296,
+      "netId": 88,
+      "net": "OSC32_OUT",
+      "blockId": 118,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "Y1 FC-135"
+     },
+     {
+      "id": 298,
+      "netId": 88,
+      "net": "OSC32_OUT",
+      "blockId": 120,
+      "source": "user",
+      "endpoint": "C14"
+     },
+     {
+      "id": 236,
+      "netId": 80,
+      "net": "POK",
+      "blockId": 96,
+      "pin": "POK",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 251,
+      "netId": 80,
+      "net": "POK",
+      "blockId": 101,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R4"
+     },
+     {
+      "id": 260,
+      "netId": 80,
+      "net": "POK",
+      "blockId": 103,
+      "pin": "PA0",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 254,
+      "netId": 76,
+      "net": "SWCLK",
+      "blockId": 102,
+      "pin": "4",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 265,
+      "netId": 76,
+      "net": "SWCLK",
+      "blockId": 103,
+      "pin": "PA14",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 253,
+      "netId": 75,
+      "net": "SWDIO",
+      "blockId": 102,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 264,
+      "netId": 75,
+      "net": "SWDIO",
+      "blockId": 103,
+      "pin": "PA13",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 255,
+      "netId": 77,
+      "net": "SWO",
+      "blockId": 102,
+      "pin": "6",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "id": 266,
+      "netId": 77,
+      "net": "SWO",
+      "blockId": 103,
+      "pin": "PB3",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 221,
+      "netId": 74,
+      "net": "USB_DM",
+      "blockId": 92,
+      "pin": "DN1",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 222,
+      "netId": 74,
+      "net": "USB_DM",
+      "blockId": 92,
+      "pin": "DN2",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 229,
+      "netId": 74,
+      "net": "USB_DM",
+      "blockId": 93,
+      "pin": "I/O2",
+      "source": "user",
+      "endpoint": "U3 USBLC6"
+     },
+     {
+      "id": 262,
+      "netId": 74,
+      "net": "USB_DM",
+      "blockId": 103,
+      "pin": "PA11",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 219,
+      "netId": 73,
+      "net": "USB_DP",
+      "blockId": 92,
+      "pin": "DP1",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 220,
+      "netId": 73,
+      "net": "USB_DP",
+      "blockId": 92,
+      "pin": "DP2",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 228,
+      "netId": 73,
+      "net": "USB_DP",
+      "blockId": 93,
+      "pin": "I/O1",
+      "source": "user",
+      "endpoint": "U3 USBLC6"
+     },
+     {
+      "id": 263,
+      "netId": 73,
+      "net": "USB_DP",
+      "blockId": 103,
+      "pin": "PA12",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 218,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 92,
+      "pin": "VBUS",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "id": 227,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 93,
+      "pin": "VBUS",
+      "source": "user",
+      "endpoint": "U3 USBLC6"
+     },
+     {
+      "id": 235,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 96,
+      "pin": "BIAS",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 234,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 96,
+      "pin": "EN",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 233,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 96,
+      "pin": "IN",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "id": 247,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 98,
+      "source": "user",
+      "endpoint": "C1"
+     },
+     {
+      "id": 248,
+      "netId": 71,
+      "net": "VBUS",
+      "blockId": 99,
+      "source": "user",
+      "endpoint": "C2"
+     },
+     {
+      "id": 272,
+      "netId": 86,
+      "net": "VCAP",
+      "blockId": 103,
+      "pin": "VCAP",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "id": 294,
+      "netId": 86,
+      "net": "VCAP",
+      "blockId": 113,
+      "source": "user",
+      "endpoint": "C10"
+     }
+    ],
+    "groups": [
+     {
+      "id": 10,
+      "projectId": 9,
+      "name": "Clock",
+      "description": "32.768 kHz LSE",
+      "notes": "Guard ring to GND; keep traces \u003c5 mm",
+      "source": "user"
+     },
+     {
+      "id": 8,
+      "projectId": 9,
+      "name": "Debug",
+      "description": "SWD on MIPI-10 (ST-LINK)",
+      "source": "user"
+     },
+     {
+      "id": 9,
+      "projectId": 9,
+      "name": "MCU",
+      "description": "STM32U545CET6 with decoupling, reset, BOOT0, user LED",
+      "notes": "One 100 nF per VDD pin; VCAP 4.7 µF close to pin 22",
+      "source": "user"
+     },
+     {
+      "id": 7,
+      "projectId": 9,
+      "name": "Power",
+      "description": "MAX77827 5 V → 3.3 V buck-boost",
+      "notes": "C1/C3 tight to IN/OUT; short LX loop",
+      "source": "user"
+     },
+     {
+      "id": 6,
+      "projectId": 9,
+      "name": "USB Input",
+      "description": "USB-C 5 V sink with ESD",
+      "notes": "Separate 5.1k per CC pin; USBLC6 close to J1",
+      "source": "user"
+     }
+    ],
+    "assignments": [
+     {
+      "node": "block:100",
+      "supports": "block:96",
+      "source": "user",
+      "endpoint": "C3",
+      "supportsEndpoint": "U1 MAX77827"
+     },
+     {
+      "node": "block:101",
+      "supports": "block:96",
+      "source": "user",
+      "endpoint": "R4",
+      "supportsEndpoint": "U1 MAX77827"
+     },
+     {
+      "node": "block:102",
+      "group": "Debug",
+      "source": "user",
+      "endpoint": "J2 SWD"
+     },
+     {
+      "node": "block:103",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:104",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "D1 LED"
+     },
+     {
+      "node": "block:105",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "SW1 Reset"
+     },
+     {
+      "node": "block:106",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "SW2 Boot"
+     },
+     {
+      "node": "block:107",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C4",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:108",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C5",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:109",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C6",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:110",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C7",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:111",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C8",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:112",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C9",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:113",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C10",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:114",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C11",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:115",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "C12",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:116",
+      "supports": "block:103",
+      "source": "user",
+      "endpoint": "R3",
+      "supportsEndpoint": "U2 STM32U545"
+     },
+     {
+      "node": "block:117",
+      "supports": "block:104",
+      "source": "user",
+      "endpoint": "R5",
+      "supportsEndpoint": "D1 LED"
+     },
+     {
+      "node": "block:118",
+      "group": "Clock",
+      "source": "user",
+      "endpoint": "Y1 FC-135"
+     },
+     {
+      "node": "block:119",
+      "supports": "block:118",
+      "source": "user",
+      "endpoint": "C13",
+      "supportsEndpoint": "Y1 FC-135"
+     },
+     {
+      "node": "block:120",
+      "supports": "block:118",
+      "source": "user",
+      "endpoint": "C14",
+      "supportsEndpoint": "Y1 FC-135"
+     },
+     {
+      "node": "block:92",
+      "group": "USB Input",
+      "source": "user",
+      "endpoint": "J1 TYPE-C"
+     },
+     {
+      "node": "block:93",
+      "group": "USB Input",
+      "source": "user",
+      "endpoint": "U3 USBLC6"
+     },
+     {
+      "node": "block:94",
+      "supports": "block:92",
+      "source": "user",
+      "endpoint": "R1",
+      "supportsEndpoint": "J1 TYPE-C"
+     },
+     {
+      "node": "block:95",
+      "supports": "block:92",
+      "source": "user",
+      "endpoint": "R2",
+      "supportsEndpoint": "J1 TYPE-C"
+     },
+     {
+      "node": "block:96",
+      "group": "Power",
+      "source": "user",
+      "endpoint": "U1 MAX77827"
+     },
+     {
+      "node": "block:98",
+      "supports": "block:96",
+      "source": "user",
+      "endpoint": "C1",
+      "supportsEndpoint": "U1 MAX77827"
+     },
+     {
+      "node": "block:99",
+      "supports": "block:96",
+      "source": "user",
+      "endpoint": "C2",
+      "supportsEndpoint": "U1 MAX77827"
+     }
+    ],
+    "diagram": {
+     "parts": [
+      {
+       "id": "block:104",
+       "title": "D1 LED",
+       "kind": "ic",
+       "column": 5,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "A",
+         "net": "LED_A",
+         "side": "left"
+        },
+        {
+         "name": "K",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:92",
+       "title": "J1 TYPE-C",
+       "kind": "connector",
+       "column": 0,
+       "group": "USB Input",
+       "pins": [
+        {
+         "name": "VBUS",
+         "net": "VBUS",
+         "side": "right"
+        },
+        {
+         "name": "DP1",
+         "net": "USB_DP",
+         "side": "right"
+        },
+        {
+         "name": "DP2",
+         "net": "USB_DP",
+         "side": "inside",
+         "tied": "DP1"
+        },
+        {
+         "name": "DN1",
+         "net": "USB_DM",
+         "side": "right"
+        },
+        {
+         "name": "DN2",
+         "net": "USB_DM",
+         "side": "inside",
+         "tied": "DN1"
+        },
+        {
+         "name": "CC1",
+         "net": "CC1",
+         "side": "right"
+        },
+        {
+         "name": "CC2",
+         "net": "CC2",
+         "side": "right"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "SHIELD",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:102",
+       "title": "J2 SWD",
+       "kind": "connector",
+       "column": 2,
+       "group": "Debug",
+       "pins": [
+        {
+         "name": "10",
+         "net": "NRST",
+         "side": "right"
+        },
+        {
+         "name": "1",
+         "net": "3V3",
+         "side": "right"
+        },
+        {
+         "name": "2",
+         "net": "SWDIO",
+         "side": "right"
+        },
+        {
+         "name": "4",
+         "net": "SWCLK",
+         "side": "right"
+        },
+        {
+         "name": "6",
+         "net": "SWO",
+         "side": "right"
+        },
+        {
+         "name": "3",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "5",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "9",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:105",
+       "title": "SW1 Reset",
+       "kind": "ic",
+       "column": 4,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "A",
+         "net": "NRST",
+         "side": "left"
+        },
+        {
+         "name": "B",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:106",
+       "title": "SW2 Boot",
+       "kind": "ic",
+       "column": 4,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "B",
+         "net": "BOOT0",
+         "side": "left"
+        },
+        {
+         "name": "A",
+         "net": "3V3",
+         "side": "left"
+        }
+       ]
+      },
+      {
+       "id": "block:96",
+       "title": "U1 MAX77827",
+       "kind": "ic",
+       "column": 1,
+       "group": "Power",
+       "pins": [
+        {
+         "name": "IN",
+         "net": "VBUS",
+         "side": "left"
+        },
+        {
+         "name": "EN",
+         "net": "VBUS",
+         "side": "inside",
+         "tied": "IN"
+        },
+        {
+         "name": "BIAS",
+         "net": "VBUS",
+         "side": "inside",
+         "tied": "IN"
+        },
+        {
+         "name": "POK",
+         "net": "POK",
+         "side": "left"
+        },
+        {
+         "name": "OUT",
+         "net": "3V3",
+         "side": "right"
+        },
+        {
+         "name": "OUTS",
+         "net": "3V3",
+         "side": "inside",
+         "tied": "OUT"
+        },
+        {
+         "name": "LX1",
+         "net": "LX1",
+         "side": "right",
+         "bridged": true
+        },
+        {
+         "name": "LX2",
+         "net": "LX2",
+         "side": "right",
+         "bridged": true
+        },
+        {
+         "name": "SEL",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "AGND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "PGND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "FPWM",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:103",
+       "title": "U2 STM32U545",
+       "kind": "ic",
+       "column": 3,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "NRST",
+         "net": "NRST",
+         "side": "right"
+        },
+        {
+         "name": "PH3-BOOT0",
+         "net": "BOOT0",
+         "side": "right"
+        },
+        {
+         "name": "PA0",
+         "net": "POK",
+         "side": "left"
+        },
+        {
+         "name": "PA5",
+         "net": "LED",
+         "side": "left"
+        },
+        {
+         "name": "PA11",
+         "net": "USB_DM",
+         "side": "left"
+        },
+        {
+         "name": "PA12",
+         "net": "USB_DP",
+         "side": "left"
+        },
+        {
+         "name": "PA13",
+         "net": "SWDIO",
+         "side": "left"
+        },
+        {
+         "name": "PA14",
+         "net": "SWCLK",
+         "side": "left"
+        },
+        {
+         "name": "PB3",
+         "net": "SWO",
+         "side": "left"
+        },
+        {
+         "name": "VBAT",
+         "net": "3V3",
+         "side": "right"
+        },
+        {
+         "name": "VDDA",
+         "net": "3V3",
+         "side": "inside",
+         "tied": "VBAT"
+        },
+        {
+         "name": "VDD",
+         "net": "3V3",
+         "side": "inside",
+         "tied": "VBAT"
+        },
+        {
+         "name": "VCAP",
+         "net": "VCAP",
+         "side": "bottom"
+        },
+        {
+         "name": "PC14-OSC32_IN",
+         "net": "OSC32_IN",
+         "side": "left"
+        },
+        {
+         "name": "PC15-OSC32_OUT",
+         "net": "OSC32_OUT",
+         "side": "left"
+        },
+        {
+         "name": "VSSA",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        },
+        {
+         "name": "VSS",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:93",
+       "title": "U3 USBLC6",
+       "kind": "ic",
+       "column": 1,
+       "group": "USB Input",
+       "pins": [
+        {
+         "name": "VBUS",
+         "net": "VBUS",
+         "side": "left"
+        },
+        {
+         "name": "I/O1",
+         "net": "USB_DP",
+         "side": "left"
+        },
+        {
+         "name": "I/O2",
+         "net": "USB_DM",
+         "side": "left"
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:118",
+       "title": "Y1 FC-135",
+       "kind": "ic",
+       "column": 4,
+       "group": "Clock",
+       "pins": [
+        {
+         "name": "1",
+         "net": "OSC32_IN",
+         "side": "left"
+        },
+        {
+         "name": "2",
+         "net": "OSC32_OUT",
+         "side": "left"
+        }
+       ]
+      }
+     ],
+     "passives": [
+      {
+       "id": "block:98,block:99",
+       "label": "C1,C2",
+       "value": "10µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:96",
+       "nets": [
+        "VBUS"
+       ],
+       "supports": "block:96",
+       "group": "Power"
+      },
+      {
+       "id": "block:113",
+       "label": "C10",
+       "value": "4.7µF",
+       "kind": "capacitor",
+       "mount": "below",
+       "part": "block:103",
+       "nets": [
+        "VCAP"
+       ],
+       "supports": "block:103",
+       "group": "MCU"
+      },
+      {
+       "id": "block:114,block:115,block:107,block:108,block:109,block:110,block:111",
+       "label": "C11,C12,C4,C5,C6,C7,C8",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "wire",
+       "part": "block:103",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:103",
+       "group": "MCU"
+      },
+      {
+       "id": "block:119",
+       "label": "C13",
+       "value": "6.8pF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:118",
+       "nets": [
+        "OSC32_IN"
+       ],
+       "supports": "block:118",
+       "group": "Clock"
+      },
+      {
+       "id": "block:120",
+       "label": "C14",
+       "value": "6.8pF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:118",
+       "nets": [
+        "OSC32_OUT"
+       ],
+       "supports": "block:118",
+       "group": "Clock"
+      },
+      {
+       "id": "block:100",
+       "label": "C3",
+       "value": "22µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:96",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:96",
+       "group": "Power"
+      },
+      {
+       "id": "block:112",
+       "label": "C9",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "wire",
+       "part": "block:103",
+       "nets": [
+        "NRST"
+       ],
+       "supports": "block:103",
+       "group": "MCU"
+      },
+      {
+       "id": "block:97",
+       "label": "L1",
+       "value": "1µH",
+       "kind": "inductor",
+       "mount": "bridge",
+       "part": "block:96",
+       "nets": [
+        "LX1",
+        "LX2"
+       ],
+       "supports": "block:96",
+       "guessed": true,
+       "group": "Power"
+      },
+      {
+       "id": "block:94",
+       "label": "R1",
+       "value": "5.1k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:92",
+       "nets": [
+        "CC1"
+       ],
+       "supports": "block:92",
+       "group": "USB Input"
+      },
+      {
+       "id": "block:95",
+       "label": "R2",
+       "value": "5.1k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:92",
+       "nets": [
+        "CC2"
+       ],
+       "supports": "block:92",
+       "group": "USB Input"
+      },
+      {
+       "id": "block:116",
+       "label": "R3",
+       "value": "10k",
+       "kind": "resistor",
+       "mount": "wire",
+       "part": "block:103",
+       "nets": [
+        "BOOT0"
+       ],
+       "supports": "block:103",
+       "group": "MCU"
+      },
+      {
+       "id": "block:101",
+       "label": "R4",
+       "value": "100k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:96",
+       "nets": [
+        "3V3",
+        "POK"
+       ],
+       "supports": "block:96",
+       "group": "Power"
+      },
+      {
+       "id": "block:117",
+       "label": "R5",
+       "value": "1k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:104",
+       "nets": [
+        "LED_A",
+        "LED"
+       ],
+       "supports": "block:104",
+       "group": "MCU"
+      }
+     ],
+     "nets": [
+      {
+       "name": "LED_A",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:104"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "VBUS",
+       "kind": "power",
+       "group": "USB Input",
+       "parts": [
+        "block:92",
+        "block:93"
+       ],
+       "wire": "between",
+       "offboard": true
+      },
+      {
+       "name": "VBUS",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "block:96"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "USB_DP",
+       "kind": "signal",
+       "group": "USB Input",
+       "parts": [
+        "block:92",
+        "block:93"
+       ],
+       "wire": "between",
+       "offboard": true
+      },
+      {
+       "name": "USB_DP",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "USB_DM",
+       "kind": "signal",
+       "group": "USB Input",
+       "parts": [
+        "block:92",
+        "block:93"
+       ],
+       "wire": "between",
+       "offboard": true
+      },
+      {
+       "name": "USB_DM",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "CC1",
+       "kind": "signal",
+       "group": "USB Input",
+       "parts": [
+        "block:92"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "CC2",
+       "kind": "signal",
+       "group": "USB Input",
+       "parts": [
+        "block:92"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "Debug",
+       "parts": [
+        "block:102"
+       ],
+       "wire": "out",
+       "arrow": true,
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "MCU",
+       "parts": [
+        "block:103",
+        "block:106"
+       ],
+       "wire": "between",
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "block:96"
+       ],
+       "wire": "out",
+       "arrow": true,
+       "offboard": true
+      },
+      {
+       "name": "SWDIO",
+       "kind": "signal",
+       "group": "Debug",
+       "parts": [
+        "block:102"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SWDIO",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SWCLK",
+       "kind": "signal",
+       "group": "Debug",
+       "parts": [
+        "block:102"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SWCLK",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SWO",
+       "kind": "signal",
+       "group": "Debug",
+       "parts": [
+        "block:102"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "SWO",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "NRST",
+       "kind": "signal",
+       "group": "Debug",
+       "parts": [
+        "block:102"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "NRST",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103",
+        "block:105"
+       ],
+       "wire": "between",
+       "offboard": true
+      },
+      {
+       "name": "BOOT0",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103",
+        "block:106"
+       ],
+       "wire": "between"
+      },
+      {
+       "name": "POK",
+       "kind": "signal",
+       "group": "Power",
+       "parts": [
+        "block:96"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "POK",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "LX1",
+       "kind": "signal",
+       "group": "Power",
+       "parts": [
+        "block:96"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "LX2",
+       "kind": "signal",
+       "group": "Power",
+       "parts": [
+        "block:96"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "LED",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "VCAP",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "OSC32_IN",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "OSC32_IN",
+       "kind": "signal",
+       "group": "Clock",
+       "parts": [
+        "block:118"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "OSC32_OUT",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:103"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "OSC32_OUT",
+       "kind": "signal",
+       "group": "Clock",
+       "parts": [
+        "block:118"
+       ],
+       "wire": "out",
+       "offboard": true
+      }
+     ],
+     "groups": [
+      {
+       "name": "USB Input",
+       "description": "USB-C 5 V sink with ESD",
+       "notes": "Separate 5.1k per CC pin; USBLC6 close to J1",
+       "parts": [
+        "block:92",
+        "block:93"
+       ]
+      },
+      {
+       "name": "Power",
+       "description": "MAX77827 5 V → 3.3 V buck-boost",
+       "notes": "C1/C3 tight to IN/OUT; short LX loop",
+       "parts": [
+        "block:96"
+       ]
+      },
+      {
+       "name": "Debug",
+       "description": "SWD on MIPI-10 (ST-LINK)",
+       "parts": [
+        "block:102"
+       ]
+      },
+      {
+       "name": "MCU",
+       "description": "STM32U545CET6 with decoupling, reset, BOOT0, user LED",
+       "notes": "One 100 nF per VDD pin; VCAP 4.7 µF close to pin 22",
+       "parts": [
+        "block:104",
+        "block:105",
+        "block:106",
+        "block:103"
+       ]
+      },
+      {
+       "name": "Clock",
+       "description": "32.768 kHz LSE",
+       "notes": "Guard ring to GND; keep traces \u003c5 mm",
+       "parts": [
+        "block:118"
+       ]
+      }
+     ],
+     "links": [
+      {
+       "from": "block:92",
+       "to": "block:93",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      },
+      {
+       "from": "block:92",
+       "to": "block:96",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      },
+      {
+       "from": "block:92",
+       "to": "block:93",
+       "label": "USB",
+       "kind": "signal",
+       "nets": [
+        "USB_DP",
+        "USB_DM"
+       ]
+      },
+      {
+       "from": "block:92",
+       "to": "block:103",
+       "label": "USB",
+       "kind": "signal",
+       "nets": [
+        "USB_DP",
+        "USB_DM"
+       ]
+      },
+      {
+       "from": "block:93",
+       "to": "block:103",
+       "label": "USB",
+       "kind": "signal",
+       "nets": [
+        "USB_DP",
+        "USB_DM"
+       ]
+      },
+      {
+       "from": "block:96",
+       "to": "block:103",
+       "label": "POK",
+       "kind": "signal",
+       "nets": [
+        "POK"
+       ]
+      },
+      {
+       "from": "block:96",
+       "to": "block:102",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "block:96",
+       "to": "block:103",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "block:96",
+       "to": "block:106",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      },
+      {
+       "from": "block:102",
+       "to": "block:103",
+       "label": "SWD, NRST",
+       "kind": "signal",
+       "nets": [
+        "SWDIO",
+        "SWCLK",
+        "SWO",
+        "NRST"
+       ]
+      },
+      {
+       "from": "block:102",
+       "to": "block:105",
+       "label": "NRST",
+       "kind": "signal",
+       "nets": [
+        "NRST"
+       ]
+      },
+      {
+       "from": "block:103",
+       "to": "block:105",
+       "label": "NRST",
+       "kind": "signal",
+       "nets": [
+        "NRST"
+       ]
+      },
+      {
+       "from": "block:103",
+       "to": "block:106",
+       "label": "BOOT0",
+       "kind": "signal",
+       "nets": [
+        "BOOT0"
+       ]
+      },
+      {
+       "from": "block:103",
+       "to": "block:118",
+       "label": "OSC32_IN, OSC32_OUT",
+       "kind": "signal",
+       "nets": [
+        "OSC32_IN",
+        "OSC32_OUT"
+       ]
+      }
+     ]
+    },
+    "pinouts": [
+     {
+      "node": "block:104",
+      "title": "D1 LED",
+      "pins": [
+       {
+        "name": "K",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "A",
+        "net": "LED_A",
+        "netKind": "signal",
+        "to": [
+         "R5.2"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:92",
+      "title": "J1 TYPE-C",
+      "pins": [
+       {
+        "name": "CC1",
+        "net": "CC1",
+        "netKind": "signal",
+        "to": [
+         "R1 5.1k"
+        ]
+       },
+       {
+        "name": "CC2",
+        "net": "CC2",
+        "netKind": "signal",
+        "to": [
+         "R2 5.1k"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "SHIELD",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "DN1",
+        "net": "USB_DM",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DN2",
+         "U3 USBLC6.I/O2",
+         "U2 STM32U545.PA11"
+        ]
+       },
+       {
+        "name": "DN2",
+        "net": "USB_DM",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DN1",
+         "U3 USBLC6.I/O2",
+         "U2 STM32U545.PA11"
+        ]
+       },
+       {
+        "name": "DP1",
+        "net": "USB_DP",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DP2",
+         "U3 USBLC6.I/O1",
+         "U2 STM32U545.PA12"
+        ]
+       },
+       {
+        "name": "DP2",
+        "net": "USB_DP",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DP1",
+         "U3 USBLC6.I/O1",
+         "U2 STM32U545.PA12"
+        ]
+       },
+       {
+        "name": "VBUS",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "U3 USBLC6.VBUS",
+         "U1 MAX77827.BIAS",
+         "U1 MAX77827.EN",
+         "U1 MAX77827.IN",
+         "C1 10µF",
+         "C2 10µF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:102",
+      "title": "J2 SWD",
+      "pins": [
+       {
+        "name": "1",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDD",
+         "U2 STM32U545.VDDA",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "3",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "5",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "9",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "10",
+        "net": "NRST",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.NRST",
+         "SW1 Reset.A",
+         "C9 100nF"
+        ]
+       },
+       {
+        "name": "4",
+        "net": "SWCLK",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PA14"
+        ]
+       },
+       {
+        "name": "2",
+        "net": "SWDIO",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PA13"
+        ]
+       },
+       {
+        "name": "6",
+        "net": "SWO",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PB3"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:105",
+      "title": "SW1 Reset",
+      "pins": [
+       {
+        "name": "B",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "A",
+        "net": "NRST",
+        "netKind": "signal",
+        "to": [
+         "J2 SWD.10",
+         "U2 STM32U545.NRST",
+         "C9 100nF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:106",
+      "title": "SW2 Boot",
+      "pins": [
+       {
+        "name": "A",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDD",
+         "U2 STM32U545.VDDA",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "B",
+        "net": "BOOT0",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PH3-BOOT0",
+         "R3 10k"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:96",
+      "title": "U1 MAX77827",
+      "pins": [
+       {
+        "name": "OUT",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDD",
+         "U2 STM32U545.VDDA",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "OUTS",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDD",
+         "U2 STM32U545.VDDA",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "AGND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "FPWM",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "PGND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "SEL",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "LX1",
+        "net": "LX1",
+        "netKind": "signal",
+        "to": [
+         "L1.1"
+        ]
+       },
+       {
+        "name": "LX2",
+        "net": "LX2",
+        "netKind": "signal",
+        "to": [
+         "L1.2"
+        ]
+       },
+       {
+        "name": "POK",
+        "net": "POK",
+        "netKind": "signal",
+        "to": [
+         "R4.2",
+         "U2 STM32U545.PA0"
+        ]
+       },
+       {
+        "name": "BIAS",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 TYPE-C.VBUS",
+         "U3 USBLC6.VBUS",
+         "U1 MAX77827.EN",
+         "U1 MAX77827.IN",
+         "C1 10µF",
+         "C2 10µF"
+        ]
+       },
+       {
+        "name": "EN",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 TYPE-C.VBUS",
+         "U3 USBLC6.VBUS",
+         "U1 MAX77827.BIAS",
+         "U1 MAX77827.IN",
+         "C1 10µF",
+         "C2 10µF"
+        ]
+       },
+       {
+        "name": "IN",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 TYPE-C.VBUS",
+         "U3 USBLC6.VBUS",
+         "U1 MAX77827.BIAS",
+         "U1 MAX77827.EN",
+         "C1 10µF",
+         "C2 10µF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:103",
+      "title": "U2 STM32U545",
+      "pins": [
+       {
+        "name": "VBAT",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VDD",
+         "U2 STM32U545.VDDA",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "VDD",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDDA",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "VDDA",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 MAX77827.OUT",
+         "U1 MAX77827.OUTS",
+         "C3 22µF",
+         "R4.1",
+         "J2 SWD.1",
+         "U2 STM32U545.VBAT",
+         "U2 STM32U545.VDD",
+         "SW2 Boot.A",
+         "C4 100nF",
+         "C5 100nF",
+         "C6 100nF",
+         "C7 100nF",
+         "C8 100nF",
+         "C11 100nF",
+         "C12 100nF"
+        ]
+       },
+       {
+        "name": "PH3-BOOT0",
+        "net": "BOOT0",
+        "netKind": "signal",
+        "to": [
+         "SW2 Boot.B",
+         "R3 10k"
+        ]
+       },
+       {
+        "name": "VSS",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "VSSA",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "PA5",
+        "net": "LED",
+        "netKind": "signal",
+        "to": [
+         "R5.1"
+        ]
+       },
+       {
+        "name": "NRST",
+        "net": "NRST",
+        "netKind": "signal",
+        "to": [
+         "J2 SWD.10",
+         "SW1 Reset.A",
+         "C9 100nF"
+        ]
+       },
+       {
+        "name": "PC14-OSC32_IN",
+        "net": "OSC32_IN",
+        "netKind": "signal",
+        "to": [
+         "Y1 FC-135.1",
+         "C13 6.8pF"
+        ]
+       },
+       {
+        "name": "PC15-OSC32_OUT",
+        "net": "OSC32_OUT",
+        "netKind": "signal",
+        "to": [
+         "Y1 FC-135.2",
+         "C14 6.8pF"
+        ]
+       },
+       {
+        "name": "PA0",
+        "net": "POK",
+        "netKind": "signal",
+        "to": [
+         "U1 MAX77827.POK",
+         "R4.2"
+        ]
+       },
+       {
+        "name": "PA14",
+        "net": "SWCLK",
+        "netKind": "signal",
+        "to": [
+         "J2 SWD.4"
+        ]
+       },
+       {
+        "name": "PA13",
+        "net": "SWDIO",
+        "netKind": "signal",
+        "to": [
+         "J2 SWD.2"
+        ]
+       },
+       {
+        "name": "PB3",
+        "net": "SWO",
+        "netKind": "signal",
+        "to": [
+         "J2 SWD.6"
+        ]
+       },
+       {
+        "name": "PA11",
+        "net": "USB_DM",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DN1",
+         "J1 TYPE-C.DN2",
+         "U3 USBLC6.I/O2"
+        ]
+       },
+       {
+        "name": "PA12",
+        "net": "USB_DP",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DP1",
+         "J1 TYPE-C.DP2",
+         "U3 USBLC6.I/O1"
+        ]
+       },
+       {
+        "name": "VCAP",
+        "net": "VCAP",
+        "netKind": "signal",
+        "to": [
+         "C10 4.7µF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:93",
+      "title": "U3 USBLC6",
+      "pins": [
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "I/O2",
+        "net": "USB_DM",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DN1",
+         "J1 TYPE-C.DN2",
+         "U2 STM32U545.PA11"
+        ]
+       },
+       {
+        "name": "I/O1",
+        "net": "USB_DP",
+        "netKind": "signal",
+        "to": [
+         "J1 TYPE-C.DP1",
+         "J1 TYPE-C.DP2",
+         "U2 STM32U545.PA12"
+        ]
+       },
+       {
+        "name": "VBUS",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 TYPE-C.VBUS",
+         "U1 MAX77827.BIAS",
+         "U1 MAX77827.EN",
+         "U1 MAX77827.IN",
+         "C1 10µF",
+         "C2 10µF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:118",
+      "title": "Y1 FC-135",
+      "pins": [
+       {
+        "name": "1",
+        "net": "OSC32_IN",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PC14-OSC32_IN",
+         "C13 6.8pF"
+        ]
+       },
+       {
+        "name": "2",
+        "net": "OSC32_OUT",
+        "netKind": "signal",
+        "to": [
+         "U2 STM32U545.PC15-OSC32_OUT",
+         "C14 6.8pF"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "inputPower": 0
+  }
  }
 ]

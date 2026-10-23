@@ -5,7 +5,7 @@ import { labelRect, layoutBlockDiagram, overlaps, separate, type BlockDrawing, t
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -210,8 +210,8 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     expect(along).toEqual([]);
   });
 
-  it('puts boxes left to right by column', () => {
-    for (const a of d.boxes) for (const b of d.boxes) if (a.part.column < b.part.column) expect(a.x).toBeLessThan(b.x);
+  it('puts boxes left to right by column, within a group', () => {
+    for (const a of d.boxes) for (const b of d.boxes) if (a.part.group === b.part.group && a.part.column < b.part.column) expect(a.x).toBeLessThan(b.x);
   });
 });
 

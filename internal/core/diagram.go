@@ -733,6 +733,7 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 			wired[key] = pinName(r)
 		}
 	}
+	drawn := map[string]bool{} // nets whose wired pin is placed
 	for _, r := range mine {
 		name := pinName(r)
 		key := strings.ToLower(r.Net)
@@ -745,9 +746,12 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 			if !slices.ContainsFunc(p.Pins, func(x DiagramPin) bool { return x.Ground && x.Name == name }) {
 				p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideBottom, Ground: true})
 			}
-		case wired[key] != name:
+		case wired[key] != name || drawn[key]:
+			// A second pin of the same name on the net (a connector's two
+			// VBUS pins) is tied to the first, like any other.
 			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideInside, Tied: wired[key]})
 		default:
+			drawn[key] = true
 			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: b.side(e, r)})
 		}
 	}
@@ -791,9 +795,13 @@ func pinName(r ConnectionRow) string {
 // it faces right), else by what it is.
 func (b *diagramBuilder) side(e *end, r ConnectionRow) string {
 	net := r.Net
-	var left, right bool
+	var left, right, offboard bool
 	for _, o := range b.mainsOn(net) {
-		if o == e.id || !strings.EqualFold(b.groupOf[o], b.groupOf[e.id]) {
+		if o == e.id {
+			continue
+		}
+		if !strings.EqualFold(b.groupOf[o], b.groupOf[e.id]) {
+			offboard = true
 			continue
 		}
 		left = left || b.columns[o] < b.columns[e.id]
@@ -808,6 +816,13 @@ func (b *diagramBuilder) side(e *end, r ConnectionRow) string {
 	case right:
 		return SideRight
 	case left:
+		return SideLeft
+	case offboard:
+		// Reached by its name in another group: a labelled stub on a
+		// side, never a bottom pin (a crystal's pins to the MCU).
+		if e.kind == "connector" || b.drives(e.id, net) {
+			return SideRight
+		}
 		return SideLeft
 	}
 	if e.entry != nil && strings.EqualFold(e.entry.SupplyRail, net) {
