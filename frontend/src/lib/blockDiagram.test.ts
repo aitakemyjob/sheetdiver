@@ -215,6 +215,18 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     }
   });
 
+  it("moves a net's hanging parts aside all together, or wires them all at the pin", () => {
+    const aside = (p: (typeof d.passives)[number]) => d.flags.some((f) => f.up && f.x === p.ends[0].x && f.y < p.ends[0].y);
+    // By the net at its top end (a pull-up hangs from its signal), within its group.
+    const hangsFrom = (p: (typeof d.passives)[number]) => d.wires.find((w) => points(w.path).some((pt) => pt.x === p.ends[0].x && pt.y === p.ends[0].y))?.net ?? '';
+    const byNet = new Map<string, boolean[]>();
+    for (const p of d.passives.filter((x) => x.passive.mount !== 'bridge' && !x.horizontal)) {
+      const key = `${p.passive.group ?? ''}|${hangsFrom(p)}`;
+      byNet.set(key, [...(byNet.get(key) ?? []), aside(p)]);
+    }
+    for (const [net, flags] of byNet) expect(new Set(flags).size, `${net}: ${flags.join(',')}`).toBe(1);
+  });
+
   it("writes no pin number over a wire", () => {
     const segs = segments(d);
     const hits: string[] = [];

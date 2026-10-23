@@ -669,12 +669,13 @@ function graph(d: Diagram, boxes: Box[]): Built {
     const serves = hung.map((e) => passiveOf(e)?.passive.supports).find(Boolean);
     const home = driver ?? boxPorts.find((e) => e.id.startsWith(`b:${serves}/`)) ?? boxPorts[0];
     // What stays wired at the pin: a crystal, its load capacitors and the
-    // other passives of the pin's own net. A switch, button, LED or
-    // battery, and every capacitor on a rail, stands aside under the
-    // net's name.
-    const standsAside = (e: PortEnd) => rail || ASIDE.has(passiveOf(e)?.passive.shape ?? '');
-    if (home) for (const e of hung.filter(standsAside)) aside(e, n.name, home);
-    const wiredPassives = hung.filter((e) => !standsAside(e));
+    // other passives of the pin's own net. A net with a switch, button,
+    // LED or battery on it, or a rail, stands aside whole, under the net's
+    // name: all of what hangs off it together, never half at the pin and
+    // half away from it.
+    const standsAside = rail || hung.some((e) => ASIDE.has(passiveOf(e)?.passive.shape ?? ''));
+    if (home && standsAside) for (const e of hung) aside(e, n.name, home);
+    const wiredPassives = standsAside ? [] : hung;
     // Which pins are labelled rather than wired: every pin of a rail; of
     // a signal reaching three parts, or two more than a column apart (a
     // long wire round everything between), every pin but the one its
