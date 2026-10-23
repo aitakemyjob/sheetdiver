@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../lib/store';
 import { fakeBackend, recorded, type FakeBackend } from '../test/backend';
 import type { Datasheet } from '../lib/types';
-import { ConnectAgent, connectSnippets } from './ConnectAgent';
+import { ConnectAgent, extensionNote, connectSnippets } from './ConnectAgent';
 import { ImportDialog } from './ImportDialog';
 import { ImportQueue } from './ImportQueue';
 import { ReportDialog } from './ReportDialog';
@@ -142,6 +142,8 @@ describe('ConnectAgent', () => {
     await waitFor(() => expect(b.callsTo('file.save')[0]).toEqual({ name: 'sheetdiver.mcpb', data: btoa('PK') }));
     await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Claude Desktop extension saved' }));
     expect(screen.getByText(/works wherever SheetDiver is installed/)).toBeInTheDocument();
+    expect(extensionNote('linux')).toMatch(/carries its own bridge.*mcp\.log/);
+    expect(extensionNote('darwin')).toMatch(/runs this copy/);
     // The hand-written config runs the installed console bridge, not a "sheetdiver" on PATH.
     expect(screen.getByText(/"command": "C:\\\\Program Files\\\\SheetDiver\\\\sheetdiver-mcp.exe",\s+"args": \[\]/)).toBeInTheDocument();
   });

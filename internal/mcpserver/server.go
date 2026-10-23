@@ -63,6 +63,16 @@ type Server struct {
 	srv  *mcp.Server
 }
 
+// protocolVersions are the MCP versions served: those with the
+// initialize handshake, up to 2025-11-25. Clients that probe for the
+// stateless 2026-07-28 protocol (server/discover) are told so and fall
+// back to initialize, on the same connection if they like: a server that
+// answered the probe in the new protocol would refuse that initialize
+// ("duplicate initialize"), which is how Claude Desktop probes in place.
+// The HTTP endpoint is limited to these anyway (its sessions are
+// stateful); serving 2026-07-28 is issue #68.
+var protocolVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+
 // New creates the MCP server with every tool registered and logs each
 // newly connected client to the activity feed.
 func New(c *core.Service) *Server {
@@ -72,7 +82,8 @@ func New(c *core.Service) *Server {
 		Title:   "SheetDiver",
 		Version: c.Version,
 	}, &mcp.ServerOptions{
-		Instructions: instructions,
+		Instructions:              instructions,
+		SupportedProtocolVersions: protocolVersions,
 		InitializedHandler: func(ctx context.Context, req *mcp.InitializedRequest) {
 			name := "agent"
 			if p := req.Session.InitializeParams(); p != nil && p.ClientInfo != nil && p.ClientInfo.Name != "" {

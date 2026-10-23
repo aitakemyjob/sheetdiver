@@ -28,6 +28,11 @@ contents:
     dst: /usr/bin/sheetdiver
     file_info:
       mode: 0755
+  # The stdio MCP server for Claude Desktop and other stdio clients.
+  - src: build/bin/sheetdiver-mcp
+    dst: /usr/bin/sheetdiver-mcp
+    file_info:
+      mode: 0755
   - src: packaging/sheetdiver.desktop
     dst: /usr/share/applications/sheetdiver.desktop
   - src: build/appicon.png

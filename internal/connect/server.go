@@ -30,34 +30,33 @@ type server interface {
 
 // server picks how the extension runs the bridge on its platform.
 func (e Extension) server() (server, error) {
-	if e.platform() == "windows" {
+	if carriesBridge(e.platform()) {
 		if len(e.Bridge) == 0 {
 			return nil, ErrNoBridge
 		}
-		return binaryServer{bridge: e.Bridge}, nil
+		return binaryServer{bridge: e.Bridge, entry: "server/" + BridgeName(e.platform())}, nil
 	}
 	return nodeServer{app: e.Command}, nil
 }
 
-// binaryServer runs the console bridge carried in the bundle. It's
-// Windows' server: the windowed app can't serve stdio there, and it
-// doesn't depend on where SheetDiver is installed. Like "sheetdiver mcp",
-// it relays to the running app or serves the library itself.
+// binaryServer runs the console bridge carried in the bundle, which
+// Claude Desktop starts itself: no Node, no GUI toolkit, and nothing that
+// depends on where SheetDiver is installed. Like "sheetdiver mcp", it
+// relays to the running app or serves the library itself.
 type binaryServer struct {
 	bridge []byte
+	// entry is the bridge's path in the bundle.
+	entry string
 }
-
-// bridgeEntry is the bridge's path in the bundle.
-const bridgeEntry = "server/" + BridgeName
 
 // section runs the bundled bridge with the user's port setting.
 func (s binaryServer) section(env map[string]string) map[string]any {
 	args := []string{"--port", "${user_config.port}"}
 	return map[string]any{
 		"type":        "binary",
-		"entry_point": bridgeEntry,
+		"entry_point": s.entry,
 		"mcp_config": map[string]any{
-			"command": "${__dirname}/" + bridgeEntry,
+			"command": "${__dirname}/" + s.entry,
 			"args":    args,
 			"env":     env,
 		},
@@ -84,11 +83,12 @@ func (binaryServer) runtimes() map[string]string { return nil }
 
 // files is the bridge, executable.
 func (s binaryServer) files() []bundleFile {
-	return []bundleFile{{name: bridgeEntry, data: s.bridge, mode: 0o755}}
+	return []bundleFile{{name: s.entry, data: s.bridge, mode: 0o755}}
 }
 
 // nodeServer runs "sheetdiver mcp" through a small Node launcher, with
-// the Node that Claude Desktop supplies. The bridge relays to the running
+// the Node that Claude Desktop supplies: macOS's server, where the
+// bundle can't carry an unsigned program. The bridge relays to the running
 // app, or serves the library itself while the app is closed.
 type nodeServer struct {
 	app string

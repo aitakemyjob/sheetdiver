@@ -157,6 +157,14 @@ say "building $APP $VERSION for $PLATFORM"
 # shellcheck disable=SC2086 # TAGS is intentionally word-split
 "$WAILS" build -clean -platform "$PLATFORM" $TAGS -trimpath -ldflags "$LDFLAGS"
 
+if [ "$OS" = linux ]; then
+  # The stdio MCP server as a static console program, beside the app: the
+  # Claude Desktop extension carries it, so Claude starts it directly
+  # (no Node launcher, no GTK libraries).
+  say "building the console MCP bridge for $PLATFORM"
+  CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags "$LDFLAGS" -o "build/bin/${BIN}-mcp" ./cmd/sheetdiver-mcp
+fi
+
 if [ "$PACKAGE" = 0 ]; then
   say "done: build/bin"
   exit 0
@@ -166,11 +174,14 @@ mkdir -p dist
 case "$OS" in
   linux)
     stage=$(mktemp -d)
-    cp "build/bin/$BIN" packaging/sheetdiver.desktop LICENSE THIRD_PARTY_NOTICES.md "$stage/"
+    cp "build/bin/$BIN" "build/bin/${BIN}-mcp" packaging/sheetdiver.desktop LICENSE THIRD_PARTY_NOTICES.md "$stage/"
     cp build/appicon.png "$stage/$BIN.png"
     tar -C "$stage" -czf "dist/${BIN}_linux_${ARCH}.tar.gz" .
     rm -rf "$stage"
     say "dist/${BIN}_linux_${ARCH}.tar.gz"
+    # The Claude Desktop extension around the same bridge, for any install.
+    go run ./scripts/mcpb -platform linux -bridge "build/bin/${BIN}-mcp" -version "$VERSION" -o "dist/${BIN}_linux_${ARCH}.mcpb" >/dev/null
+    say "dist/${BIN}_linux_${ARCH}.mcpb"
     if command -v nfpm >/dev/null 2>&1; then
       for fmt in deb rpm; do
         VERSION="$PKGVER" ARCH="$ARCH" nfpm package -f packaging/nfpm.yaml -p "$fmt" -t "dist/${BIN}_linux_${ARCH}.$fmt" >/dev/null

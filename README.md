@@ -129,11 +129,16 @@ Windows choose **More info → Run anyway** in SmartScreen.
    **Claude Desktop:** in the connect dialog (the **MCP** pill), choose
    *Claude Desktop › Save Claude Desktop extension*. Then in Claude Desktop
    open Settings › Extensions › Advanced settings › **Install Extension…**
-   and pick the saved `sheetdiver.mcpb`. On Windows, each release also has
-   the extension as `sheetdiver_windows_amd64.mcpb`, which works with any
-   install. Like `sheetdiver mcp`, the extension uses the open app (so
-   what the agent shows appears in its window) and serves your library
-   itself while the app is closed. The dialog also has the add commands
+   and pick the saved `sheetdiver.mcpb`. Each Windows and Linux release
+   also has the extension (`sheetdiver_<os>_<arch>.mcpb`), which works
+   with any install: it carries SheetDiver's small stdio server
+   (`sheetdiver-mcp`), which Claude Desktop starts directly. Like
+   `sheetdiver mcp`, it uses the open app (so what the agent shows appears
+   in its window) and serves your library itself while the app is closed.
+   If Claude can't connect, every session is logged to
+   `~/.cache/sheetdiver/mcp.log` (Windows: `%LOCALAPPDATA%\sheetdiver\mcp.log`;
+   macOS: `~/Library/Caches/sheetdiver/mcp.log`): how it was started, each
+   request and how it ended. The dialog also has the add commands
    and config files for Codex, Gemini CLI, Windsurf and others, with this
    copy's path filled in, and saves each file on request.
 
@@ -153,7 +158,7 @@ Windows choose **More info → Run anyway** in SmartScreen.
 sheetdiver                    launch the desktop app
 sheetdiver serve              headless; open the same UI in your browser
 sheetdiver mcp                stdio MCP bridge to the running app
-sheetdiver-mcp [-port N]      the same as a console program (Windows' stdio clients)
+sheetdiver-mcp [-port N]      the same as a small console program (Claude Desktop's extension on Windows and Linux)
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)

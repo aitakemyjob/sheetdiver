@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -64,6 +65,7 @@ func isolate(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("SHEETDIVER_CONFIG", filepath.Join(dir, "config.json"))
 	t.Setenv("SHEETDIVER_LIBRARY", filepath.Join(dir, "lib"))
+	t.Setenv("SHEETDIVER_MCP_LOG", filepath.Join(dir, "logs", "mcp.log"))
 }
 
 func TestServesTheLibraryWhileTheAppIsClosed(t *testing.T) {
@@ -114,5 +116,83 @@ func TestRelaysToTheRunningApp(t *testing.T) {
 	probed.Wait() // the probe went to the app
 	if !strings.Contains(out.String(), `"id":0,"error"`) || log.String() != "" {
 		t.Errorf("replied %q, logged %q", out.String(), log.String())
+	}
+}
+
+func TestLogsEachSession(t *testing.T) {
+	// The session log says how a session went whatever the client does
+	// with stderr: how it was started, each message, and how it ended.
+	isolate(t)
+	l, port := listen(t)
+	l.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var out, log syncBuffer
+	if err := Serve(ctx, Options{Port: port, Version: "v9", Local: probe(&out), Log: &log}); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(LogPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	for _, want := range []string{"start v9", "stdin ", "app port", "the app isn't running: serving the library", "→ server/discover (id 0)", "← error for id 0", "client closed its input", "ended"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("log lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "params") {
+		t.Errorf("the log has messages' contents:\n%s", got)
+	}
+}
+
+func TestLogRotates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp.log")
+	if err := os.WriteFile(path, bytes.Repeat([]byte("x"), maxLog+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := openLog(path)
+	w.Write([]byte("new\n")) //nolint:errcheck // checked below
+	w.Close()
+	if b, _ := os.ReadFile(path); string(b) != "new\n" {
+		t.Errorf("log = %q", b)
+	}
+	if st, err := os.Stat(path + ".1"); err != nil || st.Size() != maxLog+1 {
+		t.Errorf("rotated: %v", err)
+	}
+}
+
+// probeThenInitialize is how Claude Desktop probes in place: the stateless
+// protocol's server/discover, then the classic initialize and tools/list
+// on the same connection, then it closes its input.
+const probeThenInitialize = `{"jsonrpc":"2.0","id":0,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"claude-ai","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"claude-ai","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+`
+
+func TestInitializeAfterAProbeOnTheSameConnection(t *testing.T) {
+	// Answering the probe in the new protocol made the standalone server
+	// refuse the initialize that follows ("duplicate initialize"), so a
+	// client probing in place couldn't connect.
+	isolate(t)
+	l, port := listen(t)
+	l.Close() // the app is closed: the library is served directly
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var out, log syncBuffer
+	local := &mcp.IOTransport{Reader: io.NopCloser(strings.NewReader(probeThenInitialize)), Writer: nopWriteCloser{&out}}
+	if err := Serve(ctx, Options{Port: port, Version: "test", Local: local, Log: &log}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, `"id":1,"result"`) || strings.Contains(got, "duplicate") {
+		t.Errorf("initialize after the probe: %s", got)
+	}
+	if !strings.Contains(got, `"id":2,"result"`) || !strings.Contains(got, `"name":"search"`) {
+		t.Errorf("tools/list after it: %.300s", got)
+	}
+	if !strings.Contains(got, `"id":0,"error"`) && !strings.Contains(got, `"supportedVersions":["2025-11-25"`) {
+		t.Errorf("the probe should be told 2025-11-25 is the newest: %.300s", got)
 	}
 }

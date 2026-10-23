@@ -36,7 +36,28 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
-- **macOS/Linux: the Claude Desktop extension exited at once ("version
+- **Linux: the Claude Desktop extension couldn't connect.** It ran
+  SheetDiver through a Node launcher, which on some setups exited before
+  SheetDiver answered, leaving nothing in Claude Desktop's log. The Linux
+  extension now carries `sheetdiver-mcp`, a small static program that
+  Claude Desktop starts directly, as on Windows: no Node, no GTK, and it
+  works with any install. The `.deb`, `.rpm` and `.tar.gz` install it as
+  `/usr/bin/sheetdiver-mcp`, and each Linux release has the extension as
+  `sheetdiver_linux_<arch>.mcpb`. Save the extension again from the
+  connect dialog (or use the release's) and reinstall it.
+- **Claude Desktop's version probe broke the connection while the app was
+  closed.** Claude Desktop can probe a server for the newest MCP protocol
+  and then start the session on the same connection. SheetDiver answered
+  the probe in the new protocol and then refused the session
+  ("duplicate initialize"). Every path now speaks the protocol versions
+  with the `initialize` handshake, up to 2025-11-25, as the app's HTTP
+  endpoint already did.
+- **MCP sessions are logged.** Each stdio session (the Claude Desktop
+  extension, `sheetdiver mcp`) is recorded in `mcp.log` in your cache
+  folder (`~/.cache/sheetdiver/mcp.log` on Linux): how it was started,
+  each request's method and id (not their contents), and how it ended,
+  so a failed connection says why.
+- **macOS: the Claude Desktop extension exited at once ("version
   negotiation failed", "server transport closed unexpectedly").** Its
   launcher handed SheetDiver its own stdio, which the Node that Claude
   Desktop runs extensions with may not pass on, so SheetDiver found its

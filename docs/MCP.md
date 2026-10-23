@@ -2,14 +2,16 @@
 
 SheetDiver serves the [Model Context Protocol](https://modelcontextprotocol.io)
 at `http://127.0.0.1:47480/mcp` (streamable HTTP), and over stdio through
-`sheetdiver mcp` (on Windows, `sheetdiver-mcp.exe`, installed beside the
-app). Every call appears in the app's agent activity feed.
+`sheetdiver mcp` (or `sheetdiver-mcp`, installed beside the app on Windows
+and Linux, which Claude Desktop's extension carries; each stdio session is
+logged to `mcp.log` in the user's cache folder,
+`~/.cache/sheetdiver` on Linux). Every call appears in the app's agent activity feed.
 
-Protocol versions: the HTTP endpoint, and stdio while the app is open
-(relayed to it), speak MCP up to `2025-11-25` with the `initialize`
-handshake; clients that probe with `server/discover` are told so and fall
-back to it. Stdio while the app is closed also speaks the stateless
-`2026-07-28`. Serving `2026-07-28` over HTTP is planned
+Protocol versions: every path (HTTP, and stdio whether the app is open or
+closed) speaks MCP up to `2025-11-25` with the `initialize` handshake.
+Clients that probe for the stateless `2026-07-28` with `server/discover`
+are told so and fall back to `initialize`, on the same connection or a
+new one. Serving `2026-07-28` is planned
 ([#68](https://github.com/aitakemyjob/sheetdiver/issues/68)).
 
 Conventions:

@@ -64,8 +64,8 @@ export function connectSnippets(url: string, stdio: StdioCommand, platform: stri
 
 /** What the saved Claude Desktop extension depends on, on platform. */
 export function extensionNote(platform: string): string {
-  return platform === 'windows'
-    ? 'It carries its own bridge to SheetDiver, so it works wherever SheetDiver is installed.'
+  return platform === 'windows' || platform === 'linux'
+    ? 'It carries its own bridge to SheetDiver, so it works wherever SheetDiver is installed. If Claude can\'t connect, see the log in ~/.cache/sheetdiver/mcp.log (Windows: %LOCALAPPDATA%\\sheetdiver\\mcp.log).'
     : 'It runs this copy of SheetDiver, so save and install it again if you move the app.';
 }
 
