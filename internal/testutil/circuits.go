@@ -165,5 +165,48 @@ func Circuits() []Circuit {
 				{"R2", "Sensor", ""}, {"R3", "Sensor", ""},
 			},
 		},
+		{
+			// Shaped like a tester's STM32 board: a buck in a Power group
+			// feeding an MCU group with VBAT, reset and boot switches, a
+			// 32 kHz crystal, an SWD header, nine decoupling capacitors and
+			// an LED behind a series resistor.
+			Name:  "STM32 board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1 MAX77827", Kind: "ic"}, {Name: "L1", Kind: "inductor", Value: "1µH"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "22µF"}, {Name: "C3", Kind: "capacitor", Value: "22µF"},
+				{Name: "U2 STM32G0", Kind: "ic"}, {Name: "SW1 Reset", Kind: "ic"}, {Name: "SW2 Boot", Kind: "ic"}, {Name: "J2 SWD", Kind: "connector"}, {Name: "Y1 32k", Kind: "ic"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"}, {Name: "C6", Kind: "capacitor", Value: "100nF"},
+				{Name: "C7", Kind: "capacitor", Value: "100nF"}, {Name: "C8", Kind: "capacitor", Value: "100nF"}, {Name: "C9", Kind: "capacitor", Value: "100nF"},
+				{Name: "C10", Kind: "capacitor", Value: "100nF"}, {Name: "C11", Kind: "capacitor", Value: "4.7µF"}, {Name: "C12", Kind: "capacitor", Value: "1µF"},
+				{Name: "C13", Kind: "capacitor", Value: "10pF"}, {Name: "C14", Kind: "capacitor", Value: "10pF"},
+				{Name: "R5", Kind: "resistor", Value: "1k"}, {Name: "R6", Kind: "resistor", Value: "10k"}, {Name: "D1 LED", Kind: "ic"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS", Kind: "power"}, {Name: "3V3", Kind: "power"}, {Name: "SWDIO", Bus: "SWD"}, {Name: "SWCLK", Bus: "SWD"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "EN"}, {"3V3", "U1 MAX77827", "OUT"}, {"POK", "U1 MAX77827", "POK"},
+				{"LX1", "U1 MAX77827", "LX1"}, {"LX2", "U1 MAX77827", "LX2"}, {"LX1", "L1", "1"}, {"LX2", "L1", "2"}, {"GND", "U1 MAX77827", "GND"},
+				{"VBUS", "C1", ""}, {"3V3", "C2", ""}, {"3V3", "C3", ""},
+				{"3V3", "U2 STM32G0", "VDD"}, {"3V3", "U2 STM32G0", "VBAT"}, {"3V3", "U2 STM32G0", "VDDA"}, {"GND", "U2 STM32G0", "VSS"}, {"GND", "U2 STM32G0", "VSSA"},
+				{"NRST", "U2 STM32G0", "NRST"}, {"BOOT0", "U2 STM32G0", "PH3-BOOT0"}, {"OSC32_IN", "U2 STM32G0", "PC14-OSC32_IN"}, {"OSC32_OUT", "U2 STM32G0", "PC15-OSC32_OUT"},
+				{"SWDIO", "U2 STM32G0", "PA13"}, {"SWCLK", "U2 STM32G0", "PA14"}, {"PA5", "U2 STM32G0", "PA5"}, {"POK", "U2 STM32G0", "PB0"},
+				{"NRST", "SW1 Reset", "1"}, {"GND", "SW1 Reset", "2"}, {"3V3", "SW2 Boot", "1"}, {"BOOT0", "SW2 Boot", "2"}, {"BOOT0", "R6", "1"}, {"GND", "R6", "2"},
+				{"3V3", "J2 SWD", "VTref"}, {"SWDIO", "J2 SWD", "SWDIO"}, {"SWCLK", "J2 SWD", "SWCLK"}, {"NRST", "J2 SWD", "nRESET"}, {"GND", "J2 SWD", "GND"},
+				{"OSC32_IN", "Y1 32k", "1"}, {"OSC32_OUT", "Y1 32k", "2"}, {"OSC32_IN", "C13", ""}, {"OSC32_OUT", "C14", ""},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""}, {"3V3", "C6", ""}, {"3V3", "C7", ""}, {"3V3", "C8", ""}, {"3V3", "C9", ""}, {"3V3", "C10", ""}, {"3V3", "C11", ""}, {"3V3", "C12", ""},
+				{"PA5", "R5", "1"}, {"LED_A", "R5", "2"}, {"LED_A", "D1 LED", "A"}, {"GND", "D1 LED", "K"},
+			},
+			Groups: []CircuitGroup{
+				{Name: "Power", Description: "USB 5 V to 3.3 V"},
+				{Name: "MCU", Description: "STM32 with reset, boot, crystal and SWD"},
+			},
+			Assign: [][3]string{
+				{"J1 USB-C", "Power", ""}, {"U1 MAX77827", "Power", ""}, {"C1", "", "U1 MAX77827"}, {"C2", "", "U1 MAX77827"}, {"C3", "", "U1 MAX77827"},
+				{"U2 STM32G0", "MCU", ""}, {"SW1 Reset", "MCU", ""}, {"SW2 Boot", "MCU", ""}, {"J2 SWD", "MCU", ""}, {"Y1 32k", "MCU", ""}, {"D1 LED", "MCU", ""},
+				{"C4", "", "U2 STM32G0"}, {"C5", "", "U2 STM32G0"}, {"C6", "", "U2 STM32G0"}, {"C7", "", "U2 STM32G0"}, {"C8", "", "U2 STM32G0"},
+				{"C9", "", "U2 STM32G0"}, {"C10", "", "U2 STM32G0"}, {"C11", "", "U2 STM32G0"}, {"C12", "", "U2 STM32G0"}, {"R5", "", "D1 LED"},
+			},
+		},
 	}
 }

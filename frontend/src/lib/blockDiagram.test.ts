@@ -5,7 +5,7 @@ import { labelRect, layoutBlockDiagram, overlaps, separate, type BlockDrawing, t
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -145,7 +145,11 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     for (const b of d.boxes)
       for (const p of b.pins.filter((x) => x.tied && x.side !== 'inside')) {
         const to = b.pins.find((x) => x.name === p.tied && !x.tied)!;
-        expect(Math.abs(p.y - to.y), `${b.part.title} ${p.name}`).toBe(30); // right below it
+        // Right below it, after any other pins tied to it.
+        const ties = b.pins.filter((x) => x.tied === p.tied && x.side === p.side).length;
+        expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeGreaterThan(0);
+        expect((p.y - to.y) % 30, `${b.part.title} ${p.name}`).toBe(0);
+        expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeLessThanOrEqual(30 * ties);
         expect(ends.has(`${p.x},${p.y}`)).toBe(true);
         expect(d.dots.some((dot) => dot.y === to.y && Math.abs(dot.x - p.x) === 10)).toBe(true);
       }
@@ -164,6 +168,46 @@ describe.each(circuits)('the block diagram of %s', (name) => {
       const box = d.boxes.find((b) => b.part.id === p.passive.part)!;
       for (const next of d.boxes.filter((b) => b.part.column > box.part.column)) expect(next.x - (p.x + p.w), `${p.passive.label} to ${next.part.title}`).toBeGreaterThan(60);
     }
+  });
+
+  it('draws no wire of zero length, and no labelled wire shorter than its label', () => {
+    const short: string[] = [];
+    for (const w of d.wires) {
+      const pts = points(w.path);
+      if (pts.slice(1).some((p, i) => p.x === pts[i].x && p.y === pts[i].y)) short.push(`${w.net}: ${w.path}`);
+      if (w.label && !w.thin) {
+        const first = pts[1] && pts[1].y === pts[0].y ? Math.abs(pts[1].x - pts[0].x) : Infinity;
+        if (first < labelRect(w.label).w + 8) short.push(`${w.net} label on ${w.path}`);
+      }
+    }
+    expect(short).toEqual([]);
+  });
+
+  it("never lets two nets' wires touch, so none looks shorted to another", () => {
+    const segs = segments(d);
+    const touch: string[] = [];
+    const on = (s: Seg, x: number, y: number) => x >= s.x1 && x <= s.x2 && y >= s.y1 && y <= s.y2;
+    segs.forEach((a, i) =>
+      segs.slice(i + 1).forEach((b) => {
+        if (a.net === b.net) return;
+        const ends = [
+          [b, a.x1, a.y1],
+          [b, a.x2, a.y2],
+          [a, b.x1, b.y1],
+          [a, b.x2, b.y2],
+        ] as const;
+        if (ends.some(([s, x, y]) => on(s, x, y))) touch.push(`${a.net} / ${b.net} at ${a.x1},${a.y1}–${a.x2},${a.y2} and ${b.x1},${b.y1}–${b.x2},${b.y2}`);
+      }),
+    );
+    expect(touch).toEqual([]);
+  });
+
+  it("runs no wire along a box's side, where its pins are", () => {
+    const along: string[] = [];
+    for (const b of d.boxes)
+      for (const s of segments(d))
+        if (s.x1 === s.x2 && (s.x1 === b.x || s.x1 === b.x + b.w) && s.y2 > b.y && s.y1 < b.y + b.h && s.y1 !== s.y2) along.push(`${s.net} along ${b.part.title}`);
+    expect(along).toEqual([]);
   });
 
   it('puts boxes left to right by column', () => {

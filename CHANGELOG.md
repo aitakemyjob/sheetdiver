@@ -41,6 +41,17 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **Block diagram wiring on boards in groups**: wires ran through a part
+  (a header's pin faced a part in another group, so its wire crossed the
+  header), labels sat on a part's pin names when the piece of wire under
+  them was too short, and wires of two nets met, looking shorted. Pins
+  now face only parts in their own group; a label goes on a piece of its
+  wire it fits; a rail reaches a part beyond the next column by a
+  labelled stub; wires that go round the columns between their ends try
+  over and under and take the way that crosses least; a gap leaves room
+  for the capacitors hanging beside a part; and a passive with no room on
+  its wire hangs beside the wire's vertical run instead of across
+  another net.
 - **A passive set to support a part is drawn by it even in series** (PA5
   → R5 → LED: R5 hung by the MCU, on its other end).
 - **A debug header was drawn as a supply.** A connector no longer counts

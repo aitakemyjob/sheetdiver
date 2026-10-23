@@ -7,14 +7,17 @@
 //   place   → boxes in columns, stacked, saved positions, no overlaps
 //   pinsAt  → where each pin is on its box
 //   route   → each net's wire: buses from a net's driver to the parts it
-//             feeds, wires between two boxes, channels under a column,
-//             stubs leaving a box; ground pins to ground symbols
+//             feeds, wires between two boxes, channels over or under a
+//             column (whichever way crosses least), a rail's name at a
+//             part further away, stubs leaving a box; ground pins to
+//             ground symbols; each label where its wire is long enough
 //   hang    → each passive where nothing it adds crosses or covers
 //             another net: a bridge across its two pins, the others on a
 //             drop from their wire or pin, each to a ground symbol
 //
 // What it promises, for any board (tested on several): nothing overlaps,
-// no wire crosses another net's wire, nothing sits on another net's wire.
+// no wire crosses, touches or sits on another net's wire, none runs
+// through a box or along its side, and every label fits its wire.
 //
 // A board in functional groups is laid out a group at a time (groups
 // share no wires: a net between groups is a labelled stub in each), each
@@ -108,7 +111,7 @@ function layoutWhole(d: Diagram): BlockDrawing {
   place(boxes, d);
   facing(boxes, d);
   boxes.forEach(pinsAt);
-  const r = route(d, boxes);
+  const r = bestRoute(d, boxes);
   const h = hang(d, boxes, r);
   const wires = [...r.wires, ...h.wires];
   const extents = [
@@ -333,7 +336,15 @@ export function place(boxes: Box[], d: Diagram): void {
     // crosses: after its left part, whichever part they serve.
     const leftEnd = (q: DiagramPassive) => d.nets.find((n) => n.name === q.nets[0] && n.wire === 'between' && n.parts.includes(q.part))?.parts[0] ?? q.part;
     const between = d.passives.filter((q) => q.mount === 'wire' && list.some((b) => b.part.id === leftEnd(q))).length;
-    x += leftReach + Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(160, right + left + between * 80 + turning * 12 + 90);
+    // Passives on a rail beside the part they serve hang in the gap that
+    // part's pin faces: they need their own width there.
+    const faces = (q: DiagramPassive) => {
+      const pin = d.parts.find((p) => p.id === q.part)?.pins.find((p) => p.net === q.nets[0] && !p.ground && !p.tied);
+      const col = d.parts.find((p) => p.id === q.part)?.column;
+      return (pin?.side === 'right' && col === c) || (pin?.side === 'left' && col === c + 1);
+    };
+    const lanes = d.passives.filter((q) => q.mount === 'lane' && faces(q)).reduce((n, q) => n + passiveSize(q).w + 16, 0);
+    x += leftReach + Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(160, right + left + between * 80 + lanes + turning * 12 + 90);
   }
   separate(boxes);
 }
@@ -432,6 +443,11 @@ interface Trunk {
   y: number;
   /** A stub that can be made longer when its passives need room. */
   stub?: { wire: Wire; pin: PlacedPin; dir: 1 | -1 };
+  /**
+   * Beside a vertical run rather than on a wire: a passive hangs from a
+   * short jog that leaves the run at x (where it gets a junction).
+   */
+  jog?: number;
 }
 
 export interface Routed {
@@ -441,6 +457,37 @@ export interface Routed {
   dots: Pt[];
   /** Where each net's passives can hang. */
   trunks: Map<string, Trunk[]>;
+  /** Beside each net's vertical runs: where a passive goes when its wires have no room. */
+  sides: Map<string, Trunk[]>;
+  /** How many wires go over or under the columns between their ends. */
+  channels: number;
+}
+
+/**
+ * Routes the wires with the least crossings: each wire that goes past
+ * the columns between its ends is tried over them and under them (all
+ * ways, up to 64), the guess route makes on its own first.
+ */
+export function bestRoute(d: Diagram, boxes: Box[]): Routed {
+  let best = route(d, boxes);
+  if (best.channels === 0 || best.channels > 6) return best;
+  let fewest = crossings(best.wires);
+  for (let mask = 0; mask < 1 << best.channels && fewest > 0; mask++) {
+    const r = route(d, boxes, (i) => ((mask >> i) & 1) === 1);
+    const n = crossings(r.wires);
+    if (n < fewest) [best, fewest] = [r, n];
+  }
+  return best;
+}
+
+/** How many times wires of different nets cross. */
+export function crossings(wires: Wire[]): number {
+  const segs = wires.flatMap((w) => pieces(w.net, w.path));
+  const vs = segs.filter((s) => s.x1 === s.x2 && s.y1 !== s.y2);
+  const hs = segs.filter((s) => s.y1 === s.y2 && s.x1 !== s.x2);
+  let n = 0;
+  for (const v of vs) for (const h of hs) if (v.net !== h.net && v.x1 > h.x1 && v.x1 < h.x2 && h.y1 > v.y1 && h.y1 < v.y2) n++;
+  return n;
 }
 
 /** The pin of a box on a net. */
@@ -486,12 +533,19 @@ interface Turn {
  * In each gap every wire turning there gets its own track, ordered so
  * they don't cross: going down, a higher source turns later.
  */
-export function route(d: Diagram, boxes: Box[]): Routed {
+export function route(d: Diagram, boxes: Box[], over?: (channel: number) => boolean): Routed {
   const wires: Wire[] = [];
   const grounds: Pt[] = [];
   const dots: Pt[] = [];
   const trunks = new Map<string, Trunk[]>();
   const add = (t: Trunk) => trunks.set(t.net, [...(trunks.get(t.net) ?? []), t]);
+  const sides = new Map<string, Trunk[]>();
+  // Beside a vertical run, both ways, every pitch down it.
+  const beside = (net: string, x: number, y1: number, y2: number) => {
+    for (let y = y1 + 20; y <= y2 - 20; y += PITCH)
+      for (const dir of [1, -1])
+        sides.set(net, [...(sides.get(net) ?? []), { net, y, jog: x, x1: dir > 0 ? x + 12 : x - 260, x2: dir > 0 ? x + 260 : x - 12 }]);
+  };
   const byName = new Map(d.nets.map((n) => [n.name, n]));
   const boxOf = new Map(boxes.map((b) => [b.part.id, b]));
   const reachOf = new Map<string, number>(); // "<box>:<side>" → how far its stubs reach
@@ -536,7 +590,15 @@ export function route(d: Diagram, boxes: Box[]): Routed {
     // Parts more than a column away are reached along a channel under the
     // columns in between (their own branch of the net).
     const far = fed.filter((e) => Math.abs(colOf(e.id) - dc) > 1);
-    for (const e of far) {
+    // A rail reaches a part further away by name, as on a schematic: a
+    // labelled stub at its pin, not a wire round the columns between.
+    for (const e of n.kind === 'power' ? far : []) {
+      const dir = e.pin.side === 'right' ? 1 : -1;
+      const end = e.pin.x + dir * (n.name.length * 7.5 + 24);
+      wires.push({ net: n.name, path: `M${e.pin.x},${e.pin.y} H${end}`, label: { x: end - dir * 4, y: e.pin.y - 7, anchor: dir > 0 ? 'end' : 'start', text: n.name } });
+      add({ net: n.name, x1: Math.min(e.pin.x, end), x2: Math.max(e.pin.x, end), y: e.pin.y });
+    }
+    for (const e of n.kind === 'power' ? [] : far) {
       const [a, z, ia, iz] = driver.pin.x < e.pin.x ? [driver.pin, e.pin, driver.id, e.id] : [e.pin, driver.pin, e.id, driver.id];
       const down: Turn = { net: n.name, from: a, to: [a] };
       const up: Turn = { net: n.name, from: z, to: [z] };
@@ -564,8 +626,10 @@ export function route(d: Diagram, boxes: Box[]): Routed {
   const wiredPast = (pin: PlacedPin, above: boolean) =>
     boxes.flatMap((b) => b.pins).filter((p) => p !== pin && p.side === pin.side && p.x === pin.x && acrossGap(p) && (above ? p.y < pin.y : p.y > pin.y)).length;
   const bottomOf = (b: Box) => b.y + b.h + (b.pins.some((p) => p.side === 'bottom' && !p.ground) ? 120 : GROUND + 24);
-  const over = channels.filter((ch) => wiredPast(ch.a, true) + wiredPast(ch.z, true) < wiredPast(ch.a, false) + wiredPast(ch.z, false));
-  const under = channels.filter((ch) => !over.includes(ch));
+  const above = over
+    ? channels.filter((_, i) => over(i))
+    : channels.filter((ch) => wiredPast(ch.a, true) + wiredPast(ch.z, true) < wiredPast(ch.a, false) + wiredPast(ch.z, false));
+  const under = channels.filter((ch) => !above.includes(ch));
   // Nested: under the columns, the lower source outermost (lowest); over
   // them, the higher source outermost (highest).
   under.sort((p, q) => q.a.y - p.a.y);
@@ -575,10 +639,10 @@ export function route(d: Diagram, boxes: Box[]): Routed {
     ch.down.to = [{ ...ch.a, y }];
     ch.up.to = [{ ...ch.z, y }];
   });
-  over.sort((p, q) => p.a.y - q.a.y);
-  over.forEach((ch, i) => {
+  above.sort((p, q) => p.a.y - q.a.y);
+  above.forEach((ch, i) => {
     const between = boxes.filter((b) => b.x + b.w > ch.a.x && b.x < ch.z.x);
-    const y = Math.min(ch.a.y, ch.z.y, ...between.map((b) => b.y - TITLE)) - 14 - (over.length - 1 - i) * TRACK;
+    const y = Math.min(ch.a.y, ch.z.y, ...between.map((b) => b.y - TITLE)) - 14 - (above.length - 1 - i) * TRACK;
     ch.down.to = [{ ...ch.a, y }];
     ch.up.to = [{ ...ch.z, y }];
   });
@@ -616,12 +680,20 @@ export function route(d: Diagram, boxes: Box[]): Routed {
         add({ net: t.net, x1: Math.min(t.from.x, t.to[0].x) + 20, x2: Math.max(t.from.x, t.to[0].x) - 20, y: t.from.y });
         continue;
       }
-      wires.push({ net: t.net, path: `M${t.from.x},${t.from.y} H${x}`, label: isChannelEnd && t === channels.find((c) => c.up === t)?.up ? undefined : label });
+      // Labelled where it fits: on the way out, else on the longest way in.
+      const fitsLabel = (a: number, b: number) => Math.abs(a - b) >= labelRect(label).w + 8;
+      const into = isChannelEnd ? undefined : [...t.to].sort((a, b) => Math.abs(b.x - x) - Math.abs(a.x - x))[0];
+      const labelInto = !fitsLabel(t.from.x, x) && into && fitsLabel(into.x, x);
+      const unlabelled = (isChannelEnd && t === channels.find((c) => c.up === t)?.up) || labelInto;
+      wires.push({ net: t.net, path: `M${t.from.x},${t.from.y} H${x}`, label: unlabelled ? undefined : label });
       wires.push({ net: t.net, path: `M${x},${Math.min(...ys)} V${Math.max(...ys)}` });
+      beside(t.net, x, Math.min(...ys), Math.max(...ys));
       add({ net: t.net, x1: Math.min(t.from.x, x) + 20, x2: Math.max(t.from.x, x) - 14, y: t.from.y });
       for (const p of t.to) {
         if (isChannelEnd) continue;
-        wires.push({ net: t.net, path: `M${x},${p.y} H${p.x}` });
+        const wire: Wire = { net: t.net, path: `M${x},${p.y} H${p.x}` };
+        if (labelInto && p === into) wire.label = { x: (x + p.x) / 2, y: p.y - 7, anchor: 'middle', text: t.net };
+        wires.push(wire);
         add({ net: t.net, x1: Math.min(x, p.x) + 14, x2: Math.max(x, p.x) - 20, y: p.y });
         if (p.y !== Math.min(...ys) && p.y !== Math.max(...ys)) dots.push({ x, y: p.y });
       }
@@ -650,7 +722,7 @@ export function route(d: Diagram, boxes: Box[]): Routed {
       wires.push({ net: p.net, path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
       grounds.push({ x: p.x, y: p.y + 8 });
     }
-  return { wires, grounds, dots, trunks };
+  return { wires, grounds, dots, trunks, sides, channels: channels.length };
 }
 
 // ── hang ──────────────────────────────────────────────────────────────
@@ -824,6 +896,29 @@ export function hang(d: Diagram, boxes: Box[], r: Routed): Hung {
         if (wire.label) wire.label.x = tip - dir * (wire.arrow ? 12 : 4);
         clear.segs = clear.segs.filter((s) => !(s.net === wire.net && s.y1 === pin.y && s.y2 === pin.y)).concat(pieces(wire.net, wire.path));
       } else if (!placed) break;
+    }
+    // Beside one of its wire's vertical runs, on a jog that crosses
+    // nothing, nearest the part it hangs by.
+    if (!placed) {
+      const spots = (r.sides.get(net(q)) ?? []).flatMap((t) => {
+        const xs: { t: Trunk; cx: number }[] = [];
+        for (let cx = t.x1 + w / 2 + 8; cx <= t.x2 - w / 2 - 8; cx += 6) xs.push({ t, cx });
+        return xs;
+      });
+      if (anchor) spots.sort((a, b) => Math.abs(a.cx - anchor.x) + Math.abs(a.t.y - anchor.y) - (Math.abs(b.cx - anchor.x) + Math.abs(b.t.y - anchor.y)));
+      for (const { t, cx } of spots) {
+        const box = { x: cx - w / 2, y: t.y + DROP, w, h };
+        const jog = { net: net(q), x1: Math.min(t.jog!, cx), y1: t.y, x2: Math.max(t.jog!, cx), y2: t.y };
+        const jogClear =
+          !clear.segs.some((s) => s.net !== jog.net && overlaps({ x: s.x1, y: s.y1, w: s.x2 - s.x1, h: s.y2 - s.y1 }, { x: jog.x1, y: jog.y1 - 1, w: jog.x2 - jog.x1, h: 2 }, 3)) &&
+          !clear.rects.some((c) => overlaps(c, { x: jog.x1, y: jog.y1 - 1, w: jog.x2 - jog.x1, h: 2 }));
+        if (jogClear && fits(clear, net(q), cx, t.y, box, endRect(end, box, false))) {
+          take({ passive: q, ...box }, [{ net: net(q), path: `M${t.jog},${t.y} H${cx} V${box.y}`, thin: true }], end);
+          out.dots.push({ x: t.jog!, y: t.y });
+          placed = true;
+          break;
+        }
+      }
     }
     // Still nowhere: below everything, so it's drawn all the same.
     if (!placed) {

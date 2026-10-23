@@ -786,13 +786,14 @@ func pinName(r ConnectionRow) string {
 }
 
 // side says which side of its box a pin goes on: towards the other
-// parts on its net (on a rail with parts on both sides, only what makes
+// parts on its net in its group (a part in another group is reached by a
+// label, not a wire; on a rail with parts on both sides, only what makes
 // it faces right), else by what it is.
 func (b *diagramBuilder) side(e *end, r ConnectionRow) string {
 	net := r.Net
 	var left, right bool
 	for _, o := range b.mainsOn(net) {
-		if o == e.id {
+		if o == e.id || !strings.EqualFold(b.groupOf[o], b.groupOf[e.id]) {
 			continue
 		}
 		left = left || b.columns[o] < b.columns[e.id]
