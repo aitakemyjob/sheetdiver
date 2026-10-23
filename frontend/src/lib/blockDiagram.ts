@@ -30,6 +30,7 @@
 // the parts beside it follows where it was put (left to right stays with
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
+import { undrivenRail, wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
 
@@ -680,85 +681,41 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   const column = new Map(d.parts.map((p) => [`b:${p.id}`, p.column]));
   const passiveOf = (e: PortEnd) => built.passives.find((x) => `${x.node.id}/0` === e.id);
   const unitOf = (e: PortEnd) => units.find((u) => e.id.startsWith(`${u.id}/`));
-  const boxOf = (e: PortEnd) => e.id.split('/')[0];
-  // The box a hanging passive, or a subgroup, is placed by.
-  const placedBy = (e: PortEnd) => {
+  // Each net as the wiring rules see it (lib/diagram/wiring.ts): its ends
+  // with what they are, the node they're on, and what they're placed by.
+  const netEnd = (e: PortEnd): NetEnd => {
+    const owner = e.id.split('/')[0];
     const q = passiveOf(e);
-    if (q) return `b:${q.passive.part}`;
     const u = unitOf(e);
-    return u?.part ? `b:${u.part}` : undefined;
+    const by = q ? `b:${q.passive.part}` : u?.part ? `b:${u.part}` : undefined;
+    return {
+      id: e.id,
+      owner,
+      kind: e.unit ? 'unit' : e.passive ? 'passive' : 'pin',
+      side: e.side,
+      series: e.series,
+      column: column.get(owner),
+      placedBy: by,
+      supports: q?.passive.supports ? `b:${q.passive.supports}` : undefined,
+      facing: u?.side,
+    };
   };
+  const endById = new Map<string, PortEnd>();
+  for (const es of ends.values()) for (const e of es) endById.set(e.id, e);
   for (const n of d.nets) {
-    const ports = endsOf(n.name);
-    if (ports.length === 0) continue;
-    const boxPorts = ports.filter((e) => !e.passive);
-    const fromPassive = ports.find((e) => e.passive && !e.unit && e.side === 'EAST');
-    const driver = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH');
-    const series = ports.some((e) => e.series);
-    const hung = ports.filter((e) => e.passive && !e.series);
-    const serves = hung.map((e) => passiveOf(e)?.passive.supports).find(Boolean);
-    const home = driver ?? boxPorts.find((e) => e.id.startsWith(`b:${serves}/`)) ?? boxPorts[0];
-    // A rail nothing here drives isn't wired between its parts, as on a
-    // schematic (between just two with nothing hanging off it, one wire
-    // does). Each pin wires what hangs off it by its part, the first
-    // wire named; a pin with nothing gets a stub with the name. What
-    // hangs by a part not on the rail here goes at the first pin.
-    const rail = !driver && !series && kinds.get(n.name.toLowerCase()) === 'power' && boxPorts.length > 0 && !(boxPorts.length === 2 && hung.length === 0);
-    if (rail) {
-      for (const h of hung) {
-        const q = passiveOf(h);
+    const ctx: NetContext = { name: n.name, power: kinds.get(n.name.toLowerCase()) === 'power', offboard: !!n.offboard, out: n.wire === 'out', arrow: !!n.arrow, ends: endsOf(n.name).map(netEnd) };
+    const plan = wire(ctx);
+    if (plan.rule === undrivenRail.name) {
+      // What hangs off a rail by one part may share a bus (clusterUnits).
+      for (const e of ctx.ends) {
+        const q = e.kind === 'passive' && !e.series ? passiveOf(endById.get(e.id)!) : undefined;
         if (q) q.flag = n.name;
       }
-      const rest = hung.filter((h) => !boxPorts.some((e) => placedBy(h) === boxOf(e)));
-      let k = 0;
-      for (const e of boxPorts) {
-        const mine = [...hung.filter((h) => placedBy(h) === boxOf(e)), ...(e === home ? rest : [])];
-        if (mine.length === 0) {
-          if (e.side !== 'SOUTH') stub(e, n.name, false);
-          continue;
-        }
-        // Towards the pin from what hangs off a pin on the part's left
-        // (or a subgroup facing right), so it sits on that side.
-        mine.forEach((h, i) => {
-          const u = unitOf(h);
-          const before = u ? u.side === 'EAST' : e.side === 'WEST';
-          const edge: ElkExtendedEdge = { id: `e:${n.name}:${k++}`, sources: [before ? h.id : e.id], targets: [before ? e.id : h.id] };
-          if (i === 0) built.named.add(edge.id);
-          edges.push(edge);
-        });
-      }
-      built.labelled.add(n.name);
-      continue;
     }
-    // Which pins are labelled rather than wired: of a signal reaching
-    // three parts, or two more than a column apart (a long wire round
-    // everything between), every pin but the one its passives are wired
-    // at; and any pin left with nothing wired to it.
-    const boxIds = [...new Set(boxPorts.map(boxOf))];
-    const far = !series && (boxIds.length >= 3 || (boxIds.length === 2 && Math.abs((column.get(boxIds[0]) ?? 0) - (column.get(boxIds[1]) ?? 0)) >= 2));
-    const wiredPins = far ? boxPorts.filter((e) => e === home && hung.length > 0) : boxPorts;
-    const wired = [...wiredPins, ...hung, ...ports.filter((e) => e.series)];
-    const leaves = n.offboard || (n.wire === 'out' && !series);
-    for (const e of boxPorts) if (!wiredPins.includes(e) && e.side !== 'SOUTH') stub(e, n.name, false);
-    // A pin alone on its net (the rest is in another group, or off the
-    // board) gets a stub with its name; an output leaving the board ends
-    // in an arrow, with what hangs off it branching from the stub.
-    if (wired.length === 1 && !wired[0].passive && wired[0].side !== 'SOUTH') stub(wired[0], n.name, leaves && !!n.arrow);
-    if (wired.length < 2) continue;
-    if (leaves && n.arrow && driver && !driver.passive && driver.side !== 'SOUTH') stub(driver, n.name, true);
-    // Edges from the pin that drives the net to each other end, the first
-    // between two boxes (else the first at all) carrying its name; with
-    // nothing driving it, each passive comes before the pin it feeds (a
-    // pull-up left of an input), not after it at the end of a wire round
-    // the box.
-    const source = driver ?? wired.find((e) => e.passive) ?? wired[0];
-    const sinks = wired.filter((e) => e !== source);
-    const between = sinks.find((e) => !e.passive && !source.passive);
-    const feeds = !driver && wiredPins[0];
-    sinks.forEach((e, i) => {
-      const fromPin = feeds && e.passive ? [e.id, feeds.id] : [source.id, e.id];
-      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [fromPin[0]], targets: [fromPin[1]] };
-      if (!built.labelled.has(n.name) && (e === between || (!between && i === 0))) {
+    for (const st of plan.stubs) stub(endById.get(st.end)!, n.name, st.arrow);
+    plan.edges.forEach((e, i) => {
+      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [e.from], targets: [e.to] };
+      if (e.named) {
         built.named.add(edge.id);
         built.labelled.add(n.name);
       }
