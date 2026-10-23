@@ -1041,7 +1041,26 @@ async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Prom
     const c = [...auto.values()].find((x) => down && key(x.name) === key(down));
     c?.ids.add(q.node.id);
   }
+  // Chains: a passive reached only through another (C2 on VOUT after
+  // L1, an LED after its series resistor) goes on a bus after it, which
+  // leads in from the net it hangs on; the lead leaves any row it was in.
+  const chains = new Map<string, { lead: PassiveNode; hangers: PassiveNode[] }>();
+  for (const q of d.passives) {
+    if (q.mount !== 'chain') continue;
+    const lead = nodeOf.get(`q:${q.part}`);
+    if (!lead || lead.horizontal || lead.bridge || taken.has(lead.node.id)) continue;
+    const far = lead.passive.nets.find((n) => key(n) !== key(lead.first));
+    if (!far || key(far) !== key(q.nets[0])) continue;
+    const c = chains.get(lead.node.id) ?? { lead, hangers: [] };
+    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets[1] } : { ground: true };
+    c.hangers.push({ passive: q, node: { id: `q:${q.id}` }, size: passiveSize(q), horizontal: false, first: q.nets[0], end });
+    chains.set(lead.node.id, c);
+  }
   const units: Unit[] = [];
+  for (const [id, c] of chains) {
+    for (const bucket of auto.values()) bucket.ids.delete(id);
+    units.push(busUnit(`u:chain:${id}`, '', [{ ...c.lead, horizontal: true, flag: undefined, end: undefined }, ...c.hangers]));
+  }
   for (const [k, c] of named) units.push(await unit(`u:${k}`, c.name, c.ids, d, plain, boxes, opts));
   for (const [k, c] of auto) if (c.ids.size >= 2) units.push(await unit(`u:auto:${k}`, '', c.ids, d, plain, boxes, opts));
   // Each faces the part its first signal (else its first net) comes
@@ -1063,12 +1082,12 @@ function mirror(u: Unit): void {
   const r = u.drawing;
   const w = u.w;
   const pt = <T extends Pt>(p: T): T => ({ ...p, x: at(w - p.x) });
-  // A horizontal symbol's ends change places; a vertical one's stay.
+  // Each end keeps its terminal and its net; only its place mirrors (a
+  // series part's first end, at the entry, is now on the right).
   r.passives = r.passives.map((p) => ({
     ...p,
     x: at(w - p.x - p.w),
-    ends: p.horizontal ? [pt(p.ends[1]), pt(p.ends[0])] : [pt(p.ends[0]), pt(p.ends[1])],
-    terminals: p.horizontal ? [p.terminals[1], p.terminals[0]] : p.terminals,
+    ends: [pt(p.ends[0]), pt(p.ends[1])],
     label: { ...pt(p.label), anchor: p.label.anchor === 'start' ? 'end' : p.label.anchor },
   }));
   r.wires = r.wires.map((x) => ({
@@ -1131,7 +1150,9 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
   let width = 0;
   for (const b of buses.values()) {
     let x = UNIT_PAD;
-    let busY = y + UNIT_HEAD;
+    // The bus line: below the bus's name, and below the series parts'
+    // names above their symbols along it.
+    let busY = y + Math.max(UNIT_HEAD, ...b.chain.map((q) => passiveSize(q.passive, true).axis));
     // The series parts along the bus line, wired from the port at the
     // left border, the bus then on from the last one.
     const entry = b.chain[0]?.first ?? b.net;

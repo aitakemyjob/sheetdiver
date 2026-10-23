@@ -5,7 +5,7 @@ import { labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDra
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board', 'Boost board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -461,6 +461,33 @@ describe('subgroups', () => {
     const pa2 = box('U2 MCU').pins.find((p) => p.name === 'PA2')!;
     expect(d.wires.some((w) => w.net === 'BTN' && w.label?.text === 'BTN' && points(w.path)[0].x === pa2.x && points(w.path)[0].y === pa2.y)).toBe(true);
     expect(c.x + c.w).toBeLessThan(box('U2 MCU').x);
+  });
+
+  it('draws a passive reached only through another on a bus after it, led in from the pin', async () => {
+    const b = await layoutBlockDiagram(circuit('Boost board'));
+    const passive = (label: string) => b.passives.find((p) => p.passive.label === label)!;
+    const box = (title: string) => b.boxes.find((t) => t.part.title.startsWith(title))!;
+    for (const [lead, hanger, bus, pin, part] of [
+      ['L1', 'C2', 'VOUT', 'SW', 'U1'],
+      ['R5', 'D1', 'LEDK', 'PA5', 'U2'],
+    ]) {
+      const l = passive(lead);
+      const h = passive(hanger);
+      const c = b.clusters.find((x) => inside(h, x))!;
+      expect(c, `${hanger} in a subgroup`).toBeDefined();
+      expect(inside(l, c), `${lead} with it`).toBe(true);
+      // The lead runs along the bus line into it; the hanger hangs off the bus.
+      expect(l.horizontal).toBe(true);
+      const wire = b.wires.find((w) => w.net === bus && w.label?.text === bus)!;
+      const pts = points(wire.path);
+      expect(pts.some((pt) => pt.x === l.ends[1].x && pt.y === l.ends[1].y), `${bus} from ${lead}`).toBe(true);
+      expect(pts.some((pt) => pt.x === h.ends[0].x && pt.y === h.ends[0].y), `${bus} to ${hanger}`).toBe(true);
+      // The pin's wire reaches the subgroup's border, and on in to the lead.
+      const p = box(part).pins.find((x) => x.name === pin)!;
+      const net = b.wires.filter((w) => w.net === p.net).flatMap((w) => points(w.path));
+      expect(net.some((pt) => pt.x === p.x && pt.y === p.y), `${pin} wired`).toBe(true);
+      expect(net.some((pt) => pt.x === l.ends[0].x && pt.y === l.ends[0].y), `${lead} wired`).toBe(true);
+    }
   });
 
   it('leaves a part alone on its net where it was', () => {
