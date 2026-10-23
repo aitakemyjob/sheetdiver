@@ -299,9 +299,19 @@ func TestColumnsSurviveALoop(t *testing.T) {
 }
 
 func TestDiagramKinds(t *testing.T) {
-	for in, want := range map[string]string{"10µF": "10µF", "10µF input bulk": "10µF", "0Ω": "0Ω", "3V3 LDO": "", "2.2µH, shielded": "2.2µH"} {
+	for in, want := range map[string]string{
+		"10µF": "10µF", "10µF input bulk": "10µF", "0Ω": "0Ω", "3V3 LDO": "", "2.2µH, shielded": "2.2µH", "330": "330",
+		// Anywhere in the role, with its multiplier or unit: not the 1 of U1 or the 5 of PA5.
+		"U1 input 10µF": "10µF", "BOOT0 10k pull-down": "10k", "CC1/CC2 5.1k pull-downs": "5.1k", "1µF: C2 U1 BIAS": "1µF", "LSE load caps 6.8pF": "6.8pF", "32.768 kHz LSE": "32.768 kHz", "user LED (PA5)": "", "LED 330 series": "",
+	} {
 		if got := passiveValue(in); got != want {
 			t.Errorf("passiveValue(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// A description's leading value only: a package or a family's example isn't the part's value.
+	for in, want := range map[string]string{"100nF 50V X7R 0603 (LCSC C14663)": "100nF", "6.8pF 50V C0G 0603": "6.8pF", "1µH molded inductor, 35mΩ": "1µH", "Uniroyal 0603 1% thick film. 10k C25804": "", "0603 1% thick film": "", "Samsung CL series MLCC catalogue. CL10A105 1µF/50V": ""} {
+		if got := descriptionValue(in); got != want {
+			t.Errorf("descriptionValue(%q) = %q, want %q", in, got, want)
 		}
 	}
 	if shortValue("input bulk for U2 VIN") != "input bulk …" || shortValue("TVS") != "TVS" || shortValue("10µF input bulk for U2") != "10µF" {

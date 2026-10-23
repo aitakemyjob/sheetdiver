@@ -126,9 +126,24 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		return out, nil, err
 	}
 	out.Assignments = assignmentRows(parts, out.Blocks, assigns)
-	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns, pins: pins})
+	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns, pins: pins, descriptions: s.entryDescriptions(ctx, parts)})
 	out.Pinouts = pinouts(parts, out.Blocks, out.Nets, out.Connections, pins)
 	return out, connectionChecks(parts, rails, out.Nets, out.Connections, pins), nil
+}
+
+// entryDescriptions loads each BOM entry's part description, by entry
+// id: a passive's value comes from it when its role doesn't say.
+func (s *Service) entryDescriptions(ctx context.Context, parts []library.ProjectPart) map[int64]string {
+	out := map[int64]string{}
+	for _, pp := range parts {
+		if !twoTerminal(pp.Category, false) {
+			continue
+		}
+		if part, err := s.Lib.PartByID(ctx, pp.PartID); err == nil {
+			out[pp.ID] = part.Description
+		}
+	}
+	return out
 }
 
 // entryPins loads each BOM entry's pins (for its package, when the

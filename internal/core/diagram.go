@@ -204,14 +204,20 @@ type end struct {
 	entry   *library.ProjectPart
 }
 
-// ends lists the BOM entries and blocks, keyed by node.
-func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end, []string) {
+// ends lists the BOM entries and blocks, keyed by node. A passive's
+// value is what its role says ("U1 input 10µF"), else what its part's
+// description starts with ("100nF 50V X7R 0603").
+func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[int64]string) (map[string]*end, []string) {
 	out := map[string]*end{}
 	var order []string
 	for i := range parts {
 		pp := &parts[i]
 		id := library.PartNode(pp.ID)
-		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: symbolKind(pp.Category, false), value: passiveValue(pp.Role), label: firstNonEmpty(pp.Designator, pp.MPN), passive: twoTerminal(pp.Category, false), entry: pp}
+		value := passiveValue(pp.Role)
+		if value == "" {
+			value = descriptionValue(descriptions[pp.ID])
+		}
+		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: symbolKind(pp.Category, false), value: value, label: firstNonEmpty(pp.Designator, pp.MPN), passive: twoTerminal(pp.Category, false), entry: pp}
 		if pp.Designator == "" {
 			out[id].title = pp.MPN
 		}
@@ -225,15 +231,38 @@ func ends(parts []library.ProjectPart, blocks []library.Block) (map[string]*end,
 	return out, order
 }
 
-// valueRe is a component value ("10µF", "36.5k", "2.2uH").
-// It must end there ("3V3" isn't a value), which \b can't say after "Ω".
-var valueRe = regexp.MustCompile(`^([\d.]+\s*[pnuµmkKMG]?(?:F|H|Ω|R|ohm)?)(?:$|[\s,;/(])`)
+// A component value ("10µF", "36.5k", "2.2uH", "0Ω", "32.768 kHz") as a
+// word of its own: leadingRe at the start of a text, where a bare number
+// will do ("330" for a resistor), valueRe anywhere in it, where it needs
+// its multiplier or unit ("10k" of "BOOT0 10k pull-down", not the 1 of
+// "U1"). It must end there ("3V3" isn't a value), which \b can't say
+// after "Ω".
+var (
+	leadingRe = regexp.MustCompile(`^([\d.]+\s*[pnuµmkKMG]?(?:F|H|Ω|R|ohm|Hz)?)(?:$|[\s,;:/(])`)
+	valueRe   = regexp.MustCompile(`(?:^|[\s,;:/(])(\d+(?:\.\d+)?\s*(?:[pnuµmkKMG](?:F|H|Ω|R|ohm|Hz)?|F|H|Ω|R|ohm|Hz))(?:$|[\s,;:/)])`)
+)
 
-// passiveValue is the value a BOM entry's role starts with ("10µF" of
-// "10µF input bulk"), or nothing.
-func passiveValue(role string) string {
-	if m := valueRe.FindStringSubmatch(strings.TrimSpace(role)); m != nil {
+// passiveValue is the value a text starts with ("10µF" of "10µF input
+// bulk"), else the first value in it ("10k" of "BOOT0 10k pull-down"),
+// else nothing.
+func passiveValue(text string) string {
+	text = strings.TrimSpace(text)
+	if m := leadingRe.FindStringSubmatch(text); m != nil {
 		return m[1]
+	}
+	if m := valueRe.FindStringSubmatch(text); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
+
+// descriptionValue is the value a part's description starts with ("100nF"
+// of "100nF 50V X7R 0603"), with its unit: a bare number there is a
+// package or a count, and a value later in it may be another part's (a
+// family's catalogue names one of them).
+func descriptionValue(description string) string {
+	if m := valueRe.FindStringSubmatch(strings.TrimSpace(description)); m != nil && m[0] == strings.TrimSpace(description)[:len(m[0])] {
+		return strings.TrimSpace(m[1])
 	}
 	return ""
 }
@@ -271,6 +300,9 @@ type diagramInput struct {
 	assigns []library.Assignment
 	// pins is each BOM entry's pin table (for its package), by entry id.
 	pins map[int64][]library.Pin
+	// descriptions is each BOM entry's part description, by entry id: a
+	// passive's value when its role doesn't say.
+	descriptions map[int64]string
 }
 
 // diagramBuilder holds what building a diagram needs.
@@ -295,7 +327,7 @@ type diagramBuilder struct {
 func diagram(in diagramInput) Diagram {
 	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
 		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}, guessed: map[string]bool{}, pins: in.pins}
-	b.ends, b.order = ends(in.parts, in.blocks)
+	b.ends, b.order = ends(in.parts, in.blocks, in.descriptions)
 	for _, a := range in.assigns {
 		b.assigned[a.Node] = a
 	}
