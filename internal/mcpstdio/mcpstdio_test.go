@@ -136,7 +136,7 @@ func TestLogsEachSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(b)
-	for _, want := range []string{"start v9", "stdin ", "app port", "the app isn't running: serving the library", "→ server/discover (id 0)", "← error for id 0", "client closed its input", "ended"} {
+	for _, want := range []string{"start v9", "stdin ", "app port", "serving from the library", "→ server/discover (id 0)", "← error for id 0", "client closed its input", "ended"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("log lacks %q:\n%s", want, got)
 		}

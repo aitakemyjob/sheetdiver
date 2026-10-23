@@ -7,6 +7,12 @@ and Linux, which Claude Desktop's extension carries; each stdio session is
 logged to `mcp.log` in the user's cache folder,
 `~/.cache/sheetdiver` on Linux). Every call appears in the app's agent activity feed.
 
+A stdio session outlives the app: it relays to the app while it runs and
+serves the library itself while it doesn't, switching at the next request
+when the app is closed or started again, so the client (Claude Desktop's
+extension included) never needs restarting. A request the app was running
+when it closed is answered with an error saying to try it again.
+
 Protocol versions: every path (HTTP, and stdio whether the app is open or
 closed) speaks MCP up to `2025-11-25` with the `initialize` handshake.
 Clients that probe for the stateless `2026-07-28` with `server/discover`

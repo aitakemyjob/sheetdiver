@@ -41,6 +41,13 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **The Claude Desktop extension stopped working when SheetDiver was
+  closed or restarted**, until it was disabled and enabled again. A stdio
+  session now outlives the app: it serves the library itself while the
+  app is closed and goes back to the app once it's running again, without
+  the client reconnecting. A request that was running when the app closed
+  gets an error saying to try it again, instead of hanging. A long request
+  no longer holds up the others in the same session.
 - **Linux: the Claude Desktop extension couldn't connect.** It ran
   SheetDiver through a Node launcher, which on some setups exited before
   SheetDiver answered, leaving nothing in Claude Desktop's log. The Linux
