@@ -305,8 +305,9 @@ func Circuits() []Circuit {
 			// A tester's buck board: USB-C in with a TVS, a buck whose
 			// inductor leads to the 3V3 rail it is the source of, the output
 			// capacitor set to support it, an output connector on the rail
-			// in a subgroup of its own, and an LED behind its resistor off
-			// the power-good pin, named into a subgroup.
+			// in a subgroup of its own, and a power LED behind its resistor
+			// off the rail at that connector, on a net of their own, named
+			// into a subgroup.
 			Name:  "Buck board",
 			Rails: []CircuitRail{{Name: "VBUS", V: 5, Source: "USB"}, {Name: "3V3", V: 3.3, Source: "U1"}},
 			Parts: []CircuitPart{
@@ -317,14 +318,14 @@ func Circuits() []Circuit {
 			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}},
 			Pins: [][3]string{
 				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"}, {"VBUS", "D1", ""},
-				{"VBUS", "U1 BUCK", "IN"}, {"VBUS", "U1 BUCK", "EN"}, {"GND", "U1 BUCK", "GND"}, {"LX", "U1 BUCK", "LX"}, {"POK", "U1 BUCK", "POK"},
+				{"VBUS", "U1 BUCK", "IN"}, {"VBUS", "U1 BUCK", "EN"}, {"GND", "U1 BUCK", "GND"}, {"LX", "U1 BUCK", "LX"},
 				{"LX", "L1", "1"}, {"3V3", "L1", "2"}, {"VBUS", "C1", ""}, {"3V3", "C3", ""},
 				{"3V3", "J2 OUT", "1"}, {"GND", "J2 OUT", "2"},
-				{"POK", "R4", "1"}, {"LEDK", "R4", "2"}, {"LEDK", "D2", "A"}, {"GND", "D2", "K"},
+				{"3V3", "R4", "1"}, {"LED_A", "R4", "2"}, {"LED_A", "D2", "A"}, {"GND", "D2", "K"},
 			},
 			Groups:  []CircuitGroup{{Name: "Input"}, {Name: "Power"}, {Name: "Output"}},
 			Assign:  [][3]string{{"J1 USB-C", "Input", ""}, {"U1 BUCK", "Power", ""}, {"C3", "Power", "U1 BUCK"}, {"J2 OUT", "Output", ""}},
-			Cluster: [][2]string{{"J2 OUT", "Out"}, {"D2", "LED"}},
+			Cluster: [][2]string{{"J2 OUT", "Out"}, {"D2", "PWR LED"}},
 		},
 		{
 			// Passives reached only through another passive: the output

@@ -496,11 +496,19 @@ describe('subgroups', () => {
     const out = b.clusters.find((c) => c.name === 'Out')!;
     expect(inside(box('J2'), out)).toBe(true);
     expect(inside(out, frame('Output'))).toBe(true);
-    // D2 named into "LED" brings R4, which leads in from POK.
-    const led = b.clusters.find((c) => c.name === 'LED')!;
+    // D2, on a net with only R4 on it, named into "PWR LED" brings R4,
+    // which leads in from the rail at J2: wire from J2's pin to R4, and
+    // from R4 along LED_A to D2.
+    const led = b.clusters.find((c) => c.name === 'PWR LED')!;
     expect(inside(passive('D2'), led)).toBe(true);
     expect(inside(passive('R4'), led)).toBe(true);
+    expect(inside(led, frame('Output'))).toBe(true);
     expect(passive('R4').horizontal).toBe(true);
+    const r4 = passive('R4');
+    const on = (net: string, p: { x: number; y: number }) => b.wires.some((w) => w.net === net && !w.thin && points(w.path).some((q) => q.x === p.x && q.y === p.y));
+    const j2pin = box('J2').pins.find((p) => p.net === '3V3')!;
+    expect(on('3V3', j2pin) && on('3V3', r4.ends[0]), 'J2 to R4').toBe(true);
+    expect(on('LED_A', r4.ends[1]) && on('LED_A', passive('D2').ends[0]), 'R4 to D2').toBe(true);
     // C3 is in Power with U1, which its net reaches only through L1: on a bus after it.
     const c3 = b.clusters.find((c) => inside(passive('C3'), c))!;
     expect(inside(c3, frame('Power'))).toBe(true);

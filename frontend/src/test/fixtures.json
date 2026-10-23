@@ -17613,7 +17613,7 @@
    "connections": {
     "nets": [
      {
-      "id": 107,
+      "id": 106,
       "projectId": 11,
       "name": "3V3",
       "kind": "power",
@@ -17627,9 +17627,9 @@
       "source": "user"
      },
      {
-      "id": 108,
+      "id": 107,
       "projectId": 11,
-      "name": "LEDK",
+      "name": "LED_A",
       "kind": "signal",
       "source": "user"
      },
@@ -17637,13 +17637,6 @@
       "id": 105,
       "projectId": 11,
       "name": "LX",
-      "kind": "signal",
-      "source": "user"
-     },
-     {
-      "id": 106,
-      "projectId": 11,
-      "name": "POK",
       "kind": "signal",
       "source": "user"
      },
@@ -17728,8 +17721,8 @@
     ],
     "connections": [
      {
-      "id": 352,
-      "netId": 107,
+      "id": 351,
+      "netId": 106,
       "net": "3V3",
       "blockId": 141,
       "pin": "1",
@@ -17737,8 +17730,8 @@
       "endpoint": "J2 OUT"
      },
      {
-      "id": 349,
-      "netId": 107,
+      "id": 348,
+      "netId": 106,
       "net": "3V3",
       "blockId": 143,
       "pin": "2",
@@ -17746,12 +17739,21 @@
       "endpoint": "L1"
      },
      {
-      "id": 351,
-      "netId": 107,
+      "id": 350,
+      "netId": 106,
       "net": "3V3",
       "blockId": 144,
       "source": "user",
       "endpoint": "C3"
+     },
+     {
+      "id": 353,
+      "netId": 106,
+      "net": "3V3",
+      "blockId": 145,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R4"
      },
      {
       "id": 341,
@@ -17772,7 +17774,7 @@
       "endpoint": "U1 BUCK"
      },
      {
-      "id": 353,
+      "id": 352,
       "netId": 103,
       "net": "GND",
       "blockId": 141,
@@ -17781,7 +17783,7 @@
       "endpoint": "J2 OUT"
      },
      {
-      "id": 357,
+      "id": 356,
       "netId": 103,
       "net": "GND",
       "blockId": 146,
@@ -17790,18 +17792,18 @@
       "endpoint": "D2"
      },
      {
-      "id": 355,
-      "netId": 108,
-      "net": "LEDK",
+      "id": 354,
+      "netId": 107,
+      "net": "LED_A",
       "blockId": 145,
       "pin": "2",
       "source": "user",
       "endpoint": "R4"
      },
      {
-      "id": 356,
-      "netId": 108,
-      "net": "LEDK",
+      "id": 355,
+      "netId": 107,
+      "net": "LED_A",
       "blockId": 146,
       "pin": "A",
       "source": "user",
@@ -17817,31 +17819,13 @@
       "endpoint": "U1 BUCK"
      },
      {
-      "id": 348,
+      "id": 347,
       "netId": 105,
       "net": "LX",
       "blockId": 143,
       "pin": "1",
       "source": "user",
       "endpoint": "L1"
-     },
-     {
-      "id": 347,
-      "netId": 106,
-      "net": "POK",
-      "blockId": 140,
-      "pin": "POK",
-      "source": "user",
-      "endpoint": "U1 BUCK"
-     },
-     {
-      "id": 354,
-      "netId": 106,
-      "net": "POK",
-      "blockId": 145,
-      "pin": "1",
-      "source": "user",
-      "endpoint": "R4"
      },
      {
       "id": 340,
@@ -17879,7 +17863,7 @@
       "endpoint": "U1 BUCK"
      },
      {
-      "id": 350,
+      "id": 349,
       "netId": 104,
       "net": "VBUS",
       "blockId": 142,
@@ -17937,7 +17921,7 @@
      },
      {
       "node": "block:146",
-      "cluster": "LED",
+      "cluster": "PWR LED",
       "source": "user",
       "endpoint": "D2"
      }
@@ -18021,13 +18005,6 @@
         {
          "name": "LX",
          "net": "LX",
-         "side": "left",
-         "role": "other",
-         "connected": true
-        },
-        {
-         "name": "POK",
-         "net": "POK",
          "side": "left",
          "role": "other",
          "connected": true
@@ -18126,14 +18103,14 @@
        "value": "1k",
        "kind": "resistor",
        "mount": "out",
-       "part": "block:140",
+       "part": "block:141",
        "nets": [
-        "POK",
-        "LEDK"
+        "3V3",
+        "LED_A"
        ],
-       "supports": "block:140",
+       "supports": "block:141",
        "guessed": true,
-       "group": "Power",
+       "group": "Output",
        "shape": "resistor",
        "ends": [
         "1",
@@ -18148,10 +18125,10 @@
        "mount": "chain",
        "part": "block:145",
        "nets": [
-        "LEDK"
+        "LED_A"
        ],
-       "group": "Power",
-       "cluster": "LED",
+       "group": "Output",
+       "cluster": "PWR LED",
        "shape": "led",
        "ends": [
         "anode",
@@ -18193,15 +18170,6 @@
       },
       {
        "name": "LX",
-       "kind": "signal",
-       "group": "Power",
-       "parts": [
-        "block:140"
-       ],
-       "wire": "out"
-      },
-      {
-       "name": "POK",
        "kind": "signal",
        "group": "Power",
        "parts": [
@@ -18286,7 +18254,8 @@
         "netKind": "power",
         "to": [
          "L1.2",
-         "C3 22µF"
+         "C3 22µF",
+         "R4.1"
         ]
        },
        {
@@ -18313,14 +18282,6 @@
         "netKind": "signal",
         "to": [
          "L1.1"
-        ]
-       },
-       {
-        "name": "POK",
-        "net": "POK",
-        "netKind": "signal",
-        "to": [
-         "R4.1"
         ]
        },
        {
@@ -18421,49 +18382,49 @@
    "connections": {
     "nets": [
      {
-      "id": 112,
+      "id": 111,
       "projectId": 12,
       "name": "FB",
       "kind": "signal",
       "source": "user"
      },
      {
-      "id": 109,
+      "id": 108,
       "projectId": 12,
       "name": "GND",
       "kind": "ground",
       "source": "user"
      },
      {
-      "id": 115,
+      "id": 114,
       "projectId": 12,
       "name": "LEDK",
       "kind": "signal",
       "source": "user"
      },
      {
-      "id": 114,
+      "id": 113,
       "projectId": 12,
       "name": "LEDR",
       "kind": "signal",
       "source": "user"
      },
      {
-      "id": 111,
+      "id": 110,
       "projectId": 12,
       "name": "SW",
       "kind": "signal",
       "source": "user"
      },
      {
-      "id": 110,
+      "id": 109,
       "projectId": 12,
       "name": "VBUS",
       "kind": "power",
       "source": "user"
      },
      {
-      "id": 113,
+      "id": 112,
       "projectId": 12,
       "name": "VOUT",
       "kind": "signal",
@@ -18528,8 +18489,8 @@
     ],
     "connections": [
      {
-      "id": 363,
-      "netId": 112,
+      "id": 362,
+      "netId": 111,
       "net": "FB",
       "entryId": 6,
       "pin": "4",
@@ -18539,8 +18500,8 @@
       "pinType": "I"
      },
      {
-      "id": 368,
-      "netId": 112,
+      "id": 367,
+      "netId": 111,
       "net": "FB",
       "blockId": 151,
       "pin": "2",
@@ -18548,8 +18509,8 @@
       "endpoint": "R4"
      },
      {
-      "id": 361,
-      "netId": 109,
+      "id": 360,
+      "netId": 108,
       "net": "GND",
       "entryId": 6,
       "pin": "1",
@@ -18559,8 +18520,8 @@
       "pinType": "G"
      },
      {
-      "id": 359,
-      "netId": 109,
+      "id": 358,
+      "netId": 108,
       "net": "GND",
       "blockId": 147,
       "pin": "GND",
@@ -18568,8 +18529,8 @@
       "endpoint": "J1 USB-C"
      },
      {
-      "id": 370,
-      "netId": 109,
+      "id": 369,
+      "netId": 108,
       "net": "GND",
       "blockId": 148,
       "pin": "GND",
@@ -18577,8 +18538,8 @@
       "endpoint": "U2 MCU"
      },
      {
-      "id": 375,
-      "netId": 109,
+      "id": 374,
+      "netId": 108,
       "net": "GND",
       "blockId": 153,
       "pin": "K",
@@ -18586,8 +18547,8 @@
       "endpoint": "D1"
      },
      {
-      "id": 373,
-      "netId": 115,
+      "id": 372,
+      "netId": 114,
       "net": "LEDK",
       "blockId": 152,
       "pin": "2",
@@ -18595,8 +18556,8 @@
       "endpoint": "R5"
      },
      {
-      "id": 374,
-      "netId": 115,
+      "id": 373,
+      "netId": 114,
       "net": "LEDK",
       "blockId": 153,
       "pin": "A",
@@ -18604,8 +18565,8 @@
       "endpoint": "D1"
      },
      {
-      "id": 371,
-      "netId": 114,
+      "id": 370,
+      "netId": 113,
       "net": "LEDR",
       "blockId": 148,
       "pin": "PA5",
@@ -18613,8 +18574,8 @@
       "endpoint": "U2 MCU"
      },
      {
-      "id": 372,
-      "netId": 114,
+      "id": 371,
+      "netId": 113,
       "net": "LEDR",
       "blockId": 152,
       "pin": "1",
@@ -18622,8 +18583,8 @@
       "endpoint": "R5"
      },
      {
-      "id": 362,
-      "netId": 111,
+      "id": 361,
+      "netId": 110,
       "net": "SW",
       "entryId": 6,
       "pin": "2",
@@ -18633,8 +18594,8 @@
       "pinType": "O"
      },
      {
-      "id": 364,
-      "netId": 111,
+      "id": 363,
+      "netId": 110,
       "net": "SW",
       "blockId": 149,
       "pin": "1",
@@ -18642,8 +18603,8 @@
       "endpoint": "L1"
      },
      {
-      "id": 360,
-      "netId": 110,
+      "id": 359,
+      "netId": 109,
       "net": "VBUS",
       "entryId": 6,
       "pin": "3",
@@ -18653,8 +18614,8 @@
       "pinType": "P"
      },
      {
-      "id": 358,
-      "netId": 110,
+      "id": 357,
+      "netId": 109,
       "net": "VBUS",
       "blockId": 147,
       "pin": "VBUS",
@@ -18662,8 +18623,8 @@
       "endpoint": "J1 USB-C"
      },
      {
-      "id": 369,
-      "netId": 110,
+      "id": 368,
+      "netId": 109,
       "net": "VBUS",
       "blockId": 148,
       "pin": "VDD",
@@ -18671,8 +18632,8 @@
       "endpoint": "U2 MCU"
      },
      {
-      "id": 365,
-      "netId": 113,
+      "id": 364,
+      "netId": 112,
       "net": "VOUT",
       "blockId": 149,
       "pin": "2",
@@ -18680,16 +18641,16 @@
       "endpoint": "L1"
      },
      {
-      "id": 366,
-      "netId": 113,
+      "id": 365,
+      "netId": 112,
       "net": "VOUT",
       "blockId": 150,
       "source": "user",
       "endpoint": "C2"
      },
      {
-      "id": 367,
-      "netId": 113,
+      "id": 366,
+      "netId": 112,
       "net": "VOUT",
       "blockId": 151,
       "pin": "1",

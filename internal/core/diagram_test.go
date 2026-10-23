@@ -737,8 +737,13 @@ func TestTheBuckBoardPlacesByWhatIsSaid(t *testing.T) {
 	for _, r := range d.Connections.Assignments {
 		a[r.Endpoint] = r
 	}
-	if a["J2 OUT"].Cluster != "Out" || a["D2"].Cluster != "LED" {
+	if a["J2 OUT"].Cluster != "Out" || a["D2"].Cluster != "PWR LED" {
 		t.Errorf("clusters = %+v", d.Connections.Assignments)
+	}
+	// The LED is on a net of passives only: it chains off its resistor,
+	// which hangs off the rail at the output connector.
+	if d2, r4 := byLabel["D2"], byLabel["R4"]; d2.Mount != MountChain || d2.Part != r4.ID || r4.Part != "block:4" || d2.Group != "Output" {
+		t.Errorf("D2 = %+v, R4 = %+v", d2, r4)
 	}
 }
 

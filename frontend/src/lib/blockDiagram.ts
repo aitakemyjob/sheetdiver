@@ -582,7 +582,9 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   // Passives: a bridge across two pins of one box, a series part between
   // two nets that reach different boxes, else hanging from one net with
   // its other end shown (ground, or the net's name).
-  const boxesOn = (net: string) => new Set(endsOf(net).map((e) => e.id.split('/')[0]));
+  // The boxes (and subgroups) with a pin on a net: a net with only
+  // passives on it reaches no part.
+  const boxesOn = (net: string) => new Set(endsOf(net).filter((e) => !e.passive || e.unit).map((e) => e.id.split('/')[0]));
   for (const q of d.passives) {
     if (built.below.some((u) => u.passive === q)) continue;
     const id = `q:${q.id}`;
@@ -612,8 +614,11 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
         continue;
       }
     }
+    // A pull-up hangs from its signal, its rail named at the far end,
+    // when the signal reaches a part here; else it hangs from the rail
+    // and the far net is named (a resistor feeding an LED off 3V3).
     const power = (n: string) => kinds.get(n.toLowerCase()) === 'power';
-    const pullUp = q.nets.length === 2 && power(q.nets[0]) !== power(q.nets[1]);
+    const pullUp = q.nets.length === 2 && power(q.nets[0]) !== power(q.nets[1]) && boxesOn(q.nets.find((n) => !power(n))!).size > 0;
     const series = !pullUp && nets.length === 2 && !setsEqual(boxesOn(nets[0]), boxesOn(nets[1]));
     if (series) {
       // Upstream is the net something drives (a right-side pin), else
@@ -1143,10 +1148,13 @@ async function unit(id: string, name: string, ids: Set<string>, d: Diagram, plai
   const local = moveDrawing(drawn, UNIT_PAD - corner.x, UNIT_PAD + UNIT_HEAD - corner.y);
   const far = bottomRight(local);
   const u: Unit = { id, name, members: ids, drawing: local, w: far.x + UNIT_PAD, h: far.y + UNIT_PAD, ports: [], side: 'WEST', part: passives[0]?.part };
-  // The nets that also reach a part outside: a port each, level with the
-  // net's name inside, else with a pin on it.
+  // The nets that also reach a part, or a passive, outside: a port each,
+  // level with the net's name inside, else with a pin on it.
   const inside = new Set([...parts.flatMap((p) => p.pins.map((pin) => pin.net ?? '')), ...passives.flatMap((q) => q.nets)].map((n) => n.toLowerCase()));
-  const outside = new Set(d.parts.filter((p) => !ids.has(`b:${p.id}`)).flatMap((p) => p.pins.map((pin) => (pin.net ?? '').toLowerCase())));
+  const outside = new Set([
+    ...d.parts.filter((p) => !ids.has(`b:${p.id}`)).flatMap((p) => p.pins.map((pin) => (pin.net ?? '').toLowerCase())),
+    ...d.passives.filter((q) => !ids.has(`q:${q.id}`)).flatMap((q) => q.nets.map((n) => n.toLowerCase())),
+  ]);
   for (const net of d.nets.map((n) => n.name).filter((n) => inside.has(n.toLowerCase()) && outside.has(n.toLowerCase()))) {
     const label = local.flags.find((f) => f.text === net) ?? local.wires.find((w) => w.label?.text === net)?.label;
     const pin = local.boxes.flatMap((b) => b.pins).find((p) => p.net === net);
