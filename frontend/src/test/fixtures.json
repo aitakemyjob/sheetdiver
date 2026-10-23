@@ -17536,5 +17536,714 @@
    },
    "inputPower": 0
   }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "Boost board"
+  },
+  "result": {
+   "project": {
+    "id": 11,
+    "name": "Boost board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [
+    {
+     "id": 6,
+     "projectId": 11,
+     "partId": 1,
+     "mpn": "SD1234",
+     "category": "buck",
+     "hasDatasheet": true,
+     "datasheetId": 1,
+     "designator": "U1",
+     "qty": 1,
+     "supplyRail": "VBUS"
+    }
+   ],
+   "rails": [
+    {
+     "id": 13,
+     "projectId": 11,
+     "name": "VBUS",
+     "vNom": 5,
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [
+      "U1"
+     ],
+     "power": 0,
+     "ripple": 1,
+     "rippleLimit": "U1's minimum input 4.5 V (SD1234 p1)"
+    }
+   ],
+   "checks": [
+    {
+     "level": "warn",
+     "message": "U1 has no load current set, so it adds nothing to VBUS's budget",
+     "part": "U1",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "VBUS can carry up to 1 V p-p ripple; limited by U1's minimum input 4.5 V (SD1234 p1)",
+     "rail": "VBUS"
+    },
+    {
+     "level": "ok",
+     "message": "U1: VBUS maximum 5 V is within the recommended 17 V",
+     "part": "U1",
+     "rail": "VBUS"
+    }
+   ],
+   "calculations": [],
+   "notes": [],
+   "connections": {
+    "nets": [
+     {
+      "id": 106,
+      "projectId": 11,
+      "name": "FB",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 103,
+      "projectId": 11,
+      "name": "GND",
+      "kind": "ground",
+      "source": "user"
+     },
+     {
+      "id": 109,
+      "projectId": 11,
+      "name": "LEDK",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 108,
+      "projectId": 11,
+      "name": "LEDR",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 105,
+      "projectId": 11,
+      "name": "SW",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 104,
+      "projectId": 11,
+      "name": "VBUS",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 107,
+      "projectId": 11,
+      "name": "VOUT",
+      "kind": "signal",
+      "source": "user"
+     }
+    ],
+    "blocks": [
+     {
+      "id": 141,
+      "projectId": 11,
+      "name": "C2",
+      "kind": "capacitor",
+      "value": "22µF",
+      "source": "user"
+     },
+     {
+      "id": 144,
+      "projectId": 11,
+      "name": "D1",
+      "kind": "led",
+      "value": "green",
+      "source": "user"
+     },
+     {
+      "id": 138,
+      "projectId": 11,
+      "name": "J1 USB-C",
+      "kind": "connector",
+      "source": "user"
+     },
+     {
+      "id": 140,
+      "projectId": 11,
+      "name": "L1",
+      "kind": "inductor",
+      "value": "4.7µH",
+      "source": "user"
+     },
+     {
+      "id": 142,
+      "projectId": 11,
+      "name": "R4",
+      "kind": "resistor",
+      "value": "100k",
+      "source": "user"
+     },
+     {
+      "id": 143,
+      "projectId": 11,
+      "name": "R5",
+      "kind": "resistor",
+      "value": "1k",
+      "source": "user"
+     },
+     {
+      "id": 139,
+      "projectId": 11,
+      "name": "U2 MCU",
+      "kind": "ic",
+      "source": "user"
+     }
+    ],
+    "connections": [
+     {
+      "id": 345,
+      "netId": 106,
+      "net": "FB",
+      "entryId": 6,
+      "pin": "4",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "VFB",
+      "pinType": "I"
+     },
+     {
+      "id": 350,
+      "netId": 106,
+      "net": "FB",
+      "blockId": 142,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R4"
+     },
+     {
+      "id": 343,
+      "netId": 103,
+      "net": "GND",
+      "entryId": 6,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "GND",
+      "pinType": "G"
+     },
+     {
+      "id": 341,
+      "netId": 103,
+      "net": "GND",
+      "blockId": 138,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 352,
+      "netId": 103,
+      "net": "GND",
+      "blockId": 139,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 357,
+      "netId": 103,
+      "net": "GND",
+      "blockId": 144,
+      "pin": "K",
+      "source": "user",
+      "endpoint": "D1"
+     },
+     {
+      "id": 355,
+      "netId": 109,
+      "net": "LEDK",
+      "blockId": 143,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 356,
+      "netId": 109,
+      "net": "LEDK",
+      "blockId": 144,
+      "pin": "A",
+      "source": "user",
+      "endpoint": "D1"
+     },
+     {
+      "id": 353,
+      "netId": 108,
+      "net": "LEDR",
+      "blockId": 139,
+      "pin": "PA5",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 354,
+      "netId": 108,
+      "net": "LEDR",
+      "blockId": 143,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 344,
+      "netId": 105,
+      "net": "SW",
+      "entryId": 6,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "SW",
+      "pinType": "O"
+     },
+     {
+      "id": 346,
+      "netId": 105,
+      "net": "SW",
+      "blockId": 140,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "L1"
+     },
+     {
+      "id": 342,
+      "netId": 104,
+      "net": "VBUS",
+      "entryId": 6,
+      "pin": "3",
+      "source": "user",
+      "endpoint": "U1",
+      "pinName": "VIN",
+      "pinType": "P"
+     },
+     {
+      "id": 340,
+      "netId": 104,
+      "net": "VBUS",
+      "blockId": 138,
+      "pin": "VBUS",
+      "source": "user",
+      "endpoint": "J1 USB-C"
+     },
+     {
+      "id": 351,
+      "netId": 104,
+      "net": "VBUS",
+      "blockId": 139,
+      "pin": "VDD",
+      "source": "user",
+      "endpoint": "U2 MCU"
+     },
+     {
+      "id": 347,
+      "netId": 107,
+      "net": "VOUT",
+      "blockId": 140,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "L1"
+     },
+     {
+      "id": 348,
+      "netId": 107,
+      "net": "VOUT",
+      "blockId": 141,
+      "source": "user",
+      "endpoint": "C2"
+     },
+     {
+      "id": 349,
+      "netId": 107,
+      "net": "VOUT",
+      "blockId": 142,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R4"
+     }
+    ],
+    "groups": [],
+    "assignments": [],
+    "diagram": {
+     "parts": [
+      {
+       "id": "part:6",
+       "title": "U1 SD1234",
+       "mpn": "SD1234",
+       "kind": "ic",
+       "shape": "ic",
+       "full": true,
+       "column": 1,
+       "pins": [
+        {
+         "name": "VIN",
+         "number": "3",
+         "net": "VBUS",
+         "side": "top",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "VFB",
+         "number": "4",
+         "net": "FB",
+         "side": "left",
+         "role": "input",
+         "connected": true
+        },
+        {
+         "name": "SW",
+         "number": "2",
+         "net": "SW",
+         "side": "right",
+         "role": "output",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "number": "1",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:138",
+       "title": "J1 USB-C",
+       "kind": "connector",
+       "shape": "ic",
+       "column": 0,
+       "pins": [
+        {
+         "name": "VBUS",
+         "net": "VBUS",
+         "side": "right",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:139",
+       "title": "U2 MCU",
+       "kind": "ic",
+       "shape": "ic",
+       "column": 1,
+       "pins": [
+        {
+         "name": "VDD",
+         "net": "VBUS",
+         "side": "left",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "PA5",
+         "net": "LEDR",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      }
+     ],
+     "passives": [
+      {
+       "id": "block:140",
+       "label": "L1",
+       "value": "4.7µH",
+       "kind": "inductor",
+       "mount": "out",
+       "part": "part:6",
+       "nets": [
+        "SW",
+        "VOUT"
+       ],
+       "supports": "part:6",
+       "guessed": true,
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:142",
+       "label": "R4",
+       "value": "100k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "part:6",
+       "nets": [
+        "FB",
+        "VOUT"
+       ],
+       "supports": "part:6",
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "2",
+        "1"
+       ]
+      },
+      {
+       "id": "block:143",
+       "label": "R5",
+       "value": "1k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:139",
+       "nets": [
+        "LEDR",
+        "LEDK"
+       ],
+       "supports": "block:139",
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:141",
+       "label": "C2",
+       "value": "22µF",
+       "kind": "capacitor",
+       "mount": "chain",
+       "part": "block:140",
+       "nets": [
+        "VOUT"
+       ],
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:144",
+       "label": "D1",
+       "value": "green",
+       "kind": "led",
+       "mount": "chain",
+       "part": "block:143",
+       "nets": [
+        "LEDK"
+       ],
+       "shape": "led",
+       "ends": [
+        "anode",
+        "cathode"
+       ]
+      }
+     ],
+     "nets": [
+      {
+       "name": "VBUS",
+       "kind": "power",
+       "parts": [
+        "block:138",
+        "part:6",
+        "block:139"
+       ],
+       "wire": "lane"
+      },
+      {
+       "name": "FB",
+       "kind": "signal",
+       "parts": [
+        "part:6"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "SW",
+       "kind": "signal",
+       "parts": [
+        "part:6"
+       ],
+       "wire": "out",
+       "arrow": true
+      },
+      {
+       "name": "LEDR",
+       "kind": "signal",
+       "parts": [
+        "block:139"
+       ],
+       "wire": "out"
+      }
+     ],
+     "groups": [],
+     "links": [
+      {
+       "from": "block:138",
+       "to": "part:6",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      },
+      {
+       "from": "block:138",
+       "to": "block:139",
+       "label": "VBUS",
+       "kind": "power",
+       "nets": [
+        "VBUS"
+       ]
+      }
+     ]
+    },
+    "pinouts": [
+     {
+      "node": "part:6",
+      "title": "U1 SD1234",
+      "mpn": "SD1234",
+      "pins": [
+       {
+        "number": "1",
+        "name": "GND",
+        "type": "G",
+        "role": "ground",
+        "description": "Ground pin.",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "number": "2",
+        "name": "SW",
+        "type": "O",
+        "role": "output",
+        "description": "Switch node.",
+        "net": "SW",
+        "netKind": "signal",
+        "to": [
+         "L1.1"
+        ]
+       },
+       {
+        "number": "3",
+        "name": "VIN",
+        "type": "P",
+        "role": "power",
+        "description": "Input supply.",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "J1 USB-C.VBUS",
+         "U2 MCU.VDD"
+        ]
+       },
+       {
+        "number": "4",
+        "name": "VFB",
+        "type": "I",
+        "role": "input",
+        "description": "Feedback input.",
+        "net": "FB",
+        "netKind": "signal",
+        "to": [
+         "R4.2"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:138",
+      "title": "J1 USB-C",
+      "pins": [
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "VBUS",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "U1.VIN",
+         "U2 MCU.VDD"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:139",
+      "title": "U2 MCU",
+      "pins": [
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "PA5",
+        "net": "LEDR",
+        "netKind": "signal",
+        "to": [
+         "R5.1"
+        ]
+       },
+       {
+        "name": "VDD",
+        "net": "VBUS",
+        "netKind": "power",
+        "to": [
+         "U1.VIN",
+         "J1 USB-C.VBUS"
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "inputPower": 0
+  }
  }
 ]

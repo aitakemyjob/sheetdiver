@@ -17,7 +17,7 @@ export const api = {
   state: () => call<AppState>('app.state'),
   saveSettings: (s: Settings) => call<void>('settings.update', s),
   activity: () => call<Activity[]>('activity.list'),
-  uiContext: (c: { view: string; part?: string; datasheetId?: number; page?: number; figureId?: number; project?: string; selection?: string }) => call<void>('ui.context', c),
+  uiContext: (c: { view: string; part?: string; datasheetId?: number; page?: number; figureId?: number; project?: string; selection?: string; problem?: string }) => call<void>('ui.context', c),
   pickPDFs: () => call<{ paths: string[] | null }>('files.pickPDFs'),
 
   importPath: (req: { path?: string; url?: string; mpns?: string[]; manufacturer?: string; category?: string; force?: boolean }) => call<ImportResult>('datasheets.import', req),

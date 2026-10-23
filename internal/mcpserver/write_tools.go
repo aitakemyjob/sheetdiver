@@ -451,7 +451,7 @@ func (s *Server) registerWrite() {
 			for i, p := range a.Pins {
 				pins[i] = library.Pin{Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page - 1}
 			}
-			if err := c.Lib.RecordPins(ctx, d.ID, a.Package, pins, library.SourceAgent); err != nil {
+			if err := c.RecordPins(ctx, d.ID, a.Package, pins, library.SourceAgent); err != nil {
 				return result{}, err
 			}
 			c.Changed("pins", d.ID)

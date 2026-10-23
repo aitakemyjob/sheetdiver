@@ -666,6 +666,9 @@ func uiContextText(u core.UIContext) string {
 	if u.Selection != "" {
 		fmt.Fprintf(&b, "\nselected text: %s", u.Selection)
 	}
+	if u.Problem != "" {
+		fmt.Fprintf(&b, "\nthe app couldn't show it: %s", u.Problem)
+	}
 	return b.String() + "\n"
 }
 

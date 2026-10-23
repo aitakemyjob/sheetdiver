@@ -310,6 +310,29 @@ func (s *Store) Disconnect(ctx context.Context, projectID int64, c Connection) e
 	return nil
 }
 
+// RekeyPins moves the connections of every BOM entry of a datasheet's
+// parts from old pin keys to new ones (ignoring case): pins connected by
+// name before their table had numbers, or renamed since. A connection
+// already under the new key wins over the old one.
+func (s *Store) RekeyPins(ctx context.Context, dsID int64, keys map[string]string) error {
+	const entries = `SELECT pp.id FROM project_parts pp JOIN parts p ON p.id = pp.part_id WHERE p.datasheet_id = ?`
+	return s.tx(ctx, func(tx *sql.Tx) error {
+		for from, to := range keys {
+			if strings.EqualFold(from, to) || from == "" || to == "" {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `DELETE FROM project_connections WHERE pin = ? COLLATE NOCASE AND entry_id IN (`+entries+`)
+				AND EXISTS (SELECT 1 FROM project_connections b WHERE b.entry_id = project_connections.entry_id AND b.ref = project_connections.ref AND b.pin = ?)`, from, dsID, to); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE project_connections SET pin = ? WHERE pin = ? COLLATE NOCASE AND entry_id IN (`+entries+`)`, to, from, dsID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // PartNode names a BOM entry's block-diagram node, for Position.
 func PartNode(entryID int64) string { return "part:" + strconv.FormatInt(entryID, 10) }
 

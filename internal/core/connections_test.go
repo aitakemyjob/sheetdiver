@@ -453,3 +453,85 @@ func TestOneDesignatorOfAnEntryWithSeveral(t *testing.T) {
 		t.Error("R2 stays connected")
 	}
 }
+
+func TestPinRenamesKeepConnections(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, _ := s.Lib.CreateProject(ctx, "board", "")
+	pp, err := s.AddToProject(ctx, "board", "SD1234", library.ProjectPart{Designator: "U1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, _ := s.Lib.PartByID(ctx, pp.PartID)
+	ds := part.DatasheetID
+	pinsOf := func() map[string]string {
+		t.Helper()
+		cs, _ := s.Lib.Connections(ctx, p.ID)
+		out := map[string]string{}
+		for _, c := range cs {
+			out[c.Net] = c.Pin
+		}
+		return out
+	}
+	change := func(ch ...ConnectChange) []string {
+		t.Helper()
+		problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: ch}, library.SourceUser)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return problems
+	}
+	// No pin table yet: pins are connected by the names given.
+	if err := s.RecordPins(ctx, ds, "", nil, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	change(ConnectChange{Net: "VIN", Part: "U1", Pin: "VIN"}, ConnectChange{Net: "GND", Part: "U1", Pin: "GND"})
+	if got := pinsOf(); got["VIN"] != "VIN" || got["GND"] != "GND" {
+		t.Errorf("by name: %v", got)
+	}
+	// The table arrives with numbers: the connections move to them, so
+	// the pins can be addressed by number, and a second connection of the
+	// same pin by number moves it rather than doubling it.
+	if err := s.RecordPins(ctx, ds, "SOT-23", []library.Pin{{Number: "1", Name: "GND", Type: "G"}, {Number: "2", Name: "VIN", Type: "P"}, {Number: "3", Name: "SW"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if got := pinsOf(); got["VIN"] != "2" || got["GND"] != "1" {
+		t.Errorf("after numbering: %v", got)
+	}
+	change(ConnectChange{Net: "VBUS", Part: "U1", Pin: "2"})
+	cs, _ := s.Lib.Connections(ctx, p.ID)
+	if got := pinsOf(); len(cs) != 2 || got["VBUS"] != "2" || got["VIN"] != "" {
+		t.Errorf("moved by number: %v (%d rows)", got, len(cs))
+	}
+	// Pins renamed (same numbers): the connections stay, and the pin is
+	// found by its new name or its number for removal.
+	if err := s.RecordPins(ctx, ds, "SOT-23", []library.Pin{{Number: "1", Name: "GND", Type: "G"}, {Number: "2", Name: "IN", Type: "P"}, {Number: "3", Name: "SW"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := s.ProjectDetail(ctx, "board")
+	for _, r := range d.Connections.Connections {
+		if r.Net == "VBUS" && r.PinName != "IN" {
+			t.Errorf("renamed pin shows as %q", r.PinName)
+		}
+	}
+	if problems := change(ConnectChange{Net: "VBUS", Part: "U1", Pin: "IN", Remove: true}); len(problems) > 0 {
+		t.Errorf("remove by new name: %q", problems)
+	}
+	if problems := change(ConnectChange{Net: "GND", Part: "U1", Pin: "1", Remove: true}); len(problems) > 0 {
+		t.Errorf("remove by number: %q", problems)
+	}
+	if cs, _ := s.Lib.Connections(ctx, p.ID); len(cs) != 0 {
+		t.Errorf("rows left: %+v", cs)
+	}
+	// A table without numbers, renamed in place: matched by position.
+	if err := s.RecordPins(ctx, ds, "SOT-23", []library.Pin{{Name: "A"}, {Name: "B"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	change(ConnectChange{Net: "X", Part: "U1", Pin: "A"})
+	if err := s.RecordPins(ctx, ds, "SOT-23", []library.Pin{{Name: "+"}, {Name: "-"}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if got := pinsOf(); got["X"] != "+" {
+		t.Errorf("by position: %v", got)
+	}
+}

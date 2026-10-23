@@ -267,6 +267,18 @@ func TestAlternativesReportAndUpdates(t *testing.T) {
 	h.must("create_project", map[string]any{"name": "b"})
 	h.must("add_to_project", map[string]any{"project": "b", "part": "ZX7001", "designator": "U1"})
 	h.must("export_project_report", map[string]any{"project": "b"}, "# b — design review", "| U1 | 1 | ZX7001 |")
+	// A project is deleted by name only, and its parts stay.
+	if out, _, isErr := h.call("delete_project", map[string]any{"project": " "}); !isErr || !strings.Contains(out, "name the project") {
+		t.Errorf("delete_project without a name: %s", out)
+	}
+	h.must("delete_project", map[string]any{"project": "b"}, "deleted project b", "parts stay")
+	if out := h.must("list_projects", map[string]any{}); strings.Contains(out, "b:") {
+		t.Errorf("b still listed: %s", out)
+	}
+	h.must("get_part", map[string]any{"part": "ZX7001"}, "ZX7001")
+	if out, _, isErr := h.call("delete_project", map[string]any{"project": "b"}); !isErr {
+		t.Errorf("deleting twice: %s", out)
+	}
 	// The sample came as bytes (no URL) and lookups are offline here.
 	out, _, _ := h.call("check_datasheet_updates", map[string]any{"part": "nope"})
 	if !strings.Contains(out, "nope") {

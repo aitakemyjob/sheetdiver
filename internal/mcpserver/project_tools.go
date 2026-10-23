@@ -24,6 +24,10 @@ type createProjectArgs struct {
 	Activate    bool   `json:"activate,omitempty" jsonschema:"make it the default project"`
 }
 
+type deleteProjectArgs struct {
+	Project string `json:"project" jsonschema:"the project to delete, by name (never defaulted to the active one)"`
+}
+
 type connectionsArgs struct {
 	Project   string                `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
 	Blocks    []blockArgs           `json:"blocks,omitempty" jsonschema:"things off the BOM the board connects to (Battery, USB-C, a sensor still to be chosen); added before the connections, so they can be connected"`
@@ -170,6 +174,25 @@ func (s *Server) registerProjects() {
 			}
 			c.ProjectChanged(p.Name, "created")
 			return text(fmt.Sprintf("created project %s (#%d). Add rails with set_rail and parts with add_to_project.", p.Name, p.ID)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "delete_project", Description: "Delete a project: its BOM, rails, connections, groups, calculations and notes. The parts stay in the library. Not undoable.", Annotations: destructive("Delete project")},
+		write, func(a deleteProjectArgs) string { return "delete project " + a.Project }, func(ctx context.Context, a deleteProjectArgs) (result, error) {
+			if strings.TrimSpace(a.Project) == "" {
+				return result{}, fmt.Errorf("name the project to delete (see list_projects)")
+			}
+			p, err := c.Lib.Project(ctx, a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			if err := c.Lib.DeleteProject(ctx, p.ID); err != nil {
+				return result{}, err
+			}
+			if strings.EqualFold(c.Config.Get().ActiveProject, p.Name) {
+				_ = c.Config.SetActiveProject("")
+			}
+			c.ProjectChanged(p.Name, "deleted")
+			return text(fmt.Sprintf("deleted project %s (its parts stay in the library)", p.Name)), nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "get_project", Description: "A project's BOM, rails with computed load (direct loads plus regulator input currents), capacity and power, input power, voltage/current checks against each part's datasheet limits, saved calculations and notes.", Annotations: readOnly("Get project")},
@@ -1028,6 +1051,10 @@ func connectionsText(d core.ProjectDetail) string {
 	}
 	// The passives, as the app draws them: strapping that the links above
 	// don't show.
+	passiveLabel := map[string]string{}
+	for _, p := range c.Diagram.Passives {
+		passiveLabel[p.ID] = p.Label
+	}
 	for _, p := range c.Diagram.Passives {
 		name := strings.TrimSpace(p.Label + " " + p.Value)
 		name += supportsText(p, label)
@@ -1039,6 +1066,8 @@ func connectionsText(d core.ProjectDetail) string {
 		switch p.Mount {
 		case core.MountBridge:
 			fmt.Fprintf(&b, "%s across %s %s", name, part, strings.Join(p.Nets, "/"))
+		case core.MountChain:
+			fmt.Fprintf(&b, "%s on %s after %s, to %s", name, p.Nets[0], passiveLabel[p.Part], to)
 		case core.MountBelow:
 			fmt.Fprintf(&b, "%s on %s at %s, to %s", name, p.Nets[0], part, to)
 		default:

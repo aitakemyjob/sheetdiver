@@ -300,5 +300,25 @@ func Circuits() []Circuit {
 			Assign:  [][3]string{{"U2 MCU", "MCU", ""}, {"Q2", "MCU", ""}},
 			Cluster: [][2]string{{"Q2", "Status LED"}, {"R3", "Status LED"}, {"D2", "Status LED"}},
 		},
+		{
+			// Passives reached only through another passive: the output
+			// capacitor after the inductor, with the feedback resistor off
+			// the same net, and an LED after its series resistor.
+			Name:  "Boost board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS"}, {Name: "U2 MCU", Kind: "ic"},
+				{Name: "L1", Kind: "inductor", Value: "4.7µH"}, {Name: "C2", Kind: "capacitor", Value: "22µF"}, {Name: "R4", Kind: "resistor", Value: "100k"},
+				{Name: "R5", Kind: "resistor", Value: "1k"}, {Name: "D1", Kind: "led", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"SW", "U1", "SW"}, {"FB", "U1", "VFB"},
+				{"SW", "L1", "1"}, {"VOUT", "L1", "2"}, {"VOUT", "C2", ""}, {"VOUT", "R4", "1"}, {"FB", "R4", "2"},
+				{"VBUS", "U2 MCU", "VDD"}, {"GND", "U2 MCU", "GND"}, {"LEDR", "U2 MCU", "PA5"},
+				{"LEDR", "R5", "1"}, {"LEDK", "R5", "2"}, {"LEDK", "D1", "A"}, {"GND", "D1", "K"},
+			},
+		},
 	}
 }

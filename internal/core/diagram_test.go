@@ -617,3 +617,89 @@ func TestSymbolsOfTheDriverBoard(t *testing.T) {
 		t.Errorf("passives:\n%s", strings.Join(got, "\n"))
 	}
 }
+
+func TestARailsSourceMakesItsNet(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	p, _ := s.Lib.CreateProject(ctx, "ldo", "")
+	v := 3.3
+	if _, err := s.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: "3V3", VNom: &v, Source: "U1"}); err != nil {
+		t.Fatal(err)
+	}
+	// U1's pin on 3V3 isn't typed or named as an output; the rail says U1
+	// supplies it, so U1 drives it: a power link to the connector it
+	// feeds, and the capacitor by U1.
+	ch := ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "U1 LDO", Kind: "ic"}, {Name: "J2 OUT", Kind: "connector"}, {Name: "C2", Kind: "capacitor", Value: "10µF"}},
+		Connect: []ConnectChange{{Net: "3V3", Part: "U1 LDO", Pin: "P3"}, {Net: "GND", Part: "U1 LDO", Pin: "GND"}, {Net: "3V3", Part: "J2 OUT", Pin: "1"}, {Net: "GND", Part: "J2 OUT", Pin: "2"}, {Net: "3V3", Part: "C2"}},
+	}
+	if problems, err := s.ChangeConnections(ctx, "ldo", ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "ldo")
+	dg := d.Connections.Diagram
+	var links []string
+	for _, l := range dg.Links {
+		links = append(links, l.From+" "+l.Kind+" "+l.To)
+	}
+	if strings.Join(links, "\n") != "block:1 power block:2" {
+		t.Errorf("links = %q", links)
+	}
+	if len(dg.Passives) != 1 || dg.Passives[0].Part != "block:1" || dg.Passives[0].Supports != "block:1" {
+		t.Errorf("C2 = %+v", dg.Passives)
+	}
+}
+
+func TestAPartWithMoreThanTwoPinsIsABox(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "usb", ""); err != nil {
+		t.Fatal(err)
+	}
+	pp, err := s.AddToProject(ctx, "usb", "SD1234", library.ProjectPart{Designator: "U3"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part, _ := s.Lib.PartByID(ctx, pp.PartID)
+	cat := "ESD protection TVS diode array"
+	if _, err := s.Lib.UpdatePart(ctx, part.ID, library.PartUpdate{Category: &cat}); err != nil {
+		t.Fatal(err)
+	}
+	pins := []library.Pin{{Number: "1", Name: "I/O1"}, {Number: "2", Name: "GND", Type: "G"}, {Number: "3", Name: "I/O2"}, {Number: "4", Name: "I/O2"}, {Number: "5", Name: "VBUS", Type: "P"}, {Number: "6", Name: "I/O1"}}
+	if err := s.Lib.RecordPins(ctx, part.DatasheetID, "SOT-23-6", pins, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	ch := ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "J1 USB", Kind: "connector"}},
+		Connect: []ConnectChange{{Net: "D+", Part: "J1 USB", Pin: "D+"}, {Net: "D-", Part: "J1 USB", Pin: "D-"}, {Net: "VBUS", Part: "J1 USB", Pin: "VBUS"}, {Net: "D+", Part: "U3", Pin: "1"}, {Net: "D-", Part: "U3", Pin: "3"}, {Net: "VBUS", Part: "U3", Pin: "5"}, {Net: "GND", Part: "U3", Pin: "2"}},
+	}
+	if problems, err := s.ChangeConnections(ctx, "usb", ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "usb")
+	dg := d.Connections.Diagram
+	if len(dg.Parts) != 2 || dg.Parts[0].Shape != "ic" || !dg.Parts[0].Full || len(dg.Parts[0].Pins) != 6 || len(dg.Passives) != 0 {
+		t.Errorf("a six-pin TVS array is a box with its pins: parts %+v, passives %+v", dg.Parts, dg.Passives)
+	}
+}
+
+func TestPassivesReachedOnlyThroughAnotherAreChained(t *testing.T) {
+	s := newService(t)
+	d := drawn{t, buildCircuit(t, s, circuit("Boost board")).Connections.Diagram}
+	got := d.passives()
+	var chained []string
+	for _, p := range d.Passives {
+		if p.Mount == MountChain {
+			chained = append(chained, p.Label+" after "+p.Part+" on "+strings.Join(p.Nets, "+"))
+		}
+	}
+	sort.Strings(chained)
+	// C2 is on VOUT, which no part is on: it chains off L1, whose far net
+	// it is. D1 chains off R5. R4 hangs from FB at U1, VOUT at its far end.
+	if strings.Join(chained, "; ") != "C2 after block:3 on VOUT; D1 after block:6 on LEDK" {
+		t.Errorf("chained = %q\nall: %q", chained, got)
+	}
+	if !slices.ContainsFunc(got, func(s string) bool { return strings.HasPrefix(s, "R4 100k ") && strings.HasSuffix(s, " U1 on FB+VOUT") }) {
+		t.Errorf("R4 = %q", got)
+	}
+}

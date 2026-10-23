@@ -507,7 +507,8 @@ export interface DiagramPassive {
   label: string;
   value?: string;
   kind: string;
-  mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge';
+  /** Chain: after the passive `part` names, on the net they share, which reaches no part but through it. */
+  mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge' | 'chain';
   part: string;
   nets: string[];
   /** The part it serves: set, or guessed from its nets. */

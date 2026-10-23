@@ -226,14 +226,17 @@ type Focus struct {
 // UIContext is what the user is looking at, reported by the UI so agents
 // can answer "what about this graph?" without copying anything.
 type UIContext struct {
-	View        string    `json:"view"`
-	Part        string    `json:"part,omitempty"`
-	DatasheetID int64     `json:"datasheetId,omitempty"`
-	Page        int       `json:"page,omitempty"`
-	FigureID    int64     `json:"figureId,omitempty"`
-	Project     string    `json:"project,omitempty"`
-	Selection   string    `json:"selection,omitempty"`
-	Updated     time.Time `json:"updated"`
+	View        string `json:"view"`
+	Part        string `json:"part,omitempty"`
+	DatasheetID int64  `json:"datasheetId,omitempty"`
+	Page        int    `json:"page,omitempty"`
+	FigureID    int64  `json:"figureId,omitempty"`
+	Project     string `json:"project,omitempty"`
+	Selection   string `json:"selection,omitempty"`
+	// Problem is what the app failed to show there (a block diagram that
+	// couldn't be laid out), for the agent to see.
+	Problem string    `json:"problem,omitempty"`
+	Updated time.Time `json:"updated"`
 }
 
 // session is in-memory state for this run.

@@ -126,7 +126,7 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		return out, nil, err
 	}
 	out.Assignments = assignmentRows(parts, out.Blocks, assigns)
-	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns, pins: pins, descriptions: s.entryDescriptions(ctx, parts)})
+	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns, rails: plainRails(rails), pins: pins, descriptions: s.entryDescriptions(ctx, parts)})
 	out.Pinouts = pinouts(parts, out.Blocks, out.Nets, out.Connections, pins)
 	return out, connectionChecks(parts, rails, out.Nets, out.Connections, pins), nil
 }
@@ -505,6 +505,15 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 	return problems, nil
 }
 
+// plainRails is the rails without their status.
+func plainRails(rs []RailStatus) []library.Rail {
+	out := make([]library.Rail, len(rs))
+	for i, r := range rs {
+		out[i] = r.Rail
+	}
+	return out
+}
+
 // passiveNode reports whether a node is drawn as a passive (a resistor,
 // capacitor, inductor or diode).
 func passiveNode(parts []library.ProjectPart, blocks []library.Block, node string) bool {
@@ -581,4 +590,57 @@ func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) t
 		}
 	}
 	return target{}
+}
+
+// RecordPins records a datasheet's pin table for a package and keeps the
+// connections made to its pins: one connected by name before the table
+// had numbers, or under a name since changed, is moved to the pin's key
+// now (its number, else its name), matched by number, else by place in
+// a table of the same length, else by name.
+func (s *Service) RecordPins(ctx context.Context, dsID int64, pkg string, pins []library.Pin, source string) error {
+	old, _ := s.Lib.Pins(ctx, dsID, pkg)
+	if err := s.Lib.RecordPins(ctx, dsID, pkg, pins, source); err != nil {
+		return err
+	}
+	return s.Lib.RekeyPins(ctx, dsID, rekeys(old, pins))
+}
+
+// rekeys maps each old pin's number and name, and each new pin's name,
+// to the key of the pin as it is now.
+func rekeys(old, now []library.Pin) map[string]string {
+	keys := map[string]string{}
+	add := func(alias string, p library.Pin) {
+		if alias != "" && !strings.EqualFold(alias, pinKey(p)) {
+			keys[alias] = pinKey(p)
+		}
+	}
+	for _, p := range now {
+		add(p.Name, p)
+	}
+	for i, o := range old {
+		var match *library.Pin
+		for j := range now {
+			if o.Number != "" && strings.EqualFold(now[j].Number, o.Number) {
+				match = &now[j]
+				break
+			}
+		}
+		if match == nil && len(old) == len(now) && (o.Number == "" || now[i].Number == "") {
+			match = &now[i]
+		}
+		if match == nil {
+			for j := range now {
+				if o.Name != "" && strings.EqualFold(now[j].Name, o.Name) {
+					match = &now[j]
+					break
+				}
+			}
+		}
+		if match == nil {
+			continue
+		}
+		add(o.Number, *match)
+		add(o.Name, *match)
+	}
+	return keys
 }

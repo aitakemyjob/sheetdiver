@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, Eye, EyeOff, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
-import { saveText } from '../../lib/api';
+import { api, saveText } from '../../lib/api';
 import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
 import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
-import { Empty } from '../../components/ui';
+import { Empty, ErrorBox } from '../../components/ui';
 import { change, marked } from './connections';
 
 /** The view's zoom (k) and pan (x, y, screen pixels). */
@@ -140,6 +140,9 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const [view, setView] = useState<View | null>(null);
   const [pan, setPan] = useState<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const [drawing, setDrawing] = useState<BlockDrawing | null>(null);
+  // Why the last layout failed, shown instead of a stale drawing and
+  // reported for the agent to see.
+  const [problem, setProblem] = useState<string | null>(null);
   // A generated symbol shows every pin of its pin table; this hides the
   // unconnected ones (but supplies and grounds) on big parts.
   const [connectedOnly, setConnectedOnly] = useState(connectedOnlySetting);
@@ -150,7 +153,18 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   // Laid out by ELK, asynchronously; a stale result is dropped.
   useEffect(() => {
     let live = true;
-    layoutBlockDiagram(d.connections.diagram, { connectedOnly }).then((r) => live && setDrawing(r));
+    layoutBlockDiagram(d.connections.diagram, { connectedOnly })
+      .then((r) => {
+        if (!live) return;
+        setDrawing(r);
+        setProblem(null);
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        const message = e instanceof Error ? e.message : String(e);
+        setProblem(message);
+        api.uiContext({ view: 'project/diagram', project: d.project.name, problem: `the block diagram failed to lay out: ${message}` }).catch(() => {});
+      });
     return () => {
       live = false;
     };
@@ -193,6 +207,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       </Empty>
     );
   }
+  if (problem) return <ErrorBox error={`The block diagram couldn't be laid out: ${problem}. Please report this with the connection table (Connections tab).`} />;
   if (!drawing) return null;
   // Screen to drawing coordinates, through the zoom and pan.
   const at = (e: PointerEvent) => {

@@ -38,7 +38,7 @@ Conventions:
 | Tool | What it does |
 |---|---|
 | `library_overview` | Datasheets, parts by category, projects, and what the user has open. |
-| `get_ui_context` | The part, page, figure or project the user is looking at, and any selected text. |
+| `get_ui_context` | The part, page, figure or project the user is looking at, any selected text, and what the app could not show there (a block diagram that failed to lay out, with the error). |
 | `search` | Full-text search across parts, page text, sections, figure captions and descriptions, parameters, pins, registers, recommendations and notes. |
 | `list_categories` | Component types with part counts and the key parameters compared for each. |
 | `compare_parts` | (Optionally only starred parts or one status.) One type's parts side by side on key parameters (min/typ/max in SI), filtered by requirements such as `vin >= 24 V`, `iout >= 3 A`, `iq <= 1 µA` and sorted. A `>=` filter tests the highest the part can do (max), `<=` tests typ. |
@@ -85,6 +85,7 @@ Conventions:
 |---|---|
 | `list_projects` | Projects with part and rail counts. |
 | `create_project` | Create a project (optionally the active one, which project arguments default to). |
+| `delete_project` | Delete a project by name (BOM, rails, connections, groups, calculations and notes; the parts stay in the library). Never defaults to the active project. |
 | `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads, chargers drawing the charge current set as their current (none set: no charging; a linear charger draws the larger of that and its load, a power-path charger both, up to its input limit); a part with the same supply and output rail counts as a load on it, and loops in the power tree are reported), each rail's ripple budget (peak-to-peak ripple it can carry before a part on it leaves its recommended input range, and the limiting part), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
 | `set_rail` | Add, update or delete a rail: nominal/min/max voltage, current limit, source, and loads on it that aren't in the BOM. |
 | `add_to_project` | Place a part with designator, quantity, role, supply rail, output rail and load current. |

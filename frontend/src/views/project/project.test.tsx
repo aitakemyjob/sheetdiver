@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
 import { fakeBackend, recorded, type FakeBackend } from '../../test/backend';
@@ -265,6 +265,19 @@ describe('project block diagram, pins and connections', () => {
     await waitFor(() => expect(b.callsTo('connections.change')[4]).toMatchObject({ groups: [{ name: 'Debug' }] }));
     fireEvent.click(screen.getByRole('button', { name: /Remove Sensor/ }));
     await waitFor(() => expect(b.callsTo('connections.change')[5]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
+  });
+
+  it('deletes the project once confirmed, and closes it', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'overview' }} />);
+    const del = await screen.findByRole('button', { name: /Delete/ });
+    fireEvent.click(del);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Delete the project Sensor board?'));
+    expect(b.callsTo('projects.delete')).toHaveLength(0);
+    confirm.mockReturnValue(true);
+    fireEvent.click(del);
+    await waitFor(() => expect(b.callsTo('projects.delete')).toEqual([{ id: sensor().project.id }]));
+    confirm.mockRestore();
   });
 
   it('frames each group on the block diagram', async () => {

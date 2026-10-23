@@ -47,7 +47,7 @@ registers. Projects group the parts of a board with their supply rails.
   record_parameters (with page), describe_figure (what a graph shows: axes, conditions, curves), record_pins,
   record_registers, record_recommendations (inductors, capacitors, suggested part numbers) and add_note. Recorded
   data is kept when a datasheet is re-extracted and is what the calculators and project checks use.
-- Projects: create_project, set_rail, add_to_project (with supply/output rails and load currents), then
+- Projects: create_project (delete_project removes one), set_rail, add_to_project (with supply/output rails and load currents), then
   get_project for the BOM, power budget per rail (regulator input currents included) and voltage/current checks.
   set_connections drafts the block diagram and connection table (pins of BOM parts on nets, blocks off the
   BOM such as a battery or connector); get_connections checks them against the pin tables and rails.
@@ -184,4 +184,9 @@ func readOnly(title string) *mcp.ToolAnnotations {
 // it), idempotent when re-run with the same arguments.
 func writes(title string, idempotent bool) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: boolPtr(false), IdempotentHint: idempotent, OpenWorldHint: boolPtr(false)}
+}
+
+// destructive annotates a tool that removes something for good.
+func destructive(title string) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{Title: title, DestructiveHint: boolPtr(true), IdempotentHint: true, OpenWorldHint: boolPtr(false)}
 }

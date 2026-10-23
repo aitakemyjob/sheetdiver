@@ -144,6 +144,10 @@ const (
 	MountBelow = "below"
 	// MountBridge: across Part's two pins on Nets.
 	MountBridge = "bridge"
+	// MountChain: after the passive Part names, on the net they share
+	// (Nets[0]), which reaches no part but through it (C2 on VOUT after
+	// the inductor; an LED after its series resistor).
+	MountChain = "chain"
 )
 
 // DiagramPassive is a passive (or several alike on one net, serving the
@@ -211,8 +215,11 @@ type end struct {
 
 // ends lists the BOM entries and blocks, keyed by node. A passive's
 // value is what its role says ("U1 input 10µF"), else what its part's
-// description starts with ("100nF 50V X7R 0603").
-func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[int64]string) (map[string]*end, []string) {
+// description starts with ("100nF 50V X7R 0603"). A part whose pin
+// table has more than two pins is a box with them whatever its category
+// says (a USBLC6 ESD array is a TVS with six pins), unless the entry is
+// several designators of it (R1,R2 of a resistor array).
+func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[int64]string, pins map[int64][]library.Pin) (map[string]*end, []string) {
 	out := map[string]*end{}
 	var order []string
 	for i := range parts {
@@ -222,7 +229,11 @@ func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[
 		if value == "" {
 			value = descriptionValue(descriptions[pp.ID])
 		}
-		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: symbolKind(pp.Category, false), value: value, label: firstNonEmpty(pp.Designator, pp.MPN), passive: twoTerminal(pp.Category, false), entry: pp}
+		kind, passive := symbolKind(pp.Category, false), twoTerminal(pp.Category, false)
+		if passive && len(pins[pp.ID]) > 2 && !strings.ContainsAny(strings.TrimSpace(pp.Designator), ", ") {
+			kind, passive = "ic", false
+		}
+		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: kind, value: value, label: firstNonEmpty(pp.Designator, pp.MPN), passive: passive, entry: pp}
 		if pp.Designator == "" {
 			out[id].title = pp.MPN
 		}
@@ -303,6 +314,8 @@ type diagramInput struct {
 	layout  []library.Position
 	groups  []library.Group
 	assigns []library.Assignment
+	// rails are the project's rails: one's source makes its net.
+	rails []library.Rail
 	// pins is each BOM entry's pin table (for its package), by entry id.
 	pins map[int64][]library.Pin
 	// descriptions is each BOM entry's part description, by entry id: a
@@ -315,6 +328,7 @@ type diagramBuilder struct {
 	ends     map[string]*end
 	order    []string
 	kinds    map[string]string          // net (lower case) → kind
+	sources  map[string]string          // rail (lower case) → what supplies it
 	buses    map[string]string          // net (lower case) → bus
 	rows     []ConnectionRow            // in table order
 	onNet    map[string][]ConnectionRow // net (lower case) → its rows
@@ -330,9 +344,12 @@ type diagramBuilder struct {
 
 // diagram builds the block diagram of a project's connection table.
 func diagram(in diagramInput) Diagram {
-	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
+	b := &diagramBuilder{kinds: map[string]string{}, sources: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
 		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}, guessed: map[string]bool{}, pins: in.pins}
-	b.ends, b.order = ends(in.parts, in.blocks, in.descriptions)
+	b.ends, b.order = ends(in.parts, in.blocks, in.descriptions, in.pins)
+	for _, r := range in.rails {
+		b.sources[strings.ToLower(r.Name)] = strings.TrimSpace(r.Source)
+	}
 	for _, a := range in.assigns {
 		b.assigned[a.Node] = a
 	}
@@ -587,11 +604,17 @@ func (b *diagramBuilder) drives(id, net string) bool {
 }
 
 // makes reports whether a part makes a net: it's the part's output rail
-// (and not also its supply), or the part has an output pin on it.
+// (and not also its supply), the part is the rail's source, or the part
+// has an output pin on it.
 func (b *diagramBuilder) makes(id, net string) bool {
 	e := b.ends[id]
 	if e.entry != nil && strings.EqualFold(e.entry.OutputRail, net) && !strings.EqualFold(e.entry.SupplyRail, net) {
 		return true
+	}
+	if src := b.sources[strings.ToLower(net)]; src != "" && !e.passive && (e.entry == nil || !strings.EqualFold(e.entry.SupplyRail, net)) {
+		if strings.EqualFold(src, e.label) || strings.EqualFold(src, e.mpn) || strings.EqualFold(src, strings.Fields(e.title + " ")[0]) {
+			return true
+		}
 	}
 	for _, r := range b.onNet[strings.ToLower(net)] {
 		if nodeOf(r) == id && output(r) {
@@ -1101,7 +1124,8 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		groupOf[p.ID] = p.Group
 	}
 	out := []DiagramPassive{}
-	merged := map[string]int{} // nets|value|kind|part → index in out
+	var pending []DiagramPassive // on no part's net: chains, or not drawn
+	merged := map[string]int{}   // nets|value|kind|part → index in out
 	for _, id := range b.order {
 		nets := b.passives[id]
 		if len(nets) == 0 {
@@ -1138,7 +1162,8 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		wires, ok := byNet[strings.ToLower(p.Nets[0])]
 		if !ok {
-			continue // between passives only: not drawn
+			pending = append(pending, p) // between passives only: a chain, if one leads there
+			continue
 		}
 		n := pickWire(wires, serves, b.passiveGroup(id))
 		p.Group = n.Group
@@ -1177,7 +1202,45 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		merged[key] = len(out)
 		out = append(out, p)
 	}
+	// Reached only through another passive (C2 on VOUT after L1; an LED
+	// after its series resistor): a chain off that passive, from the net
+	// they share, and chains go on (the next off C2's far net).
+	for progress := true; progress && len(pending) > 0; {
+		progress = false
+		rest := pending[:0]
+		for _, p := range pending {
+			lead, net, ok := chainLead(out, p)
+			if !ok {
+				rest = append(rest, p)
+				continue
+			}
+			if !strings.EqualFold(p.Nets[0], net) {
+				p.Nets = []string{p.Nets[1], p.Nets[0]}
+			}
+			p.Mount, p.Part, p.Group = MountChain, lead.ID, lead.Group
+			p.Ends = b.passiveEnds(p.ID, p)
+			out = append(out, p)
+			progress = true
+		}
+		pending = rest
+	}
 	return out
+}
+
+// chainLead finds the drawn passive whose far net a passive is on, and
+// that net.
+func chainLead(drawn []DiagramPassive, p DiagramPassive) (DiagramPassive, string, bool) {
+	for _, q := range drawn {
+		if q.Mount == MountBridge || len(q.Nets) != 2 {
+			continue
+		}
+		for _, n := range p.Nets {
+			if strings.EqualFold(n, q.Nets[1]) {
+				return q, n, true
+			}
+		}
+	}
+	return DiagramPassive{}, "", false
 }
 
 // reaches reports whether one of a net's wires reaches a part.

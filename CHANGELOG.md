@@ -64,6 +64,10 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Delete a project** from its page (the button next to Report) or
+  with the new `delete_project` tool, by name only: its BOM, rails,
+  connections, groups, calculations and notes go; the parts stay in the
+  library.
 - **Subgroups within a group:** the parts hanging off one net (the
   VDD decoupling, a button and its pull-up, an LED and its resistor)
   are moved aside together and wired up as one unit in a faint frame
@@ -72,6 +76,12 @@ every merged pull request.
   `set_connections`, the Subgroup column in the Connections tab) to pull
   more parts into one, or to split them; the reply names each part's
   group, subgroup and support. (#73)
+- **Passives reached only through another passive are drawn:** the
+  output capacitor after the inductor, an LED after its series resistor.
+  Each chains off that passive on the net they share, in a subgroup of
+  their own: the series part leads in from the pin's wire to a bus named
+  after the net, with the rest hanging off it. The connections text says
+  "C2 on VOUT after L1". (#73)
 
 ### Changed
 - **One rule for what a pin is** (`internal/pinrole`), from its type
@@ -103,6 +113,25 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **A rail's source makes its net.** A rail whose source is a part
+  (`set_rail` with `source: U1`) is driven by that part on the block
+  diagram even when its pin there isn't typed as an output: the power
+  link from it to what it feeds is drawn, and the rail's capacitors go
+  by it rather than by a connector on the rail.
+- **Multi-pin protection parts are boxes.** A part with a pin table of
+  more than two pins is drawn with its pins whatever its category says
+  (a USBLC6 ESD array was a two-pin TVS symbol); an entry of several
+  designators of one part (R1,R2 of a resistor array) stays a
+  two-terminal each.
+- **Renaming pins keeps their connections.** `record_pins` moves the
+  connections of its part's BOM entries to the pins as they are now:
+  one connected by name before the table had numbers goes under its
+  number, a renamed pin keeps its connection, so a pin can always be
+  disconnected by its current name or number. A connection made again
+  by number moves the pin rather than doubling it.
+- **A block diagram that can't be laid out says so** in place of the
+  stale drawing, and `get_ui_context` tells the agent, instead of the
+  diagram silently not updating.
 - **Block diagram, from a tester's USB-C board**: a part's second pin of
   the same name on a net (a USB-C connector's two VBUS pins, a
   regulator's two IN and OUT pins) got a wire of its own, drawn as a
