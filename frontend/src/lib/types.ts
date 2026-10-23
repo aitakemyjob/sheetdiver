@@ -450,8 +450,9 @@ export interface DiagramPassive {
   mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge';
   part: string;
   nets: string[];
-  /** The part it serves. */
+  /** The part it serves: set, or guessed from its nets. */
   supports?: string;
+  guessed?: boolean;
   /** The group it's drawn in (its part's). */
   group?: string;
   /** Where it was dragged to. */

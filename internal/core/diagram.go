@@ -129,10 +129,11 @@ const (
 )
 
 // DiagramPassive is a passive (or several alike on one net, serving the
-// same part: "C1,C2") and where it hangs, from Nets[0]. Its other end is
-// ground, or Nets[1] (a pull-up's rail; for a bridge, the other pin's
-// net). Supports is the part it serves, when known; Group the group it's
-// drawn in. X and Y are where it was placed, if it was.
+// same part: "C1,C2") and where it hangs, from Nets[0], by Part. Its
+// other end is ground, or Nets[1] (a pull-up's rail; for a bridge, the
+// other pin's net). Supports is the part it serves, when known: set, or
+// Guessed from its nets; Group the group it's drawn in. X and Y are where
+// it was placed, if it was.
 type DiagramPassive struct {
 	ID       string   `json:"id"`
 	Label    string   `json:"label"`
@@ -142,6 +143,7 @@ type DiagramPassive struct {
 	Part     string   `json:"part"`
 	Nets     []string `json:"nets"`
 	Supports string   `json:"supports,omitempty"`
+	Guessed  bool     `json:"guessed,omitempty"`
 	Group    string   `json:"group,omitempty"`
 	X        *float64 `json:"x,omitempty"`
 	Y        *float64 `json:"y,omitempty"`
@@ -276,12 +278,13 @@ type diagramBuilder struct {
 	assigned map[string]library.Assignment // node → its assignment
 	groupOf  map[string]string             // box → its group
 	supports map[string]string             // passive → the box it serves
+	guessed  map[string]bool               // passive → its support was guessed
 }
 
 // diagram builds the block diagram of a project's connection table.
 func diagram(in diagramInput) Diagram {
 	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
-		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}}
+		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}, guessed: map[string]bool{}}
 	b.ends, b.order = ends(in.parts, in.blocks)
 	for _, a := range in.assigns {
 		b.assigned[a.Node] = a
@@ -380,8 +383,8 @@ func (b *diagramBuilder) box(node string) (string, bool) {
 
 // assign decides each box's group and each passive's part and group: a
 // box is in its group, or the group of the box it supports; a passive
-// serves the box it's set to support, else the only box its nets reach,
-// and is drawn in its group, else in that box's.
+// serves the box it's set to support, else the one it's guessed to (see
+// guessSupport), and is drawn in its group, else in that box's.
 func (b *diagramBuilder) assign() {
 	for _, id := range b.mains {
 		if a := b.assignment(id); a.Group != "" {
@@ -406,18 +409,63 @@ func (b *diagramBuilder) assign() {
 			b.supports[id] = to
 			continue
 		}
-		var reach []string
-		for _, net := range b.passives[id] {
-			for _, m := range b.mainsOn(net) {
-				if !contains(reach, m) {
-					reach = append(reach, m)
-				}
-			}
-		}
-		if len(reach) == 1 {
-			b.supports[id] = reach[0]
+		if to := b.guessSupport(id); to != "" {
+			b.supports[id], b.guessed[id] = to, true
 		}
 	}
+}
+
+// guessSupport is the box a passive serves when nothing says so, from
+// the boxes on its nets: a protection diode serves the connector it
+// guards; anything else serves the IC there (over connectors and
+// modules, which bring a net in or take it off the board), and of
+// several ICs, the one that doesn't drive the net (a bulk capacitor
+// between an eFuse's output and a regulator's VIN serves the regulator).
+// "" when that isn't one box.
+func (b *diagramBuilder) guessSupport(id string) string {
+	var reach []string
+	for _, net := range b.passives[id] {
+		for _, m := range b.mainsOn(net) {
+			if !contains(reach, m) {
+				reach = append(reach, m)
+			}
+		}
+	}
+	ofKind := func(ids []string, kind string) []string {
+		var out []string
+		for _, m := range ids {
+			if b.ends[m].kind == kind {
+				out = append(out, m)
+			}
+		}
+		return out
+	}
+	if b.ends[id].kind == "diode" {
+		if c := ofKind(reach, "connector"); len(c) == 1 {
+			return c[0]
+		}
+	}
+	pool := ofKind(reach, "ic")
+	if len(pool) == 0 {
+		pool = reach
+	}
+	if len(pool) == 1 {
+		return pool[0]
+	}
+	var uses []string
+	for _, m := range pool {
+		drives := false
+		for _, net := range b.passives[id] {
+			drives = drives || b.drives(m, net)
+		}
+		if !drives {
+			uses = append(uses, m)
+		}
+	}
+	if len(uses) == 1 {
+		return uses[0]
+	}
+	return ""
 }
 
 // passiveGroup is the group a passive belongs in: its own, else its
@@ -861,7 +909,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		e := b.ends[id]
 		serves := b.supports[id]
-		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Nets: nets, Supports: serves}
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Nets: nets, Supports: serves, Guessed: b.guessed[id]}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {
@@ -891,6 +939,9 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		switch n.Wire {
 		case WireBetween:
 			p.Mount, p.Part = MountWire, n.Parts[0]
+			if contains(n.Parts, serves) {
+				p.Part = serves // by the part it serves, at its end of the wire
+			}
 		case WireLane:
 			p.Mount, p.Part = MountLane, n.Parts[0]
 			if contains(n.Parts, serves) {

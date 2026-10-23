@@ -329,7 +329,10 @@ export function place(boxes: Box[], d: Diagram): void {
     }
     const right = Math.max(0, ...list.map((b) => reach(d, b, 'right')));
     const left = Math.max(0, ...(cols[c + 1] ?? []).map((b) => reach(d, b, 'left')));
-    const between = d.passives.filter((q) => q.mount === 'wire' && list.some((b) => b.part.id === q.part)).length;
+    // Passives on a wire between two parts hang in the gap the wire
+    // crosses: after its left part, whichever part they serve.
+    const leftEnd = (q: DiagramPassive) => d.nets.find((n) => n.name === q.nets[0] && n.wire === 'between' && n.parts.includes(q.part))?.parts[0] ?? q.part;
+    const between = d.passives.filter((q) => q.mount === 'wire' && list.some((b) => b.part.id === leftEnd(q))).length;
     x += leftReach + Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(160, right + left + between * 80 + turning * 12 + 90);
   }
   separate(boxes);
@@ -784,23 +787,29 @@ export function hang(d: Diagram, boxes: Box[], r: Routed): Hung {
       }
       continue;
     }
-    // On a wire: the first spot along it (or along a longer stub). A
-    // pull-up to a rail hangs up first; the rest down first.
+    // On a wire: the free spot along it nearest the pin of the part it
+    // hangs by (the part it serves), or along a longer stub. A pull-up to
+    // a rail hangs up first; the rest down first.
     const dirs = !end.ground && kinds.get(end.text) === 'power' ? [true, false] : [false, true];
     const trunks = r.trunks.get(net(q)) ?? [];
+    const anchor = pinOn(boxes, q.part, net(q));
     let placed = false;
     for (let grow = 0; grow < 8 && !placed; grow++) {
+      const spots = trunks.flatMap((t) => {
+        const xs: { t: Trunk; cx: number }[] = [];
+        for (let cx = t.x1 + w / 2 + 8; cx <= t.x2 - w / 2 - 8; cx += 6) xs.push({ t, cx });
+        return xs;
+      });
+      if (anchor) spots.sort((a, b) => Math.abs(a.cx - anchor.x) + Math.abs(a.t.y - anchor.y) - (Math.abs(b.cx - anchor.x) + Math.abs(b.t.y - anchor.y)));
       for (const up of end.ground ? [false] : dirs) {
-        for (const t of trunks) {
-          for (let cx = t.x1 + w / 2 + 8; cx <= t.x2 - w / 2 - 8 && !placed; cx += 6) {
-            const box = { x: cx - w / 2, y: up ? t.y - DROP - h : t.y + DROP, w, h };
-            if (fits(clear, net(q), cx, t.y, box, endRect(end, box, up))) {
-              take({ passive: q, ...box }, [{ net: net(q), path: `M${cx},${t.y} V${up ? box.y + h : box.y}`, thin: true }], end, up);
-              out.dots.push({ x: cx, y: t.y });
-              placed = true;
-            }
+        for (const { t, cx } of spots) {
+          const box = { x: cx - w / 2, y: up ? t.y - DROP - h : t.y + DROP, w, h };
+          if (fits(clear, net(q), cx, t.y, box, endRect(end, box, up))) {
+            take({ passive: q, ...box }, [{ net: net(q), path: `M${cx},${t.y} V${up ? box.y + h : box.y}`, thin: true }], end, up);
+            out.dots.push({ x: cx, y: t.y });
+            placed = true;
+            break;
           }
-          if (placed) break;
         }
         if (placed) break;
       }

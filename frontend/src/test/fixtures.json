@@ -4915,10 +4915,12 @@
        "value": "10µF",
        "kind": "capacitor",
        "mount": "wire",
-       "part": "block:3",
+       "part": "block:4",
        "nets": [
         "5V_PROT"
-       ]
+       ],
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:11,block:12",
@@ -4930,7 +4932,8 @@
        "nets": [
         "3V3"
        ],
-       "supports": "block:4"
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:5",
@@ -4941,7 +4944,9 @@
        "part": "block:2",
        "nets": [
         "VBUS"
-       ]
+       ],
+       "supports": "block:2",
+       "guessed": true
       },
       {
        "id": "block:13",
@@ -4954,7 +4959,8 @@
         "LX1",
         "LX2"
        ],
-       "supports": "block:4"
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:8",
@@ -4966,7 +4972,8 @@
        "nets": [
         "ILIM"
        ],
-       "supports": "block:3"
+       "supports": "block:3",
+       "guessed": true
       },
       {
        "id": "block:14",
@@ -4978,7 +4985,8 @@
        "nets": [
         "CFG1"
        ],
-       "supports": "block:4"
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:15",
@@ -4990,7 +4998,8 @@
        "nets": [
         "CFG3"
        ],
-       "supports": "block:4"
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:16",
@@ -5002,7 +5011,8 @@
        "nets": [
         "CFG2"
        ],
-       "supports": "block:4"
+       "supports": "block:4",
+       "guessed": true
       },
       {
        "id": "block:6",
@@ -5014,7 +5024,8 @@
        "nets": [
         "CC1"
        ],
-       "supports": "block:2"
+       "supports": "block:2",
+       "guessed": true
       },
       {
        "id": "block:7",
@@ -5026,7 +5037,8 @@
        "nets": [
         "CC2"
        ],
-       "supports": "block:2"
+       "supports": "block:2",
+       "guessed": true
       }
      ],
      "nets": [
@@ -5963,10 +5975,12 @@
        "value": "10µF",
        "kind": "capacitor",
        "mount": "wire",
-       "part": "block:17",
+       "part": "block:18",
        "nets": [
         "5V"
-       ]
+       ],
+       "supports": "block:18",
+       "guessed": true
       },
       {
        "id": "block:27",
@@ -5977,7 +5991,9 @@
        "part": "block:21",
        "nets": [
         "3V3"
-       ]
+       ],
+       "supports": "block:21",
+       "guessed": true
       },
       {
        "id": "block:24",
@@ -5990,7 +6006,8 @@
         "LX1",
         "LX2"
        ],
-       "supports": "block:21"
+       "supports": "block:21",
+       "guessed": true
       },
       {
        "id": "block:28",
@@ -6002,7 +6019,8 @@
        "nets": [
         "CHRG"
        ],
-       "supports": "block:18"
+       "supports": "block:18",
+       "guessed": true
       },
       {
        "id": "block:25",
@@ -6014,7 +6032,8 @@
        "nets": [
         "PROG"
        ],
-       "supports": "block:18"
+       "supports": "block:18",
+       "guessed": true
       }
      ],
      "nets": [
@@ -7071,10 +7090,12 @@
        "value": "10µF",
        "kind": "capacitor",
        "mount": "wire",
-       "part": "block:30",
+       "part": "block:31",
        "nets": [
         "5V_PROT"
-       ]
+       ],
+       "supports": "block:31",
+       "guessed": true
       },
       {
        "id": "block:40,block:41",
@@ -7086,7 +7107,8 @@
        "nets": [
         "3V3"
        ],
-       "supports": "block:31"
+       "supports": "block:31",
+       "guessed": true
       },
       {
        "id": "block:32",
@@ -7097,7 +7119,9 @@
        "part": "block:29",
        "nets": [
         "VBUS"
-       ]
+       ],
+       "supports": "block:29",
+       "guessed": true
       },
       {
        "id": "block:33",
@@ -7109,7 +7133,8 @@
        "nets": [
         "CC1"
        ],
-       "supports": "block:29"
+       "supports": "block:29",
+       "guessed": true
       },
       {
        "id": "block:34",
@@ -7121,7 +7146,8 @@
        "nets": [
         "CC2"
        ],
-       "supports": "block:29"
+       "supports": "block:29",
+       "guessed": true
       },
       {
        "id": "block:42",
@@ -7134,7 +7160,8 @@
         "LX1",
         "LX2"
        ],
-       "supports": "block:31"
+       "supports": "block:31",
+       "guessed": true
       },
       {
        "id": "block:35",
@@ -7146,7 +7173,8 @@
        "nets": [
         "CC1"
        ],
-       "supports": "block:29"
+       "supports": "block:29",
+       "guessed": true
       },
       {
        "id": "block:36",
@@ -7158,7 +7186,8 @@
        "nets": [
         "CC2"
        ],
-       "supports": "block:29"
+       "supports": "block:29",
+       "guessed": true
       },
       {
        "id": "block:37",
@@ -7170,7 +7199,8 @@
        "nets": [
         "ILIM"
        ],
-       "supports": "block:30"
+       "supports": "block:30",
+       "guessed": true
       },
       {
        "id": "block:43",
@@ -7182,7 +7212,8 @@
        "nets": [
         "CFG1"
        ],
-       "supports": "block:31"
+       "supports": "block:31",
+       "guessed": true
       },
       {
        "id": "block:44",
@@ -7194,7 +7225,8 @@
        "nets": [
         "CFG3"
        ],
-       "supports": "block:31"
+       "supports": "block:31",
+       "guessed": true
       }
      ],
      "nets": [
@@ -8148,10 +8180,12 @@
        "value": "1µF",
        "kind": "capacitor",
        "mount": "wire",
-       "part": "block:45",
+       "part": "part:3",
        "nets": [
         "VBUS"
-       ]
+       ],
+       "supports": "part:3",
+       "guessed": true
       },
       {
        "id": "block:49",
@@ -8174,7 +8208,8 @@
        "nets": [
         "EN"
        ],
-       "supports": "block:46"
+       "supports": "block:46",
+       "guessed": true
       },
       {
        "id": "block:54",
@@ -8186,7 +8221,8 @@
        "nets": [
         "LED"
        ],
-       "supports": "block:46"
+       "supports": "block:46",
+       "guessed": true
       },
       {
        "id": "block:51",
@@ -9350,10 +9386,12 @@
        "value": "1µF",
        "kind": "capacitor",
        "mount": "wire",
-       "part": "block:55",
+       "part": "part:4",
        "nets": [
         "VBUS"
        ],
+       "supports": "part:4",
+       "guessed": true,
        "group": "Power"
       },
       {
@@ -9380,6 +9418,7 @@
         "EN"
        ],
        "supports": "block:56",
+       "guessed": true,
        "group": "MCU"
       },
       {
@@ -9419,6 +9458,7 @@
         "LED"
        ],
        "supports": "block:56",
+       "guessed": true,
        "group": "MCU"
       },
       {

@@ -196,6 +196,7 @@ describe('project block diagram, pins and connections', () => {
   });
 
   it('puts parts in groups and says what they support', async () => {
+    b.on('connections.change', () => ({ problems: [] }));
     render(<ProjectView params={{ project: 'Grouped MCU board', tab: 'connections' }} />);
     const table = await screen.findByRole('table', { name: 'Groups and support' });
     // The groups, with their description and notes.
@@ -214,6 +215,8 @@ describe('project block diagram, pins and connections', () => {
     await waitFor(() => expect(b.callsTo('connections.change')[0]).toEqual({ project: 'Grouped MCU board', assign: [{ part: 'C3', group: 'Sensor' }] }));
     fireEvent.change(within(table).getByLabelText('What C4 supports'), { target: { value: '' } });
     await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ assign: [{ part: 'C4', supports: '' }] }));
+    // Clearing says it worked, and what happens now.
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: "C4 no longer has a set support: it's guessed from its nets" }));
     const notes = screen.getByLabelText("MCU's notes");
     fireEvent.change(notes, { target: { value: 'Antenna clear of copper' } });
     fireEvent.blur(notes);

@@ -21,7 +21,12 @@ every merged pull request.
   part's pin and is drawn in that part's group. Alike passives on one
   rail are only merged when they serve the same part, so C4 and C5 for
   two ICs on 3V3 no longer clump together at the regulator. Left unset,
-  a passive whose nets reach only one part supports that part. (#71)
+  its support is guessed: the IC on its nets (over a connector or
+  module), and of several, the one it feeds rather than the one driving
+  the net (a bulk capacitor between an eFuse and a regulator goes by the
+  regulator's VIN); a protection diode goes by its connector. The app
+  shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
+  confirms each change. (#71)
 
 ### Changed
 - **Windows: `sheetdiver-mcp.exe` works like `sheetdiver mcp`.** It relays

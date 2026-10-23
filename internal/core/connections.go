@@ -467,6 +467,11 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 					problems = append(problems, fmt.Sprintf("%s supports %s: %v", ac.Part, name, errEndpoint))
 					continue
 				}
+				// The passive is the one that supports: "C5 supports U3".
+				if !passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
+					problems = append(problems, fmt.Sprintf("%s supports %s: the other way round? A passive supports the part it serves: part %s, supports %s", ac.Part, name, name, ac.Part))
+					continue
+				}
 				a.Supports = to
 			}
 		}
@@ -478,6 +483,22 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		existing = append(existing, a)
 	}
 	return problems, nil
+}
+
+// passiveNode reports whether a node is drawn as a passive (a resistor,
+// capacitor, inductor or diode).
+func passiveNode(parts []library.ProjectPart, blocks []library.Block, node string) bool {
+	for _, pp := range parts {
+		if node == library.PartNode(pp.ID) || strings.HasPrefix(node, library.PartNode(pp.ID)+"/") {
+			return library.TwoTerminal(pp.Category)
+		}
+	}
+	for _, b := range blocks {
+		if node == library.BlockNode(b.ID) {
+			return library.TwoTerminal(b.Kind)
+		}
+	}
+	return false
 }
 
 // nodeOfName finds the block-diagram node a designator, part number or

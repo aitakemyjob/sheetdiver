@@ -341,3 +341,19 @@ describe('a board in groups', () => {
     expect(plain.boxes.every((b) => b.origin === undefined)).toBe(true);
   });
 });
+
+describe('a passive on a wire between two parts', () => {
+  it('hangs by the part it supports, not at the start of the wire', () => {
+    // C1,C2 sit on 5V_PROT between U1's OUT and U2's VIN, and serve U2.
+    const dg = circuit('USB-C to 3V3');
+    const d = layoutBlockDiagram(dg);
+    const caps = d.passives.find((p) => p.passive.label === 'C1,C2')!;
+    const u2 = d.boxes.find((b) => b.part.title.startsWith('U2'))!;
+    const u1 = d.boxes.find((b) => b.part.title.startsWith('U1'))!;
+    expect(caps.passive.part).toBe(u2.part.id);
+    const vin = u2.pins.find((p) => p.net === '5V_PROT' && !p.tied)!;
+    const out = u1.pins.find((p) => p.net === '5V_PROT' && !p.tied)!;
+    const mid = caps.x + caps.w / 2;
+    expect(Math.abs(mid - vin.x)).toBeLessThan(Math.abs(mid - out.x));
+  });
+});

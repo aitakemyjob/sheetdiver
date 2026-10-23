@@ -186,7 +186,7 @@ func TestDiagramOfTheUSBSketch(t *testing.T) {
 		t.Error("3V3 leaves the board as an output, with an arrow")
 	}
 	want := []string{
-		"C1,C2 10µF wire U1 on 5V_PROT", // alike on one net: merged, between U1 and U2
+		"C1,C2 10µF wire U2 on 5V_PROT", // alike on one net: merged, between U1 and U2, by U2's VIN they feed
 		"C3,C4 22µF out U2 on 3V3",
 		"D1 TVS wire J1 on VBUS",
 		"L1 2.2µH bridge U2 on LX1+LX2",
@@ -223,7 +223,7 @@ func TestDiagramOfABatteryBoard(t *testing.T) {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
 		}
 	}
-	for _, want := range []string{"C1 10µF wire J1 on 5V", "C2 10µF wire U3 on 3V3", "L1 2.2µH bridge U3 on LX1+LX2", "LED1 red below U1 on CHRG", "R1 2.2k below U1 on PROG"} {
+	for _, want := range []string{"C1 10µF wire U1 on 5V", "C2 10µF wire U3 on 3V3", "L1 2.2µH bridge U3 on LX1+LX2", "LED1 red below U1 on CHRG", "R1 2.2k below U1 on PROG"} {
 		if !contains(d.passives(), want) {
 			t.Errorf("missing %q in %q", want, d.passives())
 		}
@@ -258,7 +258,7 @@ func TestDiagramOfAnMCUBoard(t *testing.T) {
 		t.Errorf("3V3 = %+v", n)
 	}
 	for _, want := range []string{
-		"C1 1µF wire J1 on VBUS",
+		"C1 1µF wire U1 on VBUS",
 		"C2 1µF lane U1 on 3V3", // below the regulator's output
 		"C3 1µF out U2 on EN",
 		"LED1 green below U2 on LED",
@@ -346,9 +346,15 @@ func TestPassivesHangByThePartTheySupport(t *testing.T) {
 		if p.Label == "R4" && p.Supports != usb.part("U2").ID {
 			t.Errorf("R4 (U2's CFG1 resistor) supports %q", p.Supports)
 		}
-		if strings.HasPrefix(p.Label, "C1") && p.Supports != "" {
-			t.Errorf("C1 sits between U1 and U2 and serves neither alone: %q", p.Supports)
+		// C1 and C2 sit between U1's output and U2's VIN: they serve U2,
+		// the IC there that doesn't drive the net; D1 guards the connector.
+		if strings.HasPrefix(p.Label, "C1") && (p.Supports != usb.part("U2").ID || !p.Guessed) {
+			t.Errorf("C1,C2 support %q (guessed %v), want U2", p.Supports, p.Guessed)
 		}
+		if p.Label == "D1" && p.Supports != usb.part("J1").ID {
+			t.Errorf("D1 supports %q, want J1", p.Supports)
+		}
+
 	}
 }
 
@@ -428,12 +434,14 @@ func TestAssignChanges(t *testing.T) {
 			{Part: "C3", Supports: str("U2 TPS63900")},
 			{Part: "U9", Group: str("Input")},
 			{Part: "C4", Supports: str("U9")},
+			// The wrong way round: refused, saying which way it goes.
+			{Part: "U2 TPS63900", Supports: str("C4")},
 		},
 	}, library.SourceAgent)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(problems) != 2 || !strings.Contains(problems[0], "U9") || !strings.Contains(problems[1], "C4 supports U9") {
+	if len(problems) != 3 || !strings.Contains(problems[0], "U9") || !strings.Contains(problems[1], "C4 supports U9") || !strings.Contains(problems[2], "part C4, supports U2 TPS63900") {
 		t.Errorf("problems = %q", problems)
 	}
 	d, _ := s.ProjectDetail(ctx, "USB-C to 3V3")

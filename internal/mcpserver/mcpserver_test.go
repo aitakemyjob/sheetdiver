@@ -446,13 +446,19 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("set_connections", map[string]any{
 		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}},
 		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U1", "pin": "SW"}, {"net": "LX2", "part": "U1", "pin": "GND"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
-	}, "C9 10µF on 3V3 (by U2 SD1235), to ground", "L9 2.2µH across U1 SD1234 LX1/LX2")
+	}, "C9 10µF (supports U2 SD1235, guessed) on 3V3 (by U2 SD1235), to ground", "L9 2.2µH (supports U1 SD1234, guessed) across U1 SD1234 LX1/LX2")
 	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 4 blocks off the BOM")
 	// Groups, and what a passive supports.
 	h.must("set_connections", map[string]any{
 		"groups": []map[string]any{{"name": "Power", "description": "Battery to 3V3", "notes": "keep the loop small"}},
 		"assign": []map[string]any{{"part": "U1", "group": "Power"}, {"part": "Battery", "group": "Power"}, {"part": "U2", "group": "Load"}, {"part": "C9", "supports": "U1"}, {"part": "U7", "group": "Power"}},
-	}, "not applied:", "U7: not in the BOM", "group Power: U1 SD1234, Battery", "— Battery to 3V3 (notes: keep the loop small)", "group Load: U2 SD1235", "C9 10µF (supports U1 SD1234) on 3V3 (by U2 SD1235)")
+	}, "not applied:", "U7: not in the BOM", "group Power: U1 SD1234, Battery", "— Battery to 3V3 (notes: keep the loop small)", "group Load: U2 SD1235", "C9 10µF (supports U1 SD1234) on 3V3 (by U2 SD1235)",
+		// Each assignment's result is listed back.
+		"assignments now:", "C9: group Load (its part's); supports U1 SD1234; hangs by U2 SD1235", "U1: group Power")
+	// Clearing a support says what it's guessed to be now; the wrong way
+	// round is refused with the right way.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": ""}, {"part": "U1", "supports": "C9"}}},
+		"C9: group Load (its part's); supports U2 SD1235, guessed; hangs by U2 SD1235", "U1 supports C9: the other way round? A passive supports the part it serves: part C9, supports U1")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

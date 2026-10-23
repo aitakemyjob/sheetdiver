@@ -30,7 +30,7 @@ type connectionsArgs struct {
 	Nets      []netArgs             `json:"nets,omitempty" jsonschema:"set a net's kind, bus or I/O voltage, or remove it with its connections. Nets are also created by connecting to them; a net named like a rail is that rail, GND/VSS are ground"`
 	Connect   []connectArgs         `json:"connect,omitempty" jsonschema:"pins to put on nets (or take off): one entry per pin"`
 	Groups    []groupArgs           `json:"groups,omitempty" jsonschema:"functional groups (Power, MCU, Sensors), each drawn as a frame with its description and notes; wires run inside a group, and a net reaching other groups is a labelled stub"`
-	Assign    []assignArgs          `json:"assign,omitempty" jsonschema:"put parts and blocks in groups, and say which part a passive (or other part) supports, so it's drawn beside that part: a decoupling capacitor by its IC"`
+	Assign    []assignArgs          `json:"assign,omitempty" jsonschema:"put parts and blocks in groups, and say which part a passive serves so it's drawn by that part: {part: C5, supports: U3} for U3's decoupling capacitor (the passive is part, the IC it serves is supports). Each result is listed back"`
 	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"place blocks on the block diagram: node (designator, part number or block name), x and y in pixels, left to right"`
 	// ResetLayout forgets saved positions.
 	ResetLayout bool `json:"reset_layout,omitempty" jsonschema:"go back to the automatic layout"`
@@ -53,9 +53,9 @@ type groupArgs struct {
 }
 
 type assignArgs struct {
-	Part     string  `json:"part" jsonschema:"BOM designator, one designator of an entry with several (C1 of C1,C2), part number, or block name"`
-	Group    *string `json:"group,omitempty" jsonschema:"group to draw it in (created if new); empty to take it out of its group"`
-	Supports *string `json:"supports,omitempty" jsonschema:"the part it serves (C5 supports U3); empty to clear. Unset, a passive whose nets reach one part serves that part"`
+	Part     string  `json:"part" jsonschema:"what's being assigned: a BOM designator (C5), one designator of an entry with several (C1 of C1,C2), a part number, or a block name. For supports, this is the passive"`
+	Group    *string `json:"group,omitempty" jsonschema:"group to draw it in (created if new); \"\" takes it out of its group; omit to keep it"`
+	Supports *string `json:"supports,omitempty" jsonschema:"the part this passive serves, drawn beside it: U3 for {part: C5} when C5 decouples U3. \"\" clears it, and the passive's support is guessed again (the IC on its nets, preferring one it feeds over one that drives the net; a protection diode by its connector); omit to keep it"`
 }
 
 type netArgs struct {
@@ -203,7 +203,7 @@ func (s *Server) registerProjects() {
 			return text(connectionsText(d)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (drawn beside it: a decoupling capacitor by its IC), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
+	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (assign {part: C5, supports: U3}: drawn by U3; unset, it's guessed from its nets), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
 		write, func(a connectionsArgs) string { return "connections " + a.Project }, func(ctx context.Context, a connectionsArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -241,6 +241,13 @@ func (s *Server) registerProjects() {
 				b.WriteString("not applied:\n")
 				for _, p := range problems {
 					b.WriteString("  " + p + "\n")
+				}
+				b.WriteString("\n")
+			}
+			if len(a.Assign) > 0 {
+				b.WriteString("assignments now:\n")
+				for _, as := range a.Assign {
+					b.WriteString("  " + assignedText(d, as.Part) + "\n")
 				}
 				b.WriteString("\n")
 			}
@@ -1018,9 +1025,7 @@ func connectionsText(d core.ProjectDetail) string {
 	// don't show.
 	for _, p := range c.Diagram.Passives {
 		name := strings.TrimSpace(p.Label + " " + p.Value)
-		if p.Supports != "" && p.Supports != p.Part {
-			name += " (supports " + label[p.Supports] + ")"
-		}
+		name += supportsText(p, label)
 		part := label[p.Part]
 		to := "ground"
 		if len(p.Nets) > 1 {
@@ -1065,4 +1070,58 @@ func connectionsText(d core.ProjectDetail) string {
 		b.WriteString("none\n")
 	}
 	return b.String()
+}
+
+// supportsText says what a passive supports, and whether that was set or
+// guessed: " (supports U3)", " (supports U3, guessed)"; "" for nothing.
+func supportsText(p core.DiagramPassive, label map[string]string) string {
+	if p.Supports == "" {
+		return ""
+	}
+	if p.Guessed {
+		return " (supports " + label[p.Supports] + ", guessed)"
+	}
+	return " (supports " + label[p.Supports] + ")"
+}
+
+// assignedText says where a part or block belongs after a change: its
+// group and what it supports (set or guessed), from the diagram.
+func assignedText(d core.ProjectDetail, part string) string {
+	c := d.Connections
+	label := map[string]string{}
+	for _, p := range c.Diagram.Parts {
+		label[p.ID] = p.Title
+	}
+	group, supports := "", "no part"
+	for _, a := range c.Assignments {
+		if strings.EqualFold(a.Endpoint, part) {
+			group = a.Group
+		}
+	}
+	for _, p := range c.Diagram.Passives {
+		if !slices.ContainsFunc(strings.Split(p.Label, ","), func(l string) bool { return strings.EqualFold(l, part) }) {
+			continue
+		}
+		if p.Group != "" && group == "" {
+			group = p.Group + " (its part's)"
+		}
+		if t := supportsText(p, label); t != "" {
+			supports = strings.TrimSuffix(strings.TrimPrefix(t, " (supports "), ")")
+		}
+		return fmt.Sprintf("%s: group %s; supports %s; hangs by %s", part, orNone(group), supports, label[p.Part])
+	}
+	for _, p := range c.Diagram.Parts {
+		if strings.EqualFold(strings.Fields(p.Title)[0], part) || strings.EqualFold(p.Title, part) {
+			return fmt.Sprintf("%s: group %s", part, orNone(p.Group))
+		}
+	}
+	return part + ": not drawn (it isn't connected)"
+}
+
+// orNone is s, or "none".
+func orNone(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
 }

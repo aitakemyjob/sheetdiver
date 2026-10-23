@@ -3,12 +3,16 @@ import { api } from '../../lib/api';
 import { useStore } from '../../lib/store';
 import type { Assignment, ConnectionsChange, ProjectDetail } from '../../lib/types';
 
-/** Applies a change to the connection table, telling the user what couldn't be done. */
-export async function change(project: string, ch: ConnectionsChange, done: () => void) {
+/**
+ * Applies a change to the connection table, telling the user what couldn't
+ * be done, or that it was done (ok) when the drawing alone wouldn't show it.
+ */
+export async function change(project: string, ch: ConnectionsChange, done: () => void, ok?: string) {
   const s = useStore.getState();
   try {
     const { problems } = await api.changeConnections(project, ch);
     if (problems.length) s.toast({ kind: 'warn', title: 'Not everything was applied', body: problems.join('\n') });
+    else if (ok) s.toast({ kind: 'ok', title: ok });
   } catch (e) {
     s.toast({ kind: 'err', title: 'Could not change the connections', body: (e as Error).message });
   }
@@ -52,5 +56,5 @@ export function inferredGroup(d: ProjectDetail, endpoint: string): string {
 export function inferredSupport(d: ProjectDetail, endpoint: string): string {
   const dg = d.connections.diagram;
   const q = dg.passives.find((p) => p.label.split(',').some((l) => l.toLowerCase() === endpoint.toLowerCase()));
-  return q?.supports ? (dg.parts.find((p) => p.id === q.supports)?.title.split(' ')[0] ?? '') : '';
+  return q?.supports && q.guessed ? (dg.parts.find((p) => p.id === q.supports)?.title.split(' ')[0] ?? '') : '';
 }

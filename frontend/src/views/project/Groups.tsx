@@ -14,14 +14,24 @@ export function Groups({ d, onChange }: { d: ProjectDetail; onChange: () => void
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const all = endpoints(d);
-  const assign = (part: string, field: 'group' | 'supports', value: string) => change(project, { assign: [{ part, [field]: value }] }, onChange);
+  const assign = (part: string, field: 'group' | 'supports', value: string) => {
+    const done =
+      field === 'group'
+        ? value
+          ? `${part} is in ${value}`
+          : `${part} is in no group`
+        : value
+          ? `${part} supports ${value}`
+          : `${part} no longer has a set support: it's guessed from its nets`;
+    change(project, { assign: [{ part, [field]: value }] }, onChange, done);
+  };
   return (
     <div className="card col" style={{ gap: 8 }}>
       <h3 style={{ margin: 0 }}>Groups and support</h3>
       <div className="muted">
         Put parts in functional groups (Power, MCU, Sensors) to draw each group framed, with its description and notes; wires stay inside a group, and a net that goes
         to another group ends in its name. Say which part a passive supports (a decoupling capacitor and its IC) to draw it beside that part; left unset, a passive
-        whose nets reach one part supports that part.
+        is guessed from its nets: the IC it feeds, or for a protection diode, its connector (shown as auto).
       </div>
       {groups.map((g) => (
         <GroupRow key={g.id} g={g} project={project} onChange={onChange} />
