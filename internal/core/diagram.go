@@ -166,6 +166,13 @@ var (
 	mainName = regexp.MustCompile(`(?i)^(V?IN|VCC|VDD|VBUS|VBAT|V?OUT)$`)
 	// outputName is an output by name.
 	outputName = regexp.MustCompile(`(?i)^V?OUT`)
+	// connectorKindRe and otherKindRe are categories as datasheets and
+	// BOMs name them ("Pin header", "LED", "Tactile switch").
+	connectorKindRe = regexp.MustCompile(`(?i)connector|header|socket|receptacle|jack|terminal`)
+	otherKindRe     = regexp.MustCompile(`(?i)\bled|switch|button|crystal|resonator|buzzer|speaker|test ?point|jumper`)
+	// refPinRe is a connector pin that senses a rail rather than supplying
+	// it: a debug header's target reference.
+	refPinRe = regexp.MustCompile(`(?i)^V_?T(ARGET|_?REF|G)\b|^VREF|^VTREF|^V?SENSE`)
 )
 
 // end is something in the connection table: a BOM entry or a block.
@@ -189,6 +196,13 @@ func diagramKind(kind string, block bool) string {
 	case "tvs":
 		return "diode"
 	case "ferrite", "fuse":
+		return "other"
+	}
+	switch {
+	case connectorKindRe.MatchString(kind):
+		return "connector"
+	case otherKindRe.MatchString(kind):
+		// Neither makes a net nor is an IC to hang passives by.
 		return "other"
 	}
 	if block {
@@ -516,14 +530,34 @@ func groups(defined []library.Group, parts []DiagramPart) []DiagramGroup {
 }
 
 // drives reports whether a box drives a net: it makes the rail (an
-// output rail in the BOM that isn't also its supply), it's a connector
-// bringing the net in, or it has an output pin on it.
+// output rail in the BOM that isn't also its supply), it has an output
+// pin on it, or it's a connector bringing the net in. A connector doesn't
+// bring in a net that a part on the board makes, nor one it only senses
+// (a debug header's VTref on 3V3 is a load).
 func (b *diagramBuilder) drives(id, net string) bool {
-	e := b.ends[id]
-	if e.entry != nil && strings.EqualFold(e.entry.OutputRail, net) && !strings.EqualFold(e.entry.SupplyRail, net) {
+	if b.makes(id, net) {
 		return true
 	}
-	if e.kind == "connector" {
+	if b.ends[id].kind != "connector" {
+		return false
+	}
+	for _, r := range b.onNet[strings.ToLower(net)] {
+		o := nodeOf(r)
+		if o == id && refPinRe.MatchString(pinName(r)) {
+			return false
+		}
+		if o != id && !b.ends[o].passive && b.ends[o].kind != "connector" && b.makes(o, net) {
+			return false
+		}
+	}
+	return true
+}
+
+// makes reports whether a part makes a net: it's the part's output rail
+// (and not also its supply), or the part has an output pin on it.
+func (b *diagramBuilder) makes(id, net string) bool {
+	e := b.ends[id]
+	if e.entry != nil && strings.EqualFold(e.entry.OutputRail, net) && !strings.EqualFold(e.entry.SupplyRail, net) {
 		return true
 	}
 	for _, r := range b.onNet[strings.ToLower(net)] {
@@ -930,6 +964,11 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 				p.Nets = []string{nets[1], nets[0]}
 			}
 		}
+		// In series between two parts (PA5 → R5 → LED), it hangs from the
+		// net that reaches the part it serves.
+		if len(p.Nets) == 2 && serves != "" && !reaches(byNet[strings.ToLower(p.Nets[0])], serves) && reaches(byNet[strings.ToLower(p.Nets[1])], serves) {
+			p.Nets = []string{p.Nets[1], p.Nets[0]}
+		}
 		wires, ok := byNet[strings.ToLower(p.Nets[0])]
 		if !ok {
 			continue // between passives only: not drawn
@@ -971,6 +1010,16 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		out = append(out, p)
 	}
 	return out
+}
+
+// reaches reports whether one of a net's wires reaches a part.
+func reaches(wires []DiagramNet, part string) bool {
+	for _, n := range wires {
+		if contains(n.Parts, part) {
+			return true
+		}
+	}
+	return false
 }
 
 // pickWire chooses which of a net's wires (one per group) a passive

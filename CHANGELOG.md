@@ -41,6 +41,18 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **A passive set to support a part is drawn by it even in series** (PA5
+  → R5 → LED: R5 hung by the MCU, on its other end).
+- **A debug header was drawn as a supply.** A connector no longer counts
+  as bringing in a rail that a part on the board makes, or that it only
+  senses (VTref, VREF, VTARGET).
+- **VSS and VSSA were flagged as supply pins on ground**: a ground pin is
+  never a supply pin, whatever its type or name.
+- **No more "not connected to a rail" or "no load current" warnings for
+  parts that draw no current**: LEDs, switches, crystals, connectors,
+  transistors and passives, by category or designator (D, SW, Y, J…).
+  Such categories ("LED", "Tactile switch", "Pin header") are also drawn
+  as what they are instead of as ICs or connectors.
 - **The Claude Desktop extension stopped working when SheetDiver was
   closed or restarted**, until it was disabled and enabled again. A stdio
   session now outlives the app: it serves the library itself while the

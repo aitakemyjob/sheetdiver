@@ -31,11 +31,16 @@ func groundPin(p library.Pin) bool {
 	return t == "G" || t == "GND" || groundPinRe.MatchString(p.Name)
 }
 
-// supplyPin reports whether a pin takes the part's supply.
+// supplyPin reports whether a pin takes the part's supply. A ground pin
+// isn't one, whatever its type ("S" or "P" in some tables) or a name
+// like VSS that reads as both.
 func supplyPin(p library.Pin) bool {
+	if groundPin(p) {
+		return false
+	}
 	t := strings.ToUpper(p.Type)
 	if t == "P" || t == "PWR" {
-		return !groundPinRe.MatchString(p.Name)
+		return true
 	}
 	return supplyPinRe.MatchString(p.Name)
 }

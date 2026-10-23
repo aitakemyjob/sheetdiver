@@ -495,3 +495,51 @@ func TestReportDrawsGroupsAsSubgraphs(t *testing.T) {
 		}
 	}
 }
+
+// debugBoard is an MCU board with an SWD header (its VTref on 3V3), a
+// series resistor to an LED.
+var debugBoard = testutil.Circuit{
+	Name:  "Debug board",
+	Rails: []testutil.CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+	Parts: []testutil.CircuitPart{
+		{Name: "U1", Ref: "SD1234", Supply: "VBUS", Output: "3V3"}, {Name: "U2 STM32", Kind: "ic"}, {Name: "J2 SWD", Kind: "connector"},
+		// An LED drawn as a box, as one whose category isn't "diode" is.
+		{Name: "R5", Kind: "resistor", Value: "1k"}, {Name: "D1", Kind: "ic", Value: "red"},
+	},
+	Nets: []testutil.CircuitNet{{Name: "GND", Kind: "ground"}},
+	Pins: [][3]string{
+		{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"3V3", "U1", "SW"},
+		{"3V3", "U2 STM32", "VDD"}, {"GND", "U2 STM32", "VSS"}, {"SWDIO", "U2 STM32", "PA13"}, {"NRST", "U2 STM32", "NRST"}, {"PA5", "U2 STM32", "PA5"},
+		{"3V3", "J2 SWD", "VTref"}, {"SWDIO", "J2 SWD", "SWDIO"}, {"NRST", "J2 SWD", "nRESET"}, {"GND", "J2 SWD", "GND"},
+		{"PA5", "R5", "1"}, {"LED_A", "R5", "2"}, {"LED_A", "D1", "A"}, {"GND", "D1", "K"},
+	},
+	Assign: [][3]string{{"R5", "", "D1"}},
+}
+
+func TestDebugHeaderAndSeriesResistor(t *testing.T) {
+	d := drawn{t, buildCircuit(t, newService(t), debugBoard).Connections.Diagram}
+	// The header's VTref senses 3V3: the regulator makes it.
+	for _, l := range d.links() {
+		if strings.HasPrefix(l, "J2→") && strings.Contains(l, "power") {
+			t.Errorf("the header is drawn as a source: %q", d.links())
+		}
+	}
+	if got := d.links(); !slices.Contains(got, "U1→J2 power 3V3") {
+		t.Errorf("links = %q, want U1 feeding the header's VTref", got)
+	}
+	// R5 is set to support D1, so it hangs by D1, not by U2 on PA5.
+	if got := d.passives(); !slices.Contains(got, "R5 1k out D1 on LED_A+PA5") {
+		t.Errorf("passives = %q, want R5 by D1", got)
+	}
+}
+
+func TestDiagramKindsOfCategories(t *testing.T) {
+	for cat, want := range map[string]string{
+		"LED": "other", "Tactile switch": "other", "Crystal": "other", "Pin header": "connector", "USB-C receptacle": "connector",
+		"capacitor": "capacitor", "Microcontroller": "ic", "tvs": "diode",
+	} {
+		if got := diagramKind(cat, false); got != want {
+			t.Errorf("diagramKind(%q) = %q, want %q", cat, got, want)
+		}
+	}
+}
