@@ -63,8 +63,10 @@ func subgroups(f subgroupFacts) []DiagramSubgroup {
 }
 
 // namedSubgroups groups the parts and passives given one name, within
-// their group. A passive named in pulls the rest of its rail's passives
-// by its part along, and a chained one the passive it chains off.
+// their group. A passive named in pulls along the rest of its rail's
+// passives by its part, and a chained one the passive it chains off,
+// unless they're named themselves: naming splits what a rule would put
+// together (VDD and VDDA capacitors on one rail by one MCU).
 func namedSubgroups(f subgroupFacts, taken map[string]bool) []DiagramSubgroup {
 	type key struct{ name, group string }
 	byKey := map[key]*DiagramSubgroup{}
@@ -99,10 +101,12 @@ func namedSubgroups(f subgroupFacts, taken map[string]bool) []DiagramSubgroup {
 			}
 			if onRail(f, q) {
 				for _, x := range railMates(f, q) {
-					add(sg.Name, sg.Group, x.ID)
+					if x.Cluster == "" {
+						add(sg.Name, sg.Group, x.ID)
+					}
 				}
 			}
-			if lead, ok := chainLeadOf(f, q); ok {
+			if lead, ok := chainLeadOf(f, q); ok && lead.Cluster == "" {
 				add(sg.Name, sg.Group, lead.ID)
 			}
 		}

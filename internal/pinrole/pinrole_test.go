@@ -21,6 +21,10 @@ func TestOf(t *testing.T) {
 		// Supplies, by type or name.
 		{"VIN", "", "Supply voltage", Power},
 		{"VDD", "P", "", Power},
+		// An MCU's own regulator output takes only a capacitor, whatever its type column says.
+		{"VCAP", "S", "", Output},
+		{"VCAP_1", "S", "", Output},
+		{"VCORE", "", "", Output},
 		{"VDDA", "", "", Power},
 		{"VBAT", "P", "", Power},
 		{"VS", "", "", Power},

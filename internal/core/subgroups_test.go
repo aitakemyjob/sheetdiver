@@ -83,6 +83,38 @@ func TestNamedSubgroupsTakeTheirRailMatesAndChainLeads(t *testing.T) {
 	}
 }
 
+func TestNamesSplitWhatARuleWouldPutTogether(t *testing.T) {
+	f := subgroupBoard()
+	// C1 and C2 are on one rail by one part; named apart, they stay apart.
+	for i := range f.passives {
+		switch f.passives[i].Label {
+		case "C1":
+			f.passives[i].Cluster = "VDD"
+		case "C2":
+			f.passives[i].Cluster = "VDDA"
+		}
+	}
+	got := members(subgroups(f))
+	want := []string{
+		"named:VDD@MCU[] block:2",
+		"named:VDDA@MCU[] block:3",
+		"chain:@Output[LED_A] block:5,block:6",
+		"chain:@Power[VOUT] block:7,block:8",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("subgroups =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	}
+	// A named subgroup spans nets: R1 on SDA and C1 on 3V3.
+	for i := range f.passives {
+		if f.passives[i].Label == "R1" {
+			f.passives[i].Cluster = "VDD"
+		}
+	}
+	if got := members(subgroups(f)); got[0] != "named:VDD@MCU[] block:2,block:4" {
+		t.Errorf("spanning nets: %v", got)
+	}
+}
+
 func TestARailWithOnePassiveIsNoSubgroup(t *testing.T) {
 	f := subgroupBoard()
 	f.passives = f.passives[:1] // C1 alone on 3V3

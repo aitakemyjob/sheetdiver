@@ -471,6 +471,13 @@ func TestConnectionsTools(t *testing.T) {
 	// round is refused with the right way.
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": ""}, {"part": "U1", "supports": "C9"}}},
 		"C9: group Load (its part's); supports U2 SD1235, guessed; hangs by U2 SD1235", "U1 supports C9: the other way round? A passive supports the part it serves: part C9, supports U1")
+	// Subgroups set through the tool are stored, echoed and listed per
+	// group; set again with another field, they're kept.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "cluster": "Decoupling"}, {"part": "R9", "cluster": "Feedback"}}},
+		"C9: group Load (its part's); subgroup Decoupling; supports U2 SD1235", "R9: group Load (its part's); subgroup Feedback;", "group Load: U2 SD1235, C9, R9; subgroups: Decoupling (C9), Feedback (R9)")
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": "U2"}}}, "C9: group Load (its part's); subgroup Decoupling; supports U2 SD1235;")
+	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9), Feedback (R9)")
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "cluster": ""}}}, "R9: group Load (its part's); supports")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

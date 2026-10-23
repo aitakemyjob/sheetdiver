@@ -30,7 +30,11 @@ const (
 )
 
 var (
-	padRe    = regexp.MustCompile(`(?i)thermal|exposed|power\s*pad|^(EP|PAD|TAB)$`)
+	padRe = regexp.MustCompile(`(?i)thermal|exposed|power\s*pad|^(EP|PAD|TAB)$`)
+	// regOutRe is a part's own internal regulator output, which only takes
+	// a capacitor: an MCU's VCAP (typed S, supply, in STM32 tables), VCORE,
+	// VREGOUT, VDDCORE when it's the LDO's output (it says so).
+	regOutRe = regexp.MustCompile(`(?i)^(VCAP|VCORE|VREG(OUT)?|VLDO)\w*$`)
 	groundRe = regexp.MustCompile(`(?i)^(A|D|P|S)?(GND|VSS)\w*$|^GROUND$`)
 	powerRe  = regexp.MustCompile(`(?i)^(A|D|P)?V(DD|CC|IN|BAT|IO|S|SUP|SYS|BUS)\w*$|^VDDIO\w*$|^(IN|SUPPLY)$`)
 	ncRe     = regexp.MustCompile(`(?i)^(NC|N\.C\.?|DNC)$`)
@@ -50,6 +54,8 @@ func Of(name, typ, description string) Role {
 	switch t := strings.ToUpper(strings.TrimSpace(typ)); {
 	case padRe.MatchString(name):
 		return Pad
+	case regOutRe.MatchString(name):
+		return Output
 	case t == "G" || t == "GND" || t == "GROUND" || groundRe.MatchString(name):
 		return Ground
 	case t == "P" || t == "PWR" || t == "S" || t == "SUPPLY" || t == "POWER" || powerRe.MatchString(name):

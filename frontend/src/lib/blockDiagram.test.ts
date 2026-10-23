@@ -141,7 +141,8 @@ describe.each(circuits)('the block diagram of %s', (name) => {
   });
 
   it('keeps a bridged passive between its pins', () => {
-    for (const p of d.passives.filter((x) => x.passive.mount === 'bridge')) {
+    // Unless it was named into a subgroup of its own: then it's in that frame.
+    for (const p of d.passives.filter((x) => x.passive.mount === 'bridge' && !x.passive.cluster)) {
       const box = d.boxes.find((b) => b.part.id === p.passive.part)!;
       const pin = box.pins.find((x) => x.net === p.passive.nets[0] && !x.tied)!;
       const gap = pin.side === 'left' ? box.x - (p.x + p.w) : p.x - (box.x + box.w);

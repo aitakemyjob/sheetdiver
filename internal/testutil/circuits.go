@@ -273,6 +273,18 @@ func Circuits() []Circuit {
 				{"C9", "", "U2 STM32U545"}, {"C10", "", "U2 STM32U545"}, {"C11", "", "U2 STM32U545"}, {"C12", "", "U2 STM32U545"}, {"R3", "", "U2 STM32U545"}, {"R5", "", "D1 LED"},
 				{"Y1 FC-135", "Clock", ""}, {"C13", "", "Y1 FC-135"}, {"C14", "", "Y1 FC-135"},
 			},
+			// The tester's subgroups: decoupling split by name on one rail by
+			// one MCU (VDD, VDDA), single parts named on their own (VCAP, the
+			// inductor across two pins), a button with its capacitor, the
+			// boot switch with its pull-down, the LED with its resistor, the
+			// crystal with its load capacitors, and two resistors on two
+			// nets as one (Feedback).
+			Cluster: [][2]string{
+				{"C4", "VDD"}, {"C5", "VDD"}, {"C6", "VDD"}, {"C11", "VDD"}, {"C12", "VDD"}, {"C7", "VDDA"}, {"C8", "VDDA"},
+				{"C10", "VCAP"}, {"SW1 Reset", "Reset"}, {"C9", "Reset"}, {"SW2 Boot", "Boot"}, {"R3", "Boot"},
+				{"D1 LED", "User LED"}, {"R5", "User LED"}, {"Y1 FC-135", "LSE"}, {"C13", "LSE"}, {"C14", "LSE"},
+				{"L1", "Switch"}, {"R4", "Feedback"}, {"C3", "Feedback"},
+			},
 		},
 		{
 			Name:  "Driver board",

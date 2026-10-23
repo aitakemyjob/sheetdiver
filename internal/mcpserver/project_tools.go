@@ -247,7 +247,7 @@ func (s *Server) registerProjects() {
 				ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: g.Description, Notes: g.Notes, Remove: g.Remove})
 			}
 			for _, as := range a.Assign {
-				ch.Assign = append(ch.Assign, core.AssignChange{Part: as.Part, Group: as.Group, Supports: as.Supports})
+				ch.Assign = append(ch.Assign, core.AssignChange{Part: as.Part, Group: as.Group, Supports: as.Supports, Cluster: as.Cluster})
 			}
 			problems, err := c.ChangeConnections(ctx, name, ch, library.SourceAgent)
 			if err != nil {

@@ -125,6 +125,19 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **Subgroups named through `set_connections` are kept.** The tool
+  accepted `cluster` and then dropped it before it reached the project,
+  so no name was stored, echoed or drawn. It's now stored, shown in
+  each assignment's line ("subgroup VDDA") and in each group's list,
+  and drawn as its own frame with your name on it. A name splits what
+  the automatic rule would put together (VDD and VDDA capacitors on one
+  rail by one MCU), can span nets (Feedback), and can hold a part
+  across two pins (an inductor, wired at both ends) or a box (a switch,
+  a crystal). A wire into a named subgroup runs on in to the part it
+  reaches, and a subgroup faces the part its members are placed by.
+- **VCAP is a regulator output, not a supply input.** An MCU's VCAP
+  (typed S in STM32 pin tables), VCORE or VREGOUT takes only a
+  capacitor, so it's no longer checked as a supply pin or drawn on top.
 - **Where a passive goes, as said.** A passive set to support a part
   goes by that part when the part is on its net, reaches it through an
   inductor, fuse or diode (the output capacitor after the inductor), or

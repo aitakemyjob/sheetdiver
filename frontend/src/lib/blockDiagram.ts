@@ -930,6 +930,8 @@ interface Unit {
   ports: { net: string; y: number }[];
   /** The part its members are placed by, when they're passives of one. */
   part?: string;
+  /** Where a net from outside is named inside (a passive's far end), to wire in from the border. */
+  inner: { net: string; x: number; y: number }[];
   /** The border its ports are on: facing the part its first net comes from. */
   side: 'WEST' | 'EAST';
   /** A bus with its parts hanging off it (else its own layout, with a box in it). */
@@ -961,11 +963,16 @@ async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Prom
   const power = new Set(d.nets.filter((n) => n.kind === 'power').map((n) => n.name.toLowerCase()));
   for (const u of units) {
     const net = [...u.ports].sort((a, b) => Number(power.has(a.net.toLowerCase())) - Number(power.has(b.net.toLowerCase())))[0]?.net.toLowerCase();
-    const pin = d.parts.filter((p) => !u.members.has(`b:${p.id}`)).flatMap((p) => p.pins).find((p) => p.net?.toLowerCase() === net);
+    // The pin of the part it's placed by (the MCU its capacitors decouple),
+    // else of any part outside on that net.
+    const outside = d.parts.filter((p) => !u.members.has(`b:${p.id}`));
+    const by = outside.filter((p) => p.id === u.part);
+    const pin = [...by, ...outside].flatMap((p) => p.pins).find((p) => p.net?.toLowerCase() === net && !p.tied);
     if (pin?.side === 'left') {
       u.side = 'EAST';
       if (u.bus) mirror(u);
     }
+    if (!u.bus) wireIn(u);
   }
   return units;
 }
@@ -1046,7 +1053,7 @@ async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram
   const corner = topLeft(drawn);
   const local = moveDrawing(drawn, UNIT_PAD - corner.x, UNIT_PAD + UNIT_HEAD - corner.y);
   const far = bottomRight(local);
-  const u: Unit = { id, name, members: ids, drawing: local, w: far.x + UNIT_PAD, h: far.y + UNIT_PAD, ports: [], side: 'WEST', part: passives[0]?.part };
+  const u: Unit = { id, name, members: ids, drawing: local, w: far.x + UNIT_PAD, h: far.y + UNIT_PAD, ports: [], side: 'WEST', part: passives[0]?.part, inner: [] };
   // The nets that also reach a part, or a passive, outside: a port each,
   // level with the net's name inside, else with a pin on it.
   const inside = new Set([...parts.flatMap((p) => p.pins.map((pin) => pin.net ?? '')), ...passives.flatMap((q) => q.nets)].map((n) => n.toLowerCase()));
@@ -1055,13 +1062,33 @@ async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram
     ...d.passives.filter((q) => !ids.has(`q:${q.id}`)).flatMap((q) => q.nets.map((n) => n.toLowerCase())),
   ]);
   for (const net of d.nets.map((n) => n.name).filter((n) => inside.has(n.toLowerCase()) && outside.has(n.toLowerCase()))) {
-    const label = local.flags.find((f) => f.text === net) ?? local.wires.find((w) => w.label?.text === net)?.label;
+    const flag = local.flags.find((f) => f.text === net);
+    const label = flag ?? local.wires.find((w) => w.label?.text === net)?.label;
     const pin = local.boxes.flatMap((b) => b.pins).find((p) => p.net === net);
     const y = label?.y ?? pin?.y;
-    if (y !== undefined) u.ports.push({ net, y: at(y) });
+    if (y === undefined) continue;
+    u.ports.push({ net, y: at(y) });
+    // A passive's far end named inside: wired in from the border too.
+    if (flag) u.inner.push({ net, x: flag.x, y: at(flag.y) });
   }
   u.ports.sort((a, b) => a.y - b.y);
   return u;
+}
+
+/**
+ * Carries each net from a named subgroup's border in to the passive end
+ * it's named at, along a level line, when nothing is in the way; the
+ * border is the one the subgroup's ports are on.
+ */
+function wireIn(u: Unit): void {
+  const r = u.drawing;
+  const rects: Rect[] = [...r.boxes.map((b) => ({ x: b.x, y: b.y - TITLE, w: b.w, h: b.h + TITLE })), ...r.passives];
+  for (const t of u.inner) {
+    const from = u.side === 'EAST' ? u.w : 0;
+    const line = { x: Math.min(from, t.x), y: t.y, w: Math.abs(t.x - from), h: 0 };
+    if (rects.some((x) => overlaps(line, x, -1))) continue;
+    r.wires.push({ net: t.net, path: `M${from},${t.y} H${t.x}` });
+  }
 }
 
 /**
@@ -1072,19 +1099,35 @@ async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram
  */
 function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
   const out = empty();
-  const u: Unit = { id, name, members: new Set(nodes.map((q) => q.node.id)), drawing: out, w: 0, h: 0, ports: [], side: 'WEST', bus: true, part: nodes[0]?.passive.part };
+  const u: Unit = { id, name, members: new Set(nodes.map((q) => q.node.id)), drawing: out, w: 0, h: 0, ports: [], side: 'WEST', bus: true, part: nodes[0]?.passive.part, inner: [] };
   const buses = new Map<string, { net: string; chain: PassiveNode[]; hangers: PassiveNode[] }>();
   const bus = (net: string) => {
     const b = buses.get(net.toLowerCase()) ?? { net, chain: [], hangers: [] };
     buses.set(net.toLowerCase(), b);
     return b;
   };
+  let y = UNIT_PAD + (name ? UNIT_HEAD : 0);
+  let width = 0;
+  // A part across two pins (an inductor between LX1 and LX2), named in
+  // without its IC: down the frame's side, a wire from the border to each
+  // end, a port for each net.
+  for (const q of nodes.filter((x) => x.bridge && x.passive.nets.length === 2)) {
+    const size = passiveSize(q.passive);
+    const x = UNIT_PAD + 16;
+    const p = placePassive(q.passive, x, y, size, false, q.first);
+    const other = q.passive.nets.find((n) => n !== q.first) ?? q.first;
+    out.passives.push(p);
+    out.wires.push({ net: q.first, path: `M0,${p.ends[0].y} H${p.ends[0].x}` });
+    out.wires.push({ net: other, path: `M0,${p.ends[1].y} H${p.ends[1].x}` });
+    u.ports.push({ net: q.first, y: p.ends[0].y }, { net: other, y: p.ends[1].y });
+    width = Math.max(width, x + size.w);
+    y += size.h + UNIT_PAD;
+  }
   for (const q of nodes) {
+    if (q.bridge && q.passive.nets.length === 2) continue;
     if (q.horizontal) bus(q.passive.nets.find((n) => n.toLowerCase() !== q.first.toLowerCase()) ?? q.first).chain.push(q);
     else bus(q.first).hangers.push(q);
   }
-  let y = UNIT_PAD + (name ? UNIT_HEAD : 0);
-  let width = 0;
   for (const b of buses.values()) {
     let x = UNIT_PAD;
     // The bus line: below the bus's name, and below the series parts'
@@ -1107,7 +1150,8 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
     // at each but its ends, and goes on below from its left end.
     const rows: PassiveNode[][] = [];
     b.hangers.forEach((q, i) => (i % ROW_MAX ? rows[rows.length - 1].push(q) : rows.push([q])));
-    const busX = b.chain.length ? from : x;
+    // From the border (the port) when nothing leads in along the bus.
+    const busX = b.chain.length ? from : 0;
     rows.forEach((row, r) => {
       const tops: Pt[] = [];
       let rowH = 0;

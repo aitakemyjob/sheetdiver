@@ -13845,6 +13845,7 @@
      {
       "node": "block:100",
       "supports": "block:96",
+      "cluster": "Feedback",
       "source": "user",
       "endpoint": "C3",
       "supportsEndpoint": "U1 MAX77827"
@@ -13852,6 +13853,7 @@
      {
       "node": "block:101",
       "supports": "block:96",
+      "cluster": "Feedback",
       "source": "user",
       "endpoint": "R4",
       "supportsEndpoint": "U1 MAX77827"
@@ -13871,24 +13873,28 @@
      {
       "node": "block:104",
       "group": "MCU",
+      "cluster": "User LED",
       "source": "user",
       "endpoint": "D1 LED"
      },
      {
       "node": "block:105",
       "group": "MCU",
+      "cluster": "Reset",
       "source": "user",
       "endpoint": "SW1 Reset"
      },
      {
       "node": "block:106",
       "group": "MCU",
+      "cluster": "Boot",
       "source": "user",
       "endpoint": "SW2 Boot"
      },
      {
       "node": "block:107",
       "supports": "block:103",
+      "cluster": "VDD",
       "source": "user",
       "endpoint": "C4",
       "supportsEndpoint": "U2 STM32U545"
@@ -13896,6 +13902,7 @@
      {
       "node": "block:108",
       "supports": "block:103",
+      "cluster": "VDD",
       "source": "user",
       "endpoint": "C5",
       "supportsEndpoint": "U2 STM32U545"
@@ -13903,6 +13910,7 @@
      {
       "node": "block:109",
       "supports": "block:103",
+      "cluster": "VDD",
       "source": "user",
       "endpoint": "C6",
       "supportsEndpoint": "U2 STM32U545"
@@ -13910,6 +13918,7 @@
      {
       "node": "block:110",
       "supports": "block:103",
+      "cluster": "VDDA",
       "source": "user",
       "endpoint": "C7",
       "supportsEndpoint": "U2 STM32U545"
@@ -13917,6 +13926,7 @@
      {
       "node": "block:111",
       "supports": "block:103",
+      "cluster": "VDDA",
       "source": "user",
       "endpoint": "C8",
       "supportsEndpoint": "U2 STM32U545"
@@ -13924,6 +13934,7 @@
      {
       "node": "block:112",
       "supports": "block:103",
+      "cluster": "Reset",
       "source": "user",
       "endpoint": "C9",
       "supportsEndpoint": "U2 STM32U545"
@@ -13931,6 +13942,7 @@
      {
       "node": "block:113",
       "supports": "block:103",
+      "cluster": "VCAP",
       "source": "user",
       "endpoint": "C10",
       "supportsEndpoint": "U2 STM32U545"
@@ -13938,6 +13950,7 @@
      {
       "node": "block:114",
       "supports": "block:103",
+      "cluster": "VDD",
       "source": "user",
       "endpoint": "C11",
       "supportsEndpoint": "U2 STM32U545"
@@ -13945,6 +13958,7 @@
      {
       "node": "block:115",
       "supports": "block:103",
+      "cluster": "VDD",
       "source": "user",
       "endpoint": "C12",
       "supportsEndpoint": "U2 STM32U545"
@@ -13952,6 +13966,7 @@
      {
       "node": "block:116",
       "supports": "block:103",
+      "cluster": "Boot",
       "source": "user",
       "endpoint": "R3",
       "supportsEndpoint": "U2 STM32U545"
@@ -13959,6 +13974,7 @@
      {
       "node": "block:117",
       "supports": "block:104",
+      "cluster": "User LED",
       "source": "user",
       "endpoint": "R5",
       "supportsEndpoint": "D1 LED"
@@ -13966,12 +13982,14 @@
      {
       "node": "block:118",
       "group": "Clock",
+      "cluster": "LSE",
       "source": "user",
       "endpoint": "Y1 FC-135"
      },
      {
       "node": "block:119",
       "supports": "block:118",
+      "cluster": "LSE",
       "source": "user",
       "endpoint": "C13",
       "supportsEndpoint": "Y1 FC-135"
@@ -13979,6 +13997,7 @@
      {
       "node": "block:120",
       "supports": "block:118",
+      "cluster": "LSE",
       "source": "user",
       "endpoint": "C14",
       "supportsEndpoint": "Y1 FC-135"
@@ -14016,6 +14035,12 @@
       "endpoint": "U1 MAX77827"
      },
      {
+      "node": "block:97",
+      "cluster": "Switch",
+      "source": "user",
+      "endpoint": "L1"
+     },
+     {
       "node": "block:98",
       "supports": "block:96",
       "source": "user",
@@ -14039,6 +14064,7 @@
        "shape": "ic",
        "column": 4,
        "group": "MCU",
+       "cluster": "User LED",
        "pins": [
         {
          "name": "A",
@@ -14210,6 +14236,7 @@
        "shape": "ic",
        "column": 4,
        "group": "MCU",
+       "cluster": "Reset",
        "pins": [
         {
          "name": "A",
@@ -14235,6 +14262,7 @@
        "shape": "ic",
        "column": 4,
        "group": "MCU",
+       "cluster": "Boot",
        "pins": [
         {
          "name": "B",
@@ -14452,8 +14480,8 @@
         {
          "name": "VCAP",
          "net": "VCAP",
-         "side": "bottom",
-         "role": "other",
+         "side": "right",
+         "role": "output",
          "connected": true
         },
         {
@@ -14534,6 +14562,7 @@
        "shape": "ic",
        "column": 4,
        "group": "Clock",
+       "cluster": "LSE",
        "pins": [
         {
          "name": "1",
@@ -14576,13 +14605,14 @@
        "label": "C10",
        "value": "4.7µF",
        "kind": "capacitor",
-       "mount": "below",
+       "mount": "out",
        "part": "block:103",
        "nets": [
         "VCAP"
        ],
        "supports": "block:103",
        "group": "MCU",
+       "cluster": "VCAP",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14590,8 +14620,8 @@
        ]
       },
       {
-       "id": "block:114,block:115,block:107,block:108,block:109,block:110,block:111",
-       "label": "C11,C12,C4,C5,C6,C7,C8",
+       "id": "block:114,block:115,block:107,block:108,block:109",
+       "label": "C11,C12,C4,C5,C6",
        "value": "100nF",
        "kind": "capacitor",
        "mount": "wire",
@@ -14601,6 +14631,7 @@
        ],
        "supports": "block:103",
        "group": "MCU",
+       "cluster": "VDD",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14619,6 +14650,7 @@
        ],
        "supports": "block:118",
        "group": "Clock",
+       "cluster": "LSE",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14637,6 +14669,7 @@
        ],
        "supports": "block:118",
        "group": "Clock",
+       "cluster": "LSE",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14655,6 +14688,26 @@
        ],
        "supports": "block:96",
        "group": "Power",
+       "cluster": "Feedback",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:110,block:111",
+       "label": "C7,C8",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "wire",
+       "part": "block:103",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:103",
+       "group": "MCU",
+       "cluster": "VDDA",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14673,6 +14726,7 @@
        ],
        "supports": "block:103",
        "group": "MCU",
+       "cluster": "Reset",
        "shape": "capacitor",
        "ends": [
         "1",
@@ -14693,6 +14747,7 @@
        "supports": "block:96",
        "guessed": true,
        "group": "Power",
+       "cluster": "Switch",
        "shape": "inductor",
        "ends": [
         "1",
@@ -14747,6 +14802,7 @@
        ],
        "supports": "block:103",
        "group": "MCU",
+       "cluster": "Boot",
        "shape": "resistor",
        "ends": [
         "1",
@@ -14766,6 +14822,7 @@
        ],
        "supports": "block:96",
        "group": "Power",
+       "cluster": "Feedback",
        "shape": "resistor",
        "ends": [
         "1",
@@ -14785,6 +14842,7 @@
        ],
        "supports": "block:104",
        "group": "MCU",
+       "cluster": "User LED",
        "shape": "resistor",
        "ends": [
         "2",
@@ -15061,7 +15119,8 @@
        "parts": [
         "block:103"
        ],
-       "wire": ""
+       "wire": "out",
+       "arrow": true
       },
       {
        "name": "OSC32_IN",
@@ -15294,7 +15353,86 @@
        ]
       }
      ],
-     "subgroups": []
+     "subgroups": [
+      {
+       "name": "User LED",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:104",
+        "block:117"
+       ]
+      },
+      {
+       "name": "Reset",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:105",
+        "block:112"
+       ]
+      },
+      {
+       "name": "Boot",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:106",
+        "block:116"
+       ]
+      },
+      {
+       "name": "LSE",
+       "group": "Clock",
+       "kind": "named",
+       "members": [
+        "block:118",
+        "block:119",
+        "block:120"
+       ]
+      },
+      {
+       "name": "VCAP",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:113"
+       ]
+      },
+      {
+       "name": "VDD",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:114,block:115,block:107,block:108,block:109"
+       ]
+      },
+      {
+       "name": "Feedback",
+       "group": "Power",
+       "kind": "named",
+       "members": [
+        "block:100",
+        "block:101"
+       ]
+      },
+      {
+       "name": "VDDA",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:110,block:111"
+       ]
+      },
+      {
+       "name": "Switch",
+       "group": "Power",
+       "kind": "named",
+       "members": [
+        "block:97"
+       ]
+      }
+     ]
     },
     "pinouts": [
      {
