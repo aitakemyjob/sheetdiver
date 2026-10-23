@@ -75,9 +75,10 @@ corrections, which are kept and preferred.
 | `internal/config` | Settings (`os.UserConfigDir()/sheetdiver/config.json`, override with `SHEETDIVER_CONFIG`) and the library location (`SHEETDIVER_LIBRARY`). |
 | `internal/pdf` | PDFium wrapper: text spans, graphic bounds, ink maps, bookmarks, metadata, page/region rendering. |
 | `internal/extract` | Datasheet structure from a `pdf.Document`: sections, figures, tables, parameters, pins, part numbers, families, variants. |
+| `internal/pinrole` | What a pin is (supply, ground, pad, input, output…) from a pin table's type column, name or description: the one rule the connection checks, the pin tables, the symbols and extraction share. |
 | `internal/library` | The SQLite store (pure-Go `modernc.org/sqlite`, FTS5): datasheets, parts, variants, pages, sections, figures, tables, parameters, pins, registers, recommendations, notes, projects, rails, BOM entries, nets and pin connections, off-BOM blocks and block-diagram positions, calculations. Part resolution (MPN, variant, prefix, family). Every extracted row has a source: `auto`, `agent` or `user`. |
 | `internal/calc` | Pure SI calculators (buck, boost, LDO, gate drive, gate divider, divider) with formulas, checks and E-series helpers. |
-| `internal/core` | The `Service`: imports (path, bytes, URL, product-page links, part-number lookup), part overviews and key parameters, rendering with a cache, calculator input filling from datasheets and project rails (with provenance), project analysis (power tree loads, checks, connection checks against pin tables, pin tables per part, and the block diagram model: `core/diagram.go` decides what is drawn: boxes, pin sides, tied and ground pins, how each net runs, where each passive hangs, functional groups (a net's wire per group, a labelled stub where it leaves one) and which part each passive supports; the app only places it, in `frontend/src/lib/blockDiagram.ts`, a group at a time inside its frame), agent access switches, activity feed and UI focus/context. |
+| `internal/core` | The `Service`: imports (path, bytes, URL, product-page links, part-number lookup), part overviews and key parameters, rendering with a cache, calculator input filling from datasheets and project rails (with provenance), project analysis (power tree loads, checks, connection checks against pin tables, pin tables per part, and the block diagram model: `core/diagram.go` and `core/symbol.go` decide what is drawn: each part's symbol (a generated one from its pin table, every pin on a side by its role in number order, connected or not; a box of its connected pins for a block; a transistor by terminal), each passive's standard symbol and which terminal is at which net, tied and ground pins, how each net runs, where each passive hangs, functional groups (a net's wire per group, a labelled stub where it leaves one) and which part each passive supports; the app only places it, in `frontend/src/lib/blockDiagram.ts`, a group at a time inside its frame), agent access switches, activity feed and UI focus/context. |
 | `internal/api` | The frontend's JSON method table; one entry point `Invoke(method, args)`. |
 | `internal/mcpserver` | MCP tools over `core`, rendered as compact text (plus PNG images for figures and pages); every call is logged to the activity feed. |
 | `internal/connect` | What agents need to connect: the stdio command for this install, and the Claude Desktop extension (`.mcpb`). On Windows and Linux the extension carries the console bridge (`server/sheetdiver-mcp[.exe]`), which Claude Desktop starts directly; on macOS it is a manifest and a small Node launcher that runs `sheetdiver mcp`, piping stdio through itself (never inheriting it) and reporting on stderr why SheetDiver stopped. |
@@ -110,13 +111,19 @@ helpers (`lib/tabs.ts`). Themes are CodeDiver's palettes driving CSS
 variables (`lib/themes.ts`). Pages and figures are rendered by the backend
 to PNG (`/api/page.png`, `/api/figure.png`) and overlaid with HTML boxes,
 so no PDF library runs in the browser. The block diagram is laid out by
-ELK (elkjs, loaded on first use): `lib/blockDiagram.ts` turns the
-backend's `Diagram` into a graph per group (boxes with their pins as
-ports, passives as small nodes, the name of a net leaving the group as a
-port label so its stub is straight, a net as edges from the pin that
-drives it) and ELK's result back into the drawing; dragged parts are
-hints to ELK's interactive crossing minimisation, which keeps their order
-in their layer and routes the wires again. Agent `focus` events
+ELK (elkjs, loaded on first use): `lib/blockDiagram.ts` sizes each
+symbol from its pins (a body with a pin line out to each pin end, where
+the wire attaches) and turns the backend's `Diagram` into a graph per
+group (symbols with their pin ends as fixed ports, passives as small
+nodes, the name of a net leaving the group as a port label so its stub
+is straight, a net as edges from the pin that drives it) and ELK's
+result back into the drawing; dragged parts are hints to ELK's
+interactive crossing minimisation, which keeps their order in their
+layer and routes the wires again. `lib/symbols.ts` holds the standard
+symbols' geometry (two-terminals down the y axis, transistors in a box
+with their terminals on its border); `views/project/BlockDiagram.tsx`
+draws it all as SVG and lets the user hide a generated symbol's
+unconnected pins. Agent `focus` events
 open tabs when **Follow agent** is on; the UI reports what is open through
 `ui.context` for `get_ui_context`.
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download, Plus, Trash2, X } from 'lucide-react';
 import { api, saveText } from '../../lib/api';
 import { useStore } from '../../lib/store';
-import type { ConnectionRow, Pin, ProjectDetail } from '../../lib/types';
+import { BLOCK_KINDS, type ConnectionRow, type Pin, type ProjectDetail } from '../../lib/types';
 import { Checks } from '../../components/Checks';
 import { change, designators, endpoints as endpointsOf, marked } from './connections';
 import { Groups } from './Groups';
@@ -205,7 +205,7 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
             <input className="input" style={{ width: 140 }} placeholder="J1 USB-C, R4…" aria-label="New block" value={block} onChange={(e) => setBlock(e.target.value)} />
             <select className="input" style={{ width: 120 }} aria-label="Block kind" value={blockKind} onChange={(e) => setBlockKind(e.target.value)}>
               <option value="">block</option>
-              {['connector', 'module', 'resistor', 'capacitor', 'inductor', 'diode'].map((k) => (
+              {BLOCK_KINDS.map((k) => (
                 <option key={k} value={k}>
                   {k}
                 </option>

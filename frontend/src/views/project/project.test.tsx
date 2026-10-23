@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
@@ -129,6 +129,40 @@ describe('project block diagram, pins and connections', () => {
     expect(svg.querySelectorAll('[data-ground]').length).toBeGreaterThan(0);
   });
 
+  it('dims the unconnected pins of a generated symbol, and hides them on request, remembering that', async () => {
+    localStorage.removeItem('sheetdiver.diagram.connectedOnly');
+    render(<ProjectView params={{ project: 'MCU board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of MCU board' });
+    // U1 SD1234's pin table has VFB, which nothing is wired to.
+    await waitFor(() => expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VFB"]')).toHaveAttribute('data-dim', 'true'));
+    expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VIN"]')).not.toHaveAttribute('data-dim');
+    const toggle = screen.getByRole('button', { name: /All pins/ });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(svg.querySelector('[data-dim]')).toBeNull());
+    expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VIN"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Connected pins only/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(localStorage.getItem('sheetdiver.diagram.connectedOnly')).toBe('1');
+    // The choice holds for the next board.
+    cleanup();
+    render(<ProjectView params={{ project: 'MCU board', tab: 'diagram' }} />);
+    expect(await screen.findByRole('button', { name: /Connected pins only/ })).toHaveAttribute('aria-pressed', 'true');
+    localStorage.removeItem('sheetdiver.diagram.connectedOnly');
+  });
+
+  it('draws a block of a transistor kind as a transistor, and a two-terminal with its symbol', async () => {
+    render(<ProjectView params={{ project: 'Driver board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of Driver board' });
+    expect(svg.querySelector('[data-part="Q1"] [data-shape="mosfet-n"]')).not.toBeNull();
+    expect(svg.querySelector('[data-part="Q2"] [data-shape="npn"]')).not.toBeNull();
+    expect(svg.querySelector('[data-passive="F1"] [data-shape="fuse"]')).not.toBeNull();
+    // D2's cathode is on the signal, so it's drawn the other way up.
+    expect(svg.querySelector('[data-passive="D2"] [data-shape="led"]')).toHaveAttribute('data-flipped', 'true');
+    expect(svg.querySelector('[data-passive="D1"] [data-shape="led"]')).not.toHaveAttribute('data-flipped');
+    // U1 has a pin table, so the toggle is offered.
+    expect(screen.getByRole('button', { name: /All pins/ })).toBeInTheDocument();
+  });
+
   it('exports the table as CSV', () => {
     const csv = connectionsCSV(sensor());
     expect(csv.split('\n')[0]).toBe('Net,Kind,Bus,Part,Pin,Pin name,Pin type,Notes');
@@ -249,6 +283,7 @@ describe('project block diagram, pins and connections', () => {
     await waitFor(() => expect(b.callsTo('connections.change')[2]).toMatchObject({ nets: [{ name: 'SDA', remove: true }] }));
     // A passive block with its kind and value.
     fireEvent.change(screen.getByLabelText('New block'), { target: { value: 'R9' } });
+    expect([...screen.getByLabelText<HTMLSelectElement>('Block kind').options].map((o) => o.value)).toContain('mosfet-n');
     fireEvent.change(screen.getByLabelText('Block kind'), { target: { value: 'resistor' } });
     fireEvent.change(screen.getByLabelText('Block value'), { target: { value: '10k' } });
     fireEvent.click(screen.getByRole('button', { name: /^Block$/ }));

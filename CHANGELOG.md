@@ -9,6 +9,29 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **Schematic symbols on the block diagram.** A part with a pin table in
+  its datasheet is drawn as a symbol generated from it: every pin, with
+  its number outside the body and its name inside, on a side by what it
+  is (supplies on top, grounds and the thermal pad along the bottom,
+  outputs on the right, inputs and everything else on the left), in
+  pin-number order. Wires attach to the pin ends; unconnected pins are
+  dimmed, and **All pins / Connected pins only** on the diagram hides
+  them (but supplies and grounds) on a big microcontroller. Pins on one
+  net next to each other (VDD 24, 36 and 48) share a wire with a jog to
+  each. A block without a pin table is still a box of its connected
+  pins. Two-terminals are drawn with their standard symbol (ANSI:
+  zigzag resistor, plates, humps, triangle and bar…) hanging off their
+  nets, with the right terminal at each end: as the connections name
+  the pins, else by default for the shape (a diode conducts into
+  ground, a Zener or TVS clamps the rail with its cathode on it, a
+  polarised capacitor's + is on the net), the other way round when the
+  far end is a rail. New block kinds for them: capacitor-polarised,
+  schottky, zener, led, tvs, fuse, ferrite, crystal, battery, switch;
+  and mosfet-n, mosfet-p, npn, pnp, drawn as transistors with their
+  pins at G, D, S or B, C, E. A BOM entry's category maps to its symbol
+  the same way, so a part categorised LED or crystal is drawn as one.
+  The connections text for agents names each part's shape and each
+  passive's symbol and terminals. (#74)
 - **Functional groups on the block diagram:** put parts in groups (Power,
   MCU, Sensors) in the Connections tab, or have your agent do it. Each
   group is drawn in its own frame with its description and notes. Wires
@@ -29,6 +52,12 @@ every merged pull request.
   confirms each change. (#71)
 
 ### Changed
+- **One rule for what a pin is** (`internal/pinrole`), from its type
+  column, then its name, then its description, shared by the connection
+  checks, the pin tables, the symbols and extraction. Two consequences
+  on existing boards: a pin named `IN` counts as a supply, and one named
+  `VOUT` or `OUT` without a type counts as an output in the "two outputs
+  on a net" check. (#74)
 - **The block diagram is laid out by ELK** (the Eclipse Layout Kernel,
   elkjs) instead of SheetDiver's own router, which found a new way to
   tangle on each new board. Wires are routed around every part, a net's

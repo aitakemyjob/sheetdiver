@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Download, Eye, EyeOff, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveText } from '../../lib/api';
 import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
 import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
@@ -16,6 +16,18 @@ type View = { k: number; x: number; y: number };
 export function zoomAbout(v: View, factor: number, px: number, py: number): View {
   const k = Math.min(4, Math.max(0.15, v.k * factor));
   return { k, x: px - ((px - v.x) * k) / v.k, y: py - ((py - v.y) * k) / v.k };
+}
+
+/** Where the "connected pins only" choice is kept, for every project. */
+const CONNECTED_ONLY_KEY = 'sheetdiver.diagram.connectedOnly';
+
+/** Whether the diagram was last shown with connected pins only. */
+function connectedOnlySetting(): boolean {
+  try {
+    return localStorage.getItem(CONNECTED_ONLY_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 /** The view that fits a drawing in a screen area (never above 100%). */
@@ -128,6 +140,9 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const [view, setView] = useState<View | null>(null);
   const [pan, setPan] = useState<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const [drawing, setDrawing] = useState<BlockDrawing | null>(null);
+  // A generated symbol shows every pin of its pin table; this hides the
+  // unconnected ones (but supplies and grounds) on big parts.
+  const [connectedOnly, setConnectedOnly] = useState(connectedOnlySetting);
   const svg = useRef<SVGSVGElement>(null);
   const content = useRef<SVGGElement>(null);
   const theme = s.app?.config.settings.theme;
@@ -135,11 +150,21 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   // Laid out by ELK, asynchronously; a stale result is dropped.
   useEffect(() => {
     let live = true;
-    layoutBlockDiagram(d.connections.diagram).then((r) => live && setDrawing(r));
+    layoutBlockDiagram(d.connections.diagram, { connectedOnly }).then((r) => live && setDrawing(r));
     return () => {
       live = false;
     };
-  }, [d]);
+  }, [d, connectedOnly]);
+  const toggleConnectedOnly = () => {
+    const next = !connectedOnly;
+    setConnectedOnly(next);
+    try {
+      localStorage.setItem(CONNECTED_ONLY_KEY, next ? '1' : '0');
+    } catch {
+      // Nothing to remember it in: it still applies for now.
+    }
+  };
+  const hasFull = d.connections.diagram.parts.some((p) => p.full);
   const height = drawing?.height ?? 0;
   const empty = d.connections.diagram.parts.length === 0;
   const fit = () => setView(fitView(drawing?.width ?? 0, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
@@ -242,6 +267,16 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
             <Maximize2 size={13} />
           </button>
         </div>
+        {hasFull && (
+          <button
+            className="btn sm"
+            aria-pressed={connectedOnly}
+            onClick={toggleConnectedOnly}
+            title={connectedOnly ? "Show every pin of each part's pin table" : 'Hide the pins nothing is connected to, except supplies and grounds'}
+          >
+            {connectedOnly ? <EyeOff size={13} /> : <Eye size={13} />} {connectedOnly ? 'Connected pins only' : 'All pins'}
+          </button>
+        )}
         <button className="btn sm" onClick={() => change(d.project.name, { resetLayout: true }, onChange)} title="Forget moved parts">
           <LayoutGrid size={13} /> Auto layout
         </button>
