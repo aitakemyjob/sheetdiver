@@ -112,10 +112,11 @@ to PNG (`/api/page.png`, `/api/figure.png`) and overlaid with HTML boxes,
 so no PDF library runs in the browser. The block diagram is laid out by
 ELK (elkjs, loaded on first use): `lib/blockDiagram.ts` turns the
 backend's `Diagram` into a graph per group (boxes with their pins as
-ports, passives and the names of nets leaving the group as small nodes, a
-net as edges from the pin that drives it) and ELK's result back into the
-drawing; dragged parts are hints to ELK's interactive mode, which keeps
-their layer and order and routes the wires again. Agent `focus` events
+ports, passives as small nodes, the name of a net leaving the group as a
+port label so its stub is straight, a net as edges from the pin that
+drives it) and ELK's result back into the drawing; dragged parts are
+hints to ELK's interactive crossing minimisation, which keeps their order
+in their layer and routes the wires again. Agent `focus` events
 open tabs when **Follow agent** is on; the UI reports what is open through
 `ui.context` for `get_ui_context`.
 

@@ -23,8 +23,9 @@
 // A board in functional groups is laid out a group at a time (groups
 // share no wires: a net between groups is a labelled stub in each), each
 // framed with its name, description and notes, left to right in power
-// flow order. A part dragged by hand is a hint to ELK: its layer and
-// order follow where it was put, and the wires are routed again.
+// flow order. A part dragged by hand is a hint to ELK: its order among
+// the parts beside it follows where it was put (left to right stays with
+// the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
 
@@ -309,11 +310,14 @@ interface BelowPassive {
 
 const DROP = 30; // from a bottom pin down to the passive under it
 
-/** The name of a net leaving the group (or the board), as a node its stub ends at. */
-interface FlagNode {
+/**
+ * The name of a net leaving the group (or the board) at a pin nothing in
+ * the group is wired to: a short stub out of the pin, its name at the end.
+ * ELK keeps the room for it as the pin's port label.
+ */
+interface Stub {
+  port: string;
   net: string;
-  node: ElkNode;
-  /** The side of the pin it's drawn from: its text reads away from the pin. */
   side: 'left' | 'right';
   arrow?: boolean;
 }
@@ -336,11 +340,11 @@ interface Built {
   boxes: Map<string, Box>;
   passives: PassiveNode[];
   below: BelowPassive[];
-  flags: FlagNode[];
-  /** Nets whose wires carry a label (none when the net's name is a flag). */
+  stubs: Stub[];
+  /** Nets whose name is written somewhere already. */
   labelled: Set<string>;
-  /** Edge ids that end in an arrow. */
-  arrows: Set<string>;
+  /** Edge ids that carry their net's name (written on the wire after layout). */
+  named: Set<string>;
 }
 
 const option = {
@@ -351,25 +355,25 @@ const option = {
     'elk.layered.mergeEdges': 'true',
     'elk.layered.thoroughness': '50',
     'elk.layered.crossingMinimization.greedySwitch.type': 'TWO_SIDED',
-    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-    'elk.layered.nodePlacement.favorStraightEdges': 'true',
     'elk.layered.unnecessaryBendpoints': 'true',
+    // Nodes in a layer keep the order they're given where crossings allow:
+    // boxes first, so passives hang below them rather than stacking above.
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
     'elk.spacing.nodeNode': '44',
     'elk.spacing.edgeNode': '24',
-    'elk.spacing.edgeEdge': '14',
-    'elk.spacing.edgeLabel': '6',
+    'elk.spacing.edgeEdge': '18',
     'elk.layered.spacing.nodeNodeBetweenLayers': '90',
     'elk.layered.spacing.edgeNodeBetweenLayers': '24',
-    'elk.layered.spacing.edgeEdgeBetweenLayers': '14',
-    'elk.edgeLabels.placement': 'CENTER',
-    'elk.layered.edgeLabels.sideSelection': 'ALWAYS_UP',
+    'elk.layered.spacing.edgeEdgeBetweenLayers': '18',
     'elk.padding': `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
   },
-  /** With positions as hints: layers and order follow them. */
+  /**
+   * With positions as hints: the order of the nodes in each layer follows
+   * them. The layers themselves still follow the wires, so a part dragged
+   * against the flow isn't pulled behind what feeds it.
+   */
   interactive: {
     'elk.interactive': 'true',
-    'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
-    'elk.layered.layering.strategy': 'INTERACTIVE',
     'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
   },
 };
@@ -394,7 +398,7 @@ function room(width: number, above: number, below: number): Pick<ElkNode, 'label
  * it) to each other port on it; ELK merges them into a bus.
  */
 function graph(d: Diagram, boxes: Box[]): Built {
-  const built: Built = { root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], flags: [], labelled: new Set(), arrows: new Set() };
+  const built: Built = { root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set() };
   const children = built.root.children!;
   const edges = built.root.edges!;
   const ends = new Map<string, PortEnd[]>(); // net (lower case) → its ports
@@ -431,7 +435,14 @@ function graph(d: Diagram, boxes: Box[]): Built {
       if (!p.ground && !q) addEnd({ id: `${id}/${i}`, net: p.net, side });
     });
     const r = room(b.w, TITLE + 4, bottom);
-    children.push({ id, width: b.w, height: b.h, ports, labels: r.labels, layoutOptions: { ...r.layoutOptions, 'elk.portConstraints': 'FIXED_SIDE', 'elk.portAlignment.default': 'CENTER', 'elk.spacing.portPort': '0' } });
+    children.push({
+      id,
+      width: b.w,
+      height: b.h,
+      ports,
+      labels: r.labels,
+      layoutOptions: { ...r.layoutOptions, 'elk.portConstraints': 'FIXED_SIDE', 'elk.portAlignment.default': 'CENTER', 'elk.spacing.portPort': '0', 'elk.portLabels.placement': 'OUTSIDE' },
+    });
   }
 
   // Passives: a bridge across two pins of one box, a series part between
@@ -477,53 +488,50 @@ function graph(d: Diagram, boxes: Box[]): Built {
       built.passives.push({ passive: q, node, w, h });
       continue;
     }
-    // Hanging from one net: a pull-up from the signal, its rail's name
-    // above; else from the first net drawn, the other's name below.
+    // Hanging from one net, its far end named below: a pull-up from the
+    // signal, with its rail's name; else from the first net drawn.
     const rail = pullUp ? q.nets.find(power)! : undefined;
     const net = pullUp ? q.nets.find((n) => n !== rail)! : nets[0];
-    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets.find((n) => n !== net)!, up: pullUp } : { ground: true };
-    const r = room(w, pullUp ? 20 : 0, pullUp ? 0 : GROUND + 10);
+    const end: End = q.nets.length === 2 ? { ground: false, text: q.nets.find((n) => n !== net)!, up: false } : { ground: true };
+    const r = room(w, 0, GROUND + 10);
     const node: ElkNode = { id, width: w, height: h, layoutOptions: { ...layoutOptions, ...r.layoutOptions }, labels: r.labels, ports: [] };
-    const side = pullUp ? 'SOUTH' : 'NORTH';
-    node.ports!.push({ id: `${id}/0`, x: w / 2, y: pullUp ? h : 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
-    addEnd({ id: `${id}/0`, net, side, passive: true });
+    node.ports!.push({ id: `${id}/0`, x: w / 2, y: 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'NORTH' } });
+    addEnd({ id: `${id}/0`, net, side: 'NORTH', passive: true });
     children.push(node);
     built.passives.push({ passive: q, node, w, h, end });
   }
 
-  // Nets: the name of one leaving the group is a node its stub ends at,
-  // on the side of the pin it leaves from; one driven from outside the
-  // group drives from that name.
+  // Nets. One leaving the group (or the board) from a pin nothing in the
+  // group is wired to is a stub out of that pin, named; an output leaving
+  // the board ends in an arrow, with what hangs off it branching from
+  // the stub. The rest are edges from the pin that drives the net to each
+  // other pin, the first between two boxes (else the first at all)
+  // carrying its name.
+  const portOf = new Map<string, ElkPort>();
+  for (const n of children) for (const port of n.ports ?? []) portOf.set(port.id, port);
   for (const n of d.nets) {
     const ports = endsOf(n.name);
     if (ports.length === 0) continue;
     const boxPorts = ports.filter((e) => !e.passive);
-    // A net on one part is named at its stub, unless a series passive
-    // carries it on to another part.
     const fromPassive = ports.find((e) => e.passive && e.side === 'EAST');
-    const flagged = n.offboard || (n.wire === 'out' && !ports.some((e) => e.series));
-    let source = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH');
-    if (flagged) {
-      const id = `f:${n.name}`;
-      const fromRight = !!source;
-      const node: ElkNode = { id, width: n.name.length * CHAR + 8, height: 14, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' }, ports: [] };
-      node.ports!.push({ id: `${id}/0`, x: fromRight ? 0 : node.width, y: 7, width: 0, height: 0, layoutOptions: { 'elk.port.side': fromRight ? 'WEST' : 'EAST' } });
-      children.push(node);
-      built.flags.push({ net: n.name, node, side: fromRight ? 'right' : 'left', arrow: fromRight && n.arrow });
-      const flag: PortEnd = { id: `${id}/0`, net: n.name, side: fromRight ? 'WEST' : 'EAST' };
-      if (fromRight) ports.push(flag);
-      else source = flag;
+    // Nothing in the group drives it: a passive on it (an input
+    // capacitor, a pull-up) comes first, before the box it feeds, rather
+    // than after it at the end of a wire round the box.
+    const source = fromPassive ?? boxPorts.find((e) => e.side === 'EAST') ?? boxPorts.find((e) => e.side === 'SOUTH') ?? ports.find((e) => e.passive) ?? ports[0];
+    const leaves = n.offboard || (n.wire === 'out' && !ports.some((e) => e.series));
+    const alone = boxPorts.length === 1 && ports.length === 1;
+    if (leaves && (alone || n.arrow) && !source.passive && source.side !== 'SOUTH') {
+      const side = source.side === 'EAST' ? 'right' : 'left';
+      built.stubs.push({ port: source.id, net: n.name, side, arrow: side === 'right' && n.arrow });
+      portOf.get(source.id)!.labels = [{ text: n.name, width: n.name.length * CHAR + 16 + (n.arrow ? 12 : 0), height: 14 }];
+      built.labelled.add(n.name);
     }
-    source ??= boxPorts[0] ?? ports[0];
-    const src = source;
-    const sinks = ports.filter((e) => e !== src);
+    const sinks = ports.filter((e) => e !== source);
+    const between = sinks.find((e) => !e.passive && !source.passive);
     sinks.forEach((e, i) => {
-      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [src.id], targets: [e.id] };
-      if (e.id.startsWith('f:') && built.flags.find((f) => f.node.id === e.id.split('/')[0])?.arrow) built.arrows.add(edge.id);
-      // The first wire between two boxes carries the net's name, unless
-      // a flag already says it.
-      if (!flagged && !built.labelled.has(n.name) && !src.passive && !e.passive) {
-        edge.labels = [{ text: n.name, width: n.name.length * CHAR, height: 14 }];
+      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [source.id], targets: [e.id] };
+      if (!built.labelled.has(n.name) && (e === between || (!between && i === 0))) {
+        built.named.add(edge.id);
         built.labelled.add(n.name);
       }
       edges.push(edge);
@@ -542,26 +550,29 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 /**
  * Lays out a diagram (or one group of it) as one drawing. Saved positions
  * are hints: ELK lays the board out, each moved part is put where it was
- * dragged, and ELK lays it out again keeping that order.
+ * dragged, and a fresh graph is laid out again keeping that order (a
+ * fresh one: the first result's wires would be taken as given).
  */
 async function layoutOne(d: Diagram): Promise<BlockDrawing> {
   const boxes = measure(d);
   boxes.forEach(pinsAt);
-  const built = graph(d, boxes);
   const engine = await elk();
-  let r = await engine.layout(built.root);
+  const first = graph(d, boxes);
+  const r = await engine.layout(first.root);
   const hint = new Map<string, Pt>();
   for (const p of d.parts) if (p.x !== undefined && p.y !== undefined) hint.set(`b:${p.id}`, { x: p.x, y: p.y });
   for (const q of d.passives) if (q.x !== undefined && q.y !== undefined) hint.set(`q:${q.id}`, { x: q.x, y: q.y });
-  if (hint.size) {
-    for (const n of r.children ?? []) {
-      const h = hint.get(n.id);
-      if (h) [n.x, n.y] = [h.x, h.y];
-      n.layoutOptions = { ...n.layoutOptions, 'elk.position': `(${n.x},${n.y})` };
-    }
-    r = await engine.layout({ ...r, layoutOptions: { ...option.layered, ...option.interactive } });
+  if (!hint.size) return drawing(first, r);
+  const was = new Map((r.children ?? []).map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]));
+  const again = graph(d, boxes);
+  for (const n of again.root.children ?? []) {
+    const at = hint.get(n.id) ?? was.get(n.id);
+    if (!at) continue;
+    [n.x, n.y] = [at.x, at.y];
+    n.layoutOptions = { ...n.layoutOptions, 'elk.position': `(${at.x},${at.y})` };
   }
-  return drawing(built, r);
+  again.root.layoutOptions = { ...option.layered, ...option.interactive };
+  return drawing(again, await engine.layout(again.root));
 }
 
 /** Rounds a coordinate to half a pixel, so right angles stay exact. */
@@ -641,27 +652,30 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
       out.flags.push({ x: cx, y: p.y + p.h + 6, text: u.end.text, up: false });
     }
   }
-  // Wires, with their labels and junctions; a flag's name on its stub.
-  const flagOf = new Map(built.flags.map((f) => [f.node.id, f]));
-  const named = new Set<string>(); // flags already written on a wire
+  // Stubs: straight out of their pin, named at the end.
+  for (const st of built.stubs) {
+    const [boxId, idx] = [st.port.split('/')[0], Number(st.port.split('/')[1])];
+    const p = built.boxes.get(boxId)!.pins[idx];
+    const dir = st.side === 'right' ? 1 : -1;
+    const len = st.net.length * CHAR + 16 + (st.arrow ? 12 : 0);
+    const end = p.x + dir * len;
+    out.wires.push({ net: st.net, path: `M${p.x},${p.y} H${end}`, arrow: st.arrow || undefined, label: { x: end - dir * (st.arrow ? 12 : 2), y: p.y - 5, anchor: dir > 0 ? 'end' : 'start', text: st.net } });
+  }
+  // Wires, with their junctions; a net's name above the longest level
+  // piece of the wire that carries it (ELK would give each label a layer
+  // of its own, which spreads the drawing).
   for (const e of r.edges ?? []) {
     const net = e.id.slice(2, e.id.lastIndexOf(':'));
-    const flag = flagOf.get(e.targets[0].split('/')[0]) ?? flagOf.get(e.sources[0].split('/')[0]);
-    // The flag's name is written on the first wire that reaches it.
-    const names = !!flag && !named.has(flag.node.id);
-    if (flag) named.add(flag.node.id);
     (e.sections ?? []).forEach((s, k) => {
       const pts = [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => ({ x: at(p.x), y: at(p.y) }));
-      const wire: Wire = { net, path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' '), arrow: built.arrows.has(e.id) || undefined };
+      const wire: Wire = { net, path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') };
       out.wires.push(wire);
-      if (k > 0) return;
-      const l = e.labels?.[0];
-      if (l && l.x !== undefined && l.y !== undefined) wire.label = { x: at(l.x + (l.width ?? 0) / 2), y: at(l.y + 11), anchor: 'middle', text: l.text ?? '' };
-      if (flag && names) {
-        const f = placed.get(flag.node.id)!;
-        const fx = at(f.x ?? 0);
-        wire.label = flag.side === 'right' ? { x: fx + 2, y: at((f.y ?? 0) + 11), anchor: 'start', text: flag.net } : { x: at(fx + (f.width ?? 0)) - 2, y: at((f.y ?? 0) + 11), anchor: 'end', text: flag.net };
-      }
+      if (k > 0 || !built.named.has(e.id)) return;
+      // On the first level piece long enough for it; a wire too short
+      // for its name everywhere goes unnamed.
+      const level = pts.slice(1).map((p, i) => ({ a: pts[i], z: p })).filter(({ a, z }) => a.y === z.y);
+      const fits = level.find(({ a, z }) => Math.abs(z.x - a.x) >= net.length * CHAR + 12);
+      if (fits) wire.label = { x: at((fits.a.x + fits.z.x) / 2), y: fits.a.y - 5, anchor: 'middle', text: net };
     });
     for (const j of e.junctionPoints ?? []) out.dots.push({ x: at(j.x), y: at(j.y) });
   }
