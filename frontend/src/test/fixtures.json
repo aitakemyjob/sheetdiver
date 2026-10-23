@@ -10939,7 +10939,7 @@
        "id": "block:91",
        "title": "D1 LED",
        "kind": "ic",
-       "column": 5,
+       "column": 4,
        "group": "MCU",
        "pins": [
         {
@@ -11154,7 +11154,7 @@
         {
          "name": "PA5",
          "net": "PA5",
-         "side": "left"
+         "side": "right"
         },
         {
          "name": "PB0",
@@ -11593,6 +11593,16 @@
        "nets": [
         "OSC32_IN",
         "OSC32_OUT"
+       ]
+      },
+      {
+       "from": "block:73",
+       "to": "block:91",
+       "label": "PA5",
+       "kind": "signal",
+       "nets": [
+        "PA5",
+        "LED_A"
        ]
       }
      ]
@@ -13386,7 +13396,7 @@
        "id": "block:104",
        "title": "D1 LED",
        "kind": "ic",
-       "column": 5,
+       "column": 4,
        "group": "MCU",
        "pins": [
         {
@@ -13654,7 +13664,7 @@
         {
          "name": "PA5",
          "net": "LED",
-         "side": "left"
+         "side": "right"
         },
         {
          "name": "PA11",
@@ -14441,6 +14451,16 @@
        "nets": [
         "OSC32_IN",
         "OSC32_OUT"
+       ]
+      },
+      {
+       "from": "block:103",
+       "to": "block:104",
+       "label": "LED",
+       "kind": "signal",
+       "nets": [
+        "LED",
+        "LED_A"
        ]
       }
      ]

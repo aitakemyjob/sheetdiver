@@ -29,6 +29,14 @@ every merged pull request.
   confirms each change. (#71)
 
 ### Changed
+- **The block diagram is laid out by ELK** (the Eclipse Layout Kernel,
+  elkjs) instead of SheetDiver's own router, which found a new way to
+  tangle on each new board. Wires are routed around every part, a net's
+  branches merge into a bus with junctions, labels go where they fit, and
+  a pin's order on its side follows where its wire goes. Dragging a part
+  now tells the layout where you want it (its place and order are kept,
+  and the wires are routed again) rather than pinning it exactly where it
+  was dropped. *Auto layout* still forgets the dragged positions.
 - **Windows: `sheetdiver-mcp.exe` works like `sheetdiver mcp`.** It relays
   to the open app, or serves your library itself while the app is closed,
   instead of starting SheetDiver. Claude Desktop now starts a short-lived

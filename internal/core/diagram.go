@@ -591,6 +591,31 @@ func (b *diagramBuilder) ground(net string) bool {
 	return b.kinds[strings.ToLower(net)] == library.NetGround
 }
 
+// throughPassives lists the boxes on a net, and those on the far side
+// of a series passive on it (an LED behind its resistor; not a pull-up,
+// whose rail goes everywhere), in order.
+func (b *diagramBuilder) throughPassives(net string) []string {
+	out := b.mainsOn(net)
+	if b.kinds[strings.ToLower(net)] == library.NetPower {
+		return out
+	}
+	for _, q := range b.passivesOn(net) {
+		if nets := b.passives[q]; len(nets) == 2 {
+			for _, n := range nets {
+				if strings.EqualFold(n, net) || b.kinds[strings.ToLower(n)] == library.NetPower {
+					continue
+				}
+				for _, o := range b.mainsOn(n) {
+					if !contains(out, o) {
+						out = append(out, o)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
 // mainsOn lists the boxes with a pin on a net, in order.
 func (b *diagramBuilder) mainsOn(net string) []string {
 	var out []string
@@ -667,6 +692,31 @@ func (b *diagramBuilder) links() []DiagramLink {
 				} else if !contains(strings.Split(l.Label, ", "), label) {
 					l.Label += ", " + label
 				}
+			}
+		}
+	}
+	// Two boxes joined through a series passive (an MCU pin, a resistor,
+	// an LED) are linked too, from the one that drives the passive's net.
+	// Not through a pull-up: its rail goes everywhere.
+	for _, q := range b.order {
+		nets := b.passives[q]
+		if len(nets) != 2 || b.kinds[strings.ToLower(nets[0])] == library.NetPower || b.kinds[strings.ToLower(nets[1])] == library.NetPower {
+			continue
+		}
+		for _, from := range b.mainsOn(nets[0]) {
+			for _, to := range b.mainsOn(nets[1]) {
+				if from == to || !b.drives(from, nets[0]) && b.drives(to, nets[1]) {
+					continue
+				}
+				k := key{from, to, "signal"}
+				if _, ok := byKey[k]; ok {
+					continue
+				}
+				if _, ok := byKey[key{to, from, "signal"}]; ok {
+					continue
+				}
+				byKey[k] = &DiagramLink{From: from, To: to, Kind: "signal", Nets: []string{nets[0], nets[1]}, Label: nets[0]}
+				order = append(order, k)
 			}
 		}
 	}
@@ -796,7 +846,7 @@ func pinName(r ConnectionRow) string {
 func (b *diagramBuilder) side(e *end, r ConnectionRow) string {
 	net := r.Net
 	var left, right, offboard bool
-	for _, o := range b.mainsOn(net) {
+	for _, o := range b.throughPassives(net) {
 		if o == e.id {
 			continue
 		}

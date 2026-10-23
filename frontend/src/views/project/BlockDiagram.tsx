@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveText } from '../../lib/api';
-import { layoutBlockDiagram, type Box, type Pt } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, type BlockDrawing, type Box, type Pt } from '../../lib/blockDiagram';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
@@ -27,34 +27,39 @@ export function fitView(width: number, height: number, screenW: number, screenH:
 /**
  * The project's block diagram: parts and connectors with their pins,
  * wires labelled with their nets, and passives hanging off what they
- * serve. Zoom with the wheel, pan by dragging the background, drag
- * parts to move them (saved); export the whole drawing as SVG.
+ * serve. Zoom with the wheel, pan by dragging the background, drag a
+ * part to move it (saved: the layout keeps it in that place and order,
+ * and routes the wires again); export the whole drawing as SVG.
  */
 export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; highlight?: string; onChange: () => void }) {
   const s = useStore();
-  const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>({});
-  // Positions in a group are saved relative to its frame (origin).
-  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number; origin: Pt } | null>(null);
+  // A part being dragged: where it was grabbed, how far it has moved, and
+  // its group's origin (positions in a group are saved relative to it).
+  const [drag, setDrag] = useState<{ id: string; from: Pt; at: Pt; dx: number; dy: number; origin: Pt } | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [pan, setPan] = useState<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const [drawing, setDrawing] = useState<BlockDrawing | null>(null);
   const svg = useRef<SVGSVGElement>(null);
   const content = useRef<SVGGElement>(null);
-  useEffect(() => setMoved({}), [d]);
   const theme = s.app?.config.settings.theme;
   const pal = useMemo(palette, [theme]);
-  const drawing = useMemo(() => {
-    const dg = d.connections.diagram;
-    // Parts by their node; passives by their first one's.
-    return layoutBlockDiagram({ ...dg, parts: dg.parts.map((p) => ({ ...p, ...moved[p.id] })), passives: dg.passives.map((q) => ({ ...q, ...moved[q.id.split(',')[0]] })) });
-  }, [d, moved]);
-  const height = drawing.height;
-  const empty = drawing.boxes.length === 0;
-  const fit = () => setView(fitView(drawing.width, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
+  // Laid out by ELK, asynchronously; a stale result is dropped.
+  useEffect(() => {
+    let live = true;
+    layoutBlockDiagram(d.connections.diagram).then((r) => live && setDrawing(r));
+    return () => {
+      live = false;
+    };
+  }, [d]);
+  const height = drawing?.height ?? 0;
+  const empty = d.connections.diagram.parts.length === 0;
+  const fit = () => setView(fitView(drawing?.width ?? 0, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
   const zoom = (factor: number, px?: number, py?: number) =>
     setView((v) => zoomAbout(v ?? { k: 1, x: 0, y: 0 }, factor, px ?? (svg.current?.clientWidth ?? 0) / 2, py ?? (svg.current?.clientHeight ?? 0) / 2));
-  // Fitted when first shown.
+  // Fitted when first drawn (the wheel listener needs the drawing too).
+  const drawn = !!drawing;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => fit(), [empty]);
+  useEffect(() => fit(), [drawn]);
   // The wheel zooms about the pointer (a native listener: React's is passive).
   useEffect(() => {
     const el = svg.current;
@@ -66,7 +71,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [empty]);
+  }, [drawn]);
   if (empty) {
     return (
       <Empty icon={<LayoutGrid size={28} />} title="Nothing connected yet">
@@ -74,6 +79,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       </Empty>
     );
   }
+  if (!drawing) return null;
   // Screen to drawing coordinates, through the zoom and pan.
   const at = (e: PointerEvent) => {
     const m = content.current?.getScreenCTM?.();
@@ -82,7 +88,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const grab = (e: PointerEvent, id: string, r: Pt & { origin?: Pt }) => {
     const p = at(e);
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ id, dx: p.x - r.x, dy: p.y - r.y, origin: r.origin ?? { x: 0, y: 0 } });
+    setDrag({ id, from: p, at: { x: r.x, y: r.y }, dx: 0, dy: 0, origin: r.origin ?? { x: 0, y: 0 } });
   };
   const startPan = (e: PointerEvent) => {
     if (e.target !== svg.current) return; // the background, not a part
@@ -95,16 +101,16 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       setView((v) => ({ k: v?.k ?? 1, x: p.vx + e.clientX - p.x, y: p.vy + e.clientY - p.y }));
     } else if (drag) {
       const p = at(e);
-      const pos = { x: Math.max(0, Math.round(p.x - drag.dx - drag.origin.x)), y: Math.max(0, Math.round(p.y - drag.dy - drag.origin.y)) };
-      setMoved((m) => ({ ...m, [drag.id]: pos }));
+      setDrag({ ...drag, dx: p.x - drag.from.x, dy: p.y - drag.from.y });
     }
   };
   const drop = () => {
     setPan(null);
     if (!drag) return;
-    const pos = moved[drag.id];
     setDrag(null);
-    if (pos) change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
+    if (!drag.dx && !drag.dy) return;
+    const pos = { x: Math.max(0, Math.round(drag.at.x + drag.dx - drag.origin.x)), y: Math.max(0, Math.round(drag.at.y + drag.dy - drag.origin.y)) };
+    change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
   };
   const open = (b: Box) => {
     // A designator of an entry with several is "part:<id>/R1".
@@ -127,6 +133,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   };
   const hl = highlight?.toLowerCase();
   const w = pal.wire;
+  // What's being dragged follows the pointer until it's dropped and laid out again.
+  const dragging = (id: string) => (drag?.id === id ? `translate(${drag.dx},${drag.dy})` : undefined);
   return (
     <div className="col" style={{ gap: 8 }}>
       <div className="row">
@@ -211,6 +219,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   data-hl={on || undefined}
                   onPointerDown={(e) => grab(e, b.part.id, b)}
                   onDoubleClick={() => open(b)}
+                  transform={dragging(b.part.id)}
                   style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab' }}
                 >
                   <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
@@ -241,6 +250,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   data-passive={q.label}
                   data-hl={on || undefined}
                   onPointerDown={(e) => grab(e, q.id.split(',')[0], p)}
+                  transform={dragging(q.id.split(',')[0])}
                   style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab' }}
                 >
                   <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
