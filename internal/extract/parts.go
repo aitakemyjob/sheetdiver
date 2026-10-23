@@ -29,6 +29,11 @@ func PartNumbers(doc *pdf.Document, lines [][]Line, filename string) []string {
 			}
 		}
 	}
+	// A distributor's file name says the part outright
+	// ("2304140030_STMicroelectronics-STM32G031K8T6_C432211.pdf").
+	if tok := fromFilename(filename); tok != "" && distributorFile(filename) {
+		score[tok] += 3
+	}
 	add(doc.Meta["Title"], 4)
 	add(doc.Meta["Subject"], 1)
 	add(doc.Meta["Keywords"], 0.5)
@@ -83,11 +88,70 @@ func PartNumbers(doc *pdf.Document, lines [][]Line, filename string) []string {
 	if len(out) == 0 {
 		stem := strings.ToUpper(strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)))
 		stem = strings.TrimPrefix(stem, "DS_")
-		if tok := strings.FieldsFunc(stem, func(r rune) bool { return r == ' ' || r == '_' }); len(tok) > 0 {
+		if tok := fromFilename(filename); tok != "" && distributorFile(filename) {
+			out = append(out, tok)
+		} else if tok := strings.FieldsFunc(stem, func(r rune) bool { return r == ' ' || r == '_' }); len(tok) > 0 && !fileIDRe.MatchString(tok[0]) {
 			out = append(out, tok[0])
 		}
 	}
 	return out
+}
+
+// fileIDRe is a distributor's file or catalogue number, never a part:
+// LCSC's upload id (2304140030) and part code (C432211).
+var fileIDRe = regexp.MustCompile(`^(\d{6,}|C\d{3,}|LCSC|DATASHEET|LCSC-DATASHEET)$`)
+
+// distributorFile reports whether a file name is a distributor's, which
+// names the part between its file ids.
+func distributorFile(filename string) bool {
+	stem := strings.ToUpper(strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)))
+	for _, piece := range strings.FieldsFunc(stem, func(r rune) bool { return r == ' ' || r == '_' }) {
+		if fileIDRe.MatchString(piece) {
+			return true
+		}
+	}
+	return false
+}
+
+// fromFilename is the part number in a file name, when it says one: the
+// first part-number-shaped piece that isn't a file id, without the
+// manufacturer LCSC puts before it ("STMicroelectronics-STM32G031K8T6").
+func fromFilename(filename string) string {
+	stem := strings.ToUpper(strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)))
+	for _, piece := range strings.FieldsFunc(stem, func(r rune) bool { return r == ' ' || r == '_' }) {
+		if fileIDRe.MatchString(piece) {
+			continue
+		}
+		// Manufacturer-Part: the part follows the last hyphen before the
+		// first digit ("ANALOG-DEVICES-MAX77827EFD+T").
+		if d := strings.IndexAny(piece, "0123456789"); d > 0 {
+			if i := strings.LastIndex(piece[:d], "-"); i > 0 && isPartToken(piece[i+1:]) {
+				return piece[i+1:]
+			}
+		}
+		if isPartToken(piece) {
+			return piece
+		}
+	}
+	return ""
+}
+
+// ratingRe is a quantity with its unit ("1.8A", "3.3V", "500mA").
+var ratingRe = regexp.MustCompile(`(?i)^[\d.]+(V|A|W|MA|UA|MV|KV|MW|HZ|KHZ|MHZ|GHZ|%)?$`)
+
+// ratings reports whether a token is only ratings joined by slashes or
+// hyphens ("1.8A/3.1A", "3.3V-5V"): a datasheet title's spec, not a part.
+func ratings(tok string) bool {
+	parts := strings.FieldsFunc(tok, func(r rune) bool { return r == '/' || r == '-' })
+	if len(parts) < 2 {
+		return false
+	}
+	for _, p := range parts {
+		if !ratingRe.MatchString(p) {
+			return false
+		}
+	}
+	return true
 }
 
 // tokenize splits text on spaces and list punctuation, keeping hyphens and
@@ -105,7 +169,7 @@ func IsPartNumber(tok string) bool { return isPartToken(tok) }
 // isPartToken reports whether tok looks like a part number.
 func isPartToken(tok string) bool {
 	tok = strings.TrimRight(tok, ".:")
-	if !mpnRe.MatchString(tok) || notPart.MatchString(tok) {
+	if !mpnRe.MatchString(tok) || notPart.MatchString(tok) || ratings(tok) {
 		return false
 	}
 	letters, digits := 0, 0

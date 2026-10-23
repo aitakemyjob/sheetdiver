@@ -214,7 +214,7 @@
      "Title": "TPX5430 buck datasheet",
      "language": "en"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    },
    {
@@ -238,7 +238,7 @@
      "revisionDoc": "",
      "revisionRev": "A"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    }
   ]
@@ -883,7 +883,7 @@
      "revisionDoc": "",
      "revisionRev": "A"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    },
    "siblings": [
@@ -1243,7 +1243,7 @@
      "Title": "TPX5430 buck datasheet",
      "language": "en"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    },
    "siblings": [],
@@ -1527,7 +1527,7 @@
      "revisionDoc": "",
      "revisionRev": "A"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    },
    "pages": [
@@ -3606,7 +3606,7 @@
      "revisionDoc": "",
      "revisionRev": "A"
     },
-    "extractor": "4",
+    "extractor": "5",
     "importedAt": "2026-01-01T00:00:00Z"
    },
    "parts": [

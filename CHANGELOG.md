@@ -41,6 +41,14 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+- **Imports named a part by LCSC's file id** ("2304140030") when the PDF
+  itself named no part clearly: a distributor's file name
+  (`2304140030_STMicroelectronics-STM32G031K8T6_C432211.pdf`) now gives
+  the part number, without the manufacturer and file ids.
+- **A datasheet title's ratings were taken for a part** ("1.8A/3.1A" from
+  MAX77827's). The extractor version is now 5, so SheetDiver offers to
+  re-extract; parts already imported under a wrong name keep it until
+  renamed or removed.
 - **Block diagram wiring on boards in groups**: wires ran through a part
   (a header's pin faced a part in another group, so its wire crossed the
   header), labels sat on a part's pin names when the piece of wire under
