@@ -126,7 +126,7 @@ func (s *Service) connections(ctx context.Context, p library.Project, parts []li
 		return out, nil, err
 	}
 	out.Assignments = assignmentRows(parts, out.Blocks, assigns)
-	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns})
+	out.Diagram = diagram(diagramInput{parts: parts, blocks: out.Blocks, nets: out.Nets, rows: out.Connections, layout: layout, groups: out.Groups, assigns: assigns, pins: pins})
 	out.Pinouts = pinouts(parts, out.Blocks, out.Nets, out.Connections, pins)
 	return out, connectionChecks(parts, rails, out.Nets, out.Connections, pins), nil
 }

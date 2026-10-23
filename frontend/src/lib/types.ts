@@ -413,11 +413,41 @@ export interface ConnectionRow {
   pinType?: string;
 }
 
-/** A connected pin of a box on the block diagram (see core.DiagramPin). */
+/** What a pin does (see internal/pinrole). */
+export type PinRole = 'power' | 'ground' | 'pad' | 'input' | 'output' | 'bidir' | 'analog' | 'passive' | 'nc' | 'other';
+
+/** A symbol's outline: a rectangle with its pins, or a transistor. */
+export type PartShape = 'ic' | 'mosfet-n' | 'mosfet-p' | 'npn' | 'pnp';
+
+/** A standard two-terminal symbol. */
+export type PassiveShape =
+  | 'resistor'
+  | 'capacitor'
+  | 'capacitor-polarised'
+  | 'inductor'
+  | 'diode'
+  | 'schottky'
+  | 'zener'
+  | 'led'
+  | 'tvs'
+  | 'fuse'
+  | 'ferrite'
+  | 'crystal'
+  | 'battery'
+  | 'switch';
+
+/** A pin of a symbol on the block diagram, connected or not (see core.DiagramPin). */
 export interface DiagramPin {
   name: string;
-  net: string;
-  side: 'left' | 'right' | 'bottom' | 'inside';
+  /** From the pin table; none for a block's pin. */
+  number?: string;
+  /** Unset when unconnected. */
+  net?: string;
+  side: 'left' | 'right' | 'top' | 'bottom' | 'inside';
+  role: PinRole;
+  connected: boolean;
+  /** A transistor pin's terminal: gate, drain, source; base, collector, emitter. */
+  terminal?: string;
   /** The pin (or ground net) an inside pin is tied to. */
   tied?: string;
   /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
@@ -432,6 +462,9 @@ export interface DiagramPart {
   title: string;
   mpn?: string;
   kind: string;
+  shape: PartShape;
+  /** pins is the whole pin table, connected or not. */
+  full?: boolean;
   column: number;
   /** The group it's drawn in. */
   group?: string;
@@ -455,6 +488,9 @@ export interface DiagramPassive {
   guessed?: boolean;
   /** The group it's drawn in (its part's). */
   group?: string;
+  /** The standard symbol it's drawn with, and its terminals at nets[0]'s end and the far end. */
+  shape: PassiveShape | string;
+  ends: string[];
   /** Where it was dragged to. */
   x?: number;
   y?: number;

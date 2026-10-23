@@ -1,6 +1,7 @@
 package extract
 
 import (
+	"github.com/aitakemyjob/sheetdiver/internal/pinrole"
 	"regexp"
 	"strings"
 )
@@ -128,7 +129,7 @@ func GuessKey(text, unit, _ string) string {
 	// A per-pin rating ("BAT (with respect to VSS)", "EN, MODE to GND")
 	// is the device's input voltage only for a supply pin.
 	if m := pinRatingRe.FindStringSubmatch(text); m != nil && u == "V" {
-		if supplyPinRe.MatchString(m[1]) {
+		if first, _, _ := strings.Cut(m[1], ","); pinrole.IsPowerName(first) {
 			return "vin"
 		}
 		return ""
@@ -157,9 +158,6 @@ func GuessKey(text, unit, _ string) string {
 // pinRatingRe matches a row naming pins and their reference: "IN (with
 // respect to VSS)", "SW to PGND", "EN, MODE (with respect to GND)".
 var pinRatingRe = regexp.MustCompile(`^([A-Z][A-Z0-9_]{0,11}(?:\s*,\s*[A-Z][A-Z0-9_]{0,11})*)\s*(?:\(\s*(?:with respect to|w\.?r\.?t\.?|referenced to|to)\s+[A-Z]|to\s+(?:P?GND|A?VSS|AGND|SGND)\b)`)
-
-// supplyPinRe matches input supply pin names.
-var supplyPinRe = regexp.MustCompile(`^(?:IN|VIN|PVIN|AVIN|VCC|VDD|VS|VBUS|VSUP|VSYS|SUPPLY)(?:\s*,|$)`)
 
 // differenceRe matches a difference of two voltages ("VCC-VBAT", "VIN – VOUT").
 var differenceRe = regexp.MustCompile(`V\s*[A-Z]+\s*[-–−]\s*V\s*[A-Z]+`)

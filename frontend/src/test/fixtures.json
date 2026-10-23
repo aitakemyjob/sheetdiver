@@ -3287,12 +3287,15 @@
        "title": "U1 TPX5430",
        "mpn": "TPX5430",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "SDA",
          "net": "SDA",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         }
        ]
       },
@@ -3301,22 +3304,32 @@
        "title": "U2 SD1235",
        "mpn": "SD1235",
        "kind": "ic",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "VFB",
+         "number": "4",
          "net": "SDA",
-         "side": "right"
+         "side": "right",
+         "role": "input",
+         "connected": true
         },
         {
          "name": "VIN",
+         "number": "3",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "GND",
+         "number": "1",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -3325,12 +3338,15 @@
        "id": "block:1",
        "title": "Battery",
        "kind": "connector",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "VIN",
          "net": "VIN",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         }
        ]
       }
@@ -3401,6 +3417,7 @@
         "number": "1",
         "name": "GND",
         "type": "G",
+        "role": "ground",
         "description": "Ground pin.",
         "net": "GND",
         "netKind": "ground",
@@ -3410,6 +3427,7 @@
         "number": "2",
         "name": "SW",
         "type": "O",
+        "role": "output",
         "description": "Switch node.",
         "to": []
        },
@@ -3417,6 +3435,7 @@
         "number": "3",
         "name": "VIN",
         "type": "P",
+        "role": "power",
         "description": "Input supply.",
         "net": "3V3",
         "netKind": "power",
@@ -3426,6 +3445,7 @@
         "number": "4",
         "name": "VFB",
         "type": "I",
+        "role": "input",
         "description": "Feedback input.",
         "net": "SDA",
         "netKind": "signal",
@@ -4784,27 +4804,36 @@
        "id": "block:2",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "CC1",
          "net": "CC1",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CC2",
          "net": "CC2",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -4813,33 +4842,44 @@
        "id": "block:3",
        "title": "U1 TPS25200",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "IN",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "VBUS",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "IN"
         },
         {
          "name": "OUT",
          "net": "5V_PROT",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "ILIM",
          "net": "ILIM",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -4848,61 +4888,82 @@
        "id": "block:4",
        "title": "U2 TPS63900",
        "kind": "ic",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "VIN",
          "net": "5V_PROT",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "5V_PROT",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VIN"
         },
         {
          "name": "VOUT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "CFG1",
          "net": "CFG1",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CFG2",
          "net": "CFG2",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CFG3",
          "net": "CFG3",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "LX1",
          "net": "LX1",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "LX2",
          "net": "LX2",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "SEL",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -4920,7 +4981,12 @@
         "5V_PROT"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:11,block:12",
@@ -4933,7 +4999,12 @@
         "3V3"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:5",
@@ -4946,7 +5017,12 @@
         "VBUS"
        ],
        "supports": "block:2",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:13",
@@ -4960,7 +5036,12 @@
         "LX2"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:8",
@@ -4973,7 +5054,12 @@
         "ILIM"
        ],
        "supports": "block:3",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:14",
@@ -4986,7 +5072,12 @@
         "CFG1"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:15",
@@ -4999,7 +5090,12 @@
         "CFG3"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:16",
@@ -5012,7 +5108,12 @@
         "CFG2"
        ],
        "supports": "block:4",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:6",
@@ -5025,7 +5126,12 @@
         "CC1"
        ],
        "supports": "block:2",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:7",
@@ -5038,7 +5144,12 @@
         "CC2"
        ],
        "supports": "block:2",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [
@@ -5791,12 +5902,15 @@
        "id": "block:19",
        "title": "BT1 Li-ion",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "+",
          "net": "4.2V",
-         "side": "right"
+         "side": "right",
+         "role": "passive",
+         "connected": true
         }
        ]
       },
@@ -5804,17 +5918,22 @@
        "id": "block:17",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "VBUS",
          "net": "5V",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -5823,17 +5942,22 @@
        "id": "block:22",
        "title": "Q1 FS8205A",
        "kind": "module",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "G1",
          "net": "OD",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "G2",
          "net": "OC",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         }
        ]
       },
@@ -5841,12 +5965,15 @@
        "id": "block:23",
        "title": "Sensors",
        "kind": "module",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "VDD",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         }
        ]
       },
@@ -5854,44 +5981,59 @@
        "id": "block:18",
        "title": "U1 TP4056",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "BAT",
          "net": "4.2V",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VCC",
          "net": "5V",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "CE",
          "net": "5V",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VCC"
         },
         {
          "name": "PROG",
          "net": "PROG",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CHRG",
          "net": "CHRG",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "TEMP",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         }
        ]
@@ -5900,27 +6042,36 @@
        "id": "block:20",
        "title": "U2 DW01A",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "VCC",
          "net": "4.2V",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "OD",
          "net": "OD",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "OC",
          "net": "OC",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -5929,40 +6080,53 @@
        "id": "block:21",
        "title": "U3 TPS63900",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "VIN",
          "net": "4.2V",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "4.2V",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VIN"
         },
         {
          "name": "VOUT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "LX1",
          "net": "LX1",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "LX2",
          "net": "LX2",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -5980,7 +6144,12 @@
         "5V"
        ],
        "supports": "block:18",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:27",
@@ -5993,7 +6162,12 @@
         "3V3"
        ],
        "supports": "block:21",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:24",
@@ -6007,7 +6181,12 @@
         "LX2"
        ],
        "supports": "block:21",
-       "guessed": true
+       "guessed": true,
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:28",
@@ -6020,7 +6199,12 @@
         "CHRG"
        ],
        "supports": "block:18",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:25",
@@ -6033,7 +6217,12 @@
         "PROG"
        ],
        "supports": "block:18",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [
@@ -6952,27 +7141,36 @@
        "id": "block:29",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "CC1",
          "net": "CC1",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CC2",
          "net": "CC2",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -6981,39 +7179,52 @@
        "id": "block:30",
        "title": "U1 TPS25200",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "IN",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "VBUS",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "IN"
         },
         {
          "name": "OUT",
          "net": "5V_PROT",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "ILIM",
          "net": "ILIM",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "PAD",
          "net": "GND",
          "side": "bottom",
+         "role": "pad",
+         "connected": true,
          "ground": true
         }
        ]
@@ -7022,62 +7233,83 @@
        "id": "block:31",
        "title": "U2 TPS63900",
        "kind": "ic",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "VIN",
          "net": "5V_PROT",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "5V_PROT",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VIN"
         },
         {
          "name": "VOUT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "CFG1",
          "net": "CFG1",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CFG3",
          "net": "CFG3",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "LX1",
          "net": "LX1",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "LX2",
          "net": "LX2",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "SEL",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "Thermal Pad",
          "net": "GND",
          "side": "bottom",
+         "role": "pad",
+         "connected": true,
          "ground": true
         }
        ]
@@ -7095,7 +7327,12 @@
         "5V_PROT"
        ],
        "supports": "block:31",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:40,block:41",
@@ -7108,7 +7345,12 @@
         "3V3"
        ],
        "supports": "block:31",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:32",
@@ -7121,7 +7363,12 @@
         "VBUS"
        ],
        "supports": "block:29",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:33",
@@ -7134,7 +7381,12 @@
         "CC1"
        ],
        "supports": "block:29",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:34",
@@ -7147,7 +7399,12 @@
         "CC2"
        ],
        "supports": "block:29",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:42",
@@ -7161,7 +7418,12 @@
         "LX2"
        ],
        "supports": "block:31",
-       "guessed": true
+       "guessed": true,
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:35",
@@ -7174,7 +7436,12 @@
         "CC1"
        ],
        "supports": "block:29",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:36",
@@ -7187,7 +7454,12 @@
         "CC2"
        ],
        "supports": "block:29",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:37",
@@ -7200,7 +7472,12 @@
         "ILIM"
        ],
        "supports": "block:30",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:43",
@@ -7213,7 +7490,12 @@
         "CFG1"
        ],
        "supports": "block:31",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:44",
@@ -7226,7 +7508,12 @@
         "CFG3"
        ],
        "supports": "block:31",
-       "guessed": true
+       "guessed": true,
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [
@@ -8039,22 +8326,32 @@
        "title": "U1 SD1234",
        "mpn": "SD1234",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "pins": [
         {
          "name": "SW",
+         "number": "2",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "VIN",
+         "number": "3",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "GND",
+         "number": "1",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -8063,27 +8360,36 @@
        "id": "block:45",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "D+",
          "net": "D+",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "D-",
          "net": "D-",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -8092,47 +8398,64 @@
        "id": "block:46",
        "title": "U2 ESP32-C3",
        "kind": "ic",
+       "shape": "ic",
        "column": 2,
        "pins": [
         {
          "name": "3V3",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO19",
          "net": "D+",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO18",
          "net": "D-",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO8",
          "net": "SDA",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO9",
          "net": "SCL",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "EN",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO2",
          "net": "LED",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -8141,33 +8464,44 @@
        "id": "block:47",
        "title": "U3 BME280",
        "kind": "ic",
+       "shape": "ic",
        "column": 3,
        "pins": [
         {
          "name": "VDD",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "CSB",
          "net": "3V3",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VDD"
         },
         {
          "name": "SDA",
          "net": "SDA",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "SCL",
          "net": "SCL",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -8185,7 +8519,12 @@
         "VBUS"
        ],
        "supports": "part:3",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:49",
@@ -8196,6 +8535,11 @@
        "part": "part:3",
        "nets": [
         "3V3"
+       ],
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
        ]
       },
       {
@@ -8209,7 +8553,12 @@
         "EN"
        ],
        "supports": "block:46",
-       "guessed": true
+       "guessed": true,
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:54",
@@ -8222,7 +8571,12 @@
         "LED"
        ],
        "supports": "block:46",
-       "guessed": true
+       "guessed": true,
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:51",
@@ -8234,6 +8588,11 @@
        "nets": [
         "EN",
         "3V3"
+       ],
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
        ]
       },
       {
@@ -8246,6 +8605,11 @@
        "nets": [
         "SDA",
         "3V3"
+       ],
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
        ]
       },
       {
@@ -8258,6 +8622,11 @@
        "nets": [
         "SCL",
         "3V3"
+       ],
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
        ]
       }
      ],
@@ -8395,6 +8764,7 @@
         "number": "1",
         "name": "GND",
         "type": "G",
+        "role": "ground",
         "description": "Ground pin.",
         "net": "GND",
         "netKind": "ground",
@@ -8404,6 +8774,7 @@
         "number": "2",
         "name": "SW",
         "type": "O",
+        "role": "output",
         "description": "Switch node.",
         "net": "3V3",
         "netKind": "power",
@@ -8421,6 +8792,7 @@
         "number": "3",
         "name": "VIN",
         "type": "P",
+        "role": "power",
         "description": "Input supply.",
         "net": "VBUS",
         "netKind": "power",
@@ -8433,6 +8805,7 @@
         "number": "4",
         "name": "VFB",
         "type": "I",
+        "role": "input",
         "description": "Feedback input.",
         "to": []
        }
@@ -9241,23 +9614,33 @@
        "title": "U1 SD1234",
        "mpn": "SD1234",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "group": "Power",
        "pins": [
         {
          "name": "VIN",
+         "number": "3",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "SW",
+         "number": "2",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "GND",
+         "number": "1",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -9266,28 +9649,37 @@
        "id": "block:55",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "group": "Power",
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "D+",
          "net": "D+",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "D-",
          "net": "D-",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -9296,48 +9688,65 @@
        "id": "block:56",
        "title": "U2 ESP32-C3",
        "kind": "ic",
+       "shape": "ic",
        "column": 2,
        "group": "MCU",
        "pins": [
         {
          "name": "3V3",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "EN",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO19",
          "net": "D+",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO18",
          "net": "D-",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO8",
          "net": "SDA",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO9",
          "net": "SCL",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GPIO2",
          "net": "LED",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -9346,34 +9755,45 @@
        "id": "block:57",
        "title": "U3 BME280",
        "kind": "ic",
+       "shape": "ic",
        "column": 3,
        "group": "Sensor",
        "pins": [
         {
          "name": "VDD",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "CSB",
          "net": "3V3",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "VDD"
         },
         {
          "name": "SDA",
          "net": "SDA",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "SCL",
          "net": "SCL",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -9392,7 +9812,12 @@
        ],
        "supports": "part:4",
        "guessed": true,
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:59",
@@ -9405,7 +9830,12 @@
         "3V3"
        ],
        "supports": "part:4",
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:60",
@@ -9419,7 +9849,12 @@
        ],
        "supports": "block:56",
        "guessed": true,
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:61",
@@ -9432,7 +9867,12 @@
         "3V3"
        ],
        "supports": "block:56",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:62",
@@ -9445,7 +9885,12 @@
         "3V3"
        ],
        "supports": "block:57",
-       "group": "Sensor"
+       "group": "Sensor",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:66",
@@ -9459,7 +9904,12 @@
        ],
        "supports": "block:56",
        "guessed": true,
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "diode",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:63",
@@ -9472,7 +9922,12 @@
         "EN",
         "3V3"
        ],
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:64",
@@ -9485,7 +9940,12 @@
         "SDA",
         "3V3"
        ],
-       "group": "Sensor"
+       "group": "Sensor",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:65",
@@ -9498,7 +9958,12 @@
         "SCL",
         "3V3"
        ],
-       "group": "Sensor"
+       "group": "Sensor",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [
@@ -9727,6 +10192,7 @@
         "number": "1",
         "name": "GND",
         "type": "G",
+        "role": "ground",
         "description": "Ground pin.",
         "net": "GND",
         "netKind": "ground",
@@ -9736,6 +10202,7 @@
         "number": "2",
         "name": "SW",
         "type": "O",
+        "role": "output",
         "description": "Switch node.",
         "net": "3V3",
         "netKind": "power",
@@ -9755,6 +10222,7 @@
         "number": "3",
         "name": "VIN",
         "type": "P",
+        "role": "power",
         "description": "Input supply.",
         "net": "VBUS",
         "netKind": "power",
@@ -9767,6 +10235,7 @@
         "number": "4",
         "name": "VFB",
         "type": "I",
+        "role": "input",
         "description": "Feedback input.",
         "to": []
        }
@@ -10939,18 +11408,23 @@
        "id": "block:91",
        "title": "D1 LED",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "A",
          "net": "LED_A",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "K",
          "net": "GND",
          "side": "bottom",
+         "role": "passive",
+         "connected": true,
          "ground": true
         }
        ]
@@ -10959,18 +11433,23 @@
        "id": "block:67",
        "title": "J1 USB-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "group": "Power",
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -10979,33 +11458,44 @@
        "id": "block:76",
        "title": "J2 SWD",
        "kind": "connector",
+       "shape": "ic",
        "column": 2,
        "group": "MCU",
        "pins": [
         {
          "name": "nRESET",
          "net": "NRST",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "SWDIO",
          "net": "SWDIO",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "SWCLK",
          "net": "SWCLK",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VTref",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -11014,18 +11504,23 @@
        "id": "block:74",
        "title": "SW1 Reset",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "1",
          "net": "NRST",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "2",
          "net": "GND",
          "side": "bottom",
+         "role": "passive",
+         "connected": true,
          "ground": true
         }
        ]
@@ -11034,18 +11529,23 @@
        "id": "block:75",
        "title": "SW2 Boot",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "2",
          "net": "BOOT0",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "1",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         }
        ]
       },
@@ -11053,46 +11553,61 @@
        "id": "block:68",
        "title": "U1 MAX77827",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "group": "Power",
        "pins": [
         {
          "name": "IN",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "VBUS",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "IN"
         },
         {
          "name": "OUT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "POK",
          "net": "POK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "LX1",
          "net": "LX1",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "LX2",
          "net": "LX2",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -11101,76 +11616,103 @@
        "id": "block:73",
        "title": "U2 STM32G0",
        "kind": "ic",
+       "shape": "ic",
        "column": 3,
        "group": "MCU",
        "pins": [
         {
          "name": "NRST",
          "net": "NRST",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PH3-BOOT0",
          "net": "BOOT0",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PC14-OSC32_IN",
          "net": "OSC32_IN",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PC15-OSC32_OUT",
          "net": "OSC32_OUT",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA13",
          "net": "SWDIO",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA14",
          "net": "SWCLK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VDD",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "VBAT",
          "net": "3V3",
          "side": "inside",
+         "role": "power",
+         "connected": true,
          "tied": "VDD"
         },
         {
          "name": "VDDA",
          "net": "3V3",
          "side": "inside",
+         "role": "power",
+         "connected": true,
          "tied": "VDD"
         },
         {
          "name": "PA5",
          "net": "PA5",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PB0",
          "net": "POK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VSS",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "VSSA",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -11179,18 +11721,23 @@
        "id": "block:77",
        "title": "Y1 32k",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "1",
          "net": "OSC32_IN",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "2",
          "net": "OSC32_OUT",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         }
        ]
       }
@@ -11207,7 +11754,12 @@
         "VBUS"
        ],
        "supports": "block:68",
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:84,block:78,block:79,block:80,block:81,block:82,block:83",
@@ -11220,7 +11772,12 @@
         "3V3"
        ],
        "supports": "block:73",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:85",
@@ -11233,7 +11790,12 @@
         "3V3"
        ],
        "supports": "block:73",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:86",
@@ -11246,7 +11808,12 @@
         "3V3"
        ],
        "supports": "block:73",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:87",
@@ -11258,7 +11825,12 @@
        "nets": [
         "OSC32_IN"
        ],
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:88",
@@ -11270,7 +11842,12 @@
        "nets": [
         "OSC32_OUT"
        ],
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:71,block:72",
@@ -11283,7 +11860,12 @@
         "3V3"
        ],
        "supports": "block:68",
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:69",
@@ -11298,7 +11880,12 @@
        ],
        "supports": "block:68",
        "guessed": true,
-       "group": "Power"
+       "group": "Power",
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:89",
@@ -11312,7 +11899,12 @@
         "PA5"
        ],
        "supports": "block:91",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:90",
@@ -11324,7 +11916,12 @@
        "nets": [
         "BOOT0"
        ],
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [
@@ -13396,18 +13993,23 @@
        "id": "block:104",
        "title": "D1 LED",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "A",
          "net": "LED_A",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "K",
          "net": "GND",
          "side": "bottom",
+         "role": "passive",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13416,56 +14018,75 @@
        "id": "block:92",
        "title": "J1 TYPE-C",
        "kind": "connector",
+       "shape": "ic",
        "column": 0,
        "group": "USB Input",
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "DP1",
          "net": "USB_DP",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "DP2",
          "net": "USB_DP",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "DP1"
         },
         {
          "name": "DN1",
          "net": "USB_DM",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "DN2",
          "net": "USB_DM",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "DN1"
         },
         {
          "name": "CC1",
          "net": "CC1",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "CC2",
          "net": "CC2",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "SHIELD",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13474,50 +14095,67 @@
        "id": "block:102",
        "title": "J2 SWD",
        "kind": "connector",
+       "shape": "ic",
        "column": 2,
        "group": "Debug",
        "pins": [
         {
          "name": "10",
          "net": "NRST",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "1",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "2",
          "net": "SWDIO",
-         "side": "right"
+         "side": "right",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "4",
          "net": "SWCLK",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "6",
          "net": "SWO",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "3",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         },
         {
          "name": "5",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         },
         {
          "name": "9",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13526,18 +14164,23 @@
        "id": "block:105",
        "title": "SW1 Reset",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "A",
          "net": "NRST",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "B",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13546,18 +14189,23 @@
        "id": "block:106",
        "title": "SW2 Boot",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "MCU",
        "pins": [
         {
          "name": "B",
          "net": "BOOT0",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "A",
          "net": "3V3",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         }
        ]
       },
@@ -13565,76 +14213,101 @@
        "id": "block:96",
        "title": "U1 MAX77827",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "group": "Power",
        "pins": [
         {
          "name": "IN",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "EN",
          "net": "VBUS",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "IN"
         },
         {
          "name": "BIAS",
          "net": "VBUS",
          "side": "inside",
+         "role": "other",
+         "connected": true,
          "tied": "IN"
         },
         {
          "name": "POK",
          "net": "POK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "OUT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "output",
+         "connected": true
         },
         {
          "name": "OUTS",
          "net": "3V3",
          "side": "inside",
+         "role": "output",
+         "connected": true,
          "tied": "OUT"
         },
         {
          "name": "LX1",
          "net": "LX1",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "LX2",
          "net": "LX2",
          "side": "right",
+         "role": "other",
+         "connected": true,
          "bridged": true
         },
         {
          "name": "SEL",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         },
         {
          "name": "AGND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "PGND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "FPWM",
          "net": "GND",
          "side": "bottom",
+         "role": "other",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13643,96 +14316,131 @@
        "id": "block:103",
        "title": "U2 STM32U545",
        "kind": "ic",
+       "shape": "ic",
        "column": 3,
        "group": "MCU",
        "pins": [
         {
          "name": "NRST",
          "net": "NRST",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PH3-BOOT0",
          "net": "BOOT0",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA0",
          "net": "POK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA5",
          "net": "LED",
-         "side": "right"
+         "side": "right",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA11",
          "net": "USB_DM",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA12",
          "net": "USB_DP",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA13",
          "net": "SWDIO",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PA14",
          "net": "SWCLK",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PB3",
          "net": "SWO",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VBAT",
          "net": "3V3",
-         "side": "right"
+         "side": "right",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "VDDA",
          "net": "3V3",
          "side": "inside",
+         "role": "power",
+         "connected": true,
          "tied": "VBAT"
         },
         {
          "name": "VDD",
          "net": "3V3",
          "side": "inside",
+         "role": "power",
+         "connected": true,
          "tied": "VBAT"
         },
         {
          "name": "VCAP",
          "net": "VCAP",
-         "side": "bottom"
+         "side": "bottom",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PC14-OSC32_IN",
          "net": "OSC32_IN",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "PC15-OSC32_OUT",
          "net": "OSC32_OUT",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "VSSA",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         },
         {
          "name": "VSS",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13741,28 +14449,37 @@
        "id": "block:93",
        "title": "U3 USBLC6",
        "kind": "ic",
+       "shape": "ic",
        "column": 1,
        "group": "USB Input",
        "pins": [
         {
          "name": "VBUS",
          "net": "VBUS",
-         "side": "left"
+         "side": "left",
+         "role": "power",
+         "connected": true
         },
         {
          "name": "I/O1",
          "net": "USB_DP",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "I/O2",
          "net": "USB_DM",
-         "side": "left"
+         "side": "left",
+         "role": "other",
+         "connected": true
         },
         {
          "name": "GND",
          "net": "GND",
          "side": "bottom",
+         "role": "ground",
+         "connected": true,
          "ground": true
         }
        ]
@@ -13771,18 +14488,23 @@
        "id": "block:118",
        "title": "Y1 FC-135",
        "kind": "ic",
+       "shape": "ic",
        "column": 4,
        "group": "Clock",
        "pins": [
         {
          "name": "1",
          "net": "OSC32_IN",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         },
         {
          "name": "2",
          "net": "OSC32_OUT",
-         "side": "left"
+         "side": "left",
+         "role": "passive",
+         "connected": true
         }
        ]
       }
@@ -13799,7 +14521,12 @@
         "VBUS"
        ],
        "supports": "block:96",
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:113",
@@ -13812,7 +14539,12 @@
         "VCAP"
        ],
        "supports": "block:103",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:114,block:115,block:107,block:108,block:109,block:110,block:111",
@@ -13825,7 +14557,12 @@
         "3V3"
        ],
        "supports": "block:103",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:119",
@@ -13838,7 +14575,12 @@
         "OSC32_IN"
        ],
        "supports": "block:118",
-       "group": "Clock"
+       "group": "Clock",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:120",
@@ -13851,7 +14593,12 @@
         "OSC32_OUT"
        ],
        "supports": "block:118",
-       "group": "Clock"
+       "group": "Clock",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:100",
@@ -13864,7 +14611,12 @@
         "3V3"
        ],
        "supports": "block:96",
-       "group": "Power"
+       "group": "Power",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:112",
@@ -13877,7 +14629,12 @@
         "NRST"
        ],
        "supports": "block:103",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:97",
@@ -13892,7 +14649,12 @@
        ],
        "supports": "block:96",
        "guessed": true,
-       "group": "Power"
+       "group": "Power",
+       "shape": "inductor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:94",
@@ -13905,7 +14667,12 @@
         "CC1"
        ],
        "supports": "block:92",
-       "group": "USB Input"
+       "group": "USB Input",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:95",
@@ -13918,7 +14685,12 @@
         "CC2"
        ],
        "supports": "block:92",
-       "group": "USB Input"
+       "group": "USB Input",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:116",
@@ -13931,7 +14703,12 @@
         "BOOT0"
        ],
        "supports": "block:103",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:101",
@@ -13945,7 +14722,12 @@
         "POK"
        ],
        "supports": "block:96",
-       "group": "Power"
+       "group": "Power",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       },
       {
        "id": "block:117",
@@ -13959,7 +14741,12 @@
         "LED"
        ],
        "supports": "block:104",
-       "group": "MCU"
+       "group": "MCU",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
       }
      ],
      "nets": [

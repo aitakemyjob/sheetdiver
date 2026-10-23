@@ -7,51 +7,41 @@ import (
 
 	"github.com/aitakemyjob/sheetdiver/internal/calc"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
+	"github.com/aitakemyjob/sheetdiver/internal/pinrole"
 )
 
-// Pin roles by name, for pin tables without a type column.
-var (
-	groundPinRe = regexp.MustCompile(`(?i)^(A|D|P|S)?(GND|VSS)\w*$`)
-	supplyPinRe = regexp.MustCompile(`(?i)^(A|D)?V(DD|CC|IN|BAT|IO|S)\w*$|^VDDIO\w*$`)
-	// padRe is an exposed or thermal pad, which nearly always goes to ground.
-	padRe = regexp.MustCompile(`(?i)thermal|exposed|power\s*pad|^(EP|PAD|TAB)$`)
-	// mustRe is a pin description that says the pin can't be left open.
-	mustRe = regexp.MustCompile(`(?i)connect (this pin |it |the pad )?to (ground|gnd)|must (not|never) be left (open|floating|unconnected)|must not float|do not leave (it )?(open|floating|unconnected)|must be connected`)
-)
+// mustRe is a pin description that says the pin can't be left open.
+var mustRe = regexp.MustCompile(`(?i)connect (this pin |it |the pad )?to (ground|gnd)|must (not|never) be left (open|floating|unconnected)|must not float|do not leave (it )?(open|floating|unconnected)|must be connected`)
+
+// roleOf is what a pin of a pin table is (pinrole.Of on its columns).
+func roleOf(p library.Pin) pinrole.Role {
+	return pinrole.Of(p.Name, p.Type, p.Description)
+}
 
 // mustConnect reports whether a pin can't be left unconnected: supply and
 // ground pins, exposed pads, and pins whose description says so.
 func mustConnect(p library.Pin) bool {
-	return groundPin(p) || supplyPin(p) || padRe.MatchString(p.Name) || mustRe.MatchString(p.Description)
-}
-
-// groundPin and supplyPin say what a pin is from its type, else its name.
-func groundPin(p library.Pin) bool {
-	t := strings.ToUpper(p.Type)
-	return t == "G" || t == "GND" || groundPinRe.MatchString(p.Name)
-}
-
-// supplyPin reports whether a pin takes the part's supply. A ground pin
-// isn't one, whatever its type ("S" or "P" in some tables) or a name
-// like VSS that reads as both.
-func supplyPin(p library.Pin) bool {
-	if groundPin(p) {
-		return false
-	}
-	t := strings.ToUpper(p.Type)
-	if t == "P" || t == "PWR" {
+	switch roleOf(p) {
+	case pinrole.Ground, pinrole.Power, pinrole.Pad:
 		return true
 	}
-	return supplyPinRe.MatchString(p.Name)
+	return mustRe.MatchString(p.Description)
+}
+
+// groundPin reports whether a pin is ground (a pad counts: it goes there).
+func groundPin(p library.Pin) bool {
+	r := roleOf(p)
+	return r == pinrole.Ground || r == pinrole.Pad
+}
+
+// supplyPin reports whether a pin takes the part's supply.
+func supplyPin(p library.Pin) bool {
+	return roleOf(p) == pinrole.Power
 }
 
 // outputPin reports whether a pin drives its net.
 func outputPin(p library.Pin) bool {
-	switch strings.ToUpper(p.Type) {
-	case "O", "DO", "AO":
-		return true
-	}
-	return false
+	return roleOf(p) == pinrole.Output
 }
 
 // netKinds says which nets are ground and which power (a net named like
@@ -60,7 +50,7 @@ func netKinds(nets []library.Net, rails []RailStatus) map[string]string {
 	out := map[string]string{}
 	for _, n := range nets {
 		kind := n.Kind
-		if kind == library.NetSignal && groundPinRe.MatchString(n.Name) {
+		if kind == library.NetSignal && pinrole.IsGroundName(n.Name) {
 			kind = library.NetGround
 		}
 		out[strings.ToLower(n.Name)] = kind

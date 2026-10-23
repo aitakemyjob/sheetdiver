@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aitakemyjob/sheetdiver/internal/library"
+	"github.com/aitakemyjob/sheetdiver/internal/pinrole"
 )
 
 // Diagram is a project's block diagram, drawn from its connection table:
@@ -54,10 +55,15 @@ type DiagramGroup struct {
 // boxes along the power flow; Group is the group it's drawn in ("" for
 // none); X and Y are where it was dragged to.
 type DiagramPart struct {
-	ID     string       `json:"id"`
-	Title  string       `json:"title"`
-	MPN    string       `json:"mpn,omitempty"`
-	Kind   string       `json:"kind"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	MPN   string `json:"mpn,omitempty"`
+	Kind  string `json:"kind"`
+	// Shape is the symbol's outline: "ic" (a rectangle with its pins), or
+	// a transistor ("mosfet-n", "mosfet-p", "npn", "pnp").
+	Shape string `json:"shape"`
+	// Full means Pins is the whole pin table, connected or not.
+	Full   bool         `json:"full,omitempty"`
 	Column int          `json:"column"`
 	Group  string       `json:"group,omitempty"`
 	Pins   []DiagramPin `json:"pins"`
@@ -74,17 +80,24 @@ const (
 	SideInside = "inside"
 )
 
-// DiagramPin is a connected pin of a box. Tied is the pin an inside pin
-// is tied to; Bridged pins have a passive across them (LX1 and LX2 with
-// the inductor) and go last on the right; Ground pins (GND, a thermal
-// pad, a pin tied to ground) go along the bottom, each to a ground symbol.
+// DiagramPin is a pin of a symbol: its Number from the pin table (""
+// for a block's pin), its Net ("" when unconnected), its Side, and its
+// Role (pinrole). Tied is the pin an inside pin is tied to; Bridged pins
+// have a passive across them (LX1 and LX2 with the inductor) and go last
+// on the right; Ground pins (GND, a thermal pad, a pin tied to ground)
+// go along the bottom, each to a ground symbol; Terminal is a transistor
+// pin's terminal (gate, drain, source; base, collector, emitter).
 type DiagramPin struct {
-	Name    string `json:"name"`
-	Net     string `json:"net"`
-	Side    string `json:"side"`
-	Tied    string `json:"tied,omitempty"`
-	Bridged bool   `json:"bridged,omitempty"`
-	Ground  bool   `json:"ground,omitempty"`
+	Name      string `json:"name"`
+	Number    string `json:"number,omitempty"`
+	Net       string `json:"net,omitempty"`
+	Side      string `json:"side"`
+	Role      string `json:"role"`
+	Connected bool   `json:"connected"`
+	Terminal  string `json:"terminal,omitempty"`
+	Tied      string `json:"tied,omitempty"`
+	Bridged   bool   `json:"bridged,omitempty"`
+	Ground    bool   `json:"ground,omitempty"`
 }
 
 // How a net is drawn.
@@ -145,8 +158,13 @@ type DiagramPassive struct {
 	Supports string   `json:"supports,omitempty"`
 	Guessed  bool     `json:"guessed,omitempty"`
 	Group    string   `json:"group,omitempty"`
-	X        *float64 `json:"x,omitempty"`
-	Y        *float64 `json:"y,omitempty"`
+	// Shape is the standard symbol it's drawn with (resistor, capacitor,
+	// led…); Ends are its terminals at Nets[0]'s end and the far end
+	// (["anode", "cathode"], ["1", "2"], ["+", "-"]).
+	Shape string   `json:"shape"`
+	Ends  []string `json:"ends"`
+	X     *float64 `json:"x,omitempty"`
+	Y     *float64 `json:"y,omitempty"`
 }
 
 // DiagramLink says two parts share nets: Kind "power" (From feeds To) or
@@ -159,13 +177,8 @@ type DiagramLink struct {
 	Nets  []string `json:"nets"`
 }
 
-// Pin names that say what a pin is, for pin tables without types.
+// Kinds as datasheets and BOMs name them.
 var (
-	// mainName is the pin that gets the wire when several pins of a part
-	// share a net (IN over EN).
-	mainName = regexp.MustCompile(`(?i)^(V?IN|VCC|VDD|VBUS|VBAT|V?OUT)$`)
-	// outputName is an output by name.
-	outputName = regexp.MustCompile(`(?i)^V?OUT`)
 	// connectorKindRe and otherKindRe are categories as datasheets and
 	// BOMs name them ("Pin header", "LED", "Tactile switch").
 	connectorKindRe = regexp.MustCompile(`(?i)connector|header|socket|receptacle|jack|terminal`)
@@ -276,6 +289,8 @@ type diagramInput struct {
 	layout  []library.Position
 	groups  []library.Group
 	assigns []library.Assignment
+	// pins is each BOM entry's pin table (for its package), by entry id.
+	pins map[int64][]library.Pin
 }
 
 // diagramBuilder holds what building a diagram needs.
@@ -289,6 +304,7 @@ type diagramBuilder struct {
 	mains    []string                   // boxes, in BOM then block order
 	passives map[string][]string        // passive → its non-ground nets
 	columns  map[string]int
+	pins     map[int64][]library.Pin       // entry → its pin table
 	assigned map[string]library.Assignment // node → its assignment
 	groupOf  map[string]string             // box → its group
 	supports map[string]string             // passive → the box it serves
@@ -298,7 +314,7 @@ type diagramBuilder struct {
 // diagram builds the block diagram of a project's connection table.
 func diagram(in diagramInput) Diagram {
 	b := &diagramBuilder{kinds: map[string]string{}, buses: map[string]string{}, onNet: map[string][]ConnectionRow{}, passives: map[string][]string{},
-		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}, guessed: map[string]bool{}}
+		assigned: map[string]library.Assignment{}, groupOf: map[string]string{}, supports: map[string]string{}, guessed: map[string]bool{}, pins: in.pins}
 	b.ends, b.order = ends(in.parts, in.blocks)
 	for _, a := range in.assigns {
 		b.assigned[a.Node] = a
@@ -764,7 +780,7 @@ func columnsOf(ids []string, links []DiagramLink) map[string]int {
 // part builds a box: its pins on their sides.
 func (b *diagramBuilder) part(id string) DiagramPart {
 	e := b.ends[id]
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
 	var mine []ConnectionRow
 	for _, r := range b.rows {
 		if nodeOf(r) == id {
@@ -773,14 +789,18 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 	}
 	// One pin per net gets the wire, the main one (IN over EN); the others
 	// are written tied to it. Pins stay in the order they were entered.
-	wired := map[string]string{}
+	type wiredPin struct {
+		name string
+		main bool
+	}
+	wired := map[string]wiredPin{}
 	for _, r := range mine {
 		key := strings.ToLower(r.Net)
 		if b.ground(r.Net) {
 			continue
 		}
-		if w, ok := wired[key]; !ok || !mainName.MatchString(w) && mainName.MatchString(pinName(r)) {
-			wired[key] = pinName(r)
+		if w, ok := wired[key]; !ok || !w.main && mainPin(r) {
+			wired[key] = wiredPin{pinName(r), mainPin(r)}
 		}
 	}
 	drawn := map[string]bool{} // nets whose wired pin is placed
@@ -794,15 +814,15 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 				name = "GND"
 			}
 			if !slices.ContainsFunc(p.Pins, func(x DiagramPin) bool { return x.Ground && x.Name == name }) {
-				p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideBottom, Ground: true})
+				p.Pins = append(p.Pins, connectedPin(r, name, SideBottom, "", true))
 			}
-		case wired[key] != name || drawn[key]:
+		case wired[key].name != name || drawn[key]:
 			// A second pin of the same name on the net (a connector's two
 			// VBUS pins) is tied to the first, like any other.
-			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: SideInside, Tied: wired[key]})
+			p.Pins = append(p.Pins, connectedPin(r, name, SideInside, wired[key].name, false))
 		default:
 			drawn[key] = true
-			p.Pins = append(p.Pins, DiagramPin{Name: name, Net: r.Net, Side: b.side(e, r)})
+			p.Pins = append(p.Pins, connectedPin(r, name, b.side(e, r), "", false))
 		}
 	}
 	// Two pins with a passive across them and nothing else on their nets
@@ -826,6 +846,16 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 	}
 	sort.SliceStable(p.Pins, func(i, j int) bool { return !p.Pins[i].Bridged && p.Pins[j].Bridged })
 	return p
+}
+
+// connectedPin is a drawn pin for a connection row: numbered when the
+// row names a pin of the pin table.
+func connectedPin(r ConnectionRow, name, side, tied string, ground bool) DiagramPin {
+	number := ""
+	if r.PinName != "" {
+		number = r.Pin
+	}
+	return DiagramPin{Name: name, Number: number, Net: r.Net, Side: side, Role: string(rowRole(r)), Connected: true, Tied: tied, Ground: ground}
 }
 
 // only reports whether a box is the only one with a pin on a net.
@@ -899,13 +929,25 @@ func (b *diagramBuilder) side(e *end, r ConnectionRow) string {
 	return SideLeft
 }
 
+// rowRole is what a connected pin is: from the pin table's type and
+// name when it has one, else the name as entered.
+func rowRole(r ConnectionRow) pinrole.Role {
+	return pinrole.Of(pinName(r), r.PinType, "")
+}
+
 // output reports whether a connected pin drives its net.
 func output(r ConnectionRow) bool {
-	switch strings.ToUpper(r.PinType) {
-	case "O", "DO", "AO":
+	return rowRole(r) == pinrole.Output
+}
+
+// mainPin reports whether a pin is the one that gets the wire when
+// several pins of a part share a net (VIN over EN, OUT over OUTS).
+func mainPin(r ConnectionRow) bool {
+	switch rowRole(r) {
+	case pinrole.Power, pinrole.Output:
 		return true
 	}
-	return outputName.MatchString(pinName(r))
+	return false
 }
 
 // nets says how each net with a pin on a box is drawn: one wire per
@@ -967,7 +1009,7 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 			// same net in another group.
 			n.Wire = WireOut
 			e := b.ends[pins[0].part]
-			n.Arrow = pins[0].pin.Side == SideRight && (n.Kind == library.NetPower || e.entry != nil && strings.EqualFold(e.entry.OutputRail, name) || outputName.MatchString(pins[0].pin.Name))
+			n.Arrow = pins[0].pin.Side == SideRight && (n.Kind == library.NetPower || e.entry != nil && strings.EqualFold(e.entry.OutputRail, name) || pins[0].pin.Role == string(pinrole.Output))
 		}
 		out = append(out, n)
 	}
@@ -1009,7 +1051,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		e := b.ends[id]
 		serves := b.supports[id]
-		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Nets: nets, Supports: serves, Guessed: b.guessed[id]}
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: e.kind, Ends: []string{"1", "2"}, Nets: nets, Supports: serves, Guessed: b.guessed[id]}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {

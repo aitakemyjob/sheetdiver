@@ -14,7 +14,7 @@ func TestGroundPinsAreNotSupplyPins(t *testing.T) {
 			t.Errorf("%+v: supply %v, ground %v", p, supplyPin(p), groundPin(p))
 		}
 	}
-	for _, p := range []library.Pin{{Name: "VDD"}, {Name: "VDDA"}, {Name: "VBAT"}, {Name: "VS"}, {Name: "PVIN", Type: "P"}} {
+	for _, p := range []library.Pin{{Name: "VDD"}, {Name: "VDDA"}, {Name: "VBAT"}, {Name: "VS"}, {Name: "PVIN", Type: "P"}, {Name: "IN"}} {
 		if !supplyPin(p) {
 			t.Errorf("%+v isn't a supply pin", p)
 		}

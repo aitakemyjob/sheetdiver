@@ -432,7 +432,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
       const slot = side === 'SOUTH' ? { width: p.ground ? groundSlot(p) : Math.max(SLOT, (q ? passiveSize(q).w : 0) + 16), height: 0 } : { width: 0, height: PITCH * (1 + ties) };
       const anchor = side === 'SOUTH' ? `(${slot.width / 2},0)` : `(0,${PITCH / 2})`;
       ports.push({ id: `${id}/${i}`, ...slot, layoutOptions: { 'elk.port.side': side, 'elk.port.anchor': anchor } });
-      if (!p.ground && !q) addEnd({ id: `${id}/${i}`, net: p.net, side });
+      if (!p.ground && !q && p.net) addEnd({ id: `${id}/${i}`, net: p.net, side });
     });
     const r = room(b.w, TITLE + 4, bottom);
     children.push({
@@ -611,11 +611,11 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
     // out, and along to the wire of the pin it's tied to.
     for (const p of b.pins) {
       if (p.ground) {
-        out.wires.push({ net: p.net, path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
+        out.wires.push({ net: p.net ?? 'GND', path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
         out.grounds.push({ x: p.x, y: p.y + 8 });
       } else if (p.tied && (p.side === 'left' || p.side === 'right')) {
         const to = b.pins.find((x) => x.name === p.tied && !x.tied);
-        if (!to) continue;
+        if (!to || !p.net) continue;
         const x = p.x + (p.side === 'right' ? 10 : -10);
         out.wires.push({ net: p.net, path: `M${p.x},${p.y} H${x} V${to.y}` });
         out.dots.push({ x, y: to.y });
