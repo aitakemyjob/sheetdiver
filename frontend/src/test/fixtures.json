@@ -3305,23 +3305,31 @@
        "mpn": "SD1235",
        "kind": "ic",
        "shape": "ic",
+       "full": true,
        "column": 0,
        "pins": [
-        {
-         "name": "VFB",
-         "number": "4",
-         "net": "SDA",
-         "side": "right",
-         "role": "input",
-         "connected": true
-        },
         {
          "name": "VIN",
          "number": "3",
          "net": "3V3",
-         "side": "left",
+         "side": "top",
          "role": "power",
          "connected": true
+        },
+        {
+         "name": "VFB",
+         "number": "4",
+         "net": "SDA",
+         "side": "left",
+         "role": "input",
+         "connected": true
+        },
+        {
+         "name": "SW",
+         "number": "2",
+         "side": "right",
+         "role": "output",
+         "connected": false
         },
         {
          "name": "GND",
@@ -4855,7 +4863,7 @@
         {
          "name": "EN",
          "net": "VBUS",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "IN"
@@ -4901,7 +4909,7 @@
         {
          "name": "EN",
          "net": "5V_PROT",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VIN"
@@ -6001,7 +6009,7 @@
         {
          "name": "CE",
          "net": "5V",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VCC"
@@ -6093,7 +6101,7 @@
         {
          "name": "EN",
          "net": "4.2V",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VIN"
@@ -7192,7 +7200,7 @@
         {
          "name": "EN",
          "net": "VBUS",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "IN"
@@ -7246,7 +7254,7 @@
         {
          "name": "EN",
          "net": "5V_PROT",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VIN"
@@ -8327,22 +8335,30 @@
        "mpn": "SD1234",
        "kind": "ic",
        "shape": "ic",
+       "full": true,
        "column": 1,
        "pins": [
+        {
+         "name": "VIN",
+         "number": "3",
+         "net": "VBUS",
+         "side": "top",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "VFB",
+         "number": "4",
+         "side": "left",
+         "role": "input",
+         "connected": false
+        },
         {
          "name": "SW",
          "number": "2",
          "net": "3V3",
          "side": "right",
          "role": "output",
-         "connected": true
-        },
-        {
-         "name": "VIN",
-         "number": "3",
-         "net": "VBUS",
-         "side": "left",
-         "role": "power",
          "connected": true
         },
         {
@@ -8477,7 +8493,7 @@
         {
          "name": "CSB",
          "net": "3V3",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VDD"
@@ -9615,6 +9631,7 @@
        "mpn": "SD1234",
        "kind": "ic",
        "shape": "ic",
+       "full": true,
        "column": 1,
        "group": "Power",
        "pins": [
@@ -9622,9 +9639,16 @@
          "name": "VIN",
          "number": "3",
          "net": "VBUS",
-         "side": "left",
+         "side": "top",
          "role": "power",
          "connected": true
+        },
+        {
+         "name": "VFB",
+         "number": "4",
+         "side": "left",
+         "role": "input",
+         "connected": false
         },
         {
          "name": "SW",
@@ -9769,7 +9793,7 @@
         {
          "name": "CSB",
          "net": "3V3",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "VDD"
@@ -11567,7 +11591,7 @@
         {
          "name": "EN",
          "net": "VBUS",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "IN"
@@ -11672,7 +11696,7 @@
         {
          "name": "VBAT",
          "net": "3V3",
-         "side": "inside",
+         "side": "left",
          "role": "power",
          "connected": true,
          "tied": "VDD"
@@ -11680,7 +11704,7 @@
         {
          "name": "VDDA",
          "net": "3V3",
-         "side": "inside",
+         "side": "left",
          "role": "power",
          "connected": true,
          "tied": "VDD"
@@ -14039,7 +14063,7 @@
         {
          "name": "DP2",
          "net": "USB_DP",
-         "side": "inside",
+         "side": "right",
          "role": "other",
          "connected": true,
          "tied": "DP1"
@@ -14054,7 +14078,7 @@
         {
          "name": "DN2",
          "net": "USB_DM",
-         "side": "inside",
+         "side": "right",
          "role": "other",
          "connected": true,
          "tied": "DN1"
@@ -14227,7 +14251,7 @@
         {
          "name": "EN",
          "net": "VBUS",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "IN"
@@ -14235,7 +14259,7 @@
         {
          "name": "BIAS",
          "net": "VBUS",
-         "side": "inside",
+         "side": "left",
          "role": "other",
          "connected": true,
          "tied": "IN"
@@ -14257,7 +14281,7 @@
         {
          "name": "OUTS",
          "net": "3V3",
-         "side": "inside",
+         "side": "right",
          "role": "output",
          "connected": true,
          "tied": "OUT"
@@ -14393,7 +14417,7 @@
         {
          "name": "VDDA",
          "net": "3V3",
-         "side": "inside",
+         "side": "right",
          "role": "power",
          "connected": true,
          "tied": "VBAT"
@@ -14401,7 +14425,7 @@
         {
          "name": "VDD",
          "net": "3V3",
-         "side": "inside",
+         "side": "right",
          "role": "power",
          "connected": true,
          "tied": "VBAT"

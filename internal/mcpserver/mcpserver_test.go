@@ -444,10 +444,10 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("get_connections", map[string]any{}, "blocks off the BOM: Battery", "3V3 [power]: U2.3(VIN)")
 	// Passives are listed with where they hang, not only part-to-part links.
 	h.must("set_connections", map[string]any{
-		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}},
-		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U1", "pin": "SW"}, {"net": "LX2", "part": "U1", "pin": "GND"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
-	}, "C9 10µF (supports U2 SD1235, guessed) on 3V3 (by U2 SD1235), to ground", "L9 2.2µH (supports U1 SD1234, guessed) across U1 SD1234 LX1/LX2")
-	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 4 blocks off the BOM")
+		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}, {"name": "U9 TPS63900", "kind": "ic"}},
+		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U9 TPS63900", "pin": "LX1"}, {"net": "LX2", "part": "U9 TPS63900", "pin": "LX2"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
+	}, "C9 10µF (supports U2 SD1235, guessed) on 3V3 (by U2 SD1235), to ground", "L9 2.2µH (supports U9 TPS63900, guessed) across U9 TPS63900 LX1/LX2")
+	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 5 blocks off the BOM")
 	// Groups, and what a passive supports.
 	h.must("set_connections", map[string]any{
 		"groups": []map[string]any{{"name": "Power", "description": "Battery to 3V3", "notes": "keep the loop small"}},

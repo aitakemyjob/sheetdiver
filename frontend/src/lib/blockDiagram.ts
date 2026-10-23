@@ -4,7 +4,10 @@
 // graph for ELK (the Eclipse Layout Kernel, elkjs) and the result back
 // into a drawing:
 //
-//   measure → each box's size from its pins, and where each pin is on it
+//   measure → each symbol's size from its pins, and where each pin is on it:
+//             a body with pin lines out to the node's border, where wires
+//             attach (a generated symbol shows every pin of its pin table,
+//             unconnected ones dimmed; "connected pins only" hides those)
 //   graph   → boxes are nodes with their pins as fixed ports; passives and
 //             the names of nets leaving the group are small nodes; a net
 //             is an edge from the pin that drives it to each pin it feeds
@@ -30,15 +33,27 @@ import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin } from './types';
 
 export const PITCH = 30; // between pins
-export const TOP = 30; // first pin below a box's top
+export const TOP = 25; // first pin below a body's top
+export const PIN_LEN = 20; // a pin line, from the body to where its wire attaches
 export const BOX_W = 200;
 export const PAD = 40;
 const TITLE = 30; // a box's title above it
 const GROUND = 16; // a ground symbol's height, with its stub
-const SLOT = 84; // between bottom pins
+const SLOT = 84; // a bottom pin with a passive hanging under it
 const CHAR = 7.5; // a label's width per character
-/** The room a ground pin's name needs along the bottom. */
-const groundSlot = (p: DiagramPin) => Math.max(44, p.name.length * 7 + 16);
+const PIN_CHAR = 6.6; // a pin name's width per character (11px)
+
+/** What the layout may be asked for. */
+export interface LayoutOptions {
+  /** Hide a generated symbol's unconnected pins, except supplies and grounds. */
+  connectedOnly?: boolean;
+}
+
+/** The pins of a part that are drawn. */
+export function visiblePins(part: DiagramPart, opts?: LayoutOptions): DiagramPin[] {
+  if (!opts?.connectedOnly || !part.full) return part.pins;
+  return part.pins.filter((p) => p.connected || p.role === 'power' || p.role === 'ground' || p.role === 'pad');
+}
 
 /** A point. */
 export interface Pt {
@@ -52,13 +67,18 @@ export interface Rect extends Pt {
   h: number;
 }
 
-/** A pin with its place on the drawing. */
-export type PlacedPin = DiagramPin & Pt;
+/** A pin with its place on the drawing: the end of its pin line, where its wire attaches. */
+export type PlacedPin = DiagramPin & Pt & { dim?: boolean };
 
-/** A box with its place and its pins'. */
+/**
+ * A symbol with its place: the node (its body plus its pin lines, which
+ * wires attach to at its border) and its pins'.
+ */
 export interface Box extends Rect {
   part: DiagramPart;
   pins: PlacedPin[];
+  /** The rectangle the pins stick out of. */
+  body: Rect;
   /** Where its group's content starts: saved positions are relative to it. */
   origin?: Pt;
 }
@@ -118,8 +138,8 @@ function elk(): Promise<ELK> {
 }
 
 /** Lays out a block diagram: whole, or a group at a time. */
-export function layoutBlockDiagram(d: Diagram): Promise<BlockDrawing> {
-  return d.groups?.length ? layoutGroups(d) : layoutOne(d);
+export function layoutBlockDiagram(d: Diagram, opts: LayoutOptions = {}): Promise<BlockDrawing> {
+  return d.groups?.length ? layoutGroups(d, opts) : layoutOne(d, opts);
 }
 
 // ── groups ────────────────────────────────────────────────────────────
@@ -176,7 +196,7 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
   const pt = <T extends Pt>(p: T): T => ({ ...p, x: p.x + dx, y: p.y + dy });
   return {
     ...r,
-    boxes: r.boxes.map((b) => ({ ...pt(b), pins: b.pins.map(pt) })),
+    boxes: r.boxes.map((b) => ({ ...pt(b), body: pt(b.body), pins: b.pins.map(pt) })),
     passives: r.passives.map(pt),
     wires: r.wires.map((w) => ({ ...w, path: movePath(w.path, dx, dy), label: w.label && pt(w.label) })),
     grounds: r.grounds.map(pt),
@@ -192,11 +212,11 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
  * their group's content, so moving a part in one group never moves
  * another group's parts.
  */
-async function layoutGroups(d: Diagram): Promise<BlockDrawing> {
+async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
   const out: BlockDrawing = { boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], width: 0, height: 0 };
   const clusters: (DiagramGroup | undefined)[] = [...d.groups, undefined];
   const subs = clusters.map((group) => groupDiagram(d, group?.name ?? ''));
-  const drawings = await Promise.all(subs.map((sub) => (sub.parts.length ? layoutOne(sub) : undefined)));
+  const drawings = await Promise.all(subs.map((sub) => (sub.parts.length ? layoutOne(sub, opts) : undefined)));
   let x = 0;
   clusters.forEach((group, i) => {
     const drawn = drawings[i];
@@ -231,50 +251,86 @@ async function layoutGroups(d: Diagram): Promise<BlockDrawing> {
   return out;
 }
 
-// ── measure ───────────────────────────────────────────────────────────
+// ── measure ──────────────────────────────────────────────────────────
 
-/** Sizes each box: tall enough for its pins, wide enough for its bottom pins. */
-export function measure(d: Diagram): Box[] {
+/** The room a bottom pin takes: a slot for a passive hanging under it, else a pitch. */
+function bottomSlot(d: Diagram, part: DiagramPart, p: DiagramPin): number {
+  const under = p.net && d.passives.some((q) => q.mount === 'below' && q.part === part.id && q.nets[0] === p.net);
+  return under ? SLOT : PITCH;
+}
+
+/**
+ * The pin a tied pin's jog runs to: the nearest untied pin of that name
+ * on its side (a part may have several VDD pins, in more than one run).
+ */
+export function tiedTo(b: Box, p: PlacedPin): PlacedPin | undefined {
+  const mains = b.pins.filter((x) => x.name === p.tied && !x.tied && x.side === p.side);
+  const dist = (x: PlacedPin) => Math.abs(x.x - p.x) + Math.abs(x.y - p.y);
+  return mains.sort((m, n) => dist(m) - dist(n))[0] ?? b.pins.find((x) => x.name === p.tied && !x.tied);
+}
+
+/** The width of the longest pin name among some pins. */
+const longest = (ps: DiagramPin[]) => Math.max(0, ...ps.map((p) => p.name.length)) * PIN_CHAR;
+
+/**
+ * The bands a body keeps for its top and bottom pins' names (written
+ * down the body): the left and right pins start below the top band and
+ * end above the bottom one.
+ */
+export function bands(pins: DiagramPin[]): { top: number; bottom: number } {
+  const top = pins.filter((p) => p.side === 'top');
+  const bottom = pins.filter((p) => p.side === 'bottom');
+  const even = (v: number) => Math.ceil(v / 2) * 2;
+  return { top: top.length ? even(14 + longest(top)) : TOP, bottom: bottom.length ? even(14 + longest(bottom)) : 10 };
+}
+
+/**
+ * Sizes each symbol: a body wide enough for the names of its left and
+ * right pins and its top and bottom pins' pitch, tall enough for its
+ * left and right pins' pitch between the bands its top and bottom pins'
+ * names take; the node adds a pin line all round.
+ */
+export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
   return d.parts.map((part) => {
-    const pins = part.pins.map((p) => ({ ...p, x: 0, y: 0 }));
-    // A pin tied to another of the part's pins (EN to VIN) is drawn on
-    // the same side, just below it, joined to its wire.
-    for (const p of pins.filter((x) => x.side === 'inside' && x.tied)) {
-      const to = pins.find((x) => x.name === p.tied && x.side !== 'inside' && !x.ground);
-      if (to && (to.side === 'left' || to.side === 'right')) p.side = to.side;
-    }
-    const left = pins.filter((p) => p.side === 'left' || p.side === 'inside').length;
-    const right = pins.filter((p) => p.side === 'right').length;
-    const bottom = pins.filter((p) => p.side === 'bottom' && !p.ground).length;
-    const grounds = pins.filter((p) => p.ground);
-    const w = Math.max(BOX_W, 24 + bottom * SLOT + grounds.reduce((n, p) => n + groundSlot(p), 0) + 24);
-    const h = Math.max(120, TOP + Math.max(left, right) * PITCH + (bottom || grounds.length ? 44 : 10));
-    return { part, pins, x: 0, y: 0, w, h };
+    const pins: PlacedPin[] = visiblePins(part, opts).map((p) => ({ ...p, x: 0, y: 0, dim: !p.connected || undefined }));
+    const on = (side: DiagramPin['side']) => pins.filter((p) => p.side === side);
+    const bottomW = on('bottom').reduce((n, p) => n + bottomSlot(d, part, p), 0);
+    const bodyW = Math.max(BOX_W - 2 * PIN_LEN, 12 + longest(on('left')) + 24 + longest(on('right')) + 12, 2 * TOP + on('top').length * PITCH, TOP + bottomW + TOP - PITCH);
+    const band = bands(pins);
+    const rows = Math.max(on('left').length, on('right').length);
+    const bodyH = Math.max(120 - 2 * PIN_LEN, band.top + Math.max(0, rows - 1) * PITCH + band.bottom);
+    const body = { x: PIN_LEN, y: PIN_LEN, w: Math.ceil(bodyW / 2) * 2, h: Math.ceil(bodyH / 2) * 2 };
+    return { part, pins, body, x: 0, y: 0, w: body.w + 2 * PIN_LEN, h: body.h + 2 * PIN_LEN };
   });
 }
 
 /**
- * Puts each pin on its side of a box at the origin, in the backend's
- * order: left (then inside ones below), right, bottom (ground pins last,
- * closer together). A pin tied to another comes right after it.
+ * Puts each pin's end on the node's border, in the backend's order: left
+ * and right pins down each side from the body's top, top and bottom pins
+ * along from its left. On a box drawn from its connections, a pin tied
+ * to another comes right after it; a generated symbol keeps its number
+ * order (the backend ties only neighbours).
  */
-export function pinsAt(b: Box): void {
-  const withTies = (side: 'left' | 'right') => {
-    const own = b.pins.filter((p) => p.side === side && !p.tied);
-    const tied = b.pins.filter((p) => p.side === side && p.tied);
+export function pinsAt(b: Box, d?: Diagram): void {
+  const body = { x: b.x + PIN_LEN, y: b.y + PIN_LEN, w: b.w - 2 * PIN_LEN, h: b.h - 2 * PIN_LEN };
+  b.body = body;
+  const on = (side: DiagramPin['side']) => {
+    const ps = b.pins.filter((p) => p.side === side);
+    if (b.part.full) return ps;
+    const own = ps.filter((p) => !p.tied);
+    const tied = ps.filter((p) => p.tied);
     const rest = tied.filter((t) => !own.some((p) => p.name === t.tied));
     return [...own.flatMap((p) => [p, ...tied.filter((t) => t.tied === p.name)]), ...rest];
   };
-  [...withTies('left'), ...b.pins.filter((p) => p.side === 'inside')].forEach((p, i) => Object.assign(p, { x: b.x, y: b.y + TOP + i * PITCH }));
-  withTies('right').forEach((p, i) => Object.assign(p, { x: b.x + b.w, y: b.y + TOP + i * PITCH }));
-  const bottom = b.pins.filter((p) => p.side === 'bottom' && !p.ground);
-  bottom.forEach((p, i) => Object.assign(p, { x: b.x + 50 + i * SLOT, y: b.y + b.h }));
-  // Ground pins from the right, each as wide as its name.
-  let x = b.x + b.w - 12;
-  for (const p of b.pins.filter((g) => g.ground).reverse()) {
-    x -= groundSlot(p) / 2;
-    Object.assign(p, { x, y: b.y + b.h });
-    x -= groundSlot(p) / 2;
+  const top = bands(b.pins).top;
+  on('left').forEach((p, i) => Object.assign(p, { x: b.x, y: body.y + top + i * PITCH }));
+  on('right').forEach((p, i) => Object.assign(p, { x: b.x + b.w, y: body.y + top + i * PITCH }));
+  on('top').forEach((p, i) => Object.assign(p, { x: body.x + TOP + i * PITCH, y: b.y }));
+  let x = body.x + TOP;
+  for (const p of on('bottom')) {
+    const slot = d ? bottomSlot(d, b.part, p) : PITCH;
+    Object.assign(p, { x: x + (slot - PITCH) / 2, y: b.y + b.h });
+    x += slot;
   }
 }
 
@@ -318,7 +374,7 @@ const DROP = 30; // from a bottom pin down to the passive under it
 interface Stub {
   port: string;
   net: string;
-  side: 'left' | 'right';
+  side: 'left' | 'right' | 'top';
   arrow?: boolean;
 }
 
@@ -336,6 +392,7 @@ interface PortEnd {
 
 /** The ELK graph of a diagram, and what each node stands for. */
 interface Built {
+  d: Diagram;
   root: ElkNode;
   boxes: Map<string, Box>;
   passives: PassiveNode[];
@@ -398,7 +455,7 @@ function room(width: number, above: number, below: number): Pick<ElkNode, 'label
  * it) to each other port on it; ELK merges them into a bus.
  */
 function graph(d: Diagram, boxes: Box[]): Built {
-  const built: Built = { root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set() };
+  const built: Built = { d, root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set() };
   const children = built.root.children!;
   const edges = built.root.edges!;
   const ends = new Map<string, PortEnd[]>(); // net (lower case) → its ports
@@ -414,24 +471,25 @@ function graph(d: Diagram, boxes: Box[]): Built {
   // on a side to keep their wires from crossing. A port is a pin's slot,
   // a pitch tall plus one for each pin tied to it below; its wire leaves
   // from the slot's first pitch.
+  // Pins are fixed ports at their place on the node's border: a
+  // generated symbol's in number order, a box's in the backend's (by
+  // where their wires go). ELK isn't asked to order them: it spreads
+  // ports along a side regardless of the bands the names take.
   for (const b of boxes) {
     const id = `b:${b.part.id}`;
     built.boxes.set(id, b);
     const ports: ElkPort[] = [];
     let bottom = b.pins.some((p) => p.ground) ? GROUND + 10 : 6;
     b.pins.forEach((p, i) => {
-      if (p.side === 'inside' || p.tied) return;
+      if (p.tied || p.dim) return;
       const q = p.side === 'bottom' && !p.ground ? under(b, p) : undefined;
       if (q) {
         const { w, h } = passiveSize(q);
         built.below.push({ passive: q, box: b, pin: p, w, h, end: q.nets[1] ? { ground: false, text: q.nets[1], up: false } : { ground: true } });
         bottom = Math.max(bottom, DROP + h + GROUND + 14);
       }
-      const side = p.side === 'left' ? 'WEST' : p.side === 'right' ? 'EAST' : 'SOUTH';
-      const ties = b.pins.filter((t) => t.tied === p.name && t.side === p.side).length;
-      const slot = side === 'SOUTH' ? { width: p.ground ? groundSlot(p) : Math.max(SLOT, (q ? passiveSize(q).w : 0) + 16), height: 0 } : { width: 0, height: PITCH * (1 + ties) };
-      const anchor = side === 'SOUTH' ? `(${slot.width / 2},0)` : `(0,${PITCH / 2})`;
-      ports.push({ id: `${id}/${i}`, ...slot, layoutOptions: { 'elk.port.side': side, 'elk.port.anchor': anchor } });
+      const side = p.side === 'left' ? 'WEST' : p.side === 'right' ? 'EAST' : p.side === 'top' ? 'NORTH' : 'SOUTH';
+      ports.push({ id: `${id}/${i}`, x: p.x - b.x, y: p.y - b.y, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
       if (!p.ground && !q && p.net) addEnd({ id: `${id}/${i}`, net: p.net, side });
     });
     const r = room(b.w, TITLE + 4, bottom);
@@ -441,7 +499,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
       height: b.h,
       ports,
       labels: r.labels,
-      layoutOptions: { ...r.layoutOptions, 'elk.portConstraints': 'FIXED_SIDE', 'elk.portAlignment.default': 'CENTER', 'elk.spacing.portPort': '0', 'elk.portLabels.placement': 'OUTSIDE' },
+      layoutOptions: { ...r.layoutOptions, 'elk.portConstraints': 'FIXED_POS', 'elk.portLabels.placement': 'OUTSIDE' },
     });
   }
 
@@ -458,13 +516,15 @@ function graph(d: Diagram, boxes: Box[]): Built {
     const layoutOptions = { 'elk.portConstraints': 'FIXED_POS' };
     if (q.mount === 'bridge' && q.nets.length === 2) {
       const box = boxes.find((b) => b.part.id === q.part);
-      const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && p.side !== 'inside' && !p.tied)).filter((p): p is PlacedPin => !!p);
+      const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && !p.tied && !p.dim)).filter((p): p is PlacedPin => !!p);
       if (pins.length === 2) {
+        // Beside the pins it bridges, its ports facing them.
         const dy = Math.abs(pins[0].y - pins[1].y);
+        const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
         const node: ElkNode = { id, width: 58, height: Math.max(44, dy + 30), layoutOptions, ports: [], labels: [] };
         q.nets.forEach((n, i) => {
-          node.ports!.push({ id: `${id}/${i}`, x: 0, y: 15 + (pins[i].y > pins[1 - i].y ? dy : 0), width: 0, height: 0, layoutOptions: { 'elk.port.side': 'WEST' } });
-          addEnd({ id: `${id}/${i}`, net: n, side: 'WEST', passive: true });
+          node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? 58 : 0, y: 15 + (pins[i].y > pins[1 - i].y ? dy : 0), width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
+          addEnd({ id: `${id}/${i}`, net: n, side, passive: true });
         });
         children.push(node);
         built.passives.push({ passive: q, node, w: 58, h: node.height! });
@@ -521,7 +581,7 @@ function graph(d: Diagram, boxes: Box[]): Built {
     const leaves = n.offboard || (n.wire === 'out' && !ports.some((e) => e.series));
     const alone = boxPorts.length === 1 && ports.length === 1;
     if (leaves && (alone || n.arrow) && !source.passive && source.side !== 'SOUTH') {
-      const side = source.side === 'EAST' ? 'right' : 'left';
+      const side = source.side === 'EAST' ? 'right' : source.side === 'NORTH' ? 'top' : 'left';
       built.stubs.push({ port: source.id, net: n.name, side, arrow: side === 'right' && n.arrow });
       portOf.get(source.id)!.labels = [{ text: n.name, width: n.name.length * CHAR + 16 + (n.arrow ? 12 : 0), height: 14 }];
       built.labelled.add(n.name);
@@ -553,9 +613,9 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
  * dragged, and a fresh graph is laid out again keeping that order (a
  * fresh one: the first result's wires would be taken as given).
  */
-async function layoutOne(d: Diagram): Promise<BlockDrawing> {
-  const boxes = measure(d);
-  boxes.forEach(pinsAt);
+async function layoutOne(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
+  const boxes = measure(d, opts);
+  boxes.forEach((b) => pinsAt(b, d));
   const engine = await elk();
   const first = graph(d, boxes);
   const r = await engine.layout(first.root);
@@ -582,43 +642,33 @@ const at = (v: number) => Math.round(v * 2) / 2;
 function drawing(built: Built, r: ElkNode): BlockDrawing {
   const out: BlockDrawing = { boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], width: at(r.width ?? 0), height: at(r.height ?? 0) };
   const placed = new Map((r.children ?? []).map((n) => [n.id, n]));
-  // Boxes: at ELK's place, their pins where ELK put the ports; a tied
-  // pin right under the pin it's tied to, an inside pin after the left
-  // ones.
+  // Symbols: at ELK's place, their pins where they were measured (ELK
+  // was given them as fixed ports).
   for (const [id, b] of built.boxes) {
     const n = placed.get(id)!;
     b.x = at(n.x ?? 0);
     b.y = at(n.y ?? 0);
-    const ports = new Map((n.ports ?? []).map((port) => [port.id, port]));
-    b.pins.forEach((p, i) => {
-      const port = ports.get(`${id}/${i}`);
-      if (!port) return;
-      const [ax, ay] = p.side === 'bottom' ? [(port.width ?? 0) / 2, 0] : [0, PITCH / 2];
-      p.x = at(b.x + (port.x ?? 0) + ax);
-      p.y = at(b.y + (port.y ?? 0) + ay);
-    });
-    for (const p of b.pins.filter((x) => x.tied && (x.side === 'left' || x.side === 'right'))) {
-      const to = b.pins.find((x) => x.name === p.tied && !x.tied && x.side === p.side);
-      if (!to) continue;
-      const k = b.pins.filter((x) => x.tied === p.tied && x.side === p.side).indexOf(p);
-      p.x = to.x;
-      p.y = to.y + (k + 1) * PITCH;
-    }
-    const left = b.pins.filter((p) => p.side === 'left');
-    b.pins.filter((p) => p.side === 'inside').forEach((p, k) => Object.assign(p, { x: b.x, y: b.y + TOP + (left.length + k) * PITCH }));
+    pinsAt(b, built.d);
     out.boxes.push(b);
     // Ground pins: a short stub to a ground symbol each. A tied pin:
     // out, and along to the wire of the pin it's tied to.
     for (const p of b.pins) {
+      if (p.dim) continue;
       if (p.ground) {
         out.wires.push({ net: p.net ?? 'GND', path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
         out.grounds.push({ x: p.x, y: p.y + 8 });
-      } else if (p.tied && (p.side === 'left' || p.side === 'right')) {
-        const to = b.pins.find((x) => x.name === p.tied && !x.tied);
-        if (!to || !p.net) continue;
-        const x = p.x + (p.side === 'right' ? 10 : -10);
-        out.wires.push({ net: p.net, path: `M${p.x},${p.y} H${x} V${to.y}` });
-        out.dots.push({ x, y: to.y });
+      } else if (p.tied && p.net) {
+        const to = tiedTo(b, p);
+        if (!to) continue;
+        if (p.side === 'left' || p.side === 'right') {
+          const x = p.x + (p.side === 'right' ? 10 : -10);
+          out.wires.push({ net: p.net, path: `M${p.x},${p.y} H${x} V${to.y}` });
+          out.dots.push({ x, y: to.y });
+        } else {
+          const y = p.y + (p.side === 'bottom' ? 10 : -10);
+          out.wires.push({ net: p.net, path: `M${p.x},${p.y} V${y} H${to.x}` });
+          out.dots.push({ x: to.x, y });
+        }
       }
     }
   }
@@ -656,6 +706,11 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
   for (const st of built.stubs) {
     const [boxId, idx] = [st.port.split('/')[0], Number(st.port.split('/')[1])];
     const p = built.boxes.get(boxId)!.pins[idx];
+    if (st.side === 'top') {
+      // Up from a supply pin, its name above.
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y - 24}`, label: { x: p.x, y: p.y - 28, anchor: 'middle', text: st.net } });
+      continue;
+    }
     const dir = st.side === 'right' ? 1 : -1;
     const len = st.net.length * CHAR + 16 + (st.arrow ? 12 : 0);
     const end = p.x + dir * len;

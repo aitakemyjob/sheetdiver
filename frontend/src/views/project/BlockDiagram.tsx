@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { saveText } from '../../lib/api';
-import { layoutBlockDiagram, type BlockDrawing, type Box, type Pt } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
@@ -22,6 +22,37 @@ export function fitView(width: number, height: number, screenW: number, screenH:
   if (!screenW) return { k: 1, x: 0, y: 0 };
   const k = Math.min(1, screenW / width, screenH / height);
   return { k, x: (screenW - width * k) / 2, y: Math.max(0, (screenH - height * k) / 2) };
+}
+
+/**
+ * A pin of a symbol: its line from the body to where its wire attaches,
+ * its number along the line (outside the body) and its name inside.
+ * Top and bottom pins' names are written down the body. An unconnected
+ * pin is dimmed.
+ */
+function SymbolPin({ p, body, color, stroke }: { p: PlacedPin; body: Rect; color: string; stroke: string }) {
+  const edge = p.side === 'left' ? { x: body.x, y: p.y } : p.side === 'right' ? { x: body.x + body.w, y: p.y } : p.side === 'top' ? { x: p.x, y: body.y } : { x: p.x, y: body.y + body.h };
+  const vertical = p.side === 'top' || p.side === 'bottom';
+  // The number sits beside the pin line, just outside the body.
+  const num = vertical ? { x: p.x + 3, y: p.side === 'top' ? body.y - 4 : body.y + body.h + 11, anchor: 'start' as const } : { x: (p.x + edge.x) / 2, y: p.y - 3, anchor: 'middle' as const };
+  // The name is inside, along the body's edge; down the body for a top or bottom pin.
+  const nameY = p.side === 'top' ? body.y + 6 : body.y + body.h - 6;
+  const name = vertical
+    ? { x: p.x, y: nameY, anchor: p.side === 'top' ? ('end' as const) : ('start' as const), rotate: `rotate(-90 ${p.x} ${nameY})` }
+    : { x: p.side === 'left' ? body.x + 6 : body.x + body.w - 6, y: p.y, anchor: p.side === 'left' ? ('start' as const) : ('end' as const), rotate: undefined };
+  return (
+    <g data-pin={p.name} data-dim={p.dim || undefined} opacity={p.dim ? 0.35 : 1}>
+      <path d={`M${p.x},${p.y} L${edge.x},${edge.y}`} stroke={stroke} strokeWidth={1.2} />
+      {p.number && (
+        <text x={num.x} y={num.y} textAnchor={num.anchor} fontSize={9} fill={color}>
+          {p.number}
+        </text>
+      )}
+      <text x={name.x} y={name.y} textAnchor={name.anchor} dominantBaseline="central" fontSize={11} fill={color} transform={name.rotate}>
+        {p.name}
+      </text>
+    </g>
+  );
 }
 
 /**
@@ -225,18 +256,10 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
                     {b.part.title}
                   </text>
-                  <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
-                  {b.pins.map((p, i) =>
-                    p.side === 'bottom' ? (
-                      <text key={i} x={p.x} y={b.y + b.h - 12} textAnchor="middle" fontSize={12} fill={c.text}>
-                        {p.name}
-                      </text>
-                    ) : (
-                      <text key={i} x={p.side === 'right' ? p.x - 12 : p.x + 12} y={p.y} dominantBaseline="central" textAnchor={p.side === 'right' ? 'end' : 'start'} fontSize={12} fill={c.text}>
-                        {p.tied && p.side === 'inside' ? `${p.name}→${p.tied}` : p.name}
-                      </text>
-                    ),
-                  )}
+                  <rect x={b.body.x} y={b.body.y} width={b.body.w} height={b.body.h} rx={3} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.9} />
+                  {b.pins.map((p, i) => (
+                    <SymbolPin key={i} p={p} body={b.body} color={c.text} stroke={c.stroke} />
+                  ))}
                 </g>
               );
             })}

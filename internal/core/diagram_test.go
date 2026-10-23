@@ -90,11 +90,15 @@ func (d drawn) part(title string) DiagramPart {
 	return DiagramPart{}
 }
 
-// pins says each pin's side ("VIN:left", "EN:inside→VIN").
+// pins says each pin's side ("VIN:left", "EN:left→VIN"), with its
+// number ("VIN:top#3"), "*" bridged, "⏚" to ground, "?" unconnected.
 func (d drawn) pins(title string) string {
 	var out []string
 	for _, p := range d.part(title).Pins {
 		s := p.Name + ":" + p.Side
+		if p.Number != "" {
+			s += "#" + p.Number
+		}
 		if p.Tied != "" {
 			s += "→" + p.Tied
 		}
@@ -103,6 +107,9 @@ func (d drawn) pins(title string) string {
 		}
 		if p.Ground {
 			s += "⏚"
+		}
+		if !p.Connected {
+			s += "?"
 		}
 		out = append(out, s)
 	}
@@ -168,10 +175,10 @@ func TestDiagramOfTheUSBSketch(t *testing.T) {
 		// The connector's CC pins face right, their resistors beside them.
 		"J1": "VBUS:right CC1:right CC2:right GND:bottom⏚",
 		// IN gets the wire, EN is written tied to it; ILIM's resistor is below.
-		"U1": "IN:left EN:inside→IN OUT:right ILIM:bottom GND:bottom⏚",
+		"U1": "IN:left EN:left→IN OUT:right ILIM:bottom GND:bottom⏚",
 		// SEL is tied to ground; LX1 and LX2 come last, bridged by L1.
 		// Pins tied to ground go to a ground symbol like GND itself.
-		"U2": "VIN:left EN:inside→VIN VOUT:right CFG1:bottom CFG2:bottom CFG3:bottom LX1:right* LX2:right* SEL:bottom⏚ GND:bottom⏚",
+		"U2": "VIN:left EN:left→VIN VOUT:right CFG1:bottom CFG2:bottom CFG3:bottom LX1:right* LX2:right* SEL:bottom⏚ GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
@@ -216,8 +223,8 @@ func TestDiagramOfABatteryBoard(t *testing.T) {
 	}
 	for title, want := range map[string]string{
 		// The lane's pin first, so its riser crosses nothing.
-		"U1": "BAT:left VCC:left CE:inside→VCC PROG:bottom CHRG:bottom GND:bottom⏚ TEMP:bottom⏚",
-		"U3": "VIN:left EN:inside→VIN VOUT:right LX1:right* LX2:right* GND:bottom⏚",
+		"U1": "BAT:left VCC:left CE:left→VCC PROG:bottom CHRG:bottom GND:bottom⏚ TEMP:bottom⏚",
+		"U3": "VIN:left EN:left→VIN VOUT:right LX1:right* LX2:right* GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)
@@ -243,12 +250,15 @@ func TestDiagramOfAnMCUBoard(t *testing.T) {
 	}
 	for title, want := range map[string]string{
 		// A library part: its pins by name from its pin table.
-		"U1": "SW:right VIN:left GND:bottom⏚",
+		// A library part: a generated symbol from its pin table, every pin
+		// numbered, by role: the supply on top, the output right, the
+		// feedback input (unconnected: "?") left, ground along the bottom.
+		"U1": "VIN:top#3 VFB:left#4? SW:right#2 GND:bottom#1⏚",
 		// USB data from the connector on the left, I2C to the sensor on
 		// the right; the LED pin's LED below; EN leaves with its pull-up
 		// and capacitor.
 		"U2": "3V3:left GPIO19:left GPIO18:left GPIO8:right GPIO9:right EN:left GPIO2:bottom GND:bottom⏚",
-		"U3": "VDD:left CSB:inside→VDD SDA:left SCL:left GND:bottom⏚",
+		"U3": "VDD:left CSB:left→VDD SDA:left SCL:left GND:bottom⏚",
 	} {
 		if got := d.pins(title); got != want {
 			t.Errorf("%s pins = %s\n             want %s", title, got, want)

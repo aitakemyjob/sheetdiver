@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
-import { labelRect, layoutBlockDiagram, overlaps, type BlockDrawing, type Pt, type Rect } from './blockDiagram';
+import { labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
@@ -40,6 +40,21 @@ function crossings(d: BlockDrawing): string[] {
   return [...out];
 }
 
+/** Where a pin's name (inside the body) and number ("#", beside its line) are written, as the view draws them. */
+function pinTexts(b: Box, p: PlacedPin): (Rect & { what: string })[] {
+  const body = b.body;
+  const name = p.name.length * 6.6;
+  const num = (p.number ?? '').length * 5.4;
+  const vertical = p.side === 'top' || p.side === 'bottom';
+  const out: (Rect & { what: string })[] = [];
+  if (vertical) out.push({ what: `${b.part.title} ${p.name}`, x: p.x - 6, y: p.side === 'top' ? body.y + 6 : body.y + body.h - 6 - name, w: 12, h: name });
+  else out.push({ what: `${b.part.title} ${p.name}`, x: p.side === 'left' ? body.x + 6 : body.x + body.w - 6 - name, y: p.y - 6, w: name, h: 12 });
+  if (!p.number) return out;
+  if (vertical) out.push({ what: `${b.part.title} ${p.name}#`, x: p.x + 3, y: p.side === 'top' ? body.y - 13 : body.y + body.h + 2, w: num, h: 10 });
+  else out.push({ what: `${b.part.title} ${p.name}#`, x: (p.x + (p.side === 'left' ? body.x : body.x + body.w)) / 2 - num / 2, y: p.y - 12, w: num, h: 10 });
+  return out;
+}
+
 /** Everything drawn as a rectangle: boxes with their titles, passives, net labels. */
 function shapes(d: BlockDrawing) {
   return [
@@ -68,8 +83,10 @@ describe.each(circuits)('the block diagram of %s', (name) => {
 
   it("seldom crosses one net's wire with another's", () => {
     // ELK keeps crossings to a minimum; where a net's branches interleave
-    // with another's (two pull-ups on an I2C bus) it can't always avoid one.
-    expect(crossings(d).length).toBeLessThanOrEqual(2);
+    // with another's (two pull-ups on an I2C bus) it can't always avoid
+    // one. Pins sit where the symbol puts them, so a board whose MCU has
+    // many pins in play gets one more.
+    expect(crossings(d).length).toBeLessThanOrEqual(name === 'STM32 board' ? 3 : 2);
   });
 
   it("puts nothing on another net's wire", () => {
@@ -93,23 +110,39 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     for (const s of shapes(d)) expect(s.x + s.w).toBeLessThanOrEqual(d.width);
   });
 
-  it('wires every pin on a side of its box', () => {
+  it('wires every connected pin at the end of its pin line, and no unconnected one', () => {
     const ends = new Set(d.wires.flatMap((w) => points(w.path)).map((p) => `${p.x},${p.y}`));
     for (const b of d.boxes)
-      for (const p of b.pins.filter((x) => x.side !== 'inside')) {
-        expect(ends.has(`${p.x},${p.y}`), `${b.part.title} ${p.name}`).toBe(true);
-        // On its side of the box.
+      for (const p of b.pins) {
+        expect(ends.has(`${p.x},${p.y}`), `${b.part.title} ${p.name}`).toBe(!p.dim);
+        // At the node's border, a pin line out from the body.
         if (p.side === 'left') expect(p.x).toBe(b.x);
         if (p.side === 'right') expect(p.x).toBe(b.x + b.w);
+        if (p.side === 'top') expect(p.y).toBe(b.y);
         if (p.side === 'bottom') expect(p.y).toBe(b.y + b.h);
+        expect(b.body.x - b.x, b.part.title).toBe(PIN_LEN);
       }
+  });
+
+  it('shows every pin of a part with a pin table, once, in its number order on each side', () => {
+    const detail = recorded('project.detail', { project: name }) as ProjectDetail;
+    for (const b of d.boxes.filter((x) => x.part.full)) {
+      const table = detail.connections.pinouts.find((po) => po.node === b.part.id)!;
+      expect(b.pins.length, b.part.title).toBe(table.pins.length);
+      for (const side of ['left', 'right', 'top', 'bottom'] as const) {
+        const nums = b.pins.filter((p) => p.side === side && /^\d+$/.test(p.number ?? '')).map((p) => Number(p.number));
+        expect(nums, `${b.part.title} ${side}`).toEqual([...nums].sort((a, z) => a - z));
+      }
+    }
   });
 
   it('keeps a bridged passive between its pins', () => {
     for (const p of d.passives.filter((x) => x.passive.mount === 'bridge')) {
       const box = d.boxes.find((b) => b.part.id === p.passive.part)!;
-      expect(p.x - (box.x + box.w), p.passive.label).toBeGreaterThan(0);
-      expect(p.x - (box.x + box.w), p.passive.label).toBeLessThan(160);
+      const pin = box.pins.find((x) => x.net === p.passive.nets[0] && !x.tied)!;
+      const gap = pin.side === 'left' ? box.x - (p.x + p.w) : p.x - (box.x + box.w);
+      expect(gap, p.passive.label).toBeGreaterThan(0);
+      expect(gap, p.passive.label).toBeLessThan(160);
     }
   });
 
@@ -137,10 +170,10 @@ describe.each(circuits)('the block diagram of %s', (name) => {
   });
 
   it('writes no text over a box or other text', () => {
-    // Wire labels, and the pin names along each box's bottom.
+    // Wire labels, and the pin names and numbers of each symbol.
     const texts = [
       ...d.wires.filter((w) => w.label).map((w) => ({ what: w.label!.text, ...labelRect(w.label!) })),
-      ...d.boxes.flatMap((b) => b.pins.filter((p) => p.side === 'bottom').map((p) => ({ what: `${b.part.title} ${p.name}`, x: p.x - p.name.length * 3.5, y: p.y - 24, w: p.name.length * 7, h: 14 }))),
+      ...d.boxes.flatMap((b) => b.pins.flatMap((p) => pinTexts(b, p))),
     ];
     const clashes: string[] = [];
     texts.forEach((a, i) => texts.slice(i + 1).forEach((b) => overlaps(a, b, -1) && clashes.push(`${a.what} / ${b.what}`)));
@@ -148,19 +181,43 @@ describe.each(circuits)('the block diagram of %s', (name) => {
     expect(clashes).toEqual([]);
   });
 
-  it('wires a pin tied to another to that pin\'s wire', () => {
+  it("wires a pin tied to another to that pin's wire", () => {
     const ends = new Set(d.wires.flatMap((w) => points(w.path)).map((p) => `${p.x},${p.y}`));
     for (const b of d.boxes)
-      for (const p of b.pins.filter((x) => x.tied && x.side !== 'inside')) {
-        const to = b.pins.find((x) => x.name === p.tied && !x.tied)!;
-        // Right below it, after any other pins tied to it.
+      for (const p of b.pins.filter((x) => x.tied)) {
+        const to = tiedTo(b, p)!;
         const ties = b.pins.filter((x) => x.tied === p.tied && x.side === p.side).length;
-        expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeGreaterThan(0);
-        expect((p.y - to.y) % 30, `${b.part.title} ${p.name}`).toBe(0);
-        expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeLessThanOrEqual(30 * ties);
+        if (p.side === 'left' || p.side === 'right') {
+          // Right below it, after any other pins tied to it.
+          expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeGreaterThan(0);
+          expect((p.y - to.y) % 30, `${b.part.title} ${p.name}`).toBe(0);
+          expect(p.y - to.y, `${b.part.title} ${p.name}`).toBeLessThanOrEqual(30 * ties);
+          expect(d.dots.some((dot) => dot.y === to.y && Math.abs(dot.x - p.x) === 10)).toBe(true);
+        } else {
+          // Beside it along the top, its jog meeting the main pin's wire.
+          expect(Math.abs(p.x - to.x) % 30, `${b.part.title} ${p.name}`).toBe(0);
+          expect(d.dots.some((dot) => dot.x === to.x && Math.abs(dot.y - p.y) === 10)).toBe(true);
+        }
         expect(ends.has(`${p.x},${p.y}`)).toBe(true);
-        expect(d.dots.some((dot) => dot.y === to.y && Math.abs(dot.x - p.x) === 10)).toBe(true);
       }
+  });
+
+  it("writes no pin number over a wire", () => {
+    const segs = segments(d);
+    const hits: string[] = [];
+    for (const b of d.boxes)
+      for (const p of b.pins.filter((x) => x.number))
+        for (const r of pinTexts(b, p).filter((x) => x.what.endsWith('#')))
+          for (const s of segs) if (overlaps(r, { x: s.x1, y: s.y1, w: s.x2 - s.x1, h: s.y2 - s.y1 }, -1)) hits.push(`${b.part.title} ${p.name} under ${s.net}`);
+    expect(hits).toEqual([]);
+  });
+
+  it('hides unconnected pins but supplies and grounds when asked for connected pins only', async () => {
+    const compact = await layoutBlockDiagram(circuit(name), { connectedOnly: true });
+    for (const b of compact.boxes)
+      for (const p of b.pins.filter((x) => x.dim)) expect(['power', 'ground', 'pad'], `${b.part.title} ${p.name}`).toContain(p.role);
+    // Nothing else changes about what's drawn.
+    expect(compact.passives.length).toBe(d.passives.length);
   });
 
   it('passes no wire through a box', () => {

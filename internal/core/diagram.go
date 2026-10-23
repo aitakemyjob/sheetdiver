@@ -15,11 +15,14 @@ import (
 // (frontend/src/lib/blockDiagram.ts); every rule about what a part, pin
 // or passive is lives here.
 //
-// Parts and connectors are boxes with their pins on the sides: a pin
-// faces what it connects to (inputs left of a part, outputs right),
-// configuration pins with only a passive on them go along the bottom,
-// a pin on the same net as another pin of its part is written inside
-// the box ("EN→IN"), and ground pins are a label. Passives (resistors,
+// A part with a pin table is a generated symbol (symbol.go): a rectangle
+// with every pin of the table, supplies on top, grounds and pads along
+// the bottom, outputs on the right and the rest on the left, in number
+// order, unconnected pins dimmed. A block without one shows its
+// connected pins, each facing what it connects to (inputs left,
+// outputs right, a configuration pin with only a passive on it along
+// the bottom). A pin on the same net as the pin beside it is tied to
+// it (a jog to its wire); a ground pin goes to a ground symbol. Passives (resistors,
 // capacitors, inductors, diodes) aren't boxes: they hang off the net or
 // pin they serve. Ground isn't drawn.
 //
@@ -71,13 +74,12 @@ type DiagramPart struct {
 	Y      *float64     `json:"y,omitempty"`
 }
 
-// Pin sides on a box.
+// Pin sides on a symbol.
 const (
 	SideLeft   = "left"
 	SideRight  = "right"
+	SideTop    = "top"
 	SideBottom = "bottom"
-	// SideInside is a pin written inside the box, tied to another pin.
-	SideInside = "inside"
 )
 
 // DiagramPin is a pin of a symbol: its Number from the pin table (""
@@ -777,16 +779,57 @@ func columnsOf(ids []string, links []DiagramLink) map[string]int {
 	return col
 }
 
-// part builds a box: its pins on their sides.
+// part builds a symbol: from the entry's pin table when it has one,
+// else from its connected pins; then marks the pins a passive bridges.
 func (b *diagramBuilder) part(id string) DiagramPart {
 	e := b.ends[id]
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
 	var mine []ConnectionRow
 	for _, r := range b.rows {
 		if nodeOf(r) == id {
 			mine = append(mine, r)
 		}
 	}
+	var p DiagramPart
+	if e.entry != nil && len(b.pins[e.entry.ID]) > 0 {
+		p = b.fullSymbol(id, e, b.pins[e.entry.ID], mine)
+		tiePins(&p)
+	} else {
+		p = b.connectedSymbol(id, e, mine)
+	}
+	// Two pins with a passive across them and nothing else on their nets
+	// (LX1, LX2 and the inductor) are bridged: on a generated symbol
+	// where they are, on a box together, last on the right.
+	for _, q := range b.order {
+		nets := b.passives[q]
+		if len(nets) != 2 || !b.only(id, nets[0]) || !b.only(id, nets[1]) {
+			continue
+		}
+		var idx []int
+		for i, pin := range p.Pins {
+			if pin.Connected && pin.Tied == "" && containsFold(nets, pin.Net) {
+				idx = append(idx, i)
+			}
+		}
+		if len(idx) != 2 || p.Full && p.Pins[idx[0]].Side != p.Pins[idx[1]].Side {
+			continue
+		}
+		for _, i := range idx {
+			p.Pins[i].Bridged = true
+			if !p.Full {
+				p.Pins[i].Side = SideRight
+			}
+		}
+	}
+	if !p.Full {
+		sort.SliceStable(p.Pins, func(i, j int) bool { return !p.Pins[i].Bridged && p.Pins[j].Bridged })
+	}
+	return p
+}
+
+// connectedSymbol builds the symbol of a block, or of a part without a
+// pin table: its connected pins only, each on the side it faces.
+func (b *diagramBuilder) connectedSymbol(id string, e *end, mine []ConnectionRow) DiagramPart {
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Pins: []DiagramPin{}}
 	// One pin per net gets the wire, the main one (IN over EN); the others
 	// are written tied to it. Pins stay in the order they were entered.
 	type wiredPin struct {
@@ -819,32 +862,31 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 		case wired[key].name != name || drawn[key]:
 			// A second pin of the same name on the net (a connector's two
 			// VBUS pins) is tied to the first, like any other.
-			p.Pins = append(p.Pins, connectedPin(r, name, SideInside, wired[key].name, false))
+			p.Pins = append(p.Pins, connectedPin(r, name, b.side(e, r), wired[key].name, false))
 		default:
 			drawn[key] = true
 			p.Pins = append(p.Pins, connectedPin(r, name, b.side(e, r), "", false))
 		}
 	}
-	// Two pins with a passive across them and nothing else on their nets
-	// (LX1, LX2 and the inductor) sit together, last on the right.
-	for _, q := range b.order {
-		nets := b.passives[q]
-		if len(nets) != 2 || !b.only(id, nets[0]) || !b.only(id, nets[1]) {
+	// A tied pin sits on its main pin's side, next to it (the drawing puts
+	// it right after); one whose main pin is along the bottom stays a pin
+	// of its own.
+	for i := range p.Pins {
+		pin := &p.Pins[i]
+		if pin.Tied == "" {
 			continue
 		}
-		var idx []int
-		for i, pin := range p.Pins {
-			if pin.Side != SideInside && containsFold(nets, pin.Net) {
-				idx = append(idx, i)
-			}
-		}
-		if len(idx) == 2 {
-			for _, i := range idx {
-				p.Pins[i].Side, p.Pins[i].Bridged = SideRight, true
+		for _, m := range p.Pins {
+			if m.Tied == "" && m.Name == pin.Tied && strings.EqualFold(m.Net, pin.Net) {
+				if m.Side == SideLeft || m.Side == SideRight {
+					pin.Side = m.Side
+				} else {
+					pin.Tied = ""
+				}
+				break
 			}
 		}
 	}
-	sort.SliceStable(p.Pins, func(i, j int) bool { return !p.Pins[i].Bridged && p.Pins[j].Bridged })
 	return p
 }
 
@@ -969,7 +1011,7 @@ func (b *diagramBuilder) nets(parts []DiagramPart) []DiagramNet {
 	groupsOf := map[string]int{} // net (lower case) → how many groups it's in
 	for _, p := range parts {
 		for _, pin := range p.Pins {
-			if pin.Side == SideInside || pin.Ground {
+			if !pin.Connected || pin.Ground || pin.Tied != "" {
 				continue
 			}
 			k := piece{strings.ToLower(pin.Net), strings.ToLower(p.Group)}
@@ -1031,7 +1073,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 				continue
 			}
 			for _, pin := range p.Pins {
-				if pin.Side != SideInside && strings.EqualFold(pin.Net, net) {
+				if pin.Connected && pin.Tied == "" && strings.EqualFold(pin.Net, net) {
 					return pin, true
 				}
 			}
@@ -1183,6 +1225,9 @@ func orderPins(parts []DiagramPart, nets []DiagramNet) {
 		return 2
 	}
 	for i := range parts {
+		if parts[i].Full {
+			continue // a generated symbol keeps its number order
+		}
 		sort.SliceStable(parts[i].Pins, func(a, b int) bool { return rank(parts[i].Pins[a]) < rank(parts[i].Pins[b]) })
 	}
 }
