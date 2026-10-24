@@ -262,6 +262,10 @@ type AssignChange struct {
 	Group    *string `json:"group,omitempty"`
 	Supports *string `json:"supports,omitempty"`
 	Cluster  *string `json:"cluster,omitempty"`
+	// Column and Row ask for a place in its group: the column from the
+	// left and the place in it from the top, from 0; negative clears.
+	Column *int `json:"column,omitempty"`
+	Row    *int `json:"row,omitempty"`
 }
 
 // NetChange sets a net's kind, bus, I/O voltage or notes (unset fields
@@ -305,6 +309,8 @@ func (s *Service) ChangeConnections(ctx context.Context, project string, ch Conn
 	if err != nil {
 		return nil, err
 	}
+	// What the app drew is out of date until it draws again.
+	s.forgetDrawn(p.Name)
 	problems := []string{}
 	for _, b := range ch.Blocks {
 		if b.Remove {
@@ -564,7 +570,7 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		a := library.Assignment{Node: node, Source: source}
 		for _, old := range existing {
 			if old.Node == node {
-				a.Group, a.Supports, a.Cluster = old.Group, old.Supports, old.Cluster
+				a.Group, a.Supports, a.Cluster, a.Column, a.Row = old.Group, old.Supports, old.Cluster, old.Column, old.Row
 			}
 		}
 		if ac.Group != nil {
@@ -572,6 +578,12 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		}
 		if ac.Cluster != nil {
 			a.Cluster = strings.TrimSpace(*ac.Cluster)
+		}
+		if ac.Column != nil {
+			a.Column = ac.Column
+		}
+		if ac.Row != nil {
+			a.Row = ac.Row
 		}
 		if ac.Supports != nil {
 			a.Supports = ""

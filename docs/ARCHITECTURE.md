@@ -147,6 +147,12 @@ with a port on the frame for each net reaching it from outside.
 Everything is on a 10 px grid (`GRID`): symbol sizes, port offsets and
 ELK's spacings are multiples of it, and ELK's result is snapped to it,
 which keeps wires straight since points that shared a line still do.
+A part asked for a column and row (`want`) is given them through ELK's
+interactive layering and crossing minimisation: `lib/diagram/cells.ts`
+turns the first layout's columns and the places asked for into the
+coordinates the second pass reads, and the drawn layout's columns back
+into each node's cell, which the app reports (`diagram.drawn`) for
+`get_connections`.
 Groups are placed by `lib/diagram/placement.ts`: frames in columns in
 power-flow order, a group stacked under the one it names as `below`.
 `lib/symbols.ts` holds the standard

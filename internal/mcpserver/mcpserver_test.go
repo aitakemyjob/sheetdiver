@@ -483,6 +483,29 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Load", "below": "Power"}}}, "group Load: U2 SD1235, C9, R9", "[drawn below Power]")
 	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Power", "below": "Load"}}}, "group Power: below Load, which is (through others) below it; it's drawn in a column of its own", "[drawn below Power]")
 	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9) [drawn below Power]")
+	// A part asked for a column and row: echoed, shown as not drawn yet,
+	// then, once the app reports where it drew things, column by column
+	// with whether the place was kept.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "U2", "column": 1, "row": 0}, {"part": "R9", "column": 0}}},
+		"U2: group Load; asked for column 1, row 0", "R9: group Load (its part's); asked for column 0;")
+	h.must("get_connections", map[string]any{}, "## Placement", "not drawn since the last change", "U2 SD1235 asked for column 1, row 0\n", "R9 asked for column 0\n")
+	ids := map[string]string{}
+	d, _ := h.core.ProjectDetail(context.Background(), "board")
+	for _, p := range d.Connections.Diagram.Parts {
+		ids[strings.Fields(p.Title)[0]] = p.ID
+	}
+	for _, p := range d.Connections.Diagram.Passives {
+		ids[p.Label] = p.ID
+	}
+	h.core.SetDrawn(core.Drawn{Project: "board", Cells: []core.DrawnCell{
+		{Node: ids["U1"], Group: "Power", Column: 0, Row: 0}, {Node: ids["Battery"], Group: "Power", Column: 0, Row: 1},
+		{Node: ids["U2"], Group: "Load", Column: 1, Row: 0}, {Node: ids["C9"], Group: "Load", Column: 1, Row: 1}, {Node: ids["R9"], Group: "Load", Column: 2, Row: 0},
+	}})
+	h.must("get_connections", map[string]any{}, "Power: column 0: U1 SD1234, Battery\n", "Load: column 0:  | column 1: U2 SD1235, C9 | column 2: R9\n",
+		"U2 SD1235 asked for column 1, row 0: drawn there", "R9 asked for column 0: drawn in column 2, row 0 (the wiring didn't allow it)")
+	// A change makes the drawing out of date until the app draws again.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "column": -1}}}, "R9: group Load (its part's); supports")
+	h.must("get_connections", map[string]any{}, "not drawn since the last change")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

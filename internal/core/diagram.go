@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"sort"
@@ -77,10 +78,12 @@ type DiagramPart struct {
 	Group  string `json:"group,omitempty"`
 	// Cluster is the subgroup it was put in: the parts of a group with
 	// the same cluster are laid out and wired together as one unit.
-	Cluster string       `json:"cluster,omitempty"`
-	Pins    []DiagramPin `json:"pins"`
-	X       *float64     `json:"x,omitempty"`
-	Y       *float64     `json:"y,omitempty"`
+	Cluster string `json:"cluster,omitempty"`
+	// Want is where in its group it's asked to be drawn.
+	Want *Cell        `json:"want,omitempty"`
+	Pins []DiagramPin `json:"pins"`
+	X    *float64     `json:"x,omitempty"`
+	Y    *float64     `json:"y,omitempty"`
 }
 
 // Pin sides on a symbol.
@@ -175,6 +178,8 @@ type DiagramPassive struct {
 	Group    string   `json:"group,omitempty"`
 	// Cluster is the subgroup it was put in (see DiagramPart.Cluster).
 	Cluster string `json:"cluster,omitempty"`
+	// Want is where in its group it's asked to be drawn.
+	Want *Cell `json:"want,omitempty"`
 	// Shape is the standard symbol it's drawn with (resistor, capacitor,
 	// led…); Ends are its terminals at Nets[0]'s end and the far end
 	// (["anode", "cathode"], ["1", "2"], ["+", "-"]).
@@ -182,6 +187,36 @@ type DiagramPassive struct {
 	Ends  []string `json:"ends"`
 	X     *float64 `json:"x,omitempty"`
 	Y     *float64 `json:"y,omitempty"`
+}
+
+// Cell is a place in a group's grid of parts: the column from the left
+// and the place in it from the top, from 0; either may be unset.
+type Cell struct {
+	Column *int `json:"column,omitempty"`
+	Row    *int `json:"row,omitempty"`
+}
+
+// String says a cell: "column 1, row 0", "column 2", "row 1"; "" for none.
+func (c *Cell) String() string {
+	if c == nil {
+		return ""
+	}
+	var parts []string
+	if c.Column != nil {
+		parts = append(parts, fmt.Sprintf("column %d", *c.Column))
+	}
+	if c.Row != nil {
+		parts = append(parts, fmt.Sprintf("row %d", *c.Row))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// cellOf is where an assignment asks for a node to be drawn, if anywhere.
+func cellOf(a library.Assignment) *Cell {
+	if a.Column == nil && a.Row == nil {
+		return nil
+	}
+	return &Cell{Column: a.Column, Row: a.Row}
 }
 
 // DiagramLink says two parts share nets: Kind "power" (From feeds To) or
@@ -906,7 +941,7 @@ func (b *diagramBuilder) part(id string) DiagramPart {
 // connectedSymbol builds the symbol of a block, or of a part without a
 // pin table: its connected pins only, each on the side it faces.
 func (b *diagramBuilder) connectedSymbol(id string, e *end, mine []ConnectionRow) DiagramPart {
-	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Cluster: b.assignment(id).Cluster, Pins: []DiagramPin{}}
+	p := DiagramPart{ID: id, Title: e.title, MPN: e.mpn, Kind: e.kind, Shape: "ic", Column: b.columns[id], Group: b.groupOf[id], Cluster: b.assignment(id).Cluster, Want: cellOf(b.assignment(id)), Pins: []DiagramPin{}}
 	// One pin per net gets the wire, the main one (IN over EN); the others
 	// are written tied to it. Pins stay in the order they were entered.
 	type wiredPin struct {
@@ -1171,7 +1206,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		}
 		e := b.ends[id]
 		serves := b.supports[id]
-		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: passiveShape(e.kind), Nets: nets, Supports: serves, Guessed: b.guessed[id], Cluster: b.assignment(id).Cluster}
+		p := DiagramPassive{ID: id, Label: e.label, Value: e.value, Kind: e.kind, Shape: passiveShape(e.kind), Nets: nets, Supports: serves, Guessed: b.guessed[id], Cluster: b.assignment(id).Cluster, Want: cellOf(b.assignment(id))}
 		// Across two pins of one box.
 		if len(nets) == 2 {
 			for _, part := range parts {
@@ -1239,7 +1274,7 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			p.Mount, p.Part = MountBelow, n.Parts[0]
 		}
 		p.Ends = b.passiveEnds(id, p)
-		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports + "|" + strings.ToLower(p.Cluster) + "|" + strings.Join(p.Ends, "|")
+		key := strings.ToLower(strings.Join(p.Nets, "|")) + "|" + p.Value + "|" + p.Kind + "|" + p.Part + "|" + p.Supports + "|" + strings.ToLower(p.Cluster) + "|" + p.Want.String() + "|" + strings.Join(p.Ends, "|")
 		if i, ok := merged[key]; ok {
 			out[i].ID += "," + p.ID
 			out[i].Label += "," + p.Label

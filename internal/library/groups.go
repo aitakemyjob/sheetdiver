@@ -33,7 +33,11 @@ type Assignment struct {
 	Group    string `json:"group,omitempty"`
 	Supports string `json:"supports,omitempty"`
 	Cluster  string `json:"cluster,omitempty"`
-	Source   string `json:"source"`
+	// Column and Row are where in its group it's asked to be drawn: the
+	// column from the left and the place in it from the top, from 0.
+	Column *int   `json:"column,omitempty"`
+	Row    *int   `json:"row,omitempty"`
+	Source string `json:"source"`
 }
 
 // Groups lists a project's groups by name.
@@ -100,7 +104,7 @@ func (s *Store) DeleteGroup(ctx context.Context, projectID int64, name string) e
 
 // Assignments lists where a project's nodes belong, by node.
 func (s *Store) Assignments(ctx context.Context, projectID int64) ([]Assignment, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT a.node, IFNULL(g.name, ''), a.supports, a.cluster, a.source
+	rows, err := s.db.QueryContext(ctx, `SELECT a.node, IFNULL(g.name, ''), a.supports, a.cluster, a.col, a.row, a.source
 		FROM project_assignments a LEFT JOIN project_groups g ON g.id = a.group_id WHERE a.project_id = ? ORDER BY a.node`, projectID)
 	if err != nil {
 		return nil, err
@@ -109,9 +113,11 @@ func (s *Store) Assignments(ctx context.Context, projectID int64) ([]Assignment,
 	out := []Assignment{}
 	for rows.Next() {
 		var a Assignment
-		if err := rows.Scan(&a.Node, &a.Group, &a.Supports, &a.Cluster, &a.Source); err != nil {
+		var col, row sql.NullInt64
+		if err := rows.Scan(&a.Node, &a.Group, &a.Supports, &a.Cluster, &col, &row, &a.Source); err != nil {
 			return nil, err
 		}
+		a.Column, a.Row = intPtr(col), intPtr(row)
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -131,7 +137,13 @@ func (s *Store) Assign(ctx context.Context, projectID int64, a Assignment) error
 	if a.Source == "" {
 		a.Source = SourceUser
 	}
-	if a.Group == "" && a.Supports == "" && a.Cluster == "" {
+	if a.Column != nil && *a.Column < 0 {
+		a.Column = nil
+	}
+	if a.Row != nil && *a.Row < 0 {
+		a.Row = nil
+	}
+	if a.Group == "" && a.Supports == "" && a.Cluster == "" && a.Column == nil && a.Row == nil {
 		_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND node = ?`, projectID, a.Node)
 		s.touch(ctx, projectID)
 		return err
@@ -144,9 +156,9 @@ func (s *Store) Assign(ctx context.Context, projectID int64, a Assignment) error
 		}
 		group = sql.NullInt64{Int64: id, Valid: true}
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO project_assignments (project_id, node, group_id, supports, cluster, source) VALUES (?,?,?,?,?,?)
-		ON CONFLICT(project_id, node) DO UPDATE SET group_id = excluded.group_id, supports = excluded.supports, cluster = excluded.cluster, source = excluded.source`,
-		projectID, a.Node, group, a.Supports, a.Cluster, a.Source)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO project_assignments (project_id, node, group_id, supports, cluster, col, row, source) VALUES (?,?,?,?,?,?,?,?)
+		ON CONFLICT(project_id, node) DO UPDATE SET group_id = excluded.group_id, supports = excluded.supports, cluster = excluded.cluster, col = excluded.col, row = excluded.row, source = excluded.source`,
+		projectID, a.Node, group, a.Supports, a.Cluster, nullInt(a.Column), nullInt(a.Row), a.Source)
 	if err != nil {
 		return err
 	}
@@ -183,6 +195,23 @@ func (s *Store) forgetNode(ctx context.Context, projectID int64, node string) er
 // pruneAssignments drops assignments left with neither a group nor
 // anything they support.
 func (s *Store) pruneAssignments(ctx context.Context, projectID int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND group_id IS NULL AND supports = '' AND cluster = ''`, projectID)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM project_assignments WHERE project_id = ? AND group_id IS NULL AND supports = '' AND cluster = '' AND col IS NULL AND row IS NULL`, projectID)
 	return err
+}
+
+// nullInt stores an optional number.
+func nullInt(v *int) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
+// intPtr reads an optional number.
+func intPtr(n sql.NullInt64) *int {
+	if !n.Valid {
+		return nil
+	}
+	v := int(n.Int64)
+	return &v
 }

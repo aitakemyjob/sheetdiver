@@ -158,6 +158,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
         if (!live) return;
         setDrawing(r);
         setProblem(null);
+        // Where each part went, so the agent can check its placement.
+        api.reportDrawn({ project: d.project.name, cells: r.cells }).catch(() => {});
       })
       .catch((e: unknown) => {
         if (!live) return;

@@ -64,6 +64,16 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Agents place parts by column and row.** `assign` takes a `column`
+  and `row` for a part or passive: its place in its group's grid of
+  parts, from 0 at the left and the top. The layout keeps it there
+  where the wiring allows (a part can't share a column with one it's
+  wired to directly, which must stay on its side), using ELK's
+  interactive layering. The app reports where it drew each part, and
+  `get_connections` shows each group column by column, with each place
+  asked for and whether it was kept ("drawn there", or where it went
+  instead); after a change it says it hasn't been drawn yet. Pixel
+  `positions` stay for what the app saves when a part is dragged.
 - **The block diagram sits on a 10 px grid.** Every pin end, wire
   corner, passive end, ground symbol and frame corner is on it, so pins
   that face each other line up and their wire is straight, and parallel

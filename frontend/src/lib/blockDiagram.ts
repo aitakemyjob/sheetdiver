@@ -31,6 +31,7 @@
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import { hang, type FarEnd } from './diagram/hanging';
+import { cells as cellsOf, hints, type Placed, type Want } from './diagram/cells';
 import { placeFrames } from './diagram/placement';
 import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
@@ -130,6 +131,14 @@ export interface Cluster extends Rect {
   name: string;
 }
 
+/** A part or passive's place in its group's grid: the column from the left, the place in it from the top. */
+export interface DrawnCell {
+  node: string;
+  group?: string;
+  column: number;
+  row: number;
+}
+
 /** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
 export interface Flag extends Pt {
   text: string;
@@ -151,6 +160,8 @@ export interface BlockDrawing {
   frames: Frame[];
   /** Subgroup frames, over the group frames. */
   clusters: Cluster[];
+  /** Where each part and passive is in its group's grid of parts, as drawn. */
+  cells: DrawnCell[];
   width: number;
   height: number;
 }
@@ -193,7 +204,7 @@ export function groupDiagram(d: Diagram, group: string): Diagram {
 }
 
 /** An empty drawing. */
-const empty = (): BlockDrawing => ({ boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], clusters: [], width: 0, height: 0 });
+const empty = (): BlockDrawing => ({ boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], clusters: [], cells: [], width: 0, height: 0 });
 
 /** Moves an SVG path of absolute M, L, H and V commands. */
 export function movePath(path: string, dx: number, dy: number): string {
@@ -288,6 +299,7 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     out.flags.push(...local.flags);
     out.dots.push(...local.dots);
     out.clusters.push(...local.clusters);
+    out.cells.push(...local.cells);
     out.width = Math.max(out.width, x + f.w);
     out.height = Math.max(out.height, y + f.h);
   });
@@ -528,6 +540,11 @@ const option = {
   interactive: {
     'elk.interactive': 'true',
     'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
+  },
+  /** With places asked for: the columns follow the positions too. */
+  cells: {
+    'elk.layered.layering.strategy': 'INTERACTIVE',
+    'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
   },
 };
 
@@ -771,18 +788,32 @@ async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Pro
   const hint = new Map<string, Pt>();
   for (const p of d.parts) if (p.x !== undefined && p.y !== undefined) hint.set(`b:${p.id}`, { x: p.x, y: p.y });
   for (const q of d.passives) if (q.x !== undefined && q.y !== undefined) hint.set(`q:${q.id}`, { x: q.x, y: q.y });
-  // A subgroup goes where any of its members was dragged.
-  for (const u of units) for (const id of u.members) if (hint.has(id) && !hint.has(u.id)) hint.set(u.id, hint.get(id)!);
-  if (!hint.size) return drawing(first, r);
-  const was = new Map((r.children ?? []).map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]));
-  const again = graph(d, boxes, units);
-  for (const n of again.root.children ?? []) {
-    const at = hint.get(n.id) ?? was.get(n.id);
-    if (!at) continue;
-    [n.x, n.y] = [at.x, at.y];
-    n.layoutOptions = { ...n.layoutOptions, 'elk.position': `(${at.x},${at.y})` };
+  // Places asked for (a column, a row): a subgroup takes its first
+  // member's, and goes where any of its members was dragged.
+  const wants = new Map<string, Want>();
+  const want = (id: string, w?: { column?: number; row?: number }) => w && (w.column !== undefined || w.row !== undefined) && wants.set(id, w);
+  for (const p of d.parts) want(`b:${p.id}`, p.want);
+  for (const q of d.passives) want(`q:${q.id}`, q.want);
+  for (const u of units) {
+    for (const id of u.members) if (hint.has(id) && !hint.has(u.id)) hint.set(u.id, hint.get(id)!);
+    const first = [...u.members].find((id) => wants.has(id));
+    if (first) wants.set(u.id, wants.get(first)!);
   }
-  again.root.layoutOptions = { ...option.layered, ...option.interactive };
+  if (!hint.size && !wants.size) return drawing(first, r);
+  const placed: Placed[] = (r.children ?? []).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, w: n.width ?? 0, h: n.height ?? 0 }));
+  const again = graph(d, boxes, units);
+  // Dragged positions only order a part across the flow; asked-for places
+  // also pick its column (lib/diagram/cells.ts), which takes ELK's
+  // interactive layering, and cycle breaking so a column before what
+  // drives it can be kept.
+  const at = wants.size ? hints(placed, wants, hint) : new Map(placed.map((p) => [p.id, hint.get(p.id) ?? { x: p.x, y: p.y }]));
+  for (const n of again.root.children ?? []) {
+    const p = at.get(n.id);
+    if (!p) continue;
+    [n.x, n.y] = [p.x, p.y];
+    n.layoutOptions = { ...n.layoutOptions, 'elk.position': `(${p.x},${p.y})` };
+  }
+  again.root.layoutOptions = { ...option.layered, ...option.interactive, ...(wants.size ? option.cells : {}) };
   return drawing(again, await engine.layout(again.root));
 }
 
@@ -924,6 +955,24 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
     ...out.clusters.map((c) => ({ x: c.x + c.w, y: c.y + c.h })),
     ...out.wires.map(wireExtent),
   ];
+  // Each part's and passive's place in the group's grid, as drawn: a
+  // subgroup's members take its place.
+  const grid = cellsOf((r.children ?? []).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, w: n.width ?? 0, h: n.height ?? 0 })));
+  const groupOf = new Map([...built.d.parts.map((p) => [p.id, p.group] as const), ...built.d.passives.map((q) => [q.id, q.group] as const)]);
+  for (const [id, cell] of grid) {
+    const unit = built.units.find((u) => u.id === id);
+    const members = unit ? [...unit.members] : [id];
+    for (const m of members) {
+      if (!m.startsWith('b:') && !m.startsWith('q:')) continue;
+      const node = m.slice(2);
+      out.cells.push({ node, group: groupOf.get(node), ...cell });
+    }
+  }
+  // A passive under a part's bottom pin is in that part's place.
+  for (const u of built.below) {
+    const cell = grid.get(`b:${u.box.part.id}`);
+    if (cell) out.cells.push({ node: u.passive.id, group: groupOf.get(u.passive.id), ...cell });
+  }
   out.width = Math.max(out.width, ...extents.map((e) => e.x + PAD));
   out.height = Math.max(out.height, ...extents.map((e) => e.y + PAD));
   return out;

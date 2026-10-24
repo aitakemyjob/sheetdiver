@@ -495,6 +495,8 @@ export interface DiagramPart {
   group?: string;
   /** The subgroup it's wired up in with the group's other parts of that name. */
   cluster?: string;
+  /** Where in its group it's asked to be drawn. */
+  want?: { column?: number; row?: number };
   pins: DiagramPin[];
   /** Where it was dragged to. */
   x?: number;
@@ -518,6 +520,8 @@ export interface DiagramPassive {
   group?: string;
   /** The subgroup it's wired up in (see DiagramPart.cluster). */
   cluster?: string;
+  /** Where in its group it's asked to be drawn. */
+  want?: { column?: number; row?: number };
   /** The standard symbol it's drawn with, and its terminals at nets[0]'s end and the far end. */
   shape: PassiveShape | string;
   ends: string[];
@@ -634,7 +638,7 @@ export interface ConnectionsChange {
   connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
   groups?: { name: string; description?: string; notes?: string; below?: string; remove?: boolean }[];
   /** Unset fields are kept; "" clears one. */
-  assign?: { part: string; group?: string; supports?: string; cluster?: string }[];
+  assign?: { part: string; group?: string; supports?: string; cluster?: string; column?: number; row?: number }[];
   positions?: { node: string; x: number; y: number }[];
   resetLayout?: boolean;
 }

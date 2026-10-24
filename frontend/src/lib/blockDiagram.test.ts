@@ -541,6 +541,41 @@ describe('subgroups', () => {
   });
 });
 
+describe('parts asked for a column and a row', () => {
+  const sketch = () => structuredClone(circuit('USB-C to 3V3'));
+  const cellOf = (d: BlockDrawing, dg: Diagram, title: string) => {
+    const id = dg.parts.find((p) => p.title.startsWith(title))!.id;
+    return d.cells.find((c) => c.node === id)!;
+  };
+
+  it('reports where every part and passive was drawn, column by column in power-flow order', async () => {
+    const dg = sketch();
+    const d = await layoutBlockDiagram(dg);
+    expect([cellOf(d, dg, 'J1'), cellOf(d, dg, 'U1'), cellOf(d, dg, 'U2')].map((c) => c.column)).toEqual([0, 1, 2]);
+    expect(new Set(d.cells.map((c) => c.node))).toEqual(new Set([...dg.parts.map((p) => p.id), ...dg.passives.map((q) => q.id)]));
+  });
+
+  it('draws a part in the column and row it asks for when the wiring allows', async () => {
+    const dg = sketch();
+    // U2 in the first column, under the connector (nothing joins them directly).
+    dg.parts.find((p) => p.title.startsWith('U2'))!.want = { column: 0, row: 1 };
+    const d = await layoutBlockDiagram(dg);
+    expect(cellOf(d, dg, 'U2')).toMatchObject({ column: 0, row: 1 });
+    expect(cellOf(d, dg, 'J1')).toMatchObject({ column: 0, row: 0 });
+    // Still on the grid, nothing overlapping.
+    for (const b of d.boxes) expect([b.x % GRID, b.y % GRID]).toEqual([0, 0]);
+    d.boxes.forEach((a, i) => d.boxes.slice(i + 1).forEach((b) => expect(overlaps(a, b), `${a.part.title} / ${b.part.title}`).toBe(false)));
+  });
+
+  it("keeps a part after what drives it when it asks to share that part's column", async () => {
+    const dg = sketch();
+    // J1 drives U1 directly: they can't share a column, so U1 stays right of it.
+    dg.parts.find((p) => p.title.startsWith('U1'))!.want = { column: 0 };
+    const d = await layoutBlockDiagram(dg);
+    expect(cellOf(d, dg, 'U1').column).toBeGreaterThan(cellOf(d, dg, 'J1').column);
+  });
+});
+
 describe('groups drawn below others', () => {
   it('stacks a group under the one it names, in its column, without overlapping', async () => {
     const d = await layoutBlockDiagram(circuit('U545 USB-C board'));

@@ -17,6 +17,8 @@ export const api = {
   state: () => call<AppState>('app.state'),
   saveSettings: (s: Settings) => call<void>('settings.update', s),
   activity: () => call<Activity[]>('activity.list'),
+  /** Where the app drew a project's parts, for the agent (get_connections). */
+  reportDrawn: (d: { project: string; cells: { node: string; group?: string; column: number; row: number }[] }) => call<void>('diagram.drawn', d),
   uiContext: (c: { view: string; part?: string; datasheetId?: number; page?: number; figureId?: number; project?: string; selection?: string; problem?: string }) => call<void>('ui.context', c),
   pickPDFs: () => call<{ paths: string[] | null }>('files.pickPDFs'),
 

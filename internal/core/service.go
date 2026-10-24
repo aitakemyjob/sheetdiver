@@ -6,6 +6,7 @@ package core
 
 import (
 	"path/filepath"
+	"strings"
 
 	"errors"
 	"sync"
@@ -245,6 +246,52 @@ type session struct {
 	seq      int
 	activity []Activity
 	ctx      UIContext
+	// drawn is where the app last drew each project's parts, by project
+	// (lower case); a change to the project's connections forgets it.
+	drawn map[string]Drawn
+}
+
+// DrawnCell is where the app drew a part or passive: its group, the
+// column from the left and the place in it from the top, from 0.
+type DrawnCell struct {
+	Node   string `json:"node"`
+	Group  string `json:"group,omitempty"`
+	Column int    `json:"column"`
+	Row    int    `json:"row"`
+}
+
+// Drawn is the app's report of a project's block diagram as drawn.
+type Drawn struct {
+	Project string      `json:"project"`
+	Cells   []DrawnCell `json:"cells"`
+	At      time.Time   `json:"at"`
+}
+
+// SetDrawn records where the app drew a project's parts.
+func (s *Service) SetDrawn(d Drawn) {
+	d.At = time.Now()
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	if s.session.drawn == nil {
+		s.session.drawn = map[string]Drawn{}
+	}
+	s.session.drawn[strings.ToLower(d.Project)] = d
+}
+
+// DrawnLayout is where the app last drew a project's parts, if it has
+// since the project's connections last changed.
+func (s *Service) DrawnLayout(project string) (Drawn, bool) {
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	d, ok := s.session.drawn[strings.ToLower(project)]
+	return d, ok
+}
+
+// forgetDrawn drops a project's drawn layout: it's out of date.
+func (s *Service) forgetDrawn(project string) {
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	delete(s.session.drawn, strings.ToLower(project))
 }
 
 // maxActivity bounds the activity log.
