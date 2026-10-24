@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, Eye, EyeOff, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { api, saveText } from '../../lib/api';
-import { layoutBlockDiagram, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, snap, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
 import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
@@ -230,7 +230,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       setView((v) => ({ k: v?.k ?? 1, x: p.vx + e.clientX - p.x, y: p.vy + e.clientY - p.y }));
     } else if (drag) {
       const p = at(e);
-      setDrag({ ...drag, dx: p.x - drag.from.x, dy: p.y - drag.from.y });
+      // In grid steps: what's dragged stays on the grid, and so does where it's saved.
+      setDrag({ ...drag, dx: snap(p.x - drag.from.x), dy: snap(p.y - drag.from.y) });
     }
   };
   const drop = () => {
@@ -238,7 +239,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     if (!drag) return;
     setDrag(null);
     if (!drag.dx && !drag.dy) return;
-    const pos = { x: Math.max(0, Math.round(drag.at.x + drag.dx - drag.origin.x)), y: Math.max(0, Math.round(drag.at.y + drag.dy - drag.origin.y)) };
+    const pos = { x: Math.max(0, snap(drag.at.x + drag.dx - drag.origin.x)), y: Math.max(0, snap(drag.at.y + drag.dy - drag.origin.y)) };
     change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
   };
   const open = (b: Box) => {

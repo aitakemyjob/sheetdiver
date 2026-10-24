@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
-import { labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
+import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
@@ -75,6 +75,20 @@ describe.each(circuits)('the block diagram of %s', (name) => {
   it('draws every part and passive once', async () => {
     expect(d.boxes.map((b) => b.part.id).sort()).toEqual(circuit(name).parts.map((p) => p.id).sort());
     expect(d.passives.map((p) => p.passive.id).sort()).toEqual(circuit(name).passives.map((p) => p.id).sort());
+  });
+
+  it('puts every pin end, wire corner, passive end, ground and frame corner on the grid', () => {
+    const off: string[] = [];
+    const on = (what: string, ...vs: number[]) => vs.forEach((v) => Math.abs(v - Math.round(v / GRID) * GRID) > 1e-6 && off.push(`${what} ${v}`));
+    for (const b of d.boxes) {
+      on(`${b.part.title} at`, b.x, b.y, b.w, b.h);
+      for (const p of b.pins) on(`${b.part.title} ${p.name}`, p.x, p.y);
+    }
+    for (const p of d.passives) for (const e of p.ends) on(`${p.passive.label} end`, e.x, e.y);
+    for (const w of d.wires) for (const pt of points(w.path)) on(`${w.net} wire`, pt.x, pt.y);
+    for (const g of d.grounds) on('ground', g.x, g.y);
+    for (const f of [...d.frames, ...d.clusters]) on('frame', f.x, f.y, f.w, f.h);
+    expect(off.slice(0, 10)).toEqual([]);
   });
 
   it('never overlaps', () => {
@@ -409,7 +423,7 @@ describe("the tester's board", () => {
 
   it("doesn't stretch a box with a long description", () => {
     expect(passive('C1,C2').passive.value).toBe('10µF');
-    expect(passive('C1,C2').w).toBeLessThan(80);
+    expect(passive('C1,C2').w).toBeLessThanOrEqual(80); // its label's width, up to the grid
   });
 
   it('puts a passive dragged below the others beside it last', async () => {

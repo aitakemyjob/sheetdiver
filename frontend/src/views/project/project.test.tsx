@@ -49,11 +49,13 @@ describe('project block diagram, pins and connections', () => {
     const svg = await screen.findByRole('img', { name: /Block diagram/ });
     const u2 = svg.querySelector('[data-part="U2 SD1235"]')!;
     fireEvent.pointerDown(u2, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerMove(svg, { clientX: 60, clientY: 90, pointerId: 1 });
+    // Moved 53 by 77: it goes in grid steps, so it's saved on the grid.
+    fireEvent.pointerMove(svg, { clientX: 63, clientY: 87, pointerId: 1 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
     await waitFor(() => expect(b.callsTo('connections.change').length).toBe(1));
     const call = b.callsTo('connections.change')[0] as { project: string; positions: { node: string; x: number; y: number }[] };
     expect(call.project).toBe('Sensor board');
+    expect([call.positions[0].x % 10, call.positions[0].y % 10]).toEqual([0, 0]);
     expect(call.positions[0].node).toBe(sensor().connections.diagram.parts.find((p) => p.title === 'U2 SD1235')!.id);
     fireEvent.click(screen.getByRole('button', { name: /Auto layout/ }));
     await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ resetLayout: true }));

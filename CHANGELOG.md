@@ -64,6 +64,13 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **The block diagram sits on a 10 px grid.** Every pin end, wire
+  corner, passive end, ground symbol and frame corner is on it, so pins
+  that face each other line up and their wire is straight, and parallel
+  wires keep even spacing. A dragged part moves in grid steps and is
+  saved on the grid. Symbol sizes are multiples of the grid (a pin
+  every 30, passives 40 long), and a part across two pins (an inductor
+  between LX1 and LX2) now has its ends level with them.
 - **Groups can stack.** A group can be drawn below another, in that
   group's column (`below` in `set_connections`' `groups`, or the "below"
   picker on each group in the Connections tab): Clock under MCU, Debug

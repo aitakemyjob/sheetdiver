@@ -144,6 +144,9 @@ to it, go on a bus named after the net in a faint frame, on the side of
 the part their pin is on; parts named into a subgroup (`cluster` on an
 assignment) are laid out by ELK on their own, everything inside wired,
 with a port on the frame for each net reaching it from outside.
+Everything is on a 10 px grid (`GRID`): symbol sizes, port offsets and
+ELK's spacings are multiples of it, and ELK's result is snapped to it,
+which keeps wires straight since points that shared a line still do.
 Groups are placed by `lib/diagram/placement.ts`: frames in columns in
 power-flow order, a group stacked under the one it names as `below`.
 `lib/symbols.ts` holds the standard

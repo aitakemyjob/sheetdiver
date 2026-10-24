@@ -36,16 +36,23 @@ import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
 
+/** Everything sits on a grid this fine: sizes, pin ends, wire corners, frames. */
+export const GRID = 10;
 export const PITCH = 30; // between pins
-export const TOP = 25; // first pin below a body's top
+export const TOP = 30; // first pin below a body's top
 export const PIN_LEN = 20; // a pin line, from the body to where its wire attaches
 export const BOX_W = 200;
 export const PAD = 40;
 const TITLE = 30; // a box's title above it
 const GROUND = 16; // a ground symbol's height, with its stub
-const SLOT = 84; // a bottom pin with a passive hanging under it
+const SLOT = 90; // a bottom pin with a passive hanging under it
 const CHAR = 7.5; // a label's width per character
 const PIN_CHAR = 6.6; // a pin name's width per character (11px)
+
+/** The nearest grid line. */
+export const snap = (v: number) => Math.round(v / GRID) * GRID;
+/** The grid line at or past a size, so what it holds still fits. */
+const up = (v: number) => Math.ceil(v / GRID - 1e-9) * GRID;
 
 /** What the layout may be asked for. */
 export interface LayoutOptions {
@@ -167,7 +174,7 @@ const HEADER_LINE = 20; // a description or notes line in a frame's header
 
 /** A frame's header height: its name, then its description and notes. */
 export function headerHeight(g: DiagramGroup): number {
-  return 34 + (g.description ? HEADER_LINE : 0) + (g.notes ? HEADER_LINE : 0);
+  return 40 + (g.description ? HEADER_LINE : 0) + (g.notes ? HEADER_LINE : 0);
 }
 
 /** The part of a diagram in one group ("" for none), its columns renumbered from 0. */
@@ -251,8 +258,8 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     // What's drawn starts a margin inside the frame, however far its stubs
     // and passives reach out from the boxes.
     const corner = topLeft(drawn);
-    const dx = PAD - Math.min(PAD, corner.x);
-    const dy = header + PAD - Math.min(PAD, corner.y);
+    const dx = up(PAD - Math.min(PAD, corner.x));
+    const dy = up(header + PAD - Math.min(PAD, corner.y));
     const local = moveDrawing(drawn, dx, dy);
     local.width = drawn.width + dx;
     local.height = drawn.height + (dy - header);
@@ -260,7 +267,7 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     local.boxes = local.boxes.map((b) => ({ ...b, part: { ...b.part, column: column.get(b.part.id) ?? b.part.column } }));
     // The frame fits what's drawn, and the header's text.
     const textWidth = group ? 24 + 7.2 * Math.max(group.name.length * 1.15, (group.description ?? '').length, (group.notes ?? '').length + 7) : 0;
-    return [{ group, header, local, inner: { x: dx, y: dy }, w: Math.max(local.width, textWidth), h: header + local.height }];
+    return [{ group, header, local, inner: { x: dx, y: dy }, w: up(Math.max(local.width, textWidth)), h: up(header + local.height) }];
   });
   // Where each frame goes: in columns, a group stacked below the one it
   // names (lib/diagram/placement.ts); the parts in no group last.
@@ -273,7 +280,7 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     const local = moveDrawing(f.local, x, y);
     // Saved positions are relative to the group's content.
     const origin = { x: f.inner.x + x, y: f.inner.y + y };
-    if (f.group) out.frames.push({ x: x + 12, y: y + 12, w: f.w - 24, h: f.h - 24, group: f.group, header: f.header });
+    if (f.group) out.frames.push({ x: x + GRID, y: y + GRID, w: f.w - 2 * GRID, h: f.h - 2 * GRID, group: f.group, header: f.header });
     out.boxes.push(...local.boxes.map((b) => ({ ...b, origin })));
     out.passives.push(...local.passives.map((p) => ({ ...p, origin })));
     out.wires.push(...local.wires);
@@ -316,8 +323,7 @@ const longest = (ps: DiagramPin[]) => Math.max(0, ...ps.map((p) => p.name.length
 export function bands(pins: DiagramPin[]): { top: number; bottom: number } {
   const top = pins.filter((p) => p.side === 'top');
   const bottom = pins.filter((p) => p.side === 'bottom');
-  const even = (v: number) => Math.ceil(v / 2) * 2;
-  return { top: top.length ? even(14 + longest(top)) : TOP, bottom: bottom.length ? even(14 + longest(bottom)) : 10 };
+  return { top: top.length ? up(14 + longest(top)) : TOP, bottom: bottom.length ? up(14 + longest(bottom)) : 10 };
 }
 
 /**
@@ -340,7 +346,7 @@ export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
     const band = bands(pins);
     const rows = Math.max(on('left').length, on('right').length);
     const bodyH = Math.max(120 - 2 * PIN_LEN, band.top + Math.max(0, rows - 1) * PITCH + band.bottom);
-    const body = { x: PIN_LEN, y: PIN_LEN, w: Math.ceil(bodyW / 2) * 2, h: Math.ceil(bodyH / 2) * 2 };
+    const body = { x: PIN_LEN, y: PIN_LEN, w: up(bodyW), h: up(bodyH) };
     return { part, pins, body, x: 0, y: 0, w: body.w + 2 * PIN_LEN, h: body.h + 2 * PIN_LEN };
   });
 }
@@ -384,9 +390,10 @@ export function pinsAt(b: Box, d?: Diagram): void {
   }
 }
 
-const SYM = 28; // the band a two-terminal symbol takes across its axis
-const SYM_LEN = 44; // a two-terminal's node along its axis: the symbol and a short lead each end
-const BRIDGE_IN = 4; // a bridging passive's ends, in from its node's top and bottom
+const SYM = 40; // the band a two-terminal symbol takes across its axis, on the grid
+const SYM_LEN = 40; // a two-terminal's node along its axis: the symbol, end to end
+const BRIDGE_IN = 10; // a bridging passive's ends, in from its node's top and bottom
+const LABEL_IN = 36; // a vertical passive's name, in from its node's left
 
 /** How wide a passive's name and value are. */
 const passiveText = (p: DiagramPassive) => Math.ceil(CHAR * Math.max(p.label.length, (p.value ?? '').length)) + 6;
@@ -400,10 +407,10 @@ const passiveText = (p: DiagramPassive) => Math.ceil(CHAR * Math.max(p.label.len
 export function passiveSize(p: DiagramPassive, horizontal = false): { w: number; h: number; axis: number } {
   const text = passiveText(p);
   if (horizontal) {
-    const above = p.value ? 28 : 16;
-    return { w: Math.max(SYM_LEN, text), h: above + SYM, axis: above + SYM / 2 };
+    const above = p.value ? 30 : 20;
+    return { w: up(Math.max(SYM_LEN, text)), h: above + SYM, axis: above + SYM / 2 };
   }
-  return { w: SYM + text, h: SYM_LEN, axis: SYM / 2 };
+  return { w: up(LABEL_IN - 2 + text), h: SYM_LEN, axis: SYM / 2 };
 }
 
 /** Places a passive's node: its ends, which terminal is at each, and its label. */
@@ -411,7 +418,7 @@ function placePassive(q: DiagramPassive, x: number, y: number, size: { w: number
   const ends: [Pt, Pt] = horizontal ? [{ x, y: y + size.axis }, { x: x + size.w, y: y + size.axis }] : [{ x: x + size.axis, y }, { x: x + size.axis, y: y + size.h }];
   const [a, z] = q.ends.length === 2 ? q.ends : ['1', '2'];
   const terminals: [string, string] = firstNet.toLowerCase() === q.nets[0].toLowerCase() ? [a, z] : [z, a];
-  const label = horizontal ? { x: x + size.w / 2, y: y + 8, anchor: 'middle' as const } : { x: x + SYM + 2, y: y + size.h / 2 - (q.value ? 6 : 0), anchor: 'start' as const };
+  const label = horizontal ? { x: x + size.w / 2, y: y + 8, anchor: 'middle' as const } : { x: x + LABEL_IN, y: y + size.h / 2 - (q.value ? 6 : 0), anchor: 'start' as const };
   return { passive: q, x, y, w: size.w, h: size.h, ends, terminals, horizontal: horizontal || undefined, label };
 }
 
@@ -503,12 +510,14 @@ const option = {
     // Nodes in a layer keep the order they're given where crossings allow:
     // boxes first, so passives hang below them rather than stacking above.
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
-    'elk.spacing.nodeNode': '44',
-    'elk.spacing.edgeNode': '24',
-    'elk.spacing.edgeEdge': '18',
+    // Multiples of the grid, wires at least two lines apart, so snapping
+    // ELK's result to the grid never puts two on one line.
+    'elk.spacing.nodeNode': '40',
+    'elk.spacing.edgeNode': '20',
+    'elk.spacing.edgeEdge': '20',
     'elk.layered.spacing.nodeNodeBetweenLayers': '90',
-    'elk.layered.spacing.edgeNodeBetweenLayers': '24',
-    'elk.layered.spacing.edgeEdgeBetweenLayers': '18',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+    'elk.layered.spacing.edgeEdgeBetweenLayers': '20',
     'elk.padding': `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
   },
   /**
@@ -622,7 +631,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
       // each port; its name on the far side.
       const dy = Math.abs(pins[0].y - pins[1].y);
       const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
-      const size = { ...passiveSize(q), h: Math.max(SYM_LEN, dy + 30) };
+      const size = { ...passiveSize(q), h: dy + 2 * BRIDGE_IN };
       size.axis = side === 'EAST' ? size.w - SYM / 2 : SYM / 2;
       const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [], labels: [] };
       const upper = pins[0].y <= pins[1].y ? 0 : 1;
@@ -681,7 +690,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   const stub = (e: PortEnd, net: string, arrow: boolean) => {
     const side = e.side === 'EAST' ? 'right' : e.side === 'NORTH' ? 'top' : e.side === 'SOUTH' ? 'bottom' : 'left';
     built.stubs.push({ port: e.id, net, side, arrow: side === 'right' && arrow });
-    portOf.get(e.id)!.labels = [{ text: net, width: net.length * CHAR + 16 + (arrow ? 12 : 0), height: 14 }];
+    portOf.get(e.id)!.labels = [{ text: net, width: stubLength(net, arrow), height: 14 }];
     built.labelled.add(net);
   };
   const column = new Map(d.parts.map((p) => [`b:${p.id}`, p.column]));
@@ -777,8 +786,15 @@ async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Pro
   return drawing(again, await engine.layout(again.root));
 }
 
-/** Rounds a coordinate to half a pixel, so right angles stay exact. */
-const at = (v: number) => Math.round(v * 2) / 2;
+/**
+ * Snaps a coordinate of ELK's result to the grid. Every size and port
+ * offset is on the grid, so a pin lands on it with its node; two points
+ * on one line before stay on one line after, so wires stay straight.
+ */
+const at = snap;
+
+/** A stub's length: its net's name and a little, an arrow's head, on the grid. */
+const stubLength = (net: string, arrow: boolean) => up(net.length * CHAR + 16 + (arrow ? 12 : 0));
 
 /** Turns ELK's result into the drawing. */
 function drawing(built: Built, r: ElkNode): BlockDrawing {
@@ -809,8 +825,8 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
     for (const p of b.pins) {
       if (p.dim) continue;
       if (p.ground) {
-        out.wires.push({ net: p.net ?? 'GND', path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
-        out.grounds.push({ x: p.x, y: p.y + 8 });
+        out.wires.push({ net: p.net ?? 'GND', path: `M${p.x},${p.y} V${p.y + GRID}`, thin: true });
+        out.grounds.push({ x: p.x, y: p.y + GRID });
       } else if (p.tied && p.net) {
         const to = tiedTo(b, p);
         if (!to) continue;
@@ -831,11 +847,11 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
   const farEnd = (p: PlacedPassive, end: End) => {
     const e = p.ends[1];
     if (end.ground) {
-      out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
-      out.grounds.push({ x: e.x, y: e.y + 6 });
+      out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+      out.grounds.push({ x: e.x, y: e.y + GRID });
     } else {
-      out.wires.push({ net: end.text, path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
-      out.flags.push({ x: e.x, y: e.y + 6, text: end.text });
+      out.wires.push({ net: end.text, path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+      out.flags.push({ x: e.x, y: e.y + GRID, text: end.text });
     }
   };
   // Passives, with their far end below (or a pull-up's rail above).
@@ -868,15 +884,15 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
     const p = built.boxes.get(boxId)!.pins[idx];
     if (st.side === 'top') {
       // Up from a supply pin, its name above.
-      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y - 24}`, label: { x: p.x, y: p.y - 28, anchor: 'middle', text: st.net } });
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y - 30}`, label: { x: p.x, y: p.y - 34, anchor: 'middle', text: st.net } });
       continue;
     }
     if (st.side === 'bottom') {
-      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y + 24}`, label: { x: p.x, y: p.y + 40, anchor: 'middle', text: st.net } });
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y + 30}`, label: { x: p.x, y: p.y + 46, anchor: 'middle', text: st.net } });
       continue;
     }
     const dir = st.side === 'right' ? 1 : -1;
-    const len = st.net.length * CHAR + 16 + (st.arrow ? 12 : 0);
+    const len = stubLength(st.net, !!st.arrow);
     const end = p.x + dir * len;
     out.wires.push({ net: st.net, path: `M${p.x},${p.y} H${end}`, arrow: st.arrow || undefined, label: { x: end - dir * (st.arrow ? 12 : 2), y: p.y - 5, anchor: dir > 0 ? 'end' : 'start', text: st.net } });
   }
@@ -895,7 +911,7 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
       // for its name everywhere goes unnamed.
       const level = pts.slice(1).map((p, i) => ({ a: pts[i], z: p })).filter(({ a, z }) => a.y === z.y);
       const fits = level.find(({ a, z }) => Math.abs(z.x - a.x) >= net.length * CHAR + 12);
-      if (fits) wire.label = { x: at((fits.a.x + fits.z.x) / 2), y: fits.a.y - 5, anchor: 'middle', text: net };
+      if (fits) wire.label = { x: (fits.a.x + fits.z.x) / 2, y: fits.a.y - 5, anchor: 'middle', text: net };
     });
     for (const j of e.junctionPoints ?? []) out.dots.push({ x: at(j.x), y: at(j.y) });
   }
@@ -950,8 +966,8 @@ interface Unit {
   bus?: boolean;
 }
 
-const UNIT_PAD = 14; // inside a subgroup's frame
-const UNIT_HEAD = 18; // a bus's name above it, and the frame's
+const UNIT_PAD = 20; // inside a subgroup's frame
+const UNIT_HEAD = 20; // a bus's name above it, and the frame's
 const ROW_MAX = 6; // parts hanging off one bus before it goes on below
 
 /**
@@ -1063,9 +1079,9 @@ async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram
   const sub: Diagram = { parts: parts.map((p) => ({ ...strip(p), column: columns.indexOf(p.column) })), passives: passives.map(strip), nets: d.nets, groups: [], links: [], subgroups: [] };
   const drawn = await layoutOne(sub, opts, false);
   const corner = topLeft(drawn);
-  const local = moveDrawing(drawn, UNIT_PAD - corner.x, UNIT_PAD + UNIT_HEAD - corner.y);
+  const local = moveDrawing(drawn, up(UNIT_PAD - corner.x), up(UNIT_PAD + UNIT_HEAD - corner.y));
   const far = bottomRight(local);
-  const u: Unit = { id, name, members: ids, drawing: local, w: far.x + UNIT_PAD, h: far.y + UNIT_PAD, ports: [], side: 'WEST', part: passives[0]?.part, inner: [] };
+  const u: Unit = { id, name, members: ids, drawing: local, w: up(far.x + UNIT_PAD), h: up(far.y + UNIT_PAD), ports: [], side: 'WEST', part: passives[0]?.part, inner: [] };
   // The nets that also reach a part, or a passive, outside: a port each,
   // level with the net's name inside, else with a pin on it.
   const inside = new Set([...parts.flatMap((p) => p.pins.map((pin) => pin.net ?? '')), ...passives.flatMap((q) => q.nets)].map((n) => n.toLowerCase()));
@@ -1125,7 +1141,7 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
   // end, a port for each net.
   for (const q of nodes.filter((x) => x.bridge && x.passive.nets.length === 2)) {
     const size = passiveSize(q.passive);
-    const x = UNIT_PAD + 16;
+    const x = UNIT_PAD + 20;
     const p = placePassive(q.passive, x, y, size, false, q.first);
     const other = q.passive.nets.find((n) => n !== q.first) ?? q.first;
     out.passives.push(p);
@@ -1156,7 +1172,7 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
       out.wires.push({ net: q.first, path: `M${from},${busY} H${x}` });
       out.passives.push(p);
       from = x + size.w;
-      x = from + Math.max(24, b.net.length * CHAR + 12);
+      x = from + up(Math.max(24, b.net.length * CHAR + 12));
     }
     // The hangers, in rows: the bus runs along their top ends, a junction
     // at each but its ends, and goes on below from its left end.
@@ -1174,13 +1190,13 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
         tops.push(p.ends[0]);
         const e = p.ends[1];
         if (q.end?.ground !== false) {
-          out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
-          out.grounds.push({ x: e.x, y: e.y + 6 });
-          rowH = Math.max(rowH, size.h + 6 + GROUND);
+          out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+          out.grounds.push({ x: e.x, y: e.y + GRID });
+          rowH = Math.max(rowH, up(size.h + GRID + GROUND));
         } else {
-          out.wires.push({ net: q.end.text, path: `M${e.x},${e.y} V${e.y + 6}`, thin: true });
-          out.flags.push({ x: e.x, y: e.y + 6, text: q.end.text });
-          rowH = Math.max(rowH, size.h + 6 + 16);
+          out.wires.push({ net: q.end.text, path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+          out.flags.push({ x: e.x, y: e.y + GRID, text: q.end.text });
+          rowH = Math.max(rowH, up(size.h + GRID + 16));
         }
         x += size.w + 10;
       }
@@ -1202,7 +1218,7 @@ function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
     });
     y += UNIT_PAD;
   }
-  u.w = width + UNIT_PAD;
+  u.w = up(width + UNIT_PAD);
   u.h = y;
   out.width = u.w;
   out.height = u.h;
