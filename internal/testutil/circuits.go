@@ -23,6 +23,8 @@ type Circuit struct {
 // CircuitGroup is a functional group of a board.
 type CircuitGroup struct {
 	Name, Description, Notes string
+	// Below is the group it's drawn under.
+	Below string
 }
 
 // CircuitRail is a supply rail, its voltage and what supplies it.
@@ -260,9 +262,9 @@ func Circuits() []Circuit {
 			Groups: []CircuitGroup{
 				{Name: "USB Input", Description: "USB-C 5 V sink with ESD", Notes: "Separate 5.1k per CC pin; USBLC6 close to J1"},
 				{Name: "Power", Description: "MAX77827 5 V → 3.3 V buck-boost", Notes: "C1/C3 tight to IN/OUT; short LX loop"},
-				{Name: "Debug", Description: "SWD on MIPI-10 (ST-LINK)"},
+				{Name: "Debug", Description: "SWD on MIPI-10 (ST-LINK)", Below: "Power"},
 				{Name: "MCU", Description: "STM32U545CET6 with decoupling, reset, BOOT0, user LED", Notes: "One 100 nF per VDD pin; VCAP 4.7 µF close to pin 22"},
-				{Name: "Clock", Description: "32.768 kHz LSE", Notes: "Guard ring to GND; keep traces <5 mm"},
+				{Name: "Clock", Description: "32.768 kHz LSE", Notes: "Guard ring to GND; keep traces <5 mm", Below: "MCU"},
 			},
 			Assign: [][3]string{
 				{"J1 TYPE-C", "USB Input", ""}, {"U3 USBLC6", "USB Input", ""}, {"R1", "", "J1 TYPE-C"}, {"R2", "", "J1 TYPE-C"},

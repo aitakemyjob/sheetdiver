@@ -53,7 +53,8 @@ type groupArgs struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty" jsonschema:"what the group does, shown under its name: USB 5 V to 3.3 V"`
 	Notes       *string `json:"notes,omitempty" jsonschema:"design notes shown in the frame: keep the input loop short"`
-	Remove      bool    `json:"remove,omitempty" jsonschema:"remove the group; its parts are drawn ungrouped"`
+	Below       *string `json:"below,omitempty" jsonschema:"another group to draw this one under, in that group's column (Clock below MCU); several can stack. Groups go left to right in power-flow order otherwise. \"\" puts it back in a column of its own; omit to keep it"`
+	Remove      bool    `json:"remove,omitempty" jsonschema:"remove the group; its parts are drawn ungrouped, and groups below it start columns of their own"`
 }
 
 type assignArgs struct {
@@ -244,7 +245,7 @@ func (s *Server) registerProjects() {
 				ch.Connect = append(ch.Connect, core.ConnectChange{Net: cn.Net, Part: cn.Part, Pin: cn.Pin, Notes: cn.Notes, Remove: cn.Remove})
 			}
 			for _, g := range a.Groups {
-				ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: g.Description, Notes: g.Notes, Remove: g.Remove})
+				ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Remove: g.Remove})
 			}
 			for _, as := range a.Assign {
 				ch.Assign = append(ch.Assign, core.AssignChange{Part: as.Part, Group: as.Group, Supports: as.Supports, Cluster: as.Cluster})
@@ -1048,6 +1049,9 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		if g.Notes != "" {
 			b.WriteString(" (notes: " + g.Notes + ")")
+		}
+		if g.Below != "" {
+			b.WriteString(" [drawn below " + g.Below + "]")
 		}
 		b.WriteString("\n")
 	}

@@ -478,6 +478,11 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": "U2"}}}, "C9: group Load (its part's); subgroup Decoupling; supports U2 SD1235;")
 	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9), Feedback (R9)")
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "cluster": ""}}}, "R9: group Load (its part's); supports")
+	// Groups stack: Load is drawn below Power, said in the group's line;
+	// a loop is refused for the group that would close it.
+	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Load", "below": "Power"}}}, "group Load: U2 SD1235, C9, R9", "[drawn below Power]")
+	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Power", "below": "Load"}}}, "group Power: below Load, which is (through others) below it; it's drawn in a column of its own", "[drawn below Power]")
+	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9) [drawn below Power]")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

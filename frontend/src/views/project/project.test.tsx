@@ -260,11 +260,15 @@ describe('project block diagram, pins and connections', () => {
     fireEvent.change(notes, { target: { value: 'Antenna clear of copper' } });
     fireEvent.blur(notes);
     await waitFor(() => expect(b.callsTo('connections.change')[3]).toMatchObject({ groups: [{ name: 'MCU', notes: 'Antenna clear of copper' }] }));
+    // A group can be drawn below another, in its column.
+    fireEvent.change(screen.getByLabelText('What Sensor is drawn below'), { target: { value: 'MCU' } });
+    await waitFor(() => expect(b.callsTo('connections.change').at(-1)).toMatchObject({ groups: [{ name: 'Sensor', below: 'MCU' }] }));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Sensor is drawn below MCU' }));
     fireEvent.change(screen.getByLabelText('New group'), { target: { value: 'Debug' } });
     fireEvent.click(screen.getByRole('button', { name: /^Group$/ }));
-    await waitFor(() => expect(b.callsTo('connections.change')[4]).toMatchObject({ groups: [{ name: 'Debug' }] }));
+    await waitFor(() => expect(b.callsTo('connections.change')[5]).toMatchObject({ groups: [{ name: 'Debug' }] }));
     fireEvent.click(screen.getByRole('button', { name: /Remove Sensor/ }));
-    await waitFor(() => expect(b.callsTo('connections.change')[5]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
+    await waitFor(() => expect(b.callsTo('connections.change')[6]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
   });
 
   it('deletes the project once confirmed, and closes it', async () => {

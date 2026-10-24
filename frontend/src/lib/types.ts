@@ -545,6 +545,8 @@ export interface DiagramGroup {
   name: string;
   description?: string;
   notes?: string;
+  /** The group it's drawn under, in that group's column. */
+  below?: string;
   parts: string[];
 }
 
@@ -590,6 +592,8 @@ export interface Group {
   name: string;
   description?: string;
   notes?: string;
+  /** The group it's drawn under; none starts a column of its own. */
+  below?: string;
   source: string;
 }
 
@@ -628,7 +632,7 @@ export interface ConnectionsChange {
   blocks?: { name: string; kind?: string; value?: string; notes?: string; remove?: boolean }[];
   nets?: { name: string; kind?: string; bus?: string; voltage?: number; notes?: string; remove?: boolean }[];
   connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
-  groups?: { name: string; description?: string; notes?: string; remove?: boolean }[];
+  groups?: { name: string; description?: string; notes?: string; below?: string; remove?: boolean }[];
   /** Unset fields are kept; "" clears one. */
   assign?: { part: string; group?: string; supports?: string; cluster?: string }[];
   positions?: { node: string; x: number; y: number }[];

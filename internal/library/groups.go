@@ -16,7 +16,10 @@ type Group struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Notes       string `json:"notes,omitempty"`
-	Source      string `json:"source"`
+	// Below names the group it's drawn under, in that group's column;
+	// "" starts a column of its own, in power-flow order.
+	Below  string `json:"below,omitempty"`
+	Source string `json:"source"`
 }
 
 // Assignment says where a block-diagram node belongs: the group it's
@@ -35,7 +38,7 @@ type Assignment struct {
 
 // Groups lists a project's groups by name.
 func (s *Store) Groups(ctx context.Context, projectID int64) ([]Group, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, description, notes, source FROM project_groups WHERE project_id = ? ORDER BY name`, projectID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, description, notes, below, source FROM project_groups WHERE project_id = ? ORDER BY name`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +46,7 @@ func (s *Store) Groups(ctx context.Context, projectID int64) ([]Group, error) {
 	out := []Group{}
 	for rows.Next() {
 		g := Group{ProjectID: projectID}
-		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.Notes, &g.Source); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.Description, &g.Notes, &g.Below, &g.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
@@ -61,9 +64,13 @@ func (s *Store) SetGroup(ctx context.Context, g Group) (Group, error) {
 	if g.Source == "" {
 		g.Source = SourceUser
 	}
-	err := s.db.QueryRowContext(ctx, `INSERT INTO project_groups (project_id, name, description, notes, source) VALUES (?,?,?,?,?)
-		ON CONFLICT(project_id, name) DO UPDATE SET description = excluded.description, notes = excluded.notes, source = excluded.source
-		RETURNING id`, g.ProjectID, g.Name, strings.TrimSpace(g.Description), g.Notes, g.Source).Scan(&g.ID)
+	g.Below = strings.TrimSpace(g.Below)
+	if strings.EqualFold(g.Below, g.Name) {
+		return g, errors.New("a group can't be drawn below itself")
+	}
+	err := s.db.QueryRowContext(ctx, `INSERT INTO project_groups (project_id, name, description, notes, below, source) VALUES (?,?,?,?,?,?)
+		ON CONFLICT(project_id, name) DO UPDATE SET description = excluded.description, notes = excluded.notes, below = excluded.below, source = excluded.source
+		RETURNING id`, g.ProjectID, g.Name, strings.TrimSpace(g.Description), g.Notes, g.Below, g.Source).Scan(&g.ID)
 	if err != nil {
 		return g, err
 	}
@@ -71,7 +78,8 @@ func (s *Store) SetGroup(ctx context.Context, g Group) (Group, error) {
 	return g, nil
 }
 
-// DeleteGroup removes a group; what was in it is drawn ungrouped.
+// DeleteGroup removes a group; what was in it is drawn ungrouped, and
+// the groups drawn below it start columns of their own.
 func (s *Store) DeleteGroup(ctx context.Context, projectID int64, name string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM project_groups WHERE project_id = ? AND name = ?`, projectID, strings.TrimSpace(name))
 	if err != nil {
@@ -79,6 +87,9 @@ func (s *Store) DeleteGroup(ctx context.Context, projectID int64, name string) e
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE project_groups SET below = '' WHERE project_id = ? AND below = ? COLLATE NOCASE`, projectID, strings.TrimSpace(name)); err != nil {
+		return err
 	}
 	if err := s.pruneAssignments(ctx, projectID); err != nil {
 		return err

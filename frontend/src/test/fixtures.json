@@ -13807,6 +13807,7 @@
       "name": "Clock",
       "description": "32.768 kHz LSE",
       "notes": "Guard ring to GND; keep traces \u003c5 mm",
+      "below": "MCU",
       "source": "user"
      },
      {
@@ -13814,6 +13815,7 @@
       "projectId": 9,
       "name": "Debug",
       "description": "SWD on MIPI-10 (ST-LINK)",
+      "below": "Power",
       "source": "user"
      },
      {
@@ -15184,6 +15186,7 @@
       {
        "name": "Debug",
        "description": "SWD on MIPI-10 (ST-LINK)",
+       "below": "Power",
        "parts": [
         "block:102"
        ]
@@ -15203,6 +15206,7 @@
        "name": "Clock",
        "description": "32.768 kHz LSE",
        "notes": "Guard ring to GND; keep traces \u003c5 mm",
+       "below": "MCU",
        "parts": [
         "block:118"
        ]

@@ -31,6 +31,7 @@
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import { hang, type FarEnd } from './diagram/hanging';
+import { placeFrames } from './diagram/placement';
 import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
@@ -230,37 +231,49 @@ export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawi
 }
 
 /**
- * Lays out each group on its own, framed, left to right in the backend's
- * order, then the parts in no group. Saved positions are relative to
- * their group's content, so moving a part in one group never moves
- * another group's parts.
+ * Lays out each group on its own, framed, in columns left to right in
+ * the backend's order, a group stacked under the one it's drawn below,
+ * then the parts in no group. Saved positions are relative to their
+ * group's content, so moving a part in one group never moves another
+ * group's parts.
  */
 async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
   const out: BlockDrawing = empty();
   const groups: (DiagramGroup | undefined)[] = [...d.groups, undefined];
   const subs = groups.map((group) => groupDiagram(d, group?.name ?? ''));
   const drawings = await Promise.all(subs.map((sub) => (sub.parts.length ? layoutOne(sub, opts) : undefined)));
-  let x = 0;
-  groups.forEach((group, i) => {
+  // Each group laid out on its own, its frame's top-left at (0, 0).
+  const column = new Map(d.parts.map((p) => [p.id, p.column]));
+  const framed = groups.flatMap((group, i) => {
     const drawn = drawings[i];
-    if (!drawn) return;
+    if (!drawn) return [];
     const header = group ? headerHeight(group) : 0;
     // What's drawn starts a margin inside the frame, however far its stubs
     // and passives reach out from the boxes.
     const corner = topLeft(drawn);
-    const dx = x + PAD - Math.min(PAD, corner.x);
+    const dx = PAD - Math.min(PAD, corner.x);
     const dy = header + PAD - Math.min(PAD, corner.y);
-    const origin = { x: dx, y: dy };
     const local = moveDrawing(drawn, dx, dy);
-    local.width = drawn.width + (dx - x);
+    local.width = drawn.width + dx;
     local.height = drawn.height + (dy - header);
     // Boxes keep their own column (the group's layout renumbers them).
-    const column = new Map(d.parts.map((p) => [p.id, p.column]));
     local.boxes = local.boxes.map((b) => ({ ...b, part: { ...b.part, column: column.get(b.part.id) ?? b.part.column } }));
     // The frame fits what's drawn, and the header's text.
     const textWidth = group ? 24 + 7.2 * Math.max(group.name.length * 1.15, (group.description ?? '').length, (group.notes ?? '').length + 7) : 0;
-    const w = Math.max(local.width, textWidth);
-    if (group) out.frames.push({ x: x + 12, y: 12, w: w - 24, h: header + local.height - 24, group, header });
+    return [{ group, header, local, inner: { x: dx, y: dy }, w: Math.max(local.width, textWidth), h: header + local.height }];
+  });
+  // Where each frame goes: in columns, a group stacked below the one it
+  // names (lib/diagram/placement.ts); the parts in no group last.
+  const places = placeFrames(
+    framed.map((f, i) => ({ name: f.group?.name ?? `\u0000ungrouped${i}`, below: f.group?.below, w: f.w, h: f.h })),
+    GROUP_GAP,
+  );
+  framed.forEach((f, i) => {
+    const { x, y } = places[i];
+    const local = moveDrawing(f.local, x, y);
+    // Saved positions are relative to the group's content.
+    const origin = { x: f.inner.x + x, y: f.inner.y + y };
+    if (f.group) out.frames.push({ x: x + 12, y: y + 12, w: f.w - 24, h: f.h - 24, group: f.group, header: f.header });
     out.boxes.push(...local.boxes.map((b) => ({ ...b, origin })));
     out.passives.push(...local.passives.map((p) => ({ ...p, origin })));
     out.wires.push(...local.wires);
@@ -268,9 +281,8 @@ async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawi
     out.flags.push(...local.flags);
     out.dots.push(...local.dots);
     out.clusters.push(...local.clusters);
-    out.width = x + w;
-    out.height = Math.max(out.height, header + local.height);
-    x += w + GROUP_GAP;
+    out.width = Math.max(out.width, x + f.w);
+    out.height = Math.max(out.height, y + f.h);
   });
   return out;
 }

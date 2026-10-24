@@ -527,6 +527,30 @@ describe('subgroups', () => {
   });
 });
 
+describe('groups drawn below others', () => {
+  it('stacks a group under the one it names, in its column, without overlapping', async () => {
+    const d = await layoutBlockDiagram(circuit('U545 USB-C board'));
+    const frame = (name: string) => d.frames.find((f) => f.group.name === name)!;
+    // Debug is below Power, Clock below MCU: three columns, not five.
+    for (const [lower, upper] of [['Debug', 'Power'], ['Clock', 'MCU']]) {
+      const l = frame(lower);
+      const u = frame(upper);
+      expect(l.x, `${lower} in ${upper}'s column`).toBe(u.x);
+      expect(l.y, `${lower} under ${upper}`).toBeGreaterThan(u.y + u.h);
+    }
+    expect(new Set(d.frames.map((f) => f.x)).size).toBe(3);
+    // Columns follow power flow: USB Input, then Power, then MCU.
+    expect(frame('USB Input').x).toBeLessThan(frame('Power').x);
+    expect(frame('Power').x).toBeLessThan(frame('MCU').x);
+    // No frame overlaps another, and every part is inside its frame.
+    d.frames.forEach((a, i) => d.frames.slice(i + 1).forEach((b) => expect(overlaps(a, b), `${a.group.name} / ${b.group.name}`).toBe(false)));
+    for (const b of d.boxes) {
+      const f = d.frames.find((x) => x.group.name === b.part.group);
+      if (f) expect(b.x >= f.x && b.y >= f.y && b.x + b.w <= f.x + f.w && b.y + b.h <= f.y + f.h, b.part.title).toBe(true);
+    }
+  });
+});
+
 describe('a board in groups', () => {
   const dg = circuit('Grouped MCU board');
   let d: BlockDrawing;

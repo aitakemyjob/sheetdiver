@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -585,5 +586,86 @@ func TestDesignatorsChangedKeepTheirConnections(t *testing.T) {
 	}
 	if cs, _ := s.Lib.Connections(ctx, p.ID); len(cs) != 2 || cs[0].Ref == "C12" {
 		t.Errorf("rows = %+v", cs)
+	}
+}
+
+func TestPlacementProblems(t *testing.T) {
+	g := func(name, below string) library.Group { return library.Group{Name: name, Below: below} }
+	for _, tc := range []struct {
+		name   string
+		groups []library.Group
+		want   map[string]string
+	}{
+		{"a column of three", []library.Group{g("MCU", ""), g("Clock", "MCU"), g("Debug", "Clock")}, map[string]string{}},
+		{"below a group that isn't", []library.Group{g("MCU", ""), g("Clock", "CPU")}, map[string]string{"Clock": "below CPU, which isn't a group"}},
+		{"names ignore case", []library.Group{g("MCU", ""), g("Clock", "mcu")}, map[string]string{}},
+		{"a loop of two", []library.Group{g("A", "B"), g("B", "A")}, map[string]string{"A": "below B, which is (through others) below it", "B": "below A, which is (through others) below it"}},
+		{"a loop of three", []library.Group{g("A", "C"), g("B", "A"), g("C", "B"), g("D", "A")}, map[string]string{"A": "below C, which is (through others) below it", "B": "below A, which is (through others) below it", "C": "below B, which is (through others) below it"}},
+	} {
+		if got := placementProblems(tc.groups); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestGroupsAreDrawnBelowTheGroupTheyName(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "stack", ""); err != nil {
+		t.Fatal(err)
+	}
+	str := func(v string) *string { return &v }
+	change := func(gs ...GroupChange) []string {
+		t.Helper()
+		problems, err := s.ChangeConnections(ctx, "stack", ConnectionsChange{Groups: gs}, library.SourceUser)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return problems
+	}
+	below := func() map[string]string {
+		t.Helper()
+		gs, _ := s.Lib.Groups(ctx, 1)
+		out := map[string]string{}
+		for _, g := range gs {
+			out[g.Name] = g.Below
+		}
+		return out
+	}
+	if p := change(GroupChange{Name: "MCU"}, GroupChange{Name: "Clock", Below: str("MCU")}, GroupChange{Name: "Debug", Below: str("Clock")}); len(p) != 0 {
+		t.Fatalf("problems = %q", p)
+	}
+	// Kept when another field changes.
+	change(GroupChange{Name: "Clock", Notes: str("guard ring")})
+	if got := below(); got["Clock"] != "MCU" || got["Debug"] != "Clock" || got["MCU"] != "" {
+		t.Errorf("below = %v", got)
+	}
+	// A loop made here is refused for the group changed; the others keep theirs.
+	p := change(GroupChange{Name: "MCU", Below: str("Debug")})
+	if len(p) != 1 || !strings.Contains(p[0], "group MCU: below Debug, which is (through others) below it; it's drawn in a column of its own") {
+		t.Errorf("problems = %q", p)
+	}
+	if got := below(); got["MCU"] != "" || got["Clock"] != "MCU" {
+		t.Errorf("after the loop: %v", got)
+	}
+	// Below a group that isn't: refused the same way.
+	if p := change(GroupChange{Name: "Debug", Below: str("Nope")}); len(p) != 1 || !strings.Contains(p[0], "Nope, which isn't a group") {
+		t.Errorf("problems = %q", p)
+	}
+	// Below itself: refused by the store.
+	if p := change(GroupChange{Name: "Debug", Below: str("debug")}); len(p) != 1 || !strings.Contains(p[0], "below itself") {
+		t.Errorf("problems = %q", p)
+	}
+	// Removing a group puts those below it back in columns of their own.
+	change(GroupChange{Name: "Debug", Below: str("Clock")})
+	change(GroupChange{Name: "Clock", Remove: true})
+	if got := below(); got["Debug"] != "" {
+		t.Errorf("after removing Clock: %v", got)
+	}
+	// "" puts a group back in a column of its own.
+	change(GroupChange{Name: "Debug", Below: str("MCU")})
+	change(GroupChange{Name: "Debug", Below: str("")})
+	if got := below(); got["Debug"] != "" {
+		t.Errorf("after clearing: %v", got)
 	}
 }

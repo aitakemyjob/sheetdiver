@@ -28,7 +28,7 @@ export function Groups({ d, onChange }: { d: ProjectDetail; onChange: () => void
         already drawn so together.
       </div>
       {groups.map((g) => (
-        <GroupRow key={g.id} g={g} project={project} onChange={onChange} />
+        <GroupRow key={g.id} g={g} others={groups.filter((o) => o.id !== g.id)} project={project} onChange={onChange} />
       ))}
       <form
         className="row"
@@ -98,16 +98,28 @@ export function Groups({ d, onChange }: { d: ProjectDetail; onChange: () => void
   );
 }
 
-/** A group: its name, and its description and notes, saved when edited. */
-function GroupRow({ g, project, onChange }: { g: Group; project: string; onChange: () => void }) {
+/**
+ * A group: its name, its description and notes, saved when edited, and
+ * the group it's drawn below (none: a column of its own).
+ */
+function GroupRow({ g, others, project, onChange }: { g: Group; others: Group[]; project: string; onChange: () => void }) {
   const save = (field: 'description' | 'notes', value: string) => {
     if (value.trim() !== (g[field] ?? '')) change(project, { groups: [{ name: g.name, [field]: value.trim() }] }, onChange);
   };
+  const place = (below: string) => change(project, { groups: [{ name: g.name, below }] }, onChange, below ? `${g.name} is drawn below ${below}` : `${g.name} is drawn in a column of its own`);
   return (
     <div className="row" data-group={g.name}>
       <b style={{ width: 140 }}>{g.name}</b>
       <input className="input grow" placeholder="What it does" aria-label={`${g.name}'s description`} defaultValue={g.description ?? ''} onBlur={(e) => save('description', e.target.value)} />
       <input className="input grow" placeholder="Notes" aria-label={`${g.name}'s notes`} defaultValue={g.notes ?? ''} onBlur={(e) => save('notes', e.target.value)} />
+      <select className="input" style={{ width: 150 }} aria-label={`What ${g.name} is drawn below`} title="Draw this group under another, in its column" value={g.below ?? ''} onChange={(e) => place(e.target.value)}>
+        <option value="">its own column</option>
+        {others.map((o) => (
+          <option key={o.id} value={o.name}>
+            below {o.name}
+          </option>
+        ))}
+      </select>
       <button className="btn ghost icon sm" title={`Remove ${g.name} (its parts are drawn ungrouped)`} onClick={() => change(project, { groups: [{ name: g.name, remove: true }] }, onChange)}>
         <X size={11} />
       </button>

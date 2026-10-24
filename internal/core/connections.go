@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/aitakemyjob/sheetdiver/internal/library"
@@ -246,7 +247,10 @@ type GroupChange struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	Notes       *string `json:"notes,omitempty"`
-	Remove      bool    `json:"remove,omitempty"`
+	// Below names the group to draw it under; "" puts it back in a column
+	// of its own.
+	Below  *string `json:"below,omitempty"`
+	Remove bool    `json:"remove,omitempty"`
 }
 
 // AssignChange puts a part or block (a designator, part number or block
@@ -435,7 +439,7 @@ func (s *Service) changeGroups(ctx context.Context, projectID int64, changes []G
 		g := library.Group{ProjectID: projectID, Name: gc.Name, Source: source}
 		for _, old := range groups {
 			if strings.EqualFold(old.Name, strings.TrimSpace(gc.Name)) {
-				g.Description, g.Notes = old.Description, old.Notes
+				g.Description, g.Notes, g.Below = old.Description, old.Notes, old.Below
 			}
 		}
 		if gc.Description != nil {
@@ -444,11 +448,71 @@ func (s *Service) changeGroups(ctx context.Context, projectID int64, changes []G
 		if gc.Notes != nil {
 			g.Notes = *gc.Notes
 		}
+		if gc.Below != nil {
+			g.Below = strings.TrimSpace(*gc.Below)
+		}
 		if _, err := s.Lib.SetGroup(ctx, g); err != nil {
 			problems = append(problems, fmt.Sprintf("group %s: %v", gc.Name, err))
 		}
 	}
+	// Where each group is drawn: one changed here to go below a group that
+	// doesn't exist, or into a loop of groups below each other, starts a
+	// column of its own (the others in the loop keep theirs).
+	changed := map[string]bool{}
+	for _, gc := range changes {
+		changed[strings.ToLower(strings.TrimSpace(gc.Name))] = gc.Below != nil
+	}
+	if after, err := s.Lib.Groups(ctx, projectID); err == nil {
+		for name, why := range placementProblems(after) {
+			if !changed[strings.ToLower(name)] {
+				continue
+			}
+			for _, g := range after {
+				if g.Name == name {
+					g.Below = ""
+					_, _ = s.Lib.SetGroup(ctx, g)
+				}
+			}
+			problems = append(problems, fmt.Sprintf("group %s: %s; it's drawn in a column of its own", name, why))
+		}
+		sort.Strings(problems)
+	}
 	return problems
+}
+
+// placementProblems finds the groups that can't be drawn below the group
+// they name: it doesn't exist, or following "below" from it comes back to
+// it. Each is reported once, by name.
+func placementProblems(groups []library.Group) map[string]string {
+	below := map[string]string{}
+	names := map[string]string{}
+	for _, g := range groups {
+		names[strings.ToLower(g.Name)] = g.Name
+		below[strings.ToLower(g.Name)] = strings.ToLower(g.Below)
+	}
+	out := map[string]string{}
+	for _, g := range groups {
+		k := strings.ToLower(g.Name)
+		to := below[k]
+		if to == "" {
+			continue
+		}
+		if _, ok := names[to]; !ok {
+			out[g.Name] = fmt.Sprintf("below %s, which isn't a group", g.Below)
+			continue
+		}
+		// In a loop when following "below" comes back to it; one below a
+		// loop it isn't part of is drawn in the column the loop gets.
+		seen := map[string]bool{}
+		for at := to; at != "" && !seen[at]; at = below[at] {
+			if at == k {
+				out[g.Name] = fmt.Sprintf("below %s, which is (through others) below it", g.Below)
+				break
+			}
+			seen[at] = true
+		}
+	}
+	return out
 }
 
 // assign applies assignment changes, returning what couldn't be done.

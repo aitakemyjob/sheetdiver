@@ -50,10 +50,13 @@ type Diagram struct {
 // DiagramGroup is a functional group: a frame around its Parts (and the
 // passives hanging from them) with its name, description and notes.
 type DiagramGroup struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Notes       string   `json:"notes,omitempty"`
-	Parts       []string `json:"parts"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Notes       string `json:"notes,omitempty"`
+	// Below is the group it's drawn under, in that group's column; ""
+	// starts a column of its own.
+	Below string   `json:"below,omitempty"`
+	Parts []string `json:"parts"`
 }
 
 // DiagramPart is a box: a BOM entry or block that isn't a passive. ID is
@@ -555,7 +558,7 @@ func groups(defined []library.Group, parts []DiagramPart) []DiagramGroup {
 			g = &DiagramGroup{Name: p.Group, Parts: []string{}}
 			for _, dg := range defined {
 				if strings.EqualFold(dg.Name, p.Group) {
-					g.Name, g.Description, g.Notes = dg.Name, dg.Description, dg.Notes
+					g.Name, g.Description, g.Notes, g.Below = dg.Name, dg.Description, dg.Notes, dg.Below
 				}
 			}
 			byName[k], first[k] = g, p.Column

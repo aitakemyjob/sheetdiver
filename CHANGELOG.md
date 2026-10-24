@@ -64,6 +64,14 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Groups can stack.** A group can be drawn below another, in that
+  group's column (`below` in `set_connections`' `groups`, or the "below"
+  picker on each group in the Connections tab): Clock under MCU, Debug
+  under Power. Groups without one still go left to right in power-flow
+  order; a column is as wide as its widest frame. A group set below one
+  that doesn't exist, or that would close a loop, is reported and drawn
+  in a column of its own, and removing a group puts those below it back
+  in their own. The connections text says "[drawn below MCU]".
 - **Delete a project** from its page (the button next to Report) or
   with the new `delete_project` tool, by name only: its BOM, rails,
   connections, groups, calculations and notes go; the parts stay in the

@@ -144,6 +144,8 @@ to it, go on a bus named after the net in a faint frame, on the side of
 the part their pin is on; parts named into a subgroup (`cluster` on an
 assignment) are laid out by ELK on their own, everything inside wired,
 with a port on the frame for each net reaching it from outside.
+Groups are placed by `lib/diagram/placement.ts`: frames in columns in
+power-flow order, a group stacked under the one it names as `below`.
 `lib/symbols.ts` holds the standard
 symbols' geometry (two-terminals down the y axis, transistors in a box
 with their terminals on its border); `views/project/BlockDiagram.tsx`

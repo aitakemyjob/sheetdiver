@@ -259,8 +259,8 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 		ch.Connect = append(ch.Connect, core.ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
 	}
 	for _, g := range cir.Groups {
-		desc, notes := g.Description, g.Notes
-		ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: &desc, Notes: &notes})
+		desc, notes, below := g.Description, g.Notes, g.Below
+		ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: &desc, Notes: &notes, Below: &below})
 	}
 	for _, a := range cir.Assign {
 		group, supports := a[1], a[2]
