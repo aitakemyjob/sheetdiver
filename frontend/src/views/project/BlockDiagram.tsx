@@ -78,6 +78,9 @@ function SymbolPin({ p, body, color, stroke }: { p: PlacedPin; body: Rect; color
  * cathode up); leads out to the ends, and its name and value beside it.
  * A clear rectangle over the node takes the pointer for dragging.
  */
+/** How far what isn't on a picked net fades back. */
+const DIMMED = 0.3;
+
 /** A net's name on the drawing: clicking it picks the net (again, lets it go). */
 function NetName({ x, y, anchor, size, text, color, bold, onPick }: { x: number; y: number; anchor: 'start' | 'middle' | 'end'; size: number; text: string; color: string; bold?: boolean; onPick: () => void }) {
   return (
@@ -221,6 +224,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     return () => window.removeEventListener('keydown', onKey);
   }, [picked]);
   const sel = useMemo(() => (drawing && picked ? selectNet(drawing, picked) : null), [drawing, picked]);
+  // With a net picked, what isn't on it fades back, still readable.
+  const fade = (onNet: boolean | undefined) => (sel && !onNet ? { opacity: DIMMED, transition: 'opacity 120ms' } : { transition: 'opacity 120ms' });
   const toggleConnectedOnly = () => {
     const next = !connectedOnly;
     setConnectedOnly(next);
@@ -292,7 +297,11 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     setPan(null);
     if (!drag) return;
     setDrag(null);
-    if (!drag.dx && !drag.dy) return;
+    if (!drag.dx && !drag.dy) {
+      // A click on a part, not a drag: away from the picked net, so it lets go.
+      setPicked(null);
+      return;
+    }
     const pos = { x: Math.max(0, snap(drag.at.x + drag.dx - drag.origin.x)), y: Math.max(0, snap(drag.at.y + drag.dy - drag.origin.y)) };
     change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
   };
@@ -398,7 +407,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
               const on = marked(hl, x.net);
               const onNet = sel?.wires.has(i);
               return (
-                <g key={i} data-net={x.net} data-hl={on || undefined} data-picked={onNet || undefined}>
+                <g key={i} data-net={x.net} data-hl={on || undefined} data-picked={onNet || undefined} style={fade(onNet)}>
                   {onNet && <path d={x.path} fill="none" stroke="var(--accent)" strokeOpacity={0.18} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />}
                   <path d={x.path} fill="none" stroke={on || onNet ? 'var(--accent)' : w.stroke} strokeWidth={on ? 2.5 : x.thin ? 1 : 1.5} markerEnd={x.arrow ? 'url(#sd-arrow)' : undefined} />
                   {x.label && (
@@ -418,7 +427,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   onPointerDown={(e) => grab(e, b.part.id, b)}
                   onDoubleClick={() => open(b)}
                   transform={dragging(b.part.id)}
-                  style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab' }}
+                  style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab', ...fade(sel?.parts.has(b.part.id)) }}
                 >
                   {sel?.parts.has(b.part.id) && <Halo r={b.body} data-picked />}
                   <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
@@ -448,7 +457,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   data-hl={on || undefined}
                   onPointerDown={(e) => grab(e, q.id.split(',')[0], p)}
                   transform={dragging(q.id.split(',')[0])}
-                  style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab' }}
+                  style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab', ...fade(sel?.passives.has(q.id)) }}
                 >
                   {sel?.passives.has(q.id) && <Halo r={p} data-picked />}
                   <PassiveSymbol p={p} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
@@ -464,17 +473,18 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                 fill="none"
                 stroke={w.stroke}
                 strokeWidth={1.2}
+                style={fade(false)}
               />
             ))}
             {drawing.flags.map((f, i) => (
               // The net at a passive's far end (a pull-up's 3V3): a bar and its name.
-              <g key={`f${i}`} data-flag={f.text} data-picked={sel?.flags.has(i) || undefined}>
+              <g key={`f${i}`} data-flag={f.text} data-picked={sel?.flags.has(i) || undefined} style={fade(sel?.flags.has(i))}>
                 <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={sel?.flags.has(i) ? 'var(--accent)' : w.stroke} strokeWidth={1.4} />
                 <NetName x={f.x} y={f.up ? f.y - 4 : f.y + 12} anchor="middle" size={10} text={f.text} color={sel?.flags.has(i) ? 'var(--accent)' : w.text} onPick={() => setPicked((c) => toggleNet(c, f.text))} />
               </g>
             ))}
             {drawing.dots.map((p, i) => (
-              <circle key={`j${i}`} data-junction cx={p.x} cy={p.y} r={2.5} fill={sel?.dots.has(i) ? 'var(--accent)' : w.stroke} />
+              <circle key={`j${i}`} data-junction cx={p.x} cy={p.y} r={2.5} fill={sel?.dots.has(i) ? 'var(--accent)' : w.stroke} style={fade(sel?.dots.has(i))} />
             ))}
           </g>
         </svg>

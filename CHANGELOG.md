@@ -67,8 +67,10 @@ every merged pull request.
 - **Click a net's name to see what's on it.** On the block diagram, a
   click on a net's name (on its wire, its stub or a pull-up's flag)
   marks the net's wires and junctions in the accent colour over a soft
-  band and tints the parts and passives on it faintly, leaving the rest
-  as it was; clicking the name again, Escape or the background lets go.
+  band and outlines the parts and passives on it, while everything else
+  fades back to a third, still readable; clicking the name again,
+  Escape, or a click away (the background, or a part without moving
+  it) lets go.
 - **Agents can see the block diagram.** `get_diagram_image` returns a
   PNG of a project's block diagram as the app draws it, whole or one
   group's frame drawn larger, made by the app from what it shows (the

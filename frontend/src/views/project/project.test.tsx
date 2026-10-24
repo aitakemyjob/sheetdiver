@@ -57,12 +57,28 @@ describe('project block diagram, pins and connections', () => {
     const parts = sensor().connections.diagram.parts.filter((p) => p.pins.some((pin) => pin.net === net)).map((p) => p.title);
     for (const t of parts) expect(svg.querySelector(`[data-part="${t}"] [data-picked]`), t).not.toBeNull();
     expect(svg.querySelectorAll('[data-part]').length).toBe(sensor().connections.diagram.parts.length);
-    // Clicked again, let go; Escape lets go too.
+    // What isn't on it fades back; what is stays as it was.
+    const opacity = (el: Element) => (el as SVGElement).style.opacity;
+    for (const el of svg.querySelectorAll('[data-net]')) expect(opacity(el), el.getAttribute('data-net')!).toBe(el.getAttribute('data-net') === net ? '' : '0.3');
+    for (const el of svg.querySelectorAll('[data-part]')) expect(opacity(el), el.getAttribute('data-part')!).toBe(parts.includes(el.getAttribute('data-part')!) ? '' : '0.3');
+    // Clicked again, let go, nothing faded; Escape lets go too.
     fireEvent.click(name);
     expect(svg.querySelector('[data-picked]')).toBeNull();
+    expect([...svg.querySelectorAll('[data-net], [data-part]')].filter((el) => opacity(el) !== '')).toEqual([]);
     fireEvent.click(name);
     fireEvent.keyDown(window, { key: 'Escape' });
     await waitFor(() => expect(svg.querySelector('[data-picked]')).toBeNull());
+    // So does a click away: on the background, or on a part without moving it.
+    fireEvent.click(name);
+    fireEvent.pointerDown(svg, { clientX: 5, clientY: 5, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 5, clientY: 5, pointerId: 1 });
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    fireEvent.click(name);
+    const part = svg.querySelector('[data-part]')!;
+    fireEvent.pointerDown(part, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 10, clientY: 10, pointerId: 1 });
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    expect(b.callsTo('connections.change')).toHaveLength(0); // a click saves no position
   });
 
   it('saves where a block is dragged', async () => {
