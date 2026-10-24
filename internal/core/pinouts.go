@@ -21,6 +21,7 @@ type PinoutRow struct {
 	Number      string   `json:"number,omitempty"`
 	Name        string   `json:"name,omitempty"`
 	Type        string   `json:"type,omitempty"`
+	Role        string   `json:"role,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Net         string   `json:"net,omitempty"`
 	NetKind     string   `json:"netKind,omitempty"`
@@ -69,7 +70,7 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 	}
 	out := []Pinout{}
 	for _, pp := range parts {
-		if library.TwoTerminal(pp.Category) {
+		if twoTerminal(pp.Category, false) {
 			continue
 		}
 		// One table for the entry, and one per designator connected on its
@@ -96,7 +97,7 @@ func pinouts(parts []library.ProjectPart, blocks []library.Block, nets []library
 		}
 	}
 	for _, b := range blocks {
-		if library.TwoTerminal(b.Kind) {
+		if twoTerminal(b.Kind, true) {
 			continue
 		}
 		po := Pinout{Node: library.BlockNode(b.ID), Title: b.Name, Pins: []PinoutRow{}}
@@ -131,7 +132,7 @@ func entryPinout(pp library.ProjectPart, ref string, rows []ConnectionRow, pins 
 	}
 	used := map[int64]bool{}
 	for _, pin := range pins {
-		pr := PinoutRow{Number: pin.Number, Name: pin.Name, Type: pin.Type, Description: pin.Description, To: []string{}}
+		pr := PinoutRow{Number: pin.Number, Name: pin.Name, Type: pin.Type, Role: string(roleOf(pin)), Description: pin.Description, To: []string{}}
 		for _, r := range mine {
 			if !used[r.ID] && r.Pin != "" && strings.EqualFold(r.Pin, pinKey(pin)) {
 				x := row(r)

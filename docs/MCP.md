@@ -2,14 +2,22 @@
 
 SheetDiver serves the [Model Context Protocol](https://modelcontextprotocol.io)
 at `http://127.0.0.1:47480/mcp` (streamable HTTP), and over stdio through
-`sheetdiver mcp` (on Windows, `sheetdiver-mcp.exe`, installed beside the
-app). Every call appears in the app's agent activity feed.
+`sheetdiver mcp` (or `sheetdiver-mcp`, installed beside the app on Windows
+and Linux, which Claude Desktop's extension carries; each stdio session is
+logged to `mcp.log` in the user's cache folder,
+`~/.cache/sheetdiver` on Linux). Every call appears in the app's agent activity feed.
 
-Protocol versions: the HTTP endpoint, and stdio while the app is open
-(relayed to it), speak MCP up to `2025-11-25` with the `initialize`
-handshake; clients that probe with `server/discover` are told so and fall
-back to it. Stdio while the app is closed also speaks the stateless
-`2026-07-28`. Serving `2026-07-28` over HTTP is planned
+A stdio session outlives the app: it relays to the app while it runs and
+serves the library itself while it doesn't, switching at the next request
+when the app is closed or started again, so the client (Claude Desktop's
+extension included) never needs restarting. A request the app was running
+when it closed is answered with an error saying to try it again.
+
+Protocol versions: every path (HTTP, and stdio whether the app is open or
+closed) speaks MCP up to `2025-11-25` with the `initialize` handshake.
+Clients that probe for the stateless `2026-07-28` with `server/discover`
+are told so and fall back to `initialize`, on the same connection or a
+new one. Serving `2026-07-28` is planned
 ([#68](https://github.com/aitakemyjob/sheetdiver/issues/68)).
 
 Conventions:
@@ -30,7 +38,7 @@ Conventions:
 | Tool | What it does |
 |---|---|
 | `library_overview` | Datasheets, parts by category, projects, and what the user has open. |
-| `get_ui_context` | The part, page, figure or project the user is looking at, and any selected text. |
+| `get_ui_context` | The part, page, figure or project the user is looking at, any selected text, and what the app could not show there (a block diagram that failed to lay out, with the error). |
 | `search` | Full-text search across parts, page text, sections, figure captions and descriptions, parameters, pins, registers, recommendations and notes. |
 | `list_categories` | Component types with part counts and the key parameters compared for each. |
 | `compare_parts` | (Optionally only starred parts or one status.) One type's parts side by side on key parameters (min/typ/max in SI), filtered by requirements such as `vin >= 24 V`, `iout >= 3 A`, `iq <= 1 µA` and sorted. A `>=` filter tests the highest the part can do (max), `<=` tests typ. |
@@ -77,12 +85,14 @@ Conventions:
 |---|---|
 | `list_projects` | Projects with part and rail counts. |
 | `create_project` | Create a project (optionally the active one, which project arguments default to). |
+| `delete_project` | Delete a project by name (BOM, rails, connections, groups, calculations and notes; the parts stay in the library). Never defaults to the active project. |
 | `get_project` | BOM, rails with load (direct loads plus regulator input currents derived from their output loads, chargers drawing the charge current set as their current (none set: no charging; a linear charger draws the larger of that and its load, a power-path charger both, up to its input limit); a part with the same supply and output rail counts as a load on it, and loops in the power tree are reported), each rail's ripple budget (peak-to-peak ripple it can carry before a part on it leaves its recommended input range, and the limiting part), capacity and power, input power, checks of every rail against each part's absolute-maximum and recommended limits, saved calculations, notes. |
 | `set_rail` | Add, update or delete a rail: nominal/min/max voltage, current limit, source, and loads on it that aren't in the BOM. |
 | `add_to_project` | Place a part with designator, quantity, role, supply rail, output rail and load current. |
 | `update_project_part` | Change or remove a BOM entry by id or designator; `clear_currents` unsets its currents (a regulator's input is then derived, a charger counts no charging). |
-| `set_connections` | Draft or edit the project's block diagram and connection table: `blocks` off the BOM with a `kind` (connector, module, resistor, capacitor, inductor, diode) and a `value` (a connector with its pins, a battery, passives not in the library: R4 36.5k, C1 10µF), `connect` pins to nets (BOM designator, or one designator of an entry with several, such as `R1` of "R1,R2"; part number or block; pin number or name, or `U1.SDA`; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), `nets` to set a net's kind (signal, power, ground), bus or I/O voltage, and `positions` to place parts on the diagram (`reset_layout` goes back to the automatic layout). A pin is on one net; connecting it again moves it. A net named like a rail is that rail, GND and VSS are ground. Pins are checked against the part's pin table, and what couldn't be applied is returned with the checks. |
-| `get_connections` | The connection table (each net with its pins, their names and types from the pin tables), each part's pins with what they're connected to (every pin of its pin table, connected or not), the block diagram's links (power from the part that drives a net to the parts it feeds, signals per bus or net; from the connection table only) and each passive with where it hangs (across two pins, at a pin, or on a net) and the checks: pins missing from a pin table, ground or supply pins on the wrong net, pins that must be connected left open on parts being connected (supply, ground, exposed pads, and pins whose datasheet says they mustn't float), nets with one connection, two outputs on a net. |
+| `set_connections` | Draft or edit the project's block diagram and connection table: `blocks` off the BOM with a `kind` that says what they're drawn as (connector, module, ic: a box with its pins; resistor, capacitor, capacitor-polarised, inductor, diode, schottky, zener, led, tvs, fuse, ferrite, crystal, battery, switch: the standard symbol, hanging off its nets; mosfet-n, mosfet-p, npn, pnp: a transistor, its pins G, D, S or B, C, E) and a `value` (a connector with its pins, a battery, passives not in the library: R4 36.5k, C1 10µF, D1 led), `connect` pins to nets (BOM designator, or one designator of an entry with several, such as `R1` of "R1,R2"; part number or block; pin number or name, or `U1.SDA`; a passive's two ends as pins 1 and 2, A and K, or + and −, or one pinless connection to hang it from a net to ground), `nets` to set a net's kind (signal, power, ground), bus or I/O voltage, `groups` to define functional groups (Power, MCU) with a `description` and `notes` and, optionally, the group it's drawn `below` (stacked in that group's column; groups otherwise go left to right in power-flow order; a group below one that isn't, or one that would close a loop, is reported and drawn in a column of its own), each drawn as a frame (wires run inside a group; a net reaching other groups is a labelled stub in each), `assign` to put a part or block in a `group` and say which part it `supports` (`{part: C5, supports: U3}`: the passive is `part`, the part it serves is `supports`; it's drawn by that part, and alike passives serving different parts aren't merged. Unset, the support is guessed: the IC on its nets, over a connector or module, and of several the one it feeds rather than the one driving the net; a protection diode goes by its connector. and name the `cluster` (subgroup) it's wired up in with the other parts of that name, drawn as one unit in a faint frame inside the group: `{part: C4, cluster: VDD}` for the decoupling, `BTN` for a button and its pull-up; parts hanging off one net already stand aside together without this. `""` clears any of the three fields; the reply lists each assignment's result with its group, subgroup and support, and a part said to support a passive is refused as the wrong way round), a `column` and `row` in `assign` to place a part yourself, in its group's grid of parts from 0 at the left and the top (kept where the wiring allows: a part can't share a column with one it's wired to directly, nor go past it to the far side of the pin it hangs off; `-1` clears), and `positions` for pixel positions as the app saves a drag (`reset_layout` goes back to the automatic layout). A pin is on one net; connecting it again moves it. A net named like a rail is that rail, GND and VSS are ground. Pins are checked against the part's pin table, and what couldn't be applied is returned with the checks. |
+| `get_connections` | The connection table (each net with its pins, their names and types from the pin tables), each part's pins with what they're connected to (every pin of its pin table, connected or not), the block diagram's links (power from the part that drives a net to the parts it feeds, signals per bus or net; from the connection table only) each group with its parts, passives, description and notes and its subgroups (as named, a rail's capacitors by one part, a chain after the passive that leads to it), and each passive with where it hangs (across two pins, at a pin, or on a net) and the part it supports ("(supports U2)", or "(supports U2, guessed)"), where the app last drew each group's parts, column by column (or that it hasn't drawn them since the last change), with each place asked for and whether it was kept, what the app's layout checks found on the drawing (a wire leaving a pin and looping round its part, a wire through a part, parts on top of each other, wires of two nets crossing), and the checks: pins missing from a pin table, ground or supply pins on the wrong net, pins that must be connected left open on parts being connected (supply, ground, exposed pads, and pins whose datasheet says they mustn't float), nets with one connection, two outputs on a net. |
+| `get_diagram_image` | A picture (PNG) of a project's block diagram as SheetDiver draws it: the whole diagram, or one `group`'s frame drawn larger (best on a big board), at most 1568 px on its long side, with what the layout checks found there. The app makes it from the drawing it shows, so the project's Block diagram must be open (`show: true` opens it first); with the app closed it says so. |
 
 ## Calculators
 

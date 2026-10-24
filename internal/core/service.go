@@ -6,6 +6,7 @@ package core
 
 import (
 	"path/filepath"
+	"strings"
 
 	"errors"
 	"sync"
@@ -28,6 +29,8 @@ const (
 	EvImport   = "import"
 	EvProject  = "project"
 	EvContext  = "context"
+	// EvSnapshot asks the app for a picture of a block diagram.
+	EvSnapshot = "snapshot"
 	EvMCP      = "mcp"
 	EvCalc     = "calc"
 	EvCatalog  = "catalog"
@@ -226,14 +229,17 @@ type Focus struct {
 // UIContext is what the user is looking at, reported by the UI so agents
 // can answer "what about this graph?" without copying anything.
 type UIContext struct {
-	View        string    `json:"view"`
-	Part        string    `json:"part,omitempty"`
-	DatasheetID int64     `json:"datasheetId,omitempty"`
-	Page        int       `json:"page,omitempty"`
-	FigureID    int64     `json:"figureId,omitempty"`
-	Project     string    `json:"project,omitempty"`
-	Selection   string    `json:"selection,omitempty"`
-	Updated     time.Time `json:"updated"`
+	View        string `json:"view"`
+	Part        string `json:"part,omitempty"`
+	DatasheetID int64  `json:"datasheetId,omitempty"`
+	Page        int    `json:"page,omitempty"`
+	FigureID    int64  `json:"figureId,omitempty"`
+	Project     string `json:"project,omitempty"`
+	Selection   string `json:"selection,omitempty"`
+	// Problem is what the app failed to show there (a block diagram that
+	// couldn't be laid out), for the agent to see.
+	Problem string    `json:"problem,omitempty"`
+	Updated time.Time `json:"updated"`
 }
 
 // session is in-memory state for this run.
@@ -242,6 +248,65 @@ type session struct {
 	seq      int
 	activity []Activity
 	ctx      UIContext
+	// drawn is where the app last drew each project's parts, by project
+	// (lower case); a change to the project's connections forgets it.
+	drawn map[string]Drawn
+	// snapshots are the pictures of block diagrams asked of the app and
+	// not yet answered, by request id.
+	snapshots map[string]chan Snapshot
+}
+
+// DrawnCell is where the app drew a part or passive: its group, the
+// column from the left and the place in it from the top, from 0.
+type DrawnCell struct {
+	Node   string `json:"node"`
+	Group  string `json:"group,omitempty"`
+	Column int    `json:"column"`
+	Row    int    `json:"row"`
+}
+
+// LayoutProblem is something that looks wrong on the drawn block
+// diagram (a wire looping round a part, parts on top of each other), as
+// the app's layout checks name it.
+type LayoutProblem struct {
+	Check string `json:"check"`
+	Group string `json:"group,omitempty"`
+	Text  string `json:"text"`
+}
+
+// Drawn is the app's report of a project's block diagram as drawn.
+type Drawn struct {
+	Project  string          `json:"project"`
+	Cells    []DrawnCell     `json:"cells"`
+	Problems []LayoutProblem `json:"problems"`
+	At       time.Time       `json:"at"`
+}
+
+// SetDrawn records where the app drew a project's parts.
+func (s *Service) SetDrawn(d Drawn) {
+	d.At = time.Now()
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	if s.session.drawn == nil {
+		s.session.drawn = map[string]Drawn{}
+	}
+	s.session.drawn[strings.ToLower(d.Project)] = d
+}
+
+// DrawnLayout is where the app last drew a project's parts, if it has
+// since the project's connections last changed.
+func (s *Service) DrawnLayout(project string) (Drawn, bool) {
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	d, ok := s.session.drawn[strings.ToLower(project)]
+	return d, ok
+}
+
+// forgetDrawn drops a project's drawn layout: it's out of date.
+func (s *Service) forgetDrawn(project string) {
+	s.session.mu.Lock()
+	defer s.session.mu.Unlock()
+	delete(s.session.drawn, strings.ToLower(project))
 }
 
 // maxActivity bounds the activity log.

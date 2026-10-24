@@ -413,12 +413,67 @@ export interface ConnectionRow {
   pinType?: string;
 }
 
-/** A connected pin of a box on the block diagram (see core.DiagramPin). */
+/** What a pin does (see internal/pinrole). */
+export type PinRole = 'power' | 'ground' | 'pad' | 'input' | 'output' | 'bidir' | 'analog' | 'passive' | 'nc' | 'other';
+
+/** A symbol's outline: a rectangle with its pins, or a transistor. */
+export type PartShape = 'ic' | 'mosfet-n' | 'mosfet-p' | 'npn' | 'pnp';
+
+/** The kinds a block can be: what it's drawn as (see library.BlockKinds). */
+export const BLOCK_KINDS = [
+  'ic',
+  'connector',
+  'module',
+  'resistor',
+  'capacitor',
+  'capacitor-polarised',
+  'inductor',
+  'diode',
+  'schottky',
+  'zener',
+  'led',
+  'tvs',
+  'fuse',
+  'ferrite',
+  'crystal',
+  'battery',
+  'switch',
+  'mosfet-n',
+  'mosfet-p',
+  'npn',
+  'pnp',
+] as const;
+
+/** A standard two-terminal symbol. */
+export type PassiveShape =
+  | 'resistor'
+  | 'capacitor'
+  | 'capacitor-polarised'
+  | 'inductor'
+  | 'diode'
+  | 'schottky'
+  | 'zener'
+  | 'led'
+  | 'tvs'
+  | 'fuse'
+  | 'ferrite'
+  | 'crystal'
+  | 'battery'
+  | 'switch';
+
+/** A pin of a symbol on the block diagram, connected or not (see core.DiagramPin). */
 export interface DiagramPin {
   name: string;
-  net: string;
-  side: 'left' | 'right' | 'bottom' | 'inside';
-  /** The pin (or ground net) an inside pin is tied to. */
+  /** From the pin table; none for a block's pin. */
+  number?: string;
+  /** Unset when unconnected. */
+  net?: string;
+  side: 'left' | 'right' | 'top' | 'bottom';
+  role: PinRole;
+  connected: boolean;
+  /** A transistor pin's terminal: gate, drain, source; base, collector, emitter. */
+  terminal?: string;
+  /** The pin on the same net it's tied to: drawn as a jog to that pin's wire. */
   tied?: string;
   /** Has a passive across it and another pin (LX1/LX2 and the inductor). */
   bridged?: boolean;
@@ -432,7 +487,16 @@ export interface DiagramPart {
   title: string;
   mpn?: string;
   kind: string;
+  shape: PartShape;
+  /** pins is the whole pin table, connected or not. */
+  full?: boolean;
   column: number;
+  /** The group it's drawn in. */
+  group?: string;
+  /** The subgroup it's wired up in with the group's other parts of that name. */
+  cluster?: string;
+  /** Where in its group it's asked to be drawn. */
+  want?: { column?: number; row?: number };
   pins: DiagramPin[];
   /** Where it was dragged to. */
   x?: number;
@@ -445,21 +509,49 @@ export interface DiagramPassive {
   label: string;
   value?: string;
   kind: string;
-  mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge';
+  /** Chain: after the passive `part` names, on the net they share, which reaches no part but through it. */
+  mount: 'wire' | 'lane' | 'out' | 'below' | 'bridge' | 'chain';
   part: string;
   nets: string[];
+  /** The part it serves: set, or guessed from its nets. */
+  supports?: string;
+  guessed?: boolean;
+  /** The group it's drawn in (its part's). */
+  group?: string;
+  /** The subgroup it's wired up in (see DiagramPart.cluster). */
+  cluster?: string;
+  /** Where in its group it's asked to be drawn. */
+  want?: { column?: number; row?: number };
+  /** The standard symbol it's drawn with, and its terminals at nets[0]'s end and the far end. */
+  shape: PassiveShape | string;
+  ends: string[];
   /** Where it was dragged to. */
   x?: number;
   y?: number;
 }
 
-/** A drawn net: the parts on it in column order, and how its wire runs. */
+/**
+ * A net's wire within one group: the parts there on it in column order,
+ * and how its wire runs. Offboard: the net also runs in other groups.
+ */
 export interface DiagramNet {
   name: string;
   kind: string;
+  group?: string;
   parts: string[];
   wire: 'between' | 'lane' | 'out' | '';
   arrow?: boolean;
+  offboard?: boolean;
+}
+
+/** A functional group: a frame around its parts, with its description and notes. */
+export interface DiagramGroup {
+  name: string;
+  description?: string;
+  notes?: string;
+  /** The group it's drawn under, in that group's column. */
+  below?: string;
+  parts: string[];
 }
 
 /** Two parts sharing nets (the report's chart, agents). */
@@ -472,17 +564,60 @@ export interface DiagramLink {
 }
 
 /** A project's block diagram: what's drawn; the app decides where (lib/blockDiagram.ts). */
+/**
+ * A set of a group's parts laid out and wired up as one unit in a faint
+ * frame: as named, or found by the backend's rules (internal/core/subgroups.go).
+ */
+export interface DiagramSubgroup {
+  /** As named; "" for one a rule found. */
+  name?: string;
+  group?: string;
+  /** "rail": passives on a rail nothing in the group drives, by one part; "chain": a passive reached only through another, which leads. */
+  kind: 'named' | 'rail' | 'chain';
+  /** The rail, or the net a chain hangs on. */
+  net?: string;
+  /** Node ids, parts and passives; a chain's lead first. */
+  members: string[];
+}
+
 export interface Diagram {
   parts: DiagramPart[];
   passives: DiagramPassive[];
   nets: DiagramNet[];
+  /** Groups with something drawn in them, in power-flow order. */
+  groups: DiagramGroup[];
   links: DiagramLink[];
+  subgroups: DiagramSubgroup[];
+}
+
+/** A project's functional group. */
+export interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  notes?: string;
+  /** The group it's drawn under; none starts a column of its own. */
+  below?: string;
+  source: string;
+}
+
+/** Where a part or block belongs: its group, the part it supports, and its subgroup. */
+export interface Assignment {
+  node: string;
+  endpoint: string;
+  group?: string;
+  supports?: string;
+  supportsEndpoint?: string;
+  cluster?: string;
+  source: string;
 }
 
 export interface Connections {
   nets: Net[];
   blocks: Block[];
   connections: ConnectionRow[];
+  groups: Group[];
+  assignments: Assignment[];
   diagram: Diagram;
   /** Each part's pins and what they're connected to. */
   pinouts: Pinout[];
@@ -501,6 +636,9 @@ export interface ConnectionsChange {
   blocks?: { name: string; kind?: string; value?: string; notes?: string; remove?: boolean }[];
   nets?: { name: string; kind?: string; bus?: string; voltage?: number; notes?: string; remove?: boolean }[];
   connect?: { net: string; part: string; pin?: string; notes?: string; remove?: boolean }[];
+  groups?: { name: string; description?: string; notes?: string; below?: string; remove?: boolean }[];
+  /** Unset fields are kept; "" clears one. */
+  assign?: { part: string; group?: string; supports?: string; cluster?: string; column?: number; row?: number }[];
   positions?: { node: string; x: number; y: number }[];
   resetLayout?: boolean;
 }

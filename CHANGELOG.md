@@ -8,7 +8,155 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Added
+- **Schematic symbols on the block diagram.** A part with a pin table in
+  its datasheet is drawn as a symbol generated from it: every pin, with
+  its number outside the body and its name inside, on a side by what it
+  is (supplies on top, grounds and the thermal pad along the bottom,
+  outputs on the right, inputs and everything else on the left), in
+  pin-number order. Wires attach to the pin ends; unconnected pins are
+  dimmed, and **All pins / Connected pins only** on the diagram hides
+  them (but supplies and grounds) on a big microcontroller. Pins on one
+  net next to each other (VDD 24, 36 and 48) share a wire with a jog to
+  each. A block without a pin table is still a box of its connected
+  pins. Two-terminals are drawn with their standard symbol (ANSI:
+  zigzag resistor, plates, humps, triangle and bar…) hanging off their
+  nets, with the right terminal at each end: as the connections name
+  the pins, else by default for the shape (a diode conducts into
+  ground, a Zener or TVS clamps the rail with its cathode on it, a
+  polarised capacitor's + is on the net), the other way round when the
+  far end is a rail. New block kinds for them: capacitor-polarised,
+  schottky, zener, led, tvs, fuse, ferrite, crystal, battery, switch;
+  and mosfet-n, mosfet-p, npn, pnp, drawn as transistors with their
+  pins at G, D, S or B, C, E. A BOM entry's category maps to its symbol
+  the same way, so a part categorised LED or crystal is drawn as one.
+  The connections text for agents names each part's shape and each
+  passive's symbol and terminals. A resistor or capacitor from the
+  library shows its value under its name, from its role ("BOOT0 10k
+  pull-down") or its part's description. (#74)
+- **Wired like a schematic.** Inside a group, what stays wired at a pin
+  is what a reader needs there: a crystal and its load capacitors, a
+  series resistor, the pin's own pull-up or capacitor. A rail nothing in
+  the group drives (3V3 in the MCU group, made in the Power group) isn't
+  wired at all: each pin on it gets a power port with its name, and its
+  decoupling capacitors stand in a row beside the part under the rail's
+  name. A signal reaching three parts, or two parts more than a column
+  apart, is a net label at each pin instead of a wire round everything
+  between. Switches, buttons, LEDs and batteries stand aside under their
+  net's name. Passives sit beside the pin they feed, in pin order, and
+  the layout keeps every node level with what it's wired to, so the
+  drawing reads left to right instead of down a tangle. (#74)
+- **Functional groups on the block diagram:** put parts in groups (Power,
+  MCU, Sensors) in the Connections tab, or have your agent do it. Each
+  group is drawn in its own frame with its description and notes. Wires
+  stay inside a group; a net that also runs in another group ends in a
+  stub with its name, so a rail shared by the whole board no longer
+  draws wires across it. A board without groups is drawn as before; the
+  report's Mermaid chart shows each group as a subgraph. (#72)
+- **Passives drawn by the part they support:** say which part a passive
+  supports (a decoupling capacitor and its IC), and it hangs by that
+  part's pin and is drawn in that part's group. Alike passives on one
+  rail are only merged when they serve the same part, so C4 and C5 for
+  two ICs on 3V3 no longer clump together at the regulator. Left unset,
+  its support is guessed: the IC on its nets (over a connector or
+  module), and of several, the one it feeds rather than the one driving
+  the net (a bulk capacitor between an eFuse and a regulator goes by the
+  regulator's VIN); a protection diode goes by its connector. The app
+  shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
+  confirms each change. (#71)
+- **Click a net's name to see what's on it.** On the block diagram, a
+  click on a net's name (on its wire, its stub or a pull-up's flag)
+  marks the net's wires and junctions in the accent colour over a soft
+  band and outlines the parts and passives on it, while everything else
+  fades back to a third, still readable; clicking the name again,
+  Escape, or a click away (the background, or a part without moving
+  it) lets go.
+- **Agents can see the block diagram.** `get_diagram_image` returns a
+  PNG of a project's block diagram as the app draws it, whole or one
+  group's frame drawn larger, made by the app from what it shows (the
+  Block diagram must be open; `show: true` opens it). The app also
+  checks each drawing for what looks wrong and reports it:
+  `get_connections` lists, under "Layout problems", a wire that leaves
+  a pin and loops round its part, a wire through a part, parts on top
+  of each other and wires of two nets crossing, by group.
+- **Agents place parts by column and row.** `assign` takes a `column`
+  and `row` for a part or passive: its place in its group's grid of
+  parts, from 0 at the left and the top. The layout keeps it there
+  where the wiring allows, using ELK's interactive layering: a part
+  can't share a column with one it's wired to directly, nor go past it
+  (a subgroup off a pin on a part's left stays left of the part rather
+  than looping its wires round it). The app reports where it drew each part, and
+  `get_connections` shows each group column by column, with each place
+  asked for and whether it was kept ("drawn there", or where it went
+  instead); after a change it says it hasn't been drawn yet. Pixel
+  `positions` stay for what the app saves when a part is dragged.
+- **A passive named into a subgroup is drawn once.** One on a bottom pin
+  (a regulator's VIN capacitor) was drawn in its subgroup and again
+  under the pin.
+- **The block diagram sits on a 10 px grid.** Every pin end, wire
+  corner, passive end, ground symbol and frame corner is on it, so pins
+  that face each other line up and their wire is straight, and parallel
+  wires keep even spacing. A dragged part moves in grid steps and is
+  saved on the grid. Symbol sizes are multiples of the grid (a pin
+  every 30, passives 40 long), and a part across two pins (an inductor
+  between LX1 and LX2) now has its ends level with them.
+- **Groups can stack.** A group can be drawn below another, in that
+  group's column (`below` in `set_connections`' `groups`, or the "below"
+  picker on each group in the Connections tab): Clock under MCU, Debug
+  under Power. Groups without one still go left to right in power-flow
+  order; a column is as wide as its widest frame. A group set below one
+  that doesn't exist, or that would close a loop, is reported and drawn
+  in a column of its own, and removing a group puts those below it back
+  in their own. The connections text says "[drawn below MCU]".
+- **Delete a project** from its page (the button next to Report) or
+  with the new `delete_project` tool, by name only: its BOM, rails,
+  connections, groups, calculations and notes go; the parts stay in the
+  library.
+- **Every passive is wired from what it's placed by:** an IC pin, a
+  connector pin, or the previous passive in a chain, on that pin's side
+  of the part. A rail nothing in the group drives is still not wired
+  between its parts, but each pin now wires its own capacitors (the
+  wire named, a pin with nothing keeping its named stub) instead of
+  leaving them under a flag; a TVS by its connector and a resistor by
+  the output connector get their wire; switches, LEDs and batteries are
+  wired like anything else. Which parts form a subgroup is now decided
+  by the backend and carried on the diagram, so the connections text
+  lists every subgroup the drawing shows, the automatic ones included
+  ("3V3 at U2 (C4, C5)", "after L1 (C3)"), and those of parts in no
+  group.
+- **Subgroups within a group:** the parts hanging off one net (the
+  VDD decoupling, a button and its pull-up, an LED and its resistor)
+  are moved aside together and wired up as one unit in a faint frame
+  inside their group, bus first, instead of each standing alone where
+  it happened to land. Name a subgroup yourself (`cluster` in
+  `set_connections`, the Subgroup column in the Connections tab) to pull
+  more parts into one, or to split them; the reply names each part's
+  group, subgroup and support. (#73)
+- **Passives reached only through another passive are drawn:** the
+  output capacitor after the inductor, an LED after its series resistor.
+  Each chains off that passive on the net they share, in a subgroup of
+  their own: the series part leads in from the pin's wire to a bus named
+  after the net, with the rest hanging off it. The connections text says
+  "C2 on VOUT after L1". (#73)
+
 ### Changed
+- **One rule for what a pin is** (`internal/pinrole`), from its type
+  column, then its name, then its description, shared by the connection
+  checks, the pin tables, the symbols and extraction. Two consequences
+  on existing boards: a pin named `IN` counts as a supply, and one named
+  `VOUT` or `OUT` without a type counts as an output in the "two outputs
+  on a net" check. (#74)
+- **The block diagram is laid out by ELK** (the Eclipse Layout Kernel,
+  elkjs) instead of SheetDiver's own router, which found a new way to
+  tangle on each new board. Wires are routed around every part, a net's
+  branches merge into a bus with junctions, labels go where they fit, and
+  a pin's order on its side follows where its wire goes. A net leaving a
+  group is a short stub straight out of its pin, named; a net wired in
+  the group is named on its wire. Dragging a part now tells the layout
+  which order you want it in among the parts beside it (left to right
+  stays with the flow, and the wires are routed again) rather than
+  pinning it exactly where it was dropped. *Auto layout* still forgets
+  the dragged positions.
 - **Windows: `sheetdiver-mcp.exe` works like `sheetdiver mcp`.** It relays
   to the open app, or serves your library itself while the app is closed,
   instead of starting SheetDiver. Claude Desktop now starts a short-lived
@@ -21,7 +169,135 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
-- **macOS/Linux: the Claude Desktop extension exited at once ("version
+- **Subgroups named through `set_connections` are kept.** The tool
+  accepted `cluster` and then dropped it before it reached the project,
+  so no name was stored, echoed or drawn. It's now stored, shown in
+  each assignment's line ("subgroup VDDA") and in each group's list,
+  and drawn as its own frame with your name on it. A name splits what
+  the automatic rule would put together (VDD and VDDA capacitors on one
+  rail by one MCU), can span nets (Feedback), and can hold a part
+  across two pins (an inductor, wired at both ends) or a box (a switch,
+  a crystal). A wire into a named subgroup runs on in to the part it
+  reaches, and a subgroup faces the part its members are placed by.
+- **VCAP is a regulator output, not a supply input.** An MCU's VCAP
+  (typed S in STM32 pin tables), VCORE or VREGOUT takes only a
+  capacitor, so it's no longer checked as a supply pin or drawn on top.
+- **Where a passive goes, as said.** A passive set to support a part
+  goes by that part when the part is on its net, reaches it through an
+  inductor, fuse or diode (the output capacitor after the inductor), or
+  is the source of the rail; a passive's own group wins over the group
+  of the part it's drawn by (C3 assigned to Power stays in Power). A
+  protection diode of any kind (TVS, Zener, Schottky) is guessed by the
+  connector it protects, not the IC. A rail nothing in a group drives
+  that joins just two parts with nothing hanging off it is one wire,
+  not a label at each pin. Series links through an inductor, ferrite,
+  fuse or diode count on rails too (the U1 → 3V3 power link), while a
+  pull-up's rail still goes nowhere.
+- **Subgroups take chained passives and boxes.** A chained passive
+  named into a subgroup brings the passive it chains off (the LED with
+  its resistor); a capacitor whose net reaches no part of its group but
+  through the inductor chains off it there; a connector or IC named
+  into a subgroup is laid out inside it.
+- **Changing designators keeps connections.** An entry given a second
+  designator (C2 → C2,C4) keeps its connections on C2; renamed
+  designators keep theirs one by one; collapsed to one, the first's
+  stay.
+- **Recorded pins stay recorded.** Re-extracting a datasheet no longer
+  puts the extractor's pin rows back beside a pin table someone
+  recorded (the MAX77827's garbled rows).
+- **Nothing is overridden silently.** `set_connections` reports a
+  support set to a part not on the passive's nets (still applied; the
+  reply says when it will be drawn by it), refuses a passive said to
+  support another passive, lists groups with no connected parts, and
+  the assignments reply says "after R4" for a chained passive.
+- **A rail's source makes its net.** A rail whose source is a part
+  (`set_rail` with `source: U1`) is driven by that part on the block
+  diagram even when its pin there isn't typed as an output: the power
+  link from it to what it feeds is drawn, and the rail's capacitors go
+  by it rather than by a connector on the rail.
+- **Multi-pin protection parts are boxes.** A part with a pin table of
+  more than two pins is drawn with its pins whatever its category says
+  (a USBLC6 ESD array was a two-pin TVS symbol); an entry of several
+  designators of one part (R1,R2 of a resistor array) stays a
+  two-terminal each.
+- **Renaming pins keeps their connections.** `record_pins` moves the
+  connections of its part's BOM entries to the pins as they are now:
+  one connected by name before the table had numbers goes under its
+  number, a renamed pin keeps its connection, so a pin can always be
+  disconnected by its current name or number. A connection made again
+  by number moves the pin rather than doubling it.
+- **A block diagram that can't be laid out says so** in place of the
+  stale drawing, and `get_ui_context` tells the agent, instead of the
+  diagram silently not updating.
+- **Block diagram, from a tester's USB-C board**: a part's second pin of
+  the same name on a net (a USB-C connector's two VBUS pins, a
+  regulator's two IN and OUT pins) got a wire of its own, drawn as a
+  zero-length stub with the net's name over the pin; it is now tied to
+  the first like any other. A net reaching another group (a crystal's
+  pins to the MCU) was put on the bottom of its box with no wire or
+  label; it now leaves a side as a labelled stub. Stubs leaving a box
+  are one length, sized to their labels, instead of each longer than
+  the one below.
+- **Imports named a part by LCSC's file id** ("2304140030") when the PDF
+  itself named no part clearly: a distributor's file name
+  (`2304140030_STMicroelectronics-STM32G031K8T6_C432211.pdf`) now gives
+  the part number, without the manufacturer and file ids.
+- **A datasheet title's ratings were taken for a part** ("1.8A/3.1A" from
+  MAX77827's). The extractor version is now 5, so SheetDiver offers to
+  re-extract; parts already imported under a wrong name keep it until
+  renamed or removed.
+- **Block diagram wiring on boards in groups**: wires ran through a part
+  (a header's pin faced a part in another group, so its wire crossed the
+  header), labels sat on a part's pin names when the piece of wire under
+  them was too short, and wires of two nets met, looking shorted. Pins
+  now face only parts in their own group; a label goes on a piece of its
+  wire it fits; a rail reaches a part beyond the next column by a
+  labelled stub; wires that go round the columns between their ends try
+  over and under and take the way that crosses least; a gap leaves room
+  for the capacitors hanging beside a part; and a passive with no room on
+  its wire hangs beside the wire's vertical run instead of across
+  another net.
+- **A passive set to support a part is drawn by it even in series** (PA5
+  → R5 → LED: R5 hung by the MCU, on its other end).
+- **A debug header was drawn as a supply.** A connector no longer counts
+  as bringing in a rail that a part on the board makes, or that it only
+  senses (VTref, VREF, VTARGET).
+- **VSS and VSSA were flagged as supply pins on ground**: a ground pin is
+  never a supply pin, whatever its type or name.
+- **No more "not connected to a rail" or "no load current" warnings for
+  parts that draw no current**: LEDs, switches, crystals, connectors,
+  transistors and passives, by category or designator (D, SW, Y, J…).
+  Such categories ("LED", "Tactile switch", "Pin header") are also drawn
+  as what they are instead of as ICs or connectors.
+- **The Claude Desktop extension stopped working when SheetDiver was
+  closed or restarted**, until it was disabled and enabled again. A stdio
+  session now outlives the app: it serves the library itself while the
+  app is closed and goes back to the app once it's running again, without
+  the client reconnecting. A request that was running when the app closed
+  gets an error saying to try it again, instead of hanging. A long request
+  no longer holds up the others in the same session.
+- **Linux: the Claude Desktop extension couldn't connect.** It ran
+  SheetDiver through a Node launcher, which on some setups exited before
+  SheetDiver answered, leaving nothing in Claude Desktop's log. The Linux
+  extension now carries `sheetdiver-mcp`, a small static program that
+  Claude Desktop starts directly, as on Windows: no Node, no GTK, and it
+  works with any install. The `.deb`, `.rpm` and `.tar.gz` install it as
+  `/usr/bin/sheetdiver-mcp`, and each Linux release has the extension as
+  `sheetdiver_linux_<arch>.mcpb`. Save the extension again from the
+  connect dialog (or use the release's) and reinstall it.
+- **Claude Desktop's version probe broke the connection while the app was
+  closed.** Claude Desktop can probe a server for the newest MCP protocol
+  and then start the session on the same connection. SheetDiver answered
+  the probe in the new protocol and then refused the session
+  ("duplicate initialize"). Every path now speaks the protocol versions
+  with the `initialize` handshake, up to 2025-11-25, as the app's HTTP
+  endpoint already did.
+- **MCP sessions are logged.** Each stdio session (the Claude Desktop
+  extension, `sheetdiver mcp`) is recorded in `mcp.log` in your cache
+  folder (`~/.cache/sheetdiver/mcp.log` on Linux): how it was started,
+  each request's method and id (not their contents), and how it ended,
+  so a failed connection says why.
+- **macOS: the Claude Desktop extension exited at once ("version
   negotiation failed", "server transport closed unexpectedly").** Its
   launcher handed SheetDiver its own stdio, which the Node that Claude
   Desktop runs extensions with may not pass on, so SheetDiver found its

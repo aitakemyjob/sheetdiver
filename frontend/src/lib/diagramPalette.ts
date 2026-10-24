@@ -5,7 +5,7 @@
 /** Fill, stroke and text colours of a kind of part. */
 export type Swatch = { fill: string; stroke: string; text: string };
 
-/** Colours by kind, for light and dark themes (as an electronics sketch: ICs violet, R and C green, diodes red, inductors amber). */
+/** Colours by kind, for light and dark themes (as an electronics sketch: ICs violet, R and C green, diodes red, inductors amber, transistors blue). */
 const palettes: Record<'light' | 'dark', Record<string, Swatch>> = {
   light: {
     ic: { fill: '#EEEDFE', stroke: '#534AB7', text: '#3C3489' },
@@ -15,8 +15,10 @@ const palettes: Record<'light' | 'dark', Record<string, Swatch>> = {
     capacitor: { fill: '#E1F5EE', stroke: '#0F6E56', text: '#085041' },
     diode: { fill: '#FAECE7', stroke: '#993C1D', text: '#712B13' },
     inductor: { fill: '#FAEEDA', stroke: '#854F0B', text: '#633806' },
+    transistor: { fill: '#E6F1FB', stroke: '#185FA5', text: '#0C447C' },
     other: { fill: '#F1EFE8', stroke: '#5F5E5A', text: '#444441' },
     wire: { fill: 'none', stroke: '#898781', text: '#52514E' },
+    group: { fill: '#FAF9F5', stroke: '#B4B2A9', text: '#444441' },
   },
   dark: {
     ic: { fill: '#26215C', stroke: '#AFA9EC', text: '#CECBF6' },
@@ -26,8 +28,10 @@ const palettes: Record<'light' | 'dark', Record<string, Swatch>> = {
     capacitor: { fill: '#04342C', stroke: '#5DCAA5', text: '#9FE1CB' },
     diode: { fill: '#4A1B0C', stroke: '#F0997B', text: '#F5C4B3' },
     inductor: { fill: '#412402', stroke: '#EF9F27', text: '#FAC775' },
+    transistor: { fill: '#0C2D4D', stroke: '#85B7EB', text: '#B5D4F4' },
     other: { fill: '#2C2C2A', stroke: '#B4B2A9', text: '#D3D1C7' },
     wire: { fill: 'none', stroke: '#8B8A85', text: '#B4B2A9' },
+    group: { fill: '#1E1E1C', stroke: '#5F5E5A', text: '#D3D1C7' },
   },
 };
 
@@ -45,7 +49,25 @@ export function palette(): Record<string, Swatch> {
   return palettes[darkTheme() ? 'dark' : 'light'];
 }
 
+/** The palette entry a kind is coloured by: the diodes red, the transistors blue, the odd two-terminals grey. */
+const family: Record<string, string> = {
+  'capacitor-polarised': 'capacitor',
+  schottky: 'diode',
+  zener: 'diode',
+  led: 'diode',
+  tvs: 'diode',
+  ferrite: 'inductor',
+  fuse: 'other',
+  crystal: 'other',
+  battery: 'other',
+  switch: 'other',
+  'mosfet-n': 'transistor',
+  'mosfet-p': 'transistor',
+  npn: 'transistor',
+  pnp: 'transistor',
+};
+
 /** A kind's colours (unknown kinds look like a connector). */
 export function swatch(pal: Record<string, Swatch>, kind: string): Swatch {
-  return pal[kind] ?? pal.connector;
+  return pal[family[kind] ?? kind] ?? pal.connector;
 }

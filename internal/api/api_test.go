@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -214,9 +215,9 @@ func TestMCPExtension(t *testing.T) {
 	}
 	var x struct{ Name, Data string }
 	err := invoke(t, a, "mcp.extension", nil, &x)
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
 		// The test binary has no console bridge beside it.
-		if err == nil || !strings.Contains(err.Error(), connect.BridgeName) {
+		if err == nil || !errors.Is(err, connect.ErrNoBridge) {
 			t.Errorf("without the bridge: %v", err)
 		}
 		return

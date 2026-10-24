@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Download, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
-import { saveText } from '../../lib/api';
-import { layoutBlockDiagram, type Box } from '../../lib/blockDiagram';
+import { Download, Eye, EyeOff, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { api, saveText } from '../../lib/api';
+import { layoutBlockDiagram, snap, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
+import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
-import { Empty } from '../../components/ui';
+import { Empty, ErrorBox } from '../../components/ui';
 import { change, marked } from './connections';
+import { drawnReport } from '../../lib/diagram/report';
+import { selectNet, toggleNet } from '../../lib/diagram/selection';
+import { answerSnapshots, canvasRasterize, documentResolve, SnapshotResponder, standaloneSVG } from '../../lib/diagram/snapshot';
+import { getTransport } from '../../lib/transport';
 
 /** The view's zoom (k) and pan (x, y, screen pixels). */
 type View = { k: number; x: number; y: number };
@@ -17,6 +22,18 @@ export function zoomAbout(v: View, factor: number, px: number, py: number): View
   return { k, x: px - ((px - v.x) * k) / v.k, y: py - ((py - v.y) * k) / v.k };
 }
 
+/** Where the "connected pins only" choice is kept, for every project. */
+const CONNECTED_ONLY_KEY = 'sheetdiver.diagram.connectedOnly';
+
+/** Whether the diagram was last shown with connected pins only. */
+function connectedOnlySetting(): boolean {
+  try {
+    return localStorage.getItem(CONNECTED_ONLY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** The view that fits a drawing in a screen area (never above 100%). */
 export function fitView(width: number, height: number, screenW: number, screenH: number): View {
   if (!screenW) return { k: 1, x: 0, y: 0 };
@@ -25,35 +42,209 @@ export function fitView(width: number, height: number, screenW: number, screenH:
 }
 
 /**
+ * A pin of a symbol: its line from the body to where its wire attaches,
+ * its number along the line (outside the body) and its name inside.
+ * Top and bottom pins' names are written down the body. An unconnected
+ * pin is dimmed.
+ */
+function SymbolPin({ p, body, color, stroke }: { p: PlacedPin; body: Rect; color: string; stroke: string }) {
+  const edge = p.side === 'left' ? { x: body.x, y: p.y } : p.side === 'right' ? { x: body.x + body.w, y: p.y } : p.side === 'top' ? { x: p.x, y: body.y } : { x: p.x, y: body.y + body.h };
+  const vertical = p.side === 'top' || p.side === 'bottom';
+  // The number sits beside the pin line, just outside the body.
+  const num = vertical ? { x: p.x + 3, y: p.side === 'top' ? body.y - 4 : body.y + body.h + 11, anchor: 'start' as const } : { x: (p.x + edge.x) / 2, y: p.y - 3, anchor: 'middle' as const };
+  // The name is inside, along the body's edge; down the body for a top or bottom pin.
+  const nameY = p.side === 'top' ? body.y + 6 : body.y + body.h - 6;
+  const name = vertical
+    ? { x: p.x, y: nameY, anchor: p.side === 'top' ? ('end' as const) : ('start' as const), rotate: `rotate(-90 ${p.x} ${nameY})` }
+    : { x: p.side === 'left' ? body.x + 6 : body.x + body.w - 6, y: p.y, anchor: p.side === 'left' ? ('start' as const) : ('end' as const), rotate: undefined };
+  return (
+    <g data-pin={p.name} data-dim={p.dim || undefined} opacity={p.dim ? 0.35 : 1}>
+      <path d={`M${p.x},${p.y} L${edge.x},${edge.y}`} stroke={stroke} strokeWidth={1.2} />
+      {p.number && (
+        <text x={num.x} y={num.y} textAnchor={num.anchor} fontSize={9} fill={color}>
+          {p.number}
+        </text>
+      )}
+      <text x={name.x} y={name.y} textAnchor={name.anchor} dominantBaseline="central" fontSize={11} fill={color} transform={name.rotate}>
+        {p.name}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * A two-terminal's standard symbol laid between its ends, turned round
+ * when its first terminal is the symbol's second (a diode with its
+ * cathode up); leads out to the ends, and its name and value beside it.
+ * A clear rectangle over the node takes the pointer for dragging.
+ */
+/** How far what isn't on a picked net fades back. */
+const DIMMED = 0.3;
+
+/** A net's name on the drawing: clicking it picks the net (again, lets it go). */
+function NetName({ x, y, anchor, size, text, color, bold, onPick }: { x: number; y: number; anchor: 'start' | 'middle' | 'end'; size: number; text: string; color: string; bold?: boolean; onPick: () => void }) {
+  return (
+    <text x={x} y={y} textAnchor={anchor} fontSize={size} fill={color} fontWeight={bold ? 700 : 400} data-net-name={text} onClick={onPick} style={{ cursor: 'pointer' }}>
+      <title>{`Show everything on ${text}`}</title>
+      {text}
+    </text>
+  );
+}
+
+/** A faint tint behind a part on the picked net. */
+function Halo({ r, ...rest }: { r: Rect; 'data-picked'?: boolean }) {
+  return <rect x={r.x - 4} y={r.y - 4} width={r.w + 8} height={r.h + 8} rx={5} fill="var(--accent)" fillOpacity={0.08} stroke="var(--accent)" strokeOpacity={0.35} strokeWidth={1} {...rest} />;
+}
+
+function PassiveSymbol({ p, color, text, wide }: { p: PlacedPassive; color: string; text: string; wide: boolean }) {
+  const q = p.passive;
+  const sym = twoTerminal(q.shape);
+  const flipped = p.terminals[0] === sym.terminals[1] && p.terminals[0] !== sym.terminals[0];
+  const [a, z] = flipped ? [p.ends[1], p.ends[0]] : p.ends;
+  const leads = twoTerminalLeads(sym, a, z);
+  return (
+    <g data-shape={q.shape} data-flipped={flipped || undefined}>
+      <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="transparent" stroke="none" />
+      {leads && <path d={leads} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} />}
+      <g transform={twoTerminalTransform(a, z)}>
+        <path d={sym.path} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} strokeLinejoin="round" />
+        {sym.fill && <path d={sym.fill} fill={color} stroke="none" />}
+      </g>
+      <text x={p.label.x} y={p.label.y} dominantBaseline="central" textAnchor={p.label.anchor} fontSize={12} fontWeight={500} fill={text}>
+        {q.label}
+      </text>
+      {q.value && (
+        <text x={p.label.x} y={p.label.y + 13} dominantBaseline="central" textAnchor={p.label.anchor} fontSize={10} fill={text}>
+          {q.value}
+        </text>
+      )}
+    </g>
+  );
+}
+
+/**
+ * A transistor's standard symbol in its box, its pins named at their
+ * terminals (the pin table's names: G, D, S or B, C, E).
+ */
+function TransistorSymbol({ b, color, text, wide }: { b: Box; color: string; text: string; wide: boolean }) {
+  const sym = threeTerminal(b.part.shape)!;
+  return (
+    <g data-shape={b.part.shape} transform={`translate(${b.x},${b.y})`}>
+      <rect x={0} y={0} width={b.w} height={b.h} fill="transparent" stroke="none" />
+      <path d={sym.path} fill="none" stroke={color} strokeWidth={wide ? 2.5 : 1.5} strokeLinejoin="round" />
+      {sym.fill && <path d={sym.fill} fill={color} stroke="none" />}
+      {b.pins.map((p, i) => {
+        const t = sym.terminals[p.terminal ?? ''];
+        if (!t) return null;
+        const pos = t.x === 0 ? { x: 4, y: t.y - 6, anchor: 'start' as const } : t.y === 0 ? { x: t.x + 5, y: 12, anchor: 'start' as const } : { x: t.x + 5, y: t.y - 6, anchor: 'start' as const };
+        return (
+          <text key={i} data-pin={p.name} x={pos.x} y={pos.y} textAnchor={pos.anchor} fontSize={9} fill={text}>
+            {p.name}
+          </text>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
  * The project's block diagram: parts and connectors with their pins,
  * wires labelled with their nets, and passives hanging off what they
- * serve. Zoom with the wheel, pan by dragging the background, drag
- * parts to move them (saved); export the whole drawing as SVG.
+ * serve. Zoom with the wheel, pan by dragging the background, drag a
+ * part to move it (saved: the layout keeps it in that place and order,
+ * and routes the wires again); export the whole drawing as SVG.
  */
 export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; highlight?: string; onChange: () => void }) {
   const s = useStore();
-  const [moved, setMoved] = useState<Record<string, { x: number; y: number }>>({});
-  const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  // A part being dragged: where it was grabbed, how far it has moved, and
+  // its group's origin (positions in a group are saved relative to it).
+  const [drag, setDrag] = useState<{ id: string; from: Pt; at: Pt; dx: number; dy: number; origin: Pt } | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [pan, setPan] = useState<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const [drawing, setDrawing] = useState<BlockDrawing | null>(null);
+  // Why the last layout failed, shown instead of a stale drawing and
+  // reported for the agent to see.
+  const [problem, setProblem] = useState<string | null>(null);
+  // A generated symbol shows every pin of its pin table; this hides the
+  // unconnected ones (but supplies and grounds) on big parts.
+  const [connectedOnly, setConnectedOnly] = useState(connectedOnlySetting);
+  // The net whose name was clicked: its wires and parts are marked.
+  const [picked, setPicked] = useState<string | null>(null);
   const svg = useRef<SVGSVGElement>(null);
   const content = useRef<SVGGElement>(null);
-  useEffect(() => setMoved({}), [d]);
   const theme = s.app?.config.settings.theme;
   const pal = useMemo(palette, [theme]);
-  const drawing = useMemo(() => {
-    const dg = d.connections.diagram;
-    // Parts by their node; passives by their first one's.
-    return layoutBlockDiagram({ ...dg, parts: dg.parts.map((p) => ({ ...p, ...moved[p.id] })), passives: dg.passives.map((q) => ({ ...q, ...moved[q.id.split(',')[0]] })) });
-  }, [d, moved]);
-  const height = drawing.height;
-  const empty = drawing.boxes.length === 0;
-  const fit = () => setView(fitView(drawing.width, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
+  // Laid out by ELK, asynchronously; a stale result is dropped.
+  useEffect(() => {
+    let live = true;
+    layoutBlockDiagram(d.connections.diagram, { connectedOnly })
+      .then((r) => {
+        if (!live) return;
+        setDrawing(r);
+        setProblem(null);
+        // Where each part went and what looks wrong, so the agent can check its placement.
+        api.reportDrawn(drawnReport(d.project.name, r)).catch(() => {});
+      })
+      .catch((e: unknown) => {
+        if (!live) return;
+        const message = e instanceof Error ? e.message : String(e);
+        setProblem(message);
+        api.uiContext({ view: 'project/diagram', project: d.project.name, problem: `the block diagram failed to lay out: ${message}` }).catch(() => {});
+      });
+    return () => {
+      live = false;
+    };
+  }, [d, connectedOnly]);
+  // The agent's requests for a picture of what's shown (get_diagram_image).
+  const responder = useMemo(() => new SnapshotResponder(canvasRasterize, documentResolve), []);
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    let live = true;
+    getTransport()
+      .then((t) => {
+        if (!live) return;
+        off = answerSnapshots(
+          (fn) => t.subscribe(fn),
+          responder,
+          () => (drawing && svg.current ? { project: d.project.name, drawing, svg: svg.current } : undefined),
+          api.deliverSnapshot,
+        );
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, [drawing, d.project.name, responder]);
+  // Escape lets go of a picked net.
+  useEffect(() => {
+    if (!picked) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPicked(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [picked]);
+  const sel = useMemo(() => (drawing && picked ? selectNet(drawing, picked) : null), [drawing, picked]);
+  // With a net picked, what isn't on it fades back, still readable.
+  const fade = (onNet: boolean | undefined) => (sel && !onNet ? { opacity: DIMMED, transition: 'opacity 120ms' } : { transition: 'opacity 120ms' });
+  const toggleConnectedOnly = () => {
+    const next = !connectedOnly;
+    setConnectedOnly(next);
+    try {
+      localStorage.setItem(CONNECTED_ONLY_KEY, next ? '1' : '0');
+    } catch {
+      // Nothing to remember it in: it still applies for now.
+    }
+  };
+  const hasFull = d.connections.diagram.parts.some((p) => p.full);
+  const height = drawing?.height ?? 0;
+  const empty = d.connections.diagram.parts.length === 0;
+  const fit = () => setView(fitView(drawing?.width ?? 0, height, svg.current?.clientWidth ?? 0, svg.current?.clientHeight ?? 0));
   const zoom = (factor: number, px?: number, py?: number) =>
     setView((v) => zoomAbout(v ?? { k: 1, x: 0, y: 0 }, factor, px ?? (svg.current?.clientWidth ?? 0) / 2, py ?? (svg.current?.clientHeight ?? 0) / 2));
-  // Fitted when first shown.
+  // Fitted when first drawn (the wheel listener needs the drawing too).
+  const drawn = !!drawing;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => fit(), [empty]);
+  useEffect(() => fit(), [drawn]);
   // The wheel zooms about the pointer (a native listener: React's is passive).
   useEffect(() => {
     const el = svg.current;
@@ -65,7 +256,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [empty]);
+  }, [drawn]);
   if (empty) {
     return (
       <Empty icon={<LayoutGrid size={28} />} title="Nothing connected yet">
@@ -73,15 +264,17 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       </Empty>
     );
   }
+  if (problem) return <ErrorBox error={`The block diagram couldn't be laid out: ${problem}. Please report this with the connection table (Connections tab).`} />;
+  if (!drawing) return null;
   // Screen to drawing coordinates, through the zoom and pan.
   const at = (e: PointerEvent) => {
     const m = content.current?.getScreenCTM?.();
     return m && typeof DOMPoint !== 'undefined' ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : { x: e.clientX, y: e.clientY };
   };
-  const grab = (e: PointerEvent, id: string, r: { x: number; y: number }) => {
+  const grab = (e: PointerEvent, id: string, r: Pt & { origin?: Pt }) => {
     const p = at(e);
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ id, dx: p.x - r.x, dy: p.y - r.y });
+    setDrag({ id, from: p, at: { x: r.x, y: r.y }, dx: 0, dy: 0, origin: r.origin ?? { x: 0, y: 0 } });
   };
   const startPan = (e: PointerEvent) => {
     if (e.target !== svg.current) return; // the background, not a part
@@ -94,15 +287,23 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       setView((v) => ({ k: v?.k ?? 1, x: p.vx + e.clientX - p.x, y: p.vy + e.clientY - p.y }));
     } else if (drag) {
       const p = at(e);
-      setMoved((m) => ({ ...m, [drag.id]: { x: Math.max(0, Math.round(p.x - drag.dx)), y: Math.max(0, Math.round(p.y - drag.dy)) } }));
+      // In grid steps: what's dragged stays on the grid, and so does where it's saved.
+      setDrag({ ...drag, dx: snap(p.x - drag.from.x), dy: snap(p.y - drag.from.y) });
     }
   };
-  const drop = () => {
+  const drop = (e: PointerEvent) => {
+    // A click on the background, not a pan, lets go of a picked net.
+    if (pan && Math.abs(e.clientX - pan.x) < 3 && Math.abs(e.clientY - pan.y) < 3) setPicked(null);
     setPan(null);
     if (!drag) return;
-    const pos = moved[drag.id];
     setDrag(null);
-    if (pos) change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
+    if (!drag.dx && !drag.dy) {
+      // A click on a part, not a drag: away from the picked net, so it lets go.
+      setPicked(null);
+      return;
+    }
+    const pos = { x: Math.max(0, snap(drag.at.x + drag.dx - drag.origin.x)), y: Math.max(0, snap(drag.at.y + drag.dy - drag.origin.y)) };
+    change(d.project.name, { positions: [{ node: drag.id, ...pos }] }, onChange);
   };
   const open = (b: Box) => {
     // A designator of an entry with several is "part:<id>/R1".
@@ -112,19 +313,14 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const exportSVG = async () => {
     if (!svg.current) return;
     // The whole drawing at full size, whatever the view.
-    const copy = svg.current.cloneNode(true) as SVGSVGElement;
-    copy.setAttribute('width', String(drawing.width));
-    copy.setAttribute('height', String(height));
-    copy.setAttribute('viewBox', `0 0 ${drawing.width} ${height}`);
-    copy.removeAttribute('style');
-    copy.querySelector('g[data-view]')?.removeAttribute('transform');
-    const css = getComputedStyle(document.documentElement);
-    const text = copy.outerHTML.replace(/var\((--[\w-]+)\)/g, (_, v: string) => css.getPropertyValue(v).trim() || 'sans-serif');
+    const text = standaloneSVG(svg.current, { x: 0, y: 0, w: drawing.width, h: height }, drawing.width, height, documentResolve);
     const where = await saveText(`${d.project.name}-block-diagram.svg`, `<?xml version="1.0" encoding="UTF-8"?>\n${text}`, 'image/svg+xml', !!s.app?.canSaveFile);
     if (where) s.toast({ kind: 'ok', title: 'Block diagram saved', body: where });
   };
   const hl = highlight?.toLowerCase();
   const w = pal.wire;
+  // What's being dragged follows the pointer until it's dropped and laid out again.
+  const dragging = (id: string) => (drag?.id === id ? `translate(${drag.dx},${drag.dy})` : undefined);
   return (
     <div className="col" style={{ gap: 8 }}>
       <div className="row">
@@ -143,6 +339,16 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
             <Maximize2 size={13} />
           </button>
         </div>
+        {hasFull && (
+          <button
+            className="btn sm"
+            aria-pressed={connectedOnly}
+            onClick={toggleConnectedOnly}
+            title={connectedOnly ? "Show every pin of each part's pin table" : 'Hide the pins nothing is connected to, except supplies and grounds'}
+          >
+            {connectedOnly ? <EyeOff size={13} /> : <Eye size={13} />} {connectedOnly ? 'Connected pins only' : 'All pins'}
+          </button>
+        )}
         <button className="btn sm" onClick={() => change(d.project.name, { resetLayout: true }, onChange)} title="Forget moved parts">
           <LayoutGrid size={13} /> Auto layout
         </button>
@@ -168,15 +374,44 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
             </marker>
           </defs>
           <g ref={content} data-view transform={`translate(${view?.x ?? 0},${view?.y ?? 0}) scale(${view?.k ?? 1})`}>
+            {drawing.frames.map((f) => (
+              <g key={f.group.name} data-group={f.group.name}>
+                <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={8} fill={pal.group.fill} stroke={pal.group.stroke} strokeWidth={1} strokeDasharray="6 4" />
+                <text x={f.x + 14} y={f.y + 22} fontSize={15} fontWeight={700} fill={pal.group.text}>
+                  {f.group.name}
+                </text>
+                {f.group.description && (
+                  <text x={f.x + 14} y={f.y + 42} fontSize={12} fill={pal.group.text}>
+                    {f.group.description}
+                  </text>
+                )}
+                {f.group.notes && (
+                  <text x={f.x + 14} y={f.y + (f.group.description ? 62 : 42)} fontSize={12} fontStyle="italic" fill={pal.group.text}>
+                    Notes: {f.group.notes}
+                  </text>
+                )}
+              </g>
+            ))}
+            {drawing.clusters.map((c, i) => (
+              // A subgroup: its parts wired up as one unit, in a faint frame named only when it was named.
+              <g key={`c${i}`} data-cluster={c.name}>
+                <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={6} fill="none" stroke={pal.group.stroke} strokeWidth={1} strokeDasharray="2 3" />
+                {c.name && (
+                  <text x={c.x + 8} y={c.y + 14} fontSize={11} fontWeight={600} fill={pal.group.text}>
+                    {c.name}
+                  </text>
+                )}
+              </g>
+            ))}
             {drawing.wires.map((x, i) => {
               const on = marked(hl, x.net);
+              const onNet = sel?.wires.has(i);
               return (
-                <g key={i} data-net={x.net} data-hl={on || undefined}>
-                  <path d={x.path} fill="none" stroke={on ? 'var(--accent)' : w.stroke} strokeWidth={on ? 2.5 : x.thin ? 1 : 1.5} markerEnd={x.arrow ? 'url(#sd-arrow)' : undefined} />
+                <g key={i} data-net={x.net} data-hl={on || undefined} data-picked={onNet || undefined} style={fade(onNet)}>
+                  {onNet && <path d={x.path} fill="none" stroke="var(--accent)" strokeOpacity={0.18} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" />}
+                  <path d={x.path} fill="none" stroke={on || onNet ? 'var(--accent)' : w.stroke} strokeWidth={on ? 2.5 : x.thin ? 1 : 1.5} markerEnd={x.arrow ? 'url(#sd-arrow)' : undefined} />
                   {x.label && (
-                    <text x={x.label.x} y={x.label.y} textAnchor={x.label.anchor} fontSize={12} fill={on ? 'var(--accent)' : w.text} fontWeight={on ? 700 : 400}>
-                      {x.label.text}
-                    </text>
+                    <NetName x={x.label.x} y={x.label.y} anchor={x.label.anchor} size={12} text={x.label.text} color={on || onNet ? 'var(--accent)' : w.text} bold={on} onPick={() => setPicked((c) => toggleNet(c, x.net))} />
                   )}
                 </g>
               );
@@ -191,22 +426,22 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   data-hl={on || undefined}
                   onPointerDown={(e) => grab(e, b.part.id, b)}
                   onDoubleClick={() => open(b)}
-                  style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab' }}
+                  transform={dragging(b.part.id)}
+                  style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab', ...fade(sel?.parts.has(b.part.id)) }}
                 >
+                  {sel?.parts.has(b.part.id) && <Halo r={b.body} data-picked />}
                   <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
                     {b.part.title}
                   </text>
-                  <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
-                  {b.pins.map((p, i) =>
-                    p.side === 'bottom' ? (
-                      <text key={i} x={p.x} y={b.y + b.h - 12} textAnchor="middle" fontSize={12} fill={c.text}>
-                        {p.name}
-                      </text>
-                    ) : (
-                      <text key={i} x={p.side === 'right' ? p.x - 12 : p.x + 12} y={p.y} dominantBaseline="central" textAnchor={p.side === 'right' ? 'end' : 'start'} fontSize={12} fill={c.text}>
-                        {p.tied && p.side === 'inside' ? `${p.name}→${p.tied}` : p.name}
-                      </text>
-                    ),
+                  {threeTerminal(b.part.shape) ? (
+                    <TransistorSymbol b={b} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
+                  ) : (
+                    <>
+                      <rect x={b.body.x} y={b.body.y} width={b.body.w} height={b.body.h} rx={3} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.9} />
+                      {b.pins.map((p, i) => (
+                        <SymbolPin key={i} p={p} body={b.body} color={c.text} stroke={c.stroke} />
+                      ))}
+                    </>
                   )}
                 </g>
               );
@@ -221,17 +456,11 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   data-passive={q.label}
                   data-hl={on || undefined}
                   onPointerDown={(e) => grab(e, q.id.split(',')[0], p)}
-                  style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab' }}
+                  transform={dragging(q.id.split(',')[0])}
+                  style={{ cursor: drag?.id === q.id.split(',')[0] ? 'grabbing' : 'grab', ...fade(sel?.passives.has(q.id)) }}
                 >
-                  <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={4} fill={c.fill} stroke={on ? 'var(--accent)' : c.stroke} strokeWidth={on ? 2.5 : 0.8} />
-                  <text x={p.x + p.w / 2} y={p.y + (q.value ? 15 : p.h / 2)} dominantBaseline="central" textAnchor="middle" fontSize={13} fontWeight={500} fill={c.text}>
-                    {q.label}
-                  </text>
-                  {q.value && (
-                    <text x={p.x + p.w / 2} y={p.y + 30} dominantBaseline="central" textAnchor="middle" fontSize={11} fill={c.text}>
-                      {q.value}
-                    </text>
-                  )}
+                  {sel?.passives.has(q.id) && <Halo r={p} data-picked />}
+                  <PassiveSymbol p={p} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
                 </g>
               );
             })}
@@ -244,19 +473,18 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                 fill="none"
                 stroke={w.stroke}
                 strokeWidth={1.2}
+                style={fade(false)}
               />
             ))}
             {drawing.flags.map((f, i) => (
               // The net at a passive's far end (a pull-up's 3V3): a bar and its name.
-              <g key={`f${i}`} data-flag={f.text}>
-                <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={w.stroke} strokeWidth={1.4} />
-                <text x={f.x} y={f.up ? f.y - 4 : f.y + 12} textAnchor="middle" fontSize={10} fill={w.text}>
-                  {f.text}
-                </text>
+              <g key={`f${i}`} data-flag={f.text} data-picked={sel?.flags.has(i) || undefined} style={fade(sel?.flags.has(i))}>
+                <path d={`M${f.x - 6},${f.y} H${f.x + 6}`} stroke={sel?.flags.has(i) ? 'var(--accent)' : w.stroke} strokeWidth={1.4} />
+                <NetName x={f.x} y={f.up ? f.y - 4 : f.y + 12} anchor="middle" size={10} text={f.text} color={sel?.flags.has(i) ? 'var(--accent)' : w.text} onPick={() => setPicked((c) => toggleNet(c, f.text))} />
               </g>
             ))}
             {drawing.dots.map((p, i) => (
-              <circle key={`j${i}`} data-junction cx={p.x} cy={p.y} r={2.5} fill={w.stroke} />
+              <circle key={`j${i}`} data-junction cx={p.x} cy={p.y} r={2.5} fill={sel?.dots.has(i) ? 'var(--accent)' : w.stroke} style={fade(sel?.dots.has(i))} />
             ))}
           </g>
         </svg>

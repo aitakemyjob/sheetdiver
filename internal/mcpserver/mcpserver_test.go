@@ -267,6 +267,18 @@ func TestAlternativesReportAndUpdates(t *testing.T) {
 	h.must("create_project", map[string]any{"name": "b"})
 	h.must("add_to_project", map[string]any{"project": "b", "part": "ZX7001", "designator": "U1"})
 	h.must("export_project_report", map[string]any{"project": "b"}, "# b — design review", "| U1 | 1 | ZX7001 |")
+	// A project is deleted by name only, and its parts stay.
+	if out, _, isErr := h.call("delete_project", map[string]any{"project": " "}); !isErr || !strings.Contains(out, "name the project") {
+		t.Errorf("delete_project without a name: %s", out)
+	}
+	h.must("delete_project", map[string]any{"project": "b"}, "deleted project b", "parts stay")
+	if out := h.must("list_projects", map[string]any{}); strings.Contains(out, "b:") {
+		t.Errorf("b still listed: %s", out)
+	}
+	h.must("get_part", map[string]any{"part": "ZX7001"}, "ZX7001")
+	if out, _, isErr := h.call("delete_project", map[string]any{"project": "b"}); !isErr {
+		t.Errorf("deleting twice: %s", out)
+	}
 	// The sample came as bytes (no URL) and lookups are offline here.
 	out, _, _ := h.call("check_datasheet_updates", map[string]any{"part": "nope"})
 	if !strings.Contains(out, "nope") {
@@ -430,7 +442,7 @@ func TestConnectionsTools(t *testing.T) {
 			{"net": "SDA", "part": "U2", "pin": "4"},
 			{"net": "SCL", "part": "U3", "pin": "1"},
 		},
-	}, "not applied:", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
+	}, "problems (what couldn't be applied", "U3: not in the BOM", "VBAT [signal]: U1.3(VIN) Battery", "SDA [signal, bus I2C1]: U1.4(VFB) U2.4(VFB)",
 		"U1 SD1234 — U2 SD1235: I2C1 (signal)", "[warn] U1: pins that must be connected aren't: GND (1)")
 	// Links come from the connection table: U1 makes 3V3 in the BOM but
 	// has no pin on it here.
@@ -444,10 +456,97 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("get_connections", map[string]any{}, "blocks off the BOM: Battery", "3V3 [power]: U2.3(VIN)")
 	// Passives are listed with where they hang, not only part-to-part links.
 	h.must("set_connections", map[string]any{
-		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}},
-		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U1", "pin": "SW"}, {"net": "LX2", "part": "U1", "pin": "GND"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
-	}, "C9 10µF on 3V3 (by U2 SD1235), to ground", "L9 2.2µH across U1 SD1234 LX1/LX2")
-	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 4 blocks off the BOM")
+		"blocks":  []map[string]any{{"name": "C9", "kind": "capacitor", "value": "10µF"}, {"name": "L9", "kind": "inductor", "value": "2.2µH"}, {"name": "R9", "kind": "resistor", "value": "36.5k"}, {"name": "U9 TPS63900", "kind": "ic"}},
+		"connect": []map[string]any{{"net": "3V3", "part": "C9"}, {"net": "LX1", "part": "U9 TPS63900", "pin": "LX1"}, {"net": "LX2", "part": "U9 TPS63900", "pin": "LX2"}, {"net": "LX1", "part": "L9", "pin": "1"}, {"net": "LX2", "part": "L9", "pin": "2"}, {"net": "FB", "part": "U2", "pin": "VFB"}, {"net": "FB", "part": "R9"}},
+	}, "C9 10µF (supports U2 SD1235, guessed) on 3V3 (by U2 SD1235), to ground", "L9 2.2µH (supports U9 TPS63900, guessed) across U9 TPS63900 LX1/LX2")
+	h.must("get_project", map[string]any{}, "## Connections", "pin connections, 5 blocks off the BOM")
+	// Groups, and what a passive supports.
+	h.must("set_connections", map[string]any{
+		"groups": []map[string]any{{"name": "Power", "description": "Battery to 3V3", "notes": "keep the loop small"}},
+		"assign": []map[string]any{{"part": "U1", "group": "Power"}, {"part": "Battery", "group": "Power"}, {"part": "U2", "group": "Load"}, {"part": "C9", "supports": "U1"}, {"part": "U7", "group": "Power"}},
+	}, "problems (what couldn't be applied", "U7: not in the BOM", "group Power: U1 SD1234, Battery", "— Battery to 3V3 (notes: keep the loop small)", "group Load: U2 SD1235", "C9 10µF (supports U1 SD1234) on 3V3 (by U1 SD1234)",
+		// Each assignment's result is listed back.
+		"assignments now:", "C9: group Load (its part's); supports U1 SD1234; hangs by U1 SD1234", "U1: group Power")
+	// Clearing a support says what it's guessed to be now; the wrong way
+	// round is refused with the right way.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": ""}, {"part": "U1", "supports": "C9"}}},
+		"C9: group Load (its part's); supports U2 SD1235, guessed; hangs by U2 SD1235", "U1 supports C9: the other way round? A passive supports the part it serves: part C9, supports U1")
+	// Subgroups set through the tool are stored, echoed and listed per
+	// group; set again with another field, they're kept.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "cluster": "Decoupling"}, {"part": "R9", "cluster": "Feedback"}}},
+		"C9: group Load (its part's); subgroup Decoupling; supports U2 SD1235", "R9: group Load (its part's); subgroup Feedback;", "group Load: U2 SD1235, C9, R9; subgroups: Decoupling (C9), Feedback (R9)")
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "C9", "supports": "U2"}}}, "C9: group Load (its part's); subgroup Decoupling; supports U2 SD1235;")
+	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9), Feedback (R9)")
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "cluster": ""}}}, "R9: group Load (its part's); supports")
+	// Groups stack: Load is drawn below Power, said in the group's line;
+	// a loop is refused for the group that would close it.
+	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Load", "below": "Power"}}}, "group Load: U2 SD1235, C9, R9", "[drawn below Power]")
+	h.must("set_connections", map[string]any{"groups": []map[string]any{{"name": "Power", "below": "Load"}}}, "group Power: below Load, which is (through others) below it; it's drawn in a column of its own", "[drawn below Power]")
+	h.must("get_connections", map[string]any{}, "subgroups: Decoupling (C9) [drawn below Power]")
+	// A part asked for a column and row: echoed, shown as not drawn yet,
+	// then, once the app reports where it drew things, column by column
+	// with whether the place was kept.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "U2", "column": 1, "row": 0}, {"part": "R9", "column": 0}}},
+		"U2: group Load; asked for column 1, row 0", "R9: group Load (its part's); asked for column 0;")
+	h.must("get_connections", map[string]any{}, "## Placement", "not drawn since the last change", "U2 SD1235 asked for column 1, row 0\n", "R9 asked for column 0\n")
+	ids := map[string]string{}
+	d, _ := h.core.ProjectDetail(context.Background(), "board")
+	for _, p := range d.Connections.Diagram.Parts {
+		ids[strings.Fields(p.Title)[0]] = p.ID
+	}
+	for _, p := range d.Connections.Diagram.Passives {
+		ids[p.Label] = p.ID
+	}
+	drawn := core.Drawn{Project: "board", Cells: []core.DrawnCell{
+		{Node: ids["U1"], Group: "Power", Column: 0, Row: 0}, {Node: ids["Battery"], Group: "Power", Column: 0, Row: 1},
+		{Node: ids["U2"], Group: "Load", Column: 1, Row: 0}, {Node: ids["C9"], Group: "Load", Column: 1, Row: 1}, {Node: ids["R9"], Group: "Load", Column: 2, Row: 0},
+	}, Problems: []core.LayoutProblem{{Check: "wire round a part", Group: "Load", Text: "I2C1_SDA's wire leaves U2 SD1235's SDA on its left and runs round U2 SD1235 to its right"}}}
+	h.core.SetDrawn(drawn)
+	h.must("get_connections", map[string]any{}, "Power: column 0: U1 SD1234, Battery\n", "Load: column 0:  | column 1: U2 SD1235, C9 | column 2: R9\n",
+		"U2 SD1235 asked for column 1, row 0: drawn there", "R9 asked for column 0: drawn in column 2, row 0 (the wiring didn't allow it)",
+		"## Layout problems\nLoad: I2C1_SDA's wire leaves U2 SD1235's SDA on its left and runs round U2 SD1235 to its right (wire round a part)\n")
+	// A picture of the diagram, from the app showing it: this plays the
+	// app, drawing again when it's asked to show the diagram.
+	events, stop := h.core.Bus.Subscribe()
+	defer stop()
+	opened := make(chan core.Focus, 4)
+	go func() {
+		for ev := range events {
+			switch ev.Type {
+			case core.EvSnapshot:
+				req := ev.Data.(core.SnapshotRequest)
+				answer := core.Snapshot{ID: req.ID, PNG: append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 200)...), Width: 640, Height: 480}
+				if req.Project != "board" || req.Group == "Clock" {
+					answer = core.Snapshot{ID: req.ID, Problem: `no group "Clock" on the diagram; its groups are Power, Load`}
+				}
+				_ = h.core.DeliverSnapshot(answer)
+			case core.EvFocus:
+				opened <- ev.Data.(core.Focus)
+				h.core.SetDrawn(drawn)
+			}
+		}
+	}()
+	out, img, isErr := h.call("get_diagram_image", map[string]any{"group": "Load"})
+	if isErr || !img || !strings.Contains(out, "group Load of board's block diagram as SheetDiver draws it (640×480 px).") ||
+		!strings.Contains(out, "## Layout problems\nI2C1_SDA's wire leaves") {
+		t.Errorf("Load's picture (image %v):\n%s", img, out)
+	}
+	h.must("get_diagram_image", map[string]any{"group": "Power"}, "## Layout problems\nnone found\n")
+	h.must("get_diagram_image", map[string]any{}, "the block diagram of board as SheetDiver draws it", "Ask for one group", "Load: I2C1_SDA's wire")
+	if out, _, isErr := h.call("get_diagram_image", map[string]any{"group": "Clock"}); !isErr || !strings.Contains(out, `no group "Clock"`) {
+		t.Errorf("an unknown group: %s", out)
+	}
+	if _, img, isErr := h.call("get_diagram_image", map[string]any{"show": true}); isErr || !img {
+		t.Error("show then picture failed")
+	}
+	if f := <-opened; f.Kind != "project" || f.Tab != "diagram" || f.Project != "board" {
+		t.Errorf("show opened %+v", f)
+	}
+	stop()
+
+	// A change makes the drawing out of date until the app draws again.
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "column": -1}}}, "R9: group Load (its part's); supports")
+	h.must("get_connections", map[string]any{}, "not drawn since the last change")
 
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {

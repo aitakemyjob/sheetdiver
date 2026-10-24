@@ -279,3 +279,31 @@ func TestZeroCurrentLimitIsNone(t *testing.T) {
 		t.Errorf("stored 0 = %+v", rails)
 	}
 }
+
+func TestRecordedPinsSurviveReExtraction(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	in := func(pins ...Pin) *Import {
+		return &Import{Datasheet: Datasheet{SHA256: "pins", File: "p.pdf", Filename: "p.pdf", Pages: 2}, Parts: []Part{{MPN: "MAX77827"}}, Pins: pins}
+	}
+	ds, err := s.SaveImport(ctx, in(Pin{Number: "1", Name: "IN garbled"}, Pin{Number: "2", Name: "LX1 LX2"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPins(ctx, ds, "WLP", []Pin{{Number: "1", Name: "IN"}, {Number: "2", Name: "LX1"}, {Number: "3", Name: "LX2"}}, SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	// Extracted again (a newer extractor): the recorded table stays, and
+	// the extractor's rows don't come back beside it.
+	if _, err := s.SaveImport(ctx, in(Pin{Number: "1", Name: "IN garbled"}, Pin{Number: "2", Name: "LX1 LX2"})); err != nil {
+		t.Fatal(err)
+	}
+	pins, _ := s.Pins(ctx, ds, "")
+	var names []string
+	for _, p := range pins {
+		names = append(names, p.Name+"/"+p.Source)
+	}
+	if strings.Join(names, " ") != "IN/agent LX1/agent LX2/agent" {
+		t.Errorf("pins = %v", names)
+	}
+}

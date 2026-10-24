@@ -57,6 +57,17 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
           <button className="btn sm" title="Design-review report (Markdown): findings, rails, parts, calculations" onClick={() => setReport(true)}>
             <FileText size={13} /> Report
           </button>
+          <button
+            className="btn sm danger"
+            title="Delete this project: its BOM, rails, connections, groups, calculations and notes. Its parts stay in the library."
+            onClick={async () => {
+              if (!window.confirm(`Delete the project ${d.project.name}? Its parts stay in the library. This can't be undone.`)) return;
+              await api.deleteProject(d.project.id);
+              if (s.active) s.close(s.active);
+            }}
+          >
+            <Trash2 size={13} /> Delete
+          </button>
         </h1>
         <input
           className="input"

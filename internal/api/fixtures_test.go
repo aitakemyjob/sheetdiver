@@ -237,7 +237,7 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 	}
 	for _, r := range cir.Rails {
 		v := r.V
-		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v}); err != nil {
+		if _, err := c.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: &v, Source: r.Source}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -257,6 +257,18 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 	}
 	for _, pin := range cir.Pins {
 		ch.Connect = append(ch.Connect, core.ConnectChange{Net: pin[0], Part: pin[1], Pin: pin[2]})
+	}
+	for _, g := range cir.Groups {
+		desc, notes, below := g.Description, g.Notes, g.Below
+		ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: &desc, Notes: &notes, Below: &below})
+	}
+	for _, a := range cir.Assign {
+		group, supports := a[1], a[2]
+		ch.Assign = append(ch.Assign, core.AssignChange{Part: a[0], Group: &group, Supports: &supports})
+	}
+	for _, c := range cir.Cluster {
+		cluster := c[1]
+		ch.Assign = append(ch.Assign, core.AssignChange{Part: c[0], Cluster: &cluster})
 	}
 	if problems, err := c.ChangeConnections(ctx, cir.Name, ch, library.SourceUser); err != nil || len(problems) > 0 {
 		t.Fatalf("%s: %v %q", cir.Name, err, problems)

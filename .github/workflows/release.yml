@@ -206,7 +206,8 @@ jobs:
           |---|---|
           | macOS (Apple Silicon + Intel) | \`sheetdiver_darwin_universal.zip\` |
           | Windows | \`sheetdiver_windows_amd64_installer.exe\` or \`sheetdiver_windows_amd64.zip\` |
-          | Claude Desktop extension (Windows) | \`sheetdiver_windows_amd64.mcpb\` for the installer. With the zip, save it from the app instead (*Connect an agent › Claude Desktop*), so it knows where SheetDiver is |
+          | Claude Desktop extension (Windows) | \`sheetdiver_windows_amd64.mcpb\` (or save it from the app: *Connect an agent › Claude Desktop*) |
+          | Claude Desktop extension (Linux) | \`sheetdiver_linux_amd64.mcpb\` / \`sheetdiver_linux_arm64.mcpb\` (or save it from the app) |
           | Linux x64 | \`.deb\`, \`.rpm\` or \`.tar.gz\` (\`sheetdiver_linux_amd64.*\`) |
           | Linux ARM64 | \`sheetdiver_linux_arm64.*\` |
           | Headless server (\`sheetdiver serve\`) | \`sheetdiver-headless_<os>_<arch>.*\` |

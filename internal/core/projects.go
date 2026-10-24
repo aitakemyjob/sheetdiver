@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -516,7 +517,7 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 		if !pp.HasDatasheet {
 			add(calc.Warn, label, "", 0, "%s (%s) has no datasheet in the library, so its limits aren't checked; import one", label, pp.MPN)
 		}
-		if pp.SupplyRail == "" && pp.OutputRail == "" && !passive(pp.Category) {
+		if pp.SupplyRail == "" && pp.OutputRail == "" && !unpowered(pp) {
 			add(calc.Warn, label, "", 0, "%s (%s) is not connected to a rail; set its supply rail to check voltages and currents", label, pp.MPN)
 		}
 		if pp.SupplyRail != "" {
@@ -546,7 +547,7 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 						}
 					}
 				}
-				if pp.ITyp == nil && pp.IMax == nil && pp.OutputRail == "" && !passive(pp.Category) {
+				if pp.ITyp == nil && pp.IMax == nil && pp.OutputRail == "" && !unpowered(pp) {
 					if iq := quiescent(ps); iq > 0 {
 						add(calc.Warn, label, r.Name, 0, "%s has no load current set; its quiescent current is %s, but set the actual operating current for an accurate budget", label, calc.Eng(iq, "A"))
 					} else {
@@ -615,13 +616,24 @@ func sortChecks(cs []ProjectCheck) {
 	sort.SliceStable(cs, func(i, j int) bool { return rank[cs[i].Level] < rank[cs[j].Level] })
 }
 
-// passive reports whether a category draws no supply current of its own.
-func passive(cat string) bool {
-	switch cat {
-	case "inductor", "capacitor", "diode", "mosfet", "mosfet-n", "mosfet-p", "resistor":
-		return true
+// Parts that draw no supply current of their own, by category (as the
+// datasheet or the BOM names it) or by designator (R1, D1, SW2, Y1, J3).
+// An oscillator is powered, whatever it's called.
+var (
+	unpoweredCategoryRe = regexp.MustCompile(`(?i)resistor|capacitor|inductor|ferrite|diode|\bled|tvs|zener|schottky|fuse|switch|button|crystal|resonator|connector|header|jumper|test ?point|mosfet|transistor|\bbjt|mechanical|mounting|heat ?sink`)
+	unpoweredRefRe      = regexp.MustCompile(`(?i)^(R|RN|C|L|FB|D|LED|Q|F|SW|S|BTN|Y|X|J|P|CN|H|MH|TP|JP)\d`)
+	poweredCategoryRe   = regexp.MustCompile(`(?i)oscillator`)
+)
+
+// unpowered reports whether a BOM entry draws no supply current of its
+// own (a passive, an LED, a switch, a crystal, a connector), so isn't
+// expected on a rail or to have a load current.
+func unpowered(pp library.ProjectPart) bool {
+	if poweredCategoryRe.MatchString(pp.Category) {
+		return false
 	}
-	return false
+	ref := strings.TrimSpace(strings.Split(pp.Designator, ",")[0])
+	return unpoweredCategoryRe.MatchString(pp.Category) || unpoweredRefRe.MatchString(ref)
 }
 
 // AddToProject places a part in a project by part reference.

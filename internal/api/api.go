@@ -140,6 +140,13 @@ func (a *API) registerApp() {
 		c.SetUIContext(in)
 		return nil, nil
 	})
+	a.methods["diagram.drawn"] = method(func(ctx context.Context, in core.Drawn) (any, error) {
+		c.SetDrawn(in)
+		return nil, nil
+	})
+	a.methods["diagram.snapshot"] = method(func(ctx context.Context, in core.Snapshot) (any, error) {
+		return nil, c.DeliverSnapshot(in)
+	})
 	a.methods["files.pickPDFs"] = method(func(ctx context.Context, _ struct{}) (any, error) {
 		if a.PickPDFs == nil {
 			return nil, fmt.Errorf("the file picker needs the desktop app; drop PDFs on the window instead")

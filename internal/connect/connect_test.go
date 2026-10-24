@@ -27,8 +27,8 @@ func unzip(t *testing.T, b []byte) map[string][]byte {
 	out := map[string][]byte{}
 	for _, f := range zr.File {
 		want := fs.FileMode(0o644)
-		if strings.HasSuffix(f.Name, ".exe") {
-			want = 0o755
+		if strings.HasPrefix(f.Name, "server/sheetdiver-mcp") {
+			want = 0o755 // the bridge stays executable when unpacked
 		}
 		if f.Mode().Perm() != want {
 			t.Errorf("%s has mode %v, want %v", f.Name, f.Mode(), want)
@@ -136,7 +136,7 @@ func TestExtension(t *testing.T) {
 		t.Errorf("compatibility = %+v, user_config = %v", m.Compatibility, m.UserConfig)
 	}
 	// A dev build still has a semantic version.
-	b, _ = Extension{Version: "dev", Command: "/x", Platform: "linux"}.Build()
+	b, _ = Extension{Version: "dev", Command: "/x", Platform: "darwin"}.Build()
 	files = unzip(t, b)
 	if !strings.Contains(string(files["manifest.json"]), `"version": "0.0.0-dev"`) {
 		t.Errorf("dev version: %s", files["manifest.json"])
@@ -154,7 +154,7 @@ func TestLauncherRunsTheBridgeOnClaudesPipes(t *testing.T) {
 	if err := os.WriteFile(app, []byte("#!/bin/sh\n[ \"$1\" = mcp ] || exit 3\nexec cat\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := Extension{Version: "v1.0.0", Command: app, Platform: "linux"}.Build()
+	b, _ := Extension{Version: "v1.0.0", Command: app, Platform: "darwin"}.Build()
 	js := filepath.Join(dir, "index.js")
 	if err := os.WriteFile(js, unzip(t, b)["server/index.js"], 0o644); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func launch(t *testing.T, script string, stdin *os.File) (string, string, int) {
 	if err := os.WriteFile(app, []byte("#!/bin/sh\n"+script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := Extension{Version: "v1.0.0", Command: app, Platform: "linux"}.Build()
+	b, _ := Extension{Version: "v1.0.0", Command: app, Platform: "darwin"}.Build()
 	js := filepath.Join(dir, "index.js")
 	if err := os.WriteFile(js, unzip(t, b)["server/index.js"], 0o644); err != nil {
 		t.Fatal(err)
@@ -284,13 +284,50 @@ func TestStdioCommand(t *testing.T) {
 
 func TestForThisAppFindsTheBridge(t *testing.T) {
 	dir := t.TempDir()
-	if _, ok := bridgeBeside(filepath.Join(dir, "sheetdiver.exe")); ok {
+	if _, ok := bridgeBeside(filepath.Join(dir, "sheetdiver.exe"), "windows"); ok {
 		t.Error("found a bridge in an empty folder")
 	}
-	if err := os.WriteFile(filepath.Join(dir, BridgeName), []byte("MZ"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, BridgeName("windows")), []byte("MZ"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if p, ok := bridgeBeside(filepath.Join(dir, "sheetdiver.exe")); !ok || p != filepath.Join(dir, BridgeName) {
+	if p, ok := bridgeBeside(filepath.Join(dir, "sheetdiver.exe"), "windows"); !ok || p != filepath.Join(dir, BridgeName("windows")) {
+		t.Errorf("bridge = %q, %v", p, ok)
+	}
+}
+
+func TestLinuxExtensionCarriesTheConsoleBridge(t *testing.T) {
+	// Claude Desktop starts the bundled bridge itself: no Node launcher,
+	// and nothing that depends on the app's GUI libraries or install path.
+	t.Setenv("SHEETDIVER_CONFIG", "")
+	if _, err := (Extension{Version: "v1.0.0", Platform: "linux"}).Build(); !errors.Is(err, ErrNoBridge) {
+		t.Errorf("without the bridge: %v", err)
+	}
+	bridge := []byte("\x7fELF console bridge")
+	b, err := Extension{Version: "v0.1.1", Platform: "linux", Bridge: bridge, Command: "/usr/bin/sheetdiver"}.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := unzip(t, b)
+	if !bytes.Equal(files["server/sheetdiver-mcp"], bridge) || files["server/index.js"] != nil {
+		t.Errorf("files = %v", slices.Collect(maps.Keys(files)))
+	}
+	var m manifest
+	if err := json.Unmarshal(files["manifest.json"], &m); err != nil {
+		t.Fatal(err)
+	}
+	s := m.Server
+	if s.Type != "binary" || s.EntryPoint != "server/sheetdiver-mcp" || s.MCPConfig.Command != "${__dirname}/server/sheetdiver-mcp" || !slices.Equal(s.MCPConfig.Args, []string{"--port", "${user_config.port}"}) {
+		t.Errorf("server = %+v", s)
+	}
+	if !slices.Equal(m.Compatibility.Platforms, []string{"linux"}) || m.Compatibility.Runtimes != nil {
+		t.Errorf("compatibility = %+v", m.Compatibility)
+	}
+	// The bridge is found beside the installed app.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, BridgeName("linux")), bridge, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if p, ok := bridgeBeside(filepath.Join(dir, "sheetdiver"), "linux"); !ok || p != filepath.Join(dir, "sheetdiver-mcp") {
 		t.Errorf("bridge = %q, %v", p, ok)
 	}
 }

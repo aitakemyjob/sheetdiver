@@ -70,7 +70,7 @@ maps, notes), so the library gets better every time it's used.
 | **Pins, sections, registers** | Pin tables, the full section tree with text (pin description, register map, layout guidelines, design procedure…), and structured registers recorded by the agent. |
 | **Page viewer** | Pages with figure and table boxes overlaid, the exact region of any parameter highlighted, and drag-to-select to read a region or define a missed figure. |
 | **Projects** | BOM with designators, rails and currents; per-rail load with regulator input currents derived from their output loads; checks against absolute-maximum and recommended limits and regulator capacity. |
-| **Block diagram, pins and connections** | A project's *Block diagram* tab draws its parts with their pins, wires labelled with their nets, and passives hanging off the pins and nets they serve (R, C, L and diodes with their values); zoom, pan, drag parts to arrange them, export as SVG. The *Pins* tab lists every pin of each part with what it's connected to. The *Connections* tab is the table you edit, checked against each part's pin table (pins that don't exist, ground or supply pins on the wrong net, supply pins left open); export as CSV. Your agent can draft all of it. |
+| **Block diagram, pins and connections** | A project's *Block diagram* tab draws its parts with their pins, wires labelled with their nets, and passives hanging off the parts and nets they serve (R, C, L and diodes with their values; say which part a decoupling capacitor supports and it's drawn beside it). Put parts in functional groups (Power, MCU…) to draw each framed with its description and notes, wires inside it and net names where they leave; the parts hanging off one net (a rail's decoupling, a button and its pull-up) go on a bus in a faint frame of their own, and parts you name into a subgroup are wired up as one unit; zoom, pan, drag parts to arrange them, export as SVG. The *Pins* tab lists every pin of each part with what it's connected to. The *Connections* tab is the table you edit, checked against each part's pin table (pins that don't exist, ground or supply pins on the wrong net, supply pins left open); export as CSV. Your agent can draft all of it. |
 | **Calculators** | Buck, boost, LDO, gate drive, gate divider and divider: outputs with formulas, checks (minimum on/off time, current limit, thermal), suggestions, and the datasheet page behind every input. |
 | **Compare by type** | Pick a component type and see its parts side by side on the parameters that matter for it, sorted and filtered ("VIN ≥ 24 V, IOUT ≥ 3 A, IQ ≤ 1 µA"), with every value linked to its page. |
 | **Search** | Full text over parts, pages, sections, figure descriptions, parameters, pins, registers, recommendations and notes. |
@@ -129,11 +129,16 @@ Windows choose **More info → Run anyway** in SmartScreen.
    **Claude Desktop:** in the connect dialog (the **MCP** pill), choose
    *Claude Desktop › Save Claude Desktop extension*. Then in Claude Desktop
    open Settings › Extensions › Advanced settings › **Install Extension…**
-   and pick the saved `sheetdiver.mcpb`. On Windows, each release also has
-   the extension as `sheetdiver_windows_amd64.mcpb`, which works with any
-   install. Like `sheetdiver mcp`, the extension uses the open app (so
-   what the agent shows appears in its window) and serves your library
-   itself while the app is closed. The dialog also has the add commands
+   and pick the saved `sheetdiver.mcpb`. Each Windows and Linux release
+   also has the extension (`sheetdiver_<os>_<arch>.mcpb`), which works
+   with any install: it carries SheetDiver's small stdio server
+   (`sheetdiver-mcp`), which Claude Desktop starts directly. Like
+   `sheetdiver mcp`, it uses the open app (so what the agent shows appears
+   in its window) and serves your library itself while the app is closed.
+   If Claude can't connect, every session is logged to
+   `~/.cache/sheetdiver/mcp.log` (Windows: `%LOCALAPPDATA%\sheetdiver\mcp.log`;
+   macOS: `~/Library/Caches/sheetdiver/mcp.log`): how it was started, each
+   request and how it ended. The dialog also has the add commands
    and config files for Codex, Gemini CLI, Windsurf and others, with this
    copy's path filled in, and saves each file on request.
 
@@ -153,7 +158,7 @@ Windows choose **More info → Run anyway** in SmartScreen.
 sheetdiver                    launch the desktop app
 sheetdiver serve              headless; open the same UI in your browser
 sheetdiver mcp                stdio MCP bridge to the running app
-sheetdiver-mcp [-port N]      the same as a console program (Windows' stdio clients)
+sheetdiver-mcp [-port N]      the same as a small console program (Claude Desktop's extension on Windows and Linux)
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)

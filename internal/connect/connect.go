@@ -39,8 +39,21 @@ func Command() string {
 }
 
 // BridgeName is the file name of the console bridge (cmd/sheetdiver-mcp)
-// that the Windows install puts beside the app.
-const BridgeName = "sheetdiver-mcp.exe"
+// on a platform (a GOOS), installed beside the app.
+func BridgeName(goos string) string {
+	if goos == "windows" {
+		return "sheetdiver-mcp.exe"
+	}
+	return "sheetdiver-mcp"
+}
+
+// carriesBridge reports whether a platform's Claude Desktop extension
+// runs the console bridge it carries, rather than the installed app
+// through a Node launcher. Windows needs it (the app is a windowed
+// program); on Linux it keeps Node, GTK and the install out of the way.
+func carriesBridge(goos string) bool {
+	return goos == "windows" || goos == "linux"
+}
 
 // Stdio is how a client launches SheetDiver's stdio MCP server.
 type Stdio struct {
@@ -54,7 +67,7 @@ type Stdio struct {
 // with "mcp".
 func StdioCommand() Stdio {
 	if runtime.GOOS == "windows" {
-		if p, ok := bridgeBeside(Command()); ok {
+		if p, ok := bridgeBeside(Command(), runtime.GOOS); ok {
 			return Stdio{Command: p, Args: []string{}}
 		}
 	}
@@ -62,39 +75,39 @@ func StdioCommand() Stdio {
 }
 
 // bridgeBeside returns the console bridge next to app, when it's there.
-func bridgeBeside(app string) (string, bool) {
-	p := filepath.Join(filepath.Dir(app), BridgeName)
+func bridgeBeside(app, goos string) (string, bool) {
+	p := filepath.Join(filepath.Dir(app), BridgeName(goos))
 	st, err := os.Stat(p)
 	return p, err == nil && !st.IsDir()
 }
 
-// ErrNoBridge means a Windows extension was asked for without the console
-// bridge to put in it.
-var ErrNoBridge = errors.New(BridgeName + " isn't installed beside SheetDiver; reinstall SheetDiver to get it")
+// ErrNoBridge means an extension that carries the console bridge was
+// asked for without the bridge to put in it.
+var ErrNoBridge = errors.New("the MCP bridge (sheetdiver-mcp) isn't installed beside SheetDiver; reinstall SheetDiver to get it")
 
 // Extension describes the Claude Desktop extension to build.
 type Extension struct {
 	// Version is the app's version ("v0.1.0", or "dev").
 	Version string
 	// Command is the SheetDiver executable the extension runs. Windows'
-	// extension carries its own bridge and doesn't use it, so it may be ""
-	// there (a release's extension, for any install).
+	// and Linux's extensions carry their own bridge and don't use it, so
+	// it may be "" there (a release's extension, for any install).
 	Command string
 	// Platform is runtime.GOOS of the machine it's for (default: this one).
 	Platform string
-	// Bridge is the console bridge executable the Windows extension
-	// carries (cmd/sheetdiver-mcp, built for Windows).
+	// Bridge is the console bridge executable the Windows and Linux
+	// extensions carry (cmd/sheetdiver-mcp, built for that platform).
 	Bridge []byte
 }
 
 // ForThisApp describes the extension for this install, with the console
-// bridge read from beside the app on Windows.
+// bridge read from beside the app where the extension carries it.
 func ForThisApp(version string) (Extension, error) {
 	e := Extension{Version: version, Command: Command()}
-	if e.platform() != "windows" {
+	if !carriesBridge(e.platform()) {
 		return e, nil
 	}
-	p, ok := bridgeBeside(e.Command)
+	p, ok := bridgeBeside(e.Command, e.platform())
 	if !ok {
 		return e, ErrNoBridge
 	}

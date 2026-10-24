@@ -1,33 +1,71 @@
 // Places a project's block diagram. The backend decides what is drawn
-// (core.Diagram: each box's pins and their sides, how each net's wire
-// runs, where each passive hangs); this decides only where things go, in
-// stages that each do one thing:
+// (core.Diagram: each box's pins and their sides, which group each box
+// and passive is in, what each passive serves); this turns it into a
+// graph for ELK (the Eclipse Layout Kernel, elkjs) and the result back
+// into a drawing:
 //
-//   measure → each box's size from its pins
-//   place   → boxes in columns, stacked, saved positions, no overlaps
-//   pinsAt  → where each pin is on its box
-//   route   → each net's wire: buses from a net's driver to the parts it
-//             feeds, wires between two boxes, channels under a column,
-//             stubs leaving a box; ground pins to ground symbols
-//   hang    → each passive where nothing it adds crosses or covers
-//             another net: a bridge across its two pins, the others on a
-//             drop from their wire or pin, each to a ground symbol
+//   measure → each symbol's size from its pins, and where each pin is on it:
+//             a body with pin lines out to the node's border, where wires
+//             attach (a generated symbol shows every pin of its pin table,
+//             unconnected ones dimmed; "connected pins only" hides those)
+//   graph   → boxes are nodes with their pins as fixed ports; passives and
+//             the names of nets leaving the group are small nodes; a net
+//             is an edge from the pin that drives it to each pin it feeds
+//   ELK     → layered left to right in power-flow order, wires routed
+//             orthogonally around everything, edges of a net merged into
+//             a bus with junctions, labels placed where they fit
+//   drawing → the boxes, passives and wires at ELK's positions, plus the
+//             ground symbols and tie jogs ELK doesn't know about
 //
 // What it promises, for any board (tested on several): nothing overlaps,
-// no wire crosses another net's wire, nothing sits on another net's wire.
-import type { Diagram, DiagramPart, DiagramPassive, DiagramPin } from './types';
+// no wire touches or sits on another net's wire, none runs through a box
+// or along its side, every label fits its wire, and wires seldom cross
+// (ELK keeps crossings to a minimum, but can't always avoid one where a
+// net's branches interleave with another's).
+//
+// A board in functional groups is laid out a group at a time (groups
+// share no wires: a net between groups is a labelled stub in each), each
+// framed with its name, description and notes, left to right in power
+// flow order. A part dragged by hand is a hint to ELK: its order among
+// the parts beside it follows where it was put (left to right stays with
+// the flow), and the wires are routed again.
+import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
+import { hang, type FarEnd } from './diagram/hanging';
+import { cells as cellsOf, hints, keepSides, type Placed, type Want } from './diagram/cells';
+import { placeFrames } from './diagram/placement';
+import { wire, type NetContext, type NetEnd } from './diagram/wiring';
+import { threeTerminal } from './symbols';
+import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
 
+/** Everything sits on a grid this fine: sizes, pin ends, wire corners, frames. */
+export const GRID = 10;
 export const PITCH = 30; // between pins
-export const TOP = 30; // first pin below a box's top
+export const TOP = 30; // first pin below a body's top
+export const PIN_LEN = 20; // a pin line, from the body to where its wire attaches
 export const BOX_W = 200;
 export const PAD = 40;
 const TITLE = 30; // a box's title above it
-const TRACK = 12; // between wires turning in the same gap
-const DROP = 40; // from a wire down to a passive hanging from it
 const GROUND = 16; // a ground symbol's height, with its stub
-const SLOT = 84; // between bottom pins
-/** The room a ground pin's name needs along the bottom. */
-const groundSlot = (p: DiagramPin) => Math.max(44, p.name.length * 7 + 16);
+const SLOT = 90; // a bottom pin with a passive hanging under it
+const CHAR = 7.5; // a label's width per character
+const PIN_CHAR = 6.6; // a pin name's width per character (11px)
+
+/** The nearest grid line. */
+export const snap = (v: number) => Math.round(v / GRID) * GRID;
+/** The grid line at or past a size, so what it holds still fits. */
+const up = (v: number) => Math.ceil(v / GRID - 1e-9) * GRID;
+
+/** What the layout may be asked for. */
+export interface LayoutOptions {
+  /** Hide a generated symbol's unconnected pins, except supplies and grounds. */
+  connectedOnly?: boolean;
+}
+
+/** The pins of a part that are drawn. */
+export function visiblePins(part: DiagramPart, opts?: LayoutOptions): DiagramPin[] {
+  if (!opts?.connectedOnly || !part.full) return part.pins;
+  return part.pins.filter((p) => p.connected || p.role === 'power' || p.role === 'ground' || p.role === 'pad');
+}
 
 /** A point. */
 export interface Pt {
@@ -41,13 +79,20 @@ export interface Rect extends Pt {
   h: number;
 }
 
-/** A pin with its place on the drawing. */
-export type PlacedPin = DiagramPin & Pt;
+/** A pin with its place on the drawing: the end of its pin line, where its wire attaches. */
+export type PlacedPin = DiagramPin & Pt & { dim?: boolean };
 
-/** A box with its place and its pins'. */
+/**
+ * A symbol with its place: the node (its body plus its pin lines, which
+ * wires attach to at its border) and its pins'.
+ */
 export interface Box extends Rect {
   part: DiagramPart;
   pins: PlacedPin[];
+  /** The rectangle the pins stick out of. */
+  body: Rect;
+  /** Where its group's content starts: saved positions are relative to it. */
+  origin?: Pt;
 }
 
 /** A wire (an SVG path) with an optional net label. */
@@ -63,6 +108,42 @@ export interface Wire {
 /** A passive with its place. */
 export interface PlacedPassive extends Rect {
   passive: DiagramPassive;
+  /** Its symbol's ends, where its wires attach: down the node, or along it when horizontal. */
+  ends: [Pt, Pt];
+  /** The terminal at each end (a diode's anode and cathode), as the backend names them. */
+  terminals: [string, string];
+  horizontal?: boolean;
+  /** Where its name is written (its value under it): beside a vertical symbol, above a horizontal one. */
+  label: Pt & { anchor: 'start' | 'middle' | 'end' };
+  /** Where its group's content starts: saved positions are relative to it. */
+  origin?: Pt;
+}
+
+/** A group's frame, with what's written at its top. */
+export interface Frame extends Rect {
+  group: DiagramGroup;
+  /** Height of the header with its name, description and notes. */
+  header: number;
+}
+
+/** A subgroup's faint frame: the parts wired up as one unit inside their group, with its name. */
+export interface Cluster extends Rect {
+  name: string;
+}
+
+/** A part or passive's place in its group's grid: the column from the left, the place in it from the top. */
+export interface DrawnCell {
+  node: string;
+  group?: string;
+  column: number;
+  row: number;
+}
+
+/** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
+export interface Flag extends Pt {
+  text: string;
+  /** Above the passive (the rail it hangs from), else below it. */
+  up?: boolean;
 }
 
 export interface BlockDrawing {
@@ -73,641 +154,1151 @@ export interface BlockDrawing {
   grounds: Pt[];
   /** Net names at the far end of pull-ups and the like. */
   flags: Flag[];
-  /** Junctions: where a drop leaves a wire. */
+  /** Junctions: where a wire branches. */
   dots: Pt[];
+  /** Group frames, behind everything else. */
+  frames: Frame[];
+  /** Subgroup frames, over the group frames. */
+  clusters: Cluster[];
+  /** Where each part and passive is in its group's grid of parts, as drawn. */
+  cells: DrawnCell[];
   width: number;
   height: number;
 }
 
-/** Lays out a block diagram. */
-export function layoutBlockDiagram(d: Diagram): BlockDrawing {
-  const boxes = measure(d);
-  place(boxes, d);
-  facing(boxes, d);
-  boxes.forEach(pinsAt);
-  const r = route(d, boxes);
-  const h = hang(d, boxes, r);
-  const wires = [...r.wires, ...h.wires];
-  const extents = [
-    ...boxes.map((b) => ({ x: b.x + b.w, y: b.y + b.h })),
-    ...h.passives.map((p) => ({ x: p.x + p.w, y: p.y + p.h + GROUND })),
-    ...[...r.grounds, ...h.grounds].map((g) => ({ x: g.x + 8, y: g.y + GROUND })),
-    ...wires.map(wireExtent),
-  ];
+/** The layout engine, loaded on first use (it's 1.5 MB). */
+let engine: Promise<ELK> | undefined;
+function elk(): Promise<ELK> {
+  engine ??= import('elkjs/lib/elk.bundled.js').then((m) => new m.default());
+  return engine;
+}
+
+/** Lays out a block diagram: whole, or a group at a time. */
+export function layoutBlockDiagram(d: Diagram, opts: LayoutOptions = {}): Promise<BlockDrawing> {
+  return d.groups?.length ? layoutGroups(d, opts) : layoutOne(d, opts);
+}
+
+// ── groups ────────────────────────────────────────────────────────────
+
+const GROUP_GAP = 60; // between group frames
+const HEADER_LINE = 20; // a description or notes line in a frame's header
+
+/** A frame's header height: its name, then its description and notes. */
+export function headerHeight(g: DiagramGroup): number {
+  return 40 + (g.description ? HEADER_LINE : 0) + (g.notes ? HEADER_LINE : 0);
+}
+
+/** The part of a diagram in one group ("" for none), its columns renumbered from 0. */
+export function groupDiagram(d: Diagram, group: string): Diagram {
+  const inGroup = (g?: string) => (g ?? '').toLowerCase() === group.toLowerCase();
+  const parts = d.parts.filter((p) => inGroup(p.group));
+  const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);
   return {
-    boxes,
-    passives: h.passives,
-    wires,
-    grounds: [...r.grounds, ...h.grounds],
-    flags: h.flags,
-    dots: [...r.dots, ...h.dots],
-    width: Math.max(320, ...extents.map((e) => e.x)) + PAD,
-    height: Math.max(160, ...extents.map((e) => e.y)) + PAD,
+    parts: parts.map((p) => ({ ...p, column: columns.indexOf(p.column) })),
+    nets: d.nets.filter((n) => inGroup(n.group)),
+    passives: d.passives.filter((q) => inGroup(q.group)),
+    groups: [],
+    links: [],
+    subgroups: d.subgroups.filter((sg) => inGroup(sg.group)),
   };
 }
 
-// ── measure ───────────────────────────────────────────────────────────
+/** An empty drawing. */
+const empty = (): BlockDrawing => ({ boxes: [], passives: [], wires: [], grounds: [], flags: [], dots: [], frames: [], clusters: [], cells: [], width: 0, height: 0 });
 
-/** Sizes each box: tall enough for its pins, wide enough for its bottom pins. */
-export function measure(d: Diagram): Box[] {
-  return d.parts.map((part) => {
-    const pins = part.pins.map((p) => ({ ...p, x: 0, y: 0 }));
-    // A pin tied to another of the part's pins (EN to VIN) is drawn on
-    // the same side, just below it, joined to its wire.
-    for (const p of pins.filter((x) => x.side === 'inside' && x.tied)) {
-      const to = pins.find((x) => x.name === p.tied && x.side !== 'inside' && !x.ground);
-      if (to && (to.side === 'left' || to.side === 'right')) p.side = to.side;
-    }
-    const left = pins.filter((p) => p.side === 'left' || p.side === 'inside').length;
-    const right = pins.filter((p) => p.side === 'right').length;
-    const bottom = pins.filter((p) => p.side === 'bottom' && !p.ground).length;
-    const grounds = pins.filter((p) => p.ground);
-    const w = Math.max(BOX_W, 24 + bottom * SLOT + grounds.reduce((n, p) => n + groundSlot(p), 0) + 24);
-    const h = Math.max(120, TOP + Math.max(left, right) * PITCH + (bottom || grounds.length ? 44 : 10));
-    return { part, pins, x: 0, y: 0, w, h };
+/** Moves an SVG path of absolute M, L, H and V commands. */
+export function movePath(path: string, dx: number, dy: number): string {
+  return path.replace(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g, (_, cmd: string, a: string, b?: string) => {
+    if (cmd === 'H') return `H${Number(a) + dx}`;
+    if (cmd === 'V') return `V${Number(a) + dy}`;
+    return `${cmd}${Number(a) + dx},${Number(b) + dy}`;
   });
 }
 
-// ── place ─────────────────────────────────────────────────────────────
-
-/** How far out from a box's side its stubs and bridged passives reach. */
-function reach(d: Diagram, b: Box, side: 'left' | 'right'): number {
-  const out = d.nets.filter((n) => n.wire === 'out' && b.part.pins.some((p) => p.side === side && p.net === n.name));
-  const drops = out.reduce((n, net) => n + d.passives.filter((q) => q.mount === 'out' && q.nets[0] === net.name).length, 0);
-  const bridged = side === 'right' && d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge') ? 120 : 0;
-  return bridged + out.length * 30 + drops * 80;
+/** The top-left corner of everything drawn: boxes with their titles, passives, wires and their labels, symbols. */
+export function topLeft(r: BlockDrawing): Pt {
+  const pts: Pt[] = [
+    ...r.boxes.map((b) => ({ x: b.x, y: b.y - TITLE })),
+    ...r.passives,
+    ...r.grounds,
+    ...r.flags.map((f) => ({ x: f.x - f.text.length * 3.6, y: f.y - 12 })),
+    ...r.dots,
+    ...r.clusters,
+    ...r.wires.flatMap((w) => [
+      ...[...w.path.matchAll(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g)].map(([, c, a, b]) => (c === 'V' ? { x: Infinity, y: Number(a) } : { x: Number(a), y: c === 'H' ? Infinity : Number(b) })),
+      ...(w.label ? [labelRect(w.label)] : []),
+    ]),
+  ];
+  return { x: Math.min(...pts.map((p) => p.x)), y: Math.min(...pts.map((p) => p.y)) };
 }
 
-/** The parts each part shares a net with (ground aside). */
-function neighbours(d: Diagram): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  for (const n of d.nets)
-    for (const a of n.parts)
-      for (const b of n.parts) if (a !== b) out.set(a, [...(out.get(a) ?? []), b]);
+/** Moves a whole drawing by (dx, dy). */
+export function moveDrawing(r: BlockDrawing, dx: number, dy: number): BlockDrawing {
+  const pt = <T extends Pt>(p: T): T => ({ ...p, x: p.x + dx, y: p.y + dy });
+  return {
+    ...r,
+    boxes: r.boxes.map((b) => ({ ...pt(b), body: pt(b.body), pins: b.pins.map(pt) })),
+    passives: r.passives.map((p) => ({ ...pt(p), ends: [pt(p.ends[0]), pt(p.ends[1])] as [Pt, Pt], label: pt(p.label) })),
+    wires: r.wires.map((w) => ({ ...w, path: movePath(w.path, dx, dy), label: w.label && pt(w.label) })),
+    grounds: r.grounds.map(pt),
+    flags: r.flags.map(pt),
+    dots: r.dots.map(pt),
+    frames: r.frames.map(pt),
+    clusters: r.clusters.map(pt),
+  };
+}
+
+/**
+ * Lays out each group on its own, framed, in columns left to right in
+ * the backend's order, a group stacked under the one it's drawn below,
+ * then the parts in no group. Saved positions are relative to their
+ * group's content, so moving a part in one group never moves another
+ * group's parts.
+ */
+async function layoutGroups(d: Diagram, opts: LayoutOptions): Promise<BlockDrawing> {
+  const out: BlockDrawing = empty();
+  const groups: (DiagramGroup | undefined)[] = [...d.groups, undefined];
+  const subs = groups.map((group) => groupDiagram(d, group?.name ?? ''));
+  const drawings = await Promise.all(subs.map((sub) => (sub.parts.length ? layoutOne(sub, opts) : undefined)));
+  // Each group laid out on its own, its frame's top-left at (0, 0).
+  const column = new Map(d.parts.map((p) => [p.id, p.column]));
+  const framed = groups.flatMap((group, i) => {
+    const drawn = drawings[i];
+    if (!drawn) return [];
+    const header = group ? headerHeight(group) : 0;
+    // What's drawn starts a margin inside the frame, however far its stubs
+    // and passives reach out from the boxes.
+    const corner = topLeft(drawn);
+    const dx = up(PAD - Math.min(PAD, corner.x));
+    const dy = up(header + PAD - Math.min(PAD, corner.y));
+    const local = moveDrawing(drawn, dx, dy);
+    local.width = drawn.width + dx;
+    local.height = drawn.height + (dy - header);
+    // Boxes keep their own column (the group's layout renumbers them).
+    local.boxes = local.boxes.map((b) => ({ ...b, part: { ...b.part, column: column.get(b.part.id) ?? b.part.column } }));
+    // The frame fits what's drawn, and the header's text.
+    const textWidth = group ? 24 + 7.2 * Math.max(group.name.length * 1.15, (group.description ?? '').length, (group.notes ?? '').length + 7) : 0;
+    return [{ group, header, local, inner: { x: dx, y: dy }, w: up(Math.max(local.width, textWidth)), h: up(header + local.height) }];
+  });
+  // Where each frame goes: in columns, a group stacked below the one it
+  // names (lib/diagram/placement.ts); the parts in no group last.
+  const places = placeFrames(
+    framed.map((f, i) => ({ name: f.group?.name ?? `\u0000ungrouped${i}`, below: f.group?.below, w: f.w, h: f.h })),
+    GROUP_GAP,
+  );
+  framed.forEach((f, i) => {
+    const { x, y } = places[i];
+    const local = moveDrawing(f.local, x, y);
+    // Saved positions are relative to the group's content.
+    const origin = { x: f.inner.x + x, y: f.inner.y + y };
+    if (f.group) out.frames.push({ x: x + GRID, y: y + GRID, w: f.w - 2 * GRID, h: f.h - 2 * GRID, group: f.group, header: f.header });
+    out.boxes.push(...local.boxes.map((b) => ({ ...b, origin })));
+    out.passives.push(...local.passives.map((p) => ({ ...p, origin })));
+    out.wires.push(...local.wires);
+    out.grounds.push(...local.grounds);
+    out.flags.push(...local.flags);
+    out.dots.push(...local.dots);
+    out.clusters.push(...local.clusters);
+    out.cells.push(...local.cells);
+    out.width = Math.max(out.width, x + f.w);
+    out.height = Math.max(out.height, y + f.h);
+  });
   return out;
 }
 
-/**
- * Orders the boxes in each column so wires between columns don't swap:
- * a few sweeps that sort each column by the mean place of the boxes it
- * connects to in the column before (then after).
- */
-export function orderColumns(cols: Box[][], d: Diagram): void {
-  const near = neighbours(d);
-  const rank = new Map<string, number>();
-  const index = () => cols.forEach((c) => c.forEach((b, i) => rank.set(b.part.id, i)));
-  index();
-  for (let sweep = 0; sweep < 4; sweep++) {
-    const order = sweep % 2 === 0 ? cols.map((_, i) => i) : cols.map((_, i) => cols.length - 1 - i);
-    for (const c of order) {
-      const side = sweep % 2 === 0 ? c - 1 : c + 1;
-      const there = new Set((cols[side] ?? []).map((b) => b.part.id));
-      const centre = (b: Box) => {
-        const ns = (near.get(b.part.id) ?? []).filter((n) => there.has(n));
-        return ns.length ? ns.reduce((s, n) => s + (rank.get(n) ?? 0), 0) / ns.length : (rank.get(b.part.id) ?? 0);
-      };
-      cols[c]?.sort((a, b) => centre(a) - centre(b));
-      index();
-    }
-  }
+// ── measure ──────────────────────────────────────────────────────────
+
+/** The room a bottom pin takes: a slot for a passive hanging under it, else a pitch. */
+function bottomSlot(d: Diagram, part: DiagramPart, p: DiagramPin): number {
+  const under = p.net && d.passives.some((q) => q.mount === 'below' && q.part === part.id && q.nets[0] === p.net);
+  return under ? SLOT : PITCH;
 }
 
 /**
- * Places boxes in their columns, ordered by what they connect to and
- * stacked. A gap between columns is as wide as what's in it needs: stubs,
- * passives hanging from wires, and the wires turning in it. Saved
- * positions win; overlapping boxes are then moved apart.
+ * The pin a tied pin's jog runs to: the nearest untied pin of that name
+ * on its side (a part may have several VDD pins, in more than one run).
  */
-export function place(boxes: Box[], d: Diagram): void {
-  const cols: Box[][] = [];
-  for (const b of boxes) (cols[b.part.column] ??= []).push(b);
-  for (let i = 0; i < cols.length; i++) cols[i] ??= [];
-  orderColumns(cols, d);
-  const top = PAD + TITLE + 10;
-  const turning = d.nets.filter((n) => n.wire === 'between' || n.wire === 'lane').length;
-  let x = PAD + 70; // room for an input wire on the left
-  for (let c = 0; c < cols.length; c++) {
-    const list = cols[c];
-    const leftReach = Math.max(0, ...list.map((o) => reach(d, o, 'left')));
-    let y = top;
-    for (const b of list) {
-      b.x = b.part.x ?? x + leftReach;
-      b.y = b.part.y ?? y;
-      y += b.h + 70 + (b.pins.some((p) => p.side === 'bottom' && !p.ground) ? 110 : GROUND + 20);
-    }
-    const right = Math.max(0, ...list.map((b) => reach(d, b, 'right')));
-    const left = Math.max(0, ...(cols[c + 1] ?? []).map((b) => reach(d, b, 'left')));
-    const between = d.passives.filter((q) => q.mount === 'wire' && list.some((b) => b.part.id === q.part)).length;
-    x += leftReach + Math.max(BOX_W, ...list.map((b) => b.w)) + Math.max(160, right + left + between * 80 + turning * 12 + 90);
-  }
-  separate(boxes);
+export function tiedTo(b: Box, p: PlacedPin): PlacedPin | undefined {
+  const mains = b.pins.filter((x) => x.name === p.tied && !x.tied && x.side === p.side);
+  const dist = (x: PlacedPin) => Math.abs(x.x - p.x) + Math.abs(x.y - p.y);
+  return mains.sort((m, n) => dist(m) - dist(n))[0] ?? b.pins.find((x) => x.name === p.tied && !x.tied);
+}
+
+/** The width of the longest pin name among some pins. */
+const longest = (ps: DiagramPin[]) => Math.max(0, ...ps.map((p) => p.name.length)) * PIN_CHAR;
+
+/**
+ * The bands a body keeps for its top and bottom pins' names (written
+ * down the body): the left and right pins start below the top band and
+ * end above the bottom one.
+ */
+export function bands(pins: DiagramPin[]): { top: number; bottom: number } {
+  const top = pins.filter((p) => p.side === 'top');
+  const bottom = pins.filter((p) => p.side === 'bottom');
+  return { top: top.length ? up(14 + longest(top)) : TOP, bottom: bottom.length ? up(14 + longest(bottom)) : 10 };
 }
 
 /**
- * Orders the pins on each side of each box by where their wires go (the
- * height of the part at the other end), keeping the backend's grouping:
- * wires to other parts, then stubs leaving the board, then bridged pins.
+ * Sizes each symbol: a body wide enough for the names of its left and
+ * right pins and its top and bottom pins' pitch, tall enough for its
+ * left and right pins' pitch between the bands its top and bottom pins'
+ * names take; the node adds a pin line all round.
  */
-export function facing(boxes: Box[], d: Diagram): void {
-  const at = new Map(boxes.map((b) => [b.part.id, b.y + b.h / 2]));
-  const nets = new Map(d.nets.map((n) => [n.name, n]));
+export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
+  return d.parts.map((part) => {
+    const pins: PlacedPin[] = visiblePins(part, opts).map((p) => ({ ...p, x: 0, y: 0, dim: !p.connected || undefined }));
+    const tr = threeTerminal(part.shape);
+    if (tr) {
+      // A transistor is its symbol, the pin ends on the symbol's border.
+      return { part, pins, body: { x: 0, y: 0, w: tr.w, h: tr.h }, x: 0, y: 0, w: tr.w, h: tr.h };
+    }
+    const on = (side: DiagramPin['side']) => pins.filter((p) => p.side === side);
+    const bottomW = on('bottom').reduce((n, p) => n + bottomSlot(d, part, p), 0);
+    const bodyW = Math.max(BOX_W - 2 * PIN_LEN, 12 + longest(on('left')) + 24 + longest(on('right')) + 12, 2 * TOP + on('top').length * PITCH, TOP + bottomW + TOP - PITCH);
+    const band = bands(pins);
+    const rows = Math.max(on('left').length, on('right').length);
+    const bodyH = Math.max(120 - 2 * PIN_LEN, band.top + Math.max(0, rows - 1) * PITCH + band.bottom);
+    const body = { x: PIN_LEN, y: PIN_LEN, w: up(bodyW), h: up(bodyH) };
+    return { part, pins, body, x: 0, y: 0, w: body.w + 2 * PIN_LEN, h: body.h + 2 * PIN_LEN };
+  });
+}
+
+/**
+ * Puts each pin's end on the node's border, in the backend's order: left
+ * and right pins down each side from the body's top, top and bottom pins
+ * along from its left. On a box drawn from its connections, a pin tied
+ * to another comes right after it; a generated symbol keeps its number
+ * order (the backend ties only neighbours).
+ */
+export function pinsAt(b: Box, d?: Diagram): void {
+  const tr = threeTerminal(b.part.shape);
+  if (tr) {
+    b.body = { x: b.x, y: b.y, w: b.w, h: b.h };
+    for (const p of b.pins) {
+      const t = tr.terminals[p.terminal ?? ''] ?? { x: 0, y: b.h / 2 };
+      Object.assign(p, { x: b.x + t.x, y: b.y + t.y });
+    }
+    return;
+  }
+  const body = { x: b.x + PIN_LEN, y: b.y + PIN_LEN, w: b.w - 2 * PIN_LEN, h: b.h - 2 * PIN_LEN };
+  b.body = body;
+  const on = (side: DiagramPin['side']) => {
+    const ps = b.pins.filter((p) => p.side === side);
+    if (b.part.full) return ps;
+    const own = ps.filter((p) => !p.tied);
+    const tied = ps.filter((p) => p.tied);
+    const rest = tied.filter((t) => !own.some((p) => p.name === t.tied));
+    return [...own.flatMap((p) => [p, ...tied.filter((t) => t.tied === p.name)]), ...rest];
+  };
+  const top = bands(b.pins).top;
+  on('left').forEach((p, i) => Object.assign(p, { x: b.x, y: body.y + top + i * PITCH }));
+  on('right').forEach((p, i) => Object.assign(p, { x: b.x + b.w, y: body.y + top + i * PITCH }));
+  on('top').forEach((p, i) => Object.assign(p, { x: body.x + TOP + i * PITCH, y: b.y }));
+  let x = body.x + TOP;
+  for (const p of on('bottom')) {
+    const slot = d ? bottomSlot(d, b.part, p) : PITCH;
+    Object.assign(p, { x: x + (slot - PITCH) / 2, y: b.y + b.h });
+    x += slot;
+  }
+}
+
+const SYM = 40; // the band a two-terminal symbol takes across its axis, on the grid
+const SYM_LEN = 40; // a two-terminal's node along its axis: the symbol, end to end
+const BRIDGE_IN = 10; // a bridging passive's ends, in from its node's top and bottom
+const LABEL_IN = 36; // a vertical passive's name, in from its node's left
+
+/** How wide a passive's name and value are. */
+const passiveText = (p: DiagramPassive) => Math.ceil(CHAR * Math.max(p.label.length, (p.value ?? '').length)) + 6;
+
+/**
+ * A passive's node: its symbol down the node with its name beside it,
+ * or, horizontal, along the node with its name above. `axis` is where
+ * the symbol runs: x from the left when vertical, y from the top when
+ * horizontal; its ends are at the node's border.
+ */
+export function passiveSize(p: DiagramPassive, horizontal = false): { w: number; h: number; axis: number } {
+  const text = passiveText(p);
+  if (horizontal) {
+    const above = p.value ? 30 : 20;
+    return { w: up(Math.max(SYM_LEN, text)), h: above + SYM, axis: above + SYM / 2 };
+  }
+  return { w: up(LABEL_IN - 2 + text), h: SYM_LEN, axis: SYM / 2 };
+}
+
+/** Places a passive's node: its ends, which terminal is at each, and its label. */
+function placePassive(q: DiagramPassive, x: number, y: number, size: { w: number; h: number; axis: number }, horizontal: boolean, firstNet: string): PlacedPassive {
+  const ends: [Pt, Pt] = horizontal ? [{ x, y: y + size.axis }, { x: x + size.w, y: y + size.axis }] : [{ x: x + size.axis, y }, { x: x + size.axis, y: y + size.h }];
+  const [a, z] = q.ends.length === 2 ? q.ends : ['1', '2'];
+  const terminals: [string, string] = firstNet.toLowerCase() === q.nets[0].toLowerCase() ? [a, z] : [z, a];
+  const label = horizontal ? { x: x + size.w / 2, y: y + 8, anchor: 'middle' as const } : { x: x + LABEL_IN, y: y + size.h / 2 - (q.value ? 6 : 0), anchor: 'start' as const };
+  return { passive: q, x, y, w: size.w, h: size.h, ends, terminals, horizontal: horizontal || undefined, label };
+}
+
+// ── graph ─────────────────────────────────────────────────────────────
+
+/** How a passive's far end is shown: a ground symbol, or the net it goes to. */
+type End = FarEnd;
+
+/** A passive as a node: its size, the net at its first end, and its far end. */
+interface PassiveNode {
+  passive: DiagramPassive;
+  node: ElkNode;
+  size: { w: number; h: number; axis: number };
+  horizontal: boolean;
+  /** The net at its first end (the top, or the left). */
+  first: string;
+  /** Bridging two pins: the side its ports are on, facing them. */
+  bridge?: 'EAST' | 'WEST';
+  /** Shown at its far end, for a passive with one wired net. */
+  end?: End;
+}
+
+/** A passive hung under a bottom pin of a box, not laid out by ELK. */
+interface BelowPassive {
+  passive: DiagramPassive;
+  box: Box;
+  pin: PlacedPin;
+  size: { w: number; h: number; axis: number };
+  end: End;
+}
+
+const DROP = 30; // from a bottom pin down to the passive under it
+
+/**
+ * The name of a net leaving the group (or the board) at a pin nothing in
+ * the group is wired to: a short stub out of the pin, its name at the end.
+ * ELK keeps the room for it as the pin's port label.
+ */
+interface Stub {
+  port: string;
+  net: string;
+  side: 'left' | 'right' | 'top' | 'bottom';
+  arrow?: boolean;
+}
+
+/** A pin's port on a net: the end of a wire. */
+interface PortEnd {
+  id: string;
+  net: string;
+  /** The side of its node it's on, which says which way the net flows. */
+  side: 'WEST' | 'EAST' | 'SOUTH' | 'NORTH';
+  /** On a passive, not a box. */
+  passive?: boolean;
+  /** On a series passive, which carries the net on to another. */
+  series?: boolean;
+  /** On a subgroup, which never drives a net. */
+  unit?: boolean;
+}
+
+/** The ELK graph of a diagram, and what each node stands for. */
+interface Built {
+  d: Diagram;
+  root: ElkNode;
+  boxes: Map<string, Box>;
+  passives: PassiveNode[];
+  below: BelowPassive[];
+  stubs: Stub[];
+  /** Nets whose name is written somewhere already. */
+  labelled: Set<string>;
+  /** Edge ids that carry their net's name (written on the wire after layout). */
+  named: Set<string>;
+  /** Subgroups, each a node of its own. */
+  units: Unit[];
+}
+
+const option = {
+  layered: {
+    'elk.algorithm': 'layered',
+    'elk.direction': 'RIGHT',
+    'elk.edgeRouting': 'ORTHOGONAL',
+    'elk.layered.mergeEdges': 'true',
+    'elk.layered.thoroughness': '50',
+    'elk.layered.crossingMinimization.greedySwitch.type': 'TWO_SIDED',
+    'elk.layered.unnecessaryBendpoints': 'true',
+    // Puts each node level with what it's wired to (shortest wires), so a
+    // passive sits beside its pin rather than where a stack of them
+    // happens to centre.
+    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+    // Nodes in a layer keep the order they're given where crossings allow:
+    // boxes first, so passives hang below them rather than stacking above.
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+    // Multiples of the grid, wires at least two lines apart, so snapping
+    // ELK's result to the grid never puts two on one line.
+    'elk.spacing.nodeNode': '40',
+    'elk.spacing.edgeNode': '20',
+    'elk.spacing.edgeEdge': '20',
+    'elk.layered.spacing.nodeNodeBetweenLayers': '90',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+    'elk.layered.spacing.edgeEdgeBetweenLayers': '20',
+    'elk.padding': `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
+  },
+  /**
+   * With positions as hints: the order of the nodes in each layer follows
+   * them. The layers themselves still follow the wires, so a part dragged
+   * against the flow isn't pulled behind what feeds it.
+   */
+  interactive: {
+    'elk.interactive': 'true',
+    'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
+  },
+  /** With places asked for: the columns follow the positions too. */
+  cells: {
+    'elk.layered.layering.strategy': 'INTERACTIVE',
+    'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
+  },
+};
+
+/**
+ * Room a node keeps clear above and below itself (a box's title, the
+ * ground symbols and passives under its pins): ELK reserves it for
+ * labels placed outside the node, so that's what these are.
+ */
+function room(width: number, above: number, below: number): Pick<ElkNode, 'labels' | 'layoutOptions'> {
+  const place = (where: 'TOP' | 'BOTTOM') => ({ 'elk.nodeLabels.placement': `[H_CENTER, V_${where}, OUTSIDE]` });
+  const labels = [];
+  if (above > 0) labels.push({ text: ' ', width, height: above, layoutOptions: place('TOP') });
+  if (below > 0) labels.push({ text: ' ', width, height: below, layoutOptions: place('BOTTOM') });
+  return { labels, layoutOptions: place('TOP') };
+}
+
+/**
+ * Builds the ELK graph of a diagram. Every pin on a side of a box is a
+ * port at its place. A net's edges go from the port that drives it (a
+ * right-side pin, or a series passive's far end; else the first pin on
+ * it) to each other port on it; ELK merges them into a bus.
+ */
+function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
+  const built: Built = { d, root: { id: 'root', layoutOptions: option.layered, children: [], edges: [] }, boxes: new Map(), passives: [], below: [], stubs: [], labelled: new Set(), named: new Set(), units };
+  const children = built.root.children!;
+  const edges = built.root.edges!;
+  const member = new Set(units.flatMap((u) => [...u.members]));
+  const ends = new Map<string, PortEnd[]>(); // net (lower case) → its ports
+  const endsOf = (net: string) => ends.get(net.toLowerCase()) ?? [];
+  const addEnd = (e: PortEnd) => ends.set(e.net.toLowerCase(), [...endsOf(e.net), e]);
+  const kinds = new Map(d.nets.map((n) => [n.name.toLowerCase(), n.kind]));
+
+  // A passive on a bottom pin alone (a configuration resistor) hangs
+  // under that pin, not laid out by ELK: the box keeps room for it.
+  const under = (b: Box, p: PlacedPin) => d.passives.find((q) => q.mount === 'below' && q.part === b.part.id && q.nets[0] === p.net && !member.has(`q:${q.id}`));
+
+  // Boxes, with their pins as ports on their sides: ELK orders the pins
+  // on a side to keep their wires from crossing. A port is a pin's slot,
+  // a pitch tall plus one for each pin tied to it below; its wire leaves
+  // from the slot's first pitch.
+  // Pins are fixed ports at their place on the node's border: a
+  // generated symbol's in number order, a box's in the backend's (by
+  // where their wires go). ELK isn't asked to order them: it spreads
+  // ports along a side regardless of the bands the names take.
   for (const b of boxes) {
-    const group = (p: PlacedPin) => (p.ground ? 4 : p.bridged ? 3 : (nets.get(p.net)?.parts.length ?? 0) > 1 ? 1 : 2);
-    const other = (p: PlacedPin) => {
-      const ys = (nets.get(p.net)?.parts ?? []).filter((id) => id !== b.part.id).map((id) => at.get(id) ?? 0);
-      return ys.length ? Math.min(...ys) : 0;
+    const id = `b:${b.part.id}`;
+    if (member.has(id)) continue; // drawn inside its subgroup
+    built.boxes.set(id, b);
+    const ports: ElkPort[] = [];
+    let bottom = b.pins.some((p) => p.ground) ? GROUND + 10 : 6;
+    b.pins.forEach((p, i) => {
+      if (p.tied || p.dim) return;
+      const q = p.side === 'bottom' && !p.ground ? under(b, p) : undefined;
+      if (q) {
+        const size = passiveSize(q);
+        built.below.push({ passive: q, box: b, pin: p, size, end: q.nets[1] ? { ground: false, text: q.nets[1] } : { ground: true } });
+        bottom = Math.max(bottom, DROP + size.h + GROUND + 14);
+      }
+      const side = p.side === 'left' ? 'WEST' : p.side === 'right' ? 'EAST' : p.side === 'top' ? 'NORTH' : 'SOUTH';
+      ports.push({ id: `${id}/${i}`, x: p.x - b.x, y: p.y - b.y, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
+      if (!p.ground && !q && p.net) addEnd({ id: `${id}/${i}`, net: p.net, side });
+    });
+    const r = room(b.w, TITLE + 4, bottom);
+    children.push({
+      id,
+      width: b.w,
+      height: b.h,
+      ports,
+      labels: r.labels,
+      layoutOptions: { ...r.layoutOptions, 'elk.portConstraints': 'FIXED_POS', 'elk.portLabels.placement': 'OUTSIDE' },
+    });
+  }
+
+  // Passives: a bridge across two pins of one box, a series part between
+  // two nets that reach different boxes, else hanging from one net with
+  // its other end shown (ground, or the net's name).
+  // The boxes (and subgroups) with a pin on a net: a net with only
+  // passives on it reaches no part.
+  const boxesOn = (net: string) => new Set(endsOf(net).filter((e) => !e.passive || e.unit).map((e) => e.id.split('/')[0]));
+  for (const q of d.passives) {
+    if (built.below.some((u) => u.passive === q)) continue;
+    const id = `q:${q.id}`;
+    if (member.has(id)) continue; // drawn inside its subgroup
+    const layoutOptions = { 'elk.portConstraints': 'FIXED_POS' };
+    // How it's drawn is the hanging rules' call (lib/diagram/hanging.ts).
+    const box = boxes.find((b) => b.part.id === q.part);
+    const pins = q.nets.map((n) => box?.pins.find((p) => p.net === n && !p.tied && !p.dim)).filter((p): p is PlacedPin => !!p);
+    const how = hang({
+      nets: q.nets,
+      mount: q.mount,
+      supports: q.supports,
+      reaching: boxesOn,
+      power: (n) => kinds.get(n.toLowerCase()) === 'power',
+      driven: (n) => endsOf(n).some((e) => e.side === 'EAST'),
+      bridged: pins.length === 2,
+    });
+    if (!how) continue; // between passives only: not drawn on its own
+    if (how.kind === 'bridge') {
+      // Beside the pins it bridges, its ports on the side facing them
+      // and its symbol down the node just inside, a short lead from
+      // each port; its name on the far side.
+      const dy = Math.abs(pins[0].y - pins[1].y);
+      const side = pins[0].side === 'left' ? 'EAST' : 'WEST';
+      const size = { ...passiveSize(q), h: dy + 2 * BRIDGE_IN };
+      size.axis = side === 'EAST' ? size.w - SYM / 2 : SYM / 2;
+      const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [], labels: [] };
+      const upper = pins[0].y <= pins[1].y ? 0 : 1;
+      q.nets.forEach((n, i) => {
+        node.ports!.push({ id: `${id}/${i}`, x: side === 'EAST' ? size.w : 0, y: i === upper ? BRIDGE_IN : size.h - BRIDGE_IN, width: 0, height: 0, layoutOptions: { 'elk.port.side': side } });
+        addEnd({ id: `${id}/${i}`, net: n, side, passive: true });
+      });
+      children.push(node);
+      built.passives.push({ passive: q, node, size, horizontal: false, first: q.nets[upper], bridge: side });
+      continue;
+    }
+    if (how.kind === 'series') {
+      // Along the node, upstream at its left end.
+      const size = passiveSize(q, true);
+      const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions, ports: [] };
+      node.ports!.push({ id: `${id}/0`, x: 0, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'WEST' } });
+      node.ports!.push({ id: `${id}/1`, x: size.w, y: size.axis, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'EAST' } });
+      addEnd({ id: `${id}/0`, net: how.upstream, side: 'WEST', passive: true, series: true });
+      addEnd({ id: `${id}/1`, net: how.downstream, side: 'EAST', passive: true, series: true });
+      children.push(node);
+      built.passives.push({ passive: q, node, size, horizontal: true, first: how.upstream });
+      continue;
+    }
+    // Hanging from one net, its far end named below.
+    const size = passiveSize(q);
+    const r = room(size.w, 0, GROUND + 10);
+    const node: ElkNode = { id, width: size.w, height: size.h, layoutOptions: { ...layoutOptions, ...r.layoutOptions }, labels: r.labels, ports: [] };
+    node.ports!.push({ id: `${id}/0`, x: size.axis, y: 0, width: 0, height: 0, layoutOptions: { 'elk.port.side': 'NORTH' } });
+    addEnd({ id: `${id}/0`, net: how.from, side: 'NORTH', passive: true });
+    children.push(node);
+    built.passives.push({ passive: q, node, size, horizontal: false, first: how.from, end: how.far });
+  }
+
+  // Subgroups: each a node the size of its frame, the nets reaching it
+  // from outside at ports on the border facing the part they come from.
+  for (const u of units) {
+    const ports: ElkPort[] = u.ports.map((port, i) => ({ id: `${u.id}/${i}`, x: u.side === 'EAST' ? u.w : 0, y: port.y, width: 0, height: 0, layoutOptions: { 'elk.port.side': u.side } }));
+    u.ports.forEach((port, i) => addEnd({ id: `${u.id}/${i}`, net: port.net, side: u.side, passive: true, unit: true }));
+    children.push({ id: u.id, width: u.w, height: u.h, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS', 'elk.portLabels.placement': 'OUTSIDE' } });
+  }
+
+  // Nets. One leaving the group (or the board) from a pin nothing in the
+  // group is wired to is a stub out of that pin, named; an output leaving
+  // the board ends in an arrow, with what hangs off it branching from
+  // the stub. A rail nothing in the group drives (3V3 in the MCU group,
+  // made in the Power group) isn't wired at all, as on a schematic: each
+  // pin on it gets a stub with its name, and each capacitor on it stands
+  // in a row by the part it serves with the rail's name above it. The
+  // rest are edges from the pin that drives the net to each other pin,
+  // the first between two boxes (else the first at all) carrying its
+  // name; with nothing driving it, each passive on it comes before the
+  // pin it feeds (a pull-up left of an input), not after it at the end of
+  // a wire round the box.
+  const portOf = new Map<string, ElkPort>();
+  for (const n of children) for (const port of n.ports ?? []) portOf.set(port.id, port);
+  const stub = (e: PortEnd, net: string, arrow: boolean) => {
+    const side = e.side === 'EAST' ? 'right' : e.side === 'NORTH' ? 'top' : e.side === 'SOUTH' ? 'bottom' : 'left';
+    built.stubs.push({ port: e.id, net, side, arrow: side === 'right' && arrow });
+    portOf.get(e.id)!.labels = [{ text: net, width: stubLength(net, arrow), height: 14 }];
+    built.labelled.add(net);
+  };
+  const column = new Map(d.parts.map((p) => [`b:${p.id}`, p.column]));
+  const passiveOf = (e: PortEnd) => built.passives.find((x) => `${x.node.id}/0` === e.id);
+  const unitOf = (e: PortEnd) => units.find((u) => e.id.startsWith(`${u.id}/`));
+  // Each net as the wiring rules see it (lib/diagram/wiring.ts): its ends
+  // with what they are, the node they're on, and what they're placed by.
+  const netEnd = (e: PortEnd): NetEnd => {
+    const owner = e.id.split('/')[0];
+    const q = passiveOf(e);
+    const u = unitOf(e);
+    const by = q ? `b:${q.passive.part}` : u?.part ? `b:${u.part}` : undefined;
+    return {
+      id: e.id,
+      owner,
+      kind: e.unit ? 'unit' : e.passive ? 'passive' : 'pin',
+      side: e.side,
+      series: e.series,
+      column: column.get(owner),
+      placedBy: by,
+      supports: q?.passive.supports ? `b:${q.passive.supports}` : undefined,
+      facing: u?.side,
     };
-    const order = new Map(b.pins.map((p, i) => [p, i]));
-    const sorted = (side: DiagramPin['side']) =>
-      b.pins.filter((p) => p.side === side).sort((p, q) => group(p) - group(q) || other(p) - other(q) || order.get(p)! - order.get(q)!);
-    b.pins = (['left', 'right', 'bottom', 'inside'] as const).flatMap(sorted);
+  };
+  const endById = new Map<string, PortEnd>();
+  for (const es of ends.values()) for (const e of es) endById.set(e.id, e);
+  for (const n of d.nets) {
+    const ctx: NetContext = { name: n.name, power: kinds.get(n.name.toLowerCase()) === 'power', offboard: !!n.offboard, out: n.wire === 'out', arrow: !!n.arrow, ends: endsOf(n.name).map(netEnd) };
+    const plan = wire(ctx);
+    for (const st of plan.stubs) stub(endById.get(st.end)!, n.name, st.arrow);
+    plan.edges.forEach((e, i) => {
+      const edge: ElkExtendedEdge = { id: `e:${n.name}:${i}`, sources: [e.from], targets: [e.to] };
+      if (e.named) {
+        built.named.add(edge.id);
+        built.labelled.add(n.name);
+      }
+      edges.push(edge);
+    });
+  }
+  // Nodes in a layer keep this order where crossings allow: boxes first,
+  // then the passives in the order of the pins they feed down each box,
+  // so a crystal sits by its oscillator pins, not above the whole part.
+  const boxIndex = new Map(children.filter((c) => c.id.startsWith('b:')).map((c, i) => [c.id, i]));
+  const anchor = (c: ElkNode): [number, number] => {
+    const q = built.passives.find((x) => x.node === c);
+    const nets = q?.passive.nets ?? units.find((u) => u.id === c.id)?.ports.map((port) => port.net) ?? [];
+    for (const net of nets) {
+      const e = endsOf(net).find((x) => !x.passive);
+      if (e) return [boxIndex.get(e.id.split('/')[0]) ?? 0, portOf.get(e.id)?.y ?? 0];
+    }
+    return [Infinity, 0];
+  };
+  const rank = new Map(children.map((c) => [c.id, c.id.startsWith('b:') ? [-1, boxIndex.get(c.id) ?? 0] : anchor(c)]));
+  children.sort((a, b) => {
+    const [ia, ya] = rank.get(a.id)!;
+    const [ib, yb] = rank.get(b.id)!;
+    return ia - ib || ya - yb;
+  });
+  return built;
+}
+
+
+// ── layout ────────────────────────────────────────────────────────────
+
+/**
+ * Lays out a diagram (or one group of it) as one drawing. Saved positions
+ * are hints: ELK lays the board out, each moved part is put where it was
+ * dragged, and a fresh graph is laid out again keeping that order (a
+ * fresh one: the first result's wires would be taken as given).
+ */
+async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Promise<BlockDrawing> {
+  const boxes = measure(d, opts);
+  boxes.forEach((b) => pinsAt(b, d));
+  const engine = await elk();
+  const units = subgroups ? await clusterUnits(d, boxes, opts) : [];
+  const first = graph(d, boxes, units);
+  const r = await engine.layout(first.root);
+  const hint = new Map<string, Pt>();
+  for (const p of d.parts) if (p.x !== undefined && p.y !== undefined) hint.set(`b:${p.id}`, { x: p.x, y: p.y });
+  for (const q of d.passives) if (q.x !== undefined && q.y !== undefined) hint.set(`q:${q.id}`, { x: q.x, y: q.y });
+  // Places asked for (a column, a row): a subgroup takes its first
+  // member's, and goes where any of its members was dragged.
+  const wants = new Map<string, Want>();
+  const want = (id: string, w?: { column?: number; row?: number }) => w && (w.column !== undefined || w.row !== undefined) && wants.set(id, w);
+  for (const p of d.parts) want(`b:${p.id}`, p.want);
+  for (const q of d.passives) want(`q:${q.id}`, q.want);
+  for (const u of units) {
+    for (const id of u.members) if (hint.has(id) && !hint.has(u.id)) hint.set(u.id, hint.get(id)!);
+    const first = [...u.members].find((id) => wants.has(id));
+    if (first) wants.set(u.id, wants.get(first)!);
+  }
+  if (!hint.size && !wants.size) return drawing(first, r);
+  const placed: Placed[] = (r.children ?? []).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, w: n.width ?? 0, h: n.height ?? 0 }));
+  const again = graph(d, boxes, units);
+  // Dragged positions only order a part across the flow; asked-for places
+  // also pick its column (lib/diagram/cells.ts), which takes ELK's
+  // interactive layering, and cycle breaking so a column before what
+  // drives it can be kept.
+  // A place on the far side of a part a node is wired to isn't kept.
+  const owner = (port: string) => port.slice(0, port.lastIndexOf('/'));
+  const links = (first.root.edges ?? []).map((e): [string, string] => [owner(e.sources[0]), owner(e.targets[0])]);
+  const at = wants.size ? keepSides(placed, hints(placed, wants, hint), links, wants) : new Map(placed.map((p) => [p.id, hint.get(p.id) ?? { x: p.x, y: p.y }]));
+  for (const n of again.root.children ?? []) {
+    const p = at.get(n.id);
+    if (!p) continue;
+    [n.x, n.y] = [p.x, p.y];
+    n.layoutOptions = { ...n.layoutOptions, 'elk.position': `(${p.x},${p.y})` };
+  }
+  again.root.layoutOptions = { ...option.layered, ...option.interactive, ...(wants.size ? option.cells : {}) };
+  return drawing(again, await engine.layout(again.root));
+}
+
+/**
+ * Snaps a coordinate of ELK's result to the grid. Every size and port
+ * offset is on the grid, so a pin lands on it with its node; two points
+ * on one line before stay on one line after, so wires stay straight.
+ */
+const at = snap;
+
+/** A stub's length: its net's name and a little, an arrow's head, on the grid. */
+const stubLength = (net: string, arrow: boolean) => up(net.length * CHAR + 16 + (arrow ? 12 : 0));
+
+/** Turns ELK's result into the drawing. */
+function drawing(built: Built, r: ElkNode): BlockDrawing {
+  const out: BlockDrawing = { ...empty(), width: at(r.width ?? 0), height: at(r.height ?? 0) };
+  const placed = new Map((r.children ?? []).map((n) => [n.id, n]));
+  // Subgroups: each one's own drawing, moved to where ELK put its node.
+  for (const u of built.units) {
+    const n = placed.get(u.id)!;
+    const local = moveDrawing(u.drawing, at(n.x ?? 0), at(n.y ?? 0));
+    out.boxes.push(...local.boxes);
+    out.passives.push(...local.passives);
+    out.wires.push(...local.wires);
+    out.grounds.push(...local.grounds);
+    out.flags.push(...local.flags);
+    out.dots.push(...local.dots);
+    out.clusters.push({ x: at(n.x ?? 0), y: at(n.y ?? 0), w: u.w, h: u.h, name: u.name });
+  }
+  // Symbols: at ELK's place, their pins where they were measured (ELK
+  // was given them as fixed ports).
+  for (const [id, b] of built.boxes) {
+    const n = placed.get(id)!;
+    b.x = at(n.x ?? 0);
+    b.y = at(n.y ?? 0);
+    pinsAt(b, built.d);
+    out.boxes.push(b);
+    // Ground pins: a short stub to a ground symbol each. A tied pin:
+    // out, and along to the wire of the pin it's tied to.
+    for (const p of b.pins) {
+      if (p.dim) continue;
+      if (p.ground) {
+        out.wires.push({ net: p.net ?? 'GND', path: `M${p.x},${p.y} V${p.y + GRID}`, thin: true });
+        out.grounds.push({ x: p.x, y: p.y + GRID });
+      } else if (p.tied && p.net) {
+        const to = tiedTo(b, p);
+        if (!to) continue;
+        if (p.side === 'left' || p.side === 'right') {
+          const x = p.x + (p.side === 'right' ? 10 : -10);
+          out.wires.push({ net: p.net, path: `M${p.x},${p.y} H${x} V${to.y}` });
+          out.dots.push({ x, y: to.y });
+        } else {
+          const y = p.y + (p.side === 'bottom' ? 10 : -10);
+          out.wires.push({ net: p.net, path: `M${p.x},${p.y} V${y} H${to.x}` });
+          out.dots.push({ x: to.x, y });
+        }
+      }
+    }
+  }
+  // The far end of a passive hanging from a net: a ground symbol, or
+  // the name of the net it goes to (a pull-up's rail).
+  const farEnd = (p: PlacedPassive, end: End) => {
+    const e = p.ends[1];
+    if (end.ground) {
+      out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+      out.grounds.push({ x: e.x, y: e.y + GRID });
+    } else {
+      out.wires.push({ net: end.text, path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+      out.flags.push({ x: e.x, y: e.y + GRID, text: end.text });
+    }
+  };
+  // Passives, with their far end below (or a pull-up's rail above).
+  for (const q of built.passives) {
+    const n = placed.get(q.node.id)!;
+    const p = placePassive(q.passive, at(n.x ?? 0), at(n.y ?? 0), q.size, q.horizontal, q.first);
+    if (q.bridge) {
+      // The symbol between the leads from its ports.
+      const px = q.bridge === 'EAST' ? p.x + p.w : p.x;
+      p.ends = [
+        { x: p.ends[0].x, y: p.y + BRIDGE_IN },
+        { x: p.ends[1].x, y: p.y + p.h - BRIDGE_IN },
+      ];
+      const other = q.passive.nets.find((n) => n !== q.first) ?? q.first;
+      p.ends.forEach((e, i) => out.wires.push({ net: i === 0 ? q.first : other, path: `M${px},${e.y} H${e.x}`, thin: true }));
+    }
+    out.passives.push(p);
+    if (q.end) farEnd(p, q.end);
+  }
+  // Passives under a bottom pin, each on its own drop to the pin.
+  for (const u of built.below) {
+    const p = placePassive(u.passive, at(u.pin.x - u.size.axis), at(u.pin.y + DROP), u.size, false, u.passive.nets[0]);
+    out.passives.push(p);
+    out.wires.push({ net: u.passive.nets[0], path: `M${u.pin.x},${u.pin.y} V${p.y}`, thin: true });
+    farEnd(p, u.end);
+  }
+  // Stubs: straight out of their pin, named at the end.
+  for (const st of built.stubs) {
+    const [boxId, idx] = [st.port.split('/')[0], Number(st.port.split('/')[1])];
+    const p = built.boxes.get(boxId)!.pins[idx];
+    if (st.side === 'top') {
+      // Up from a supply pin, its name above.
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y - 30}`, label: { x: p.x, y: p.y - 34, anchor: 'middle', text: st.net } });
+      continue;
+    }
+    if (st.side === 'bottom') {
+      out.wires.push({ net: st.net, path: `M${p.x},${p.y} V${p.y + 30}`, label: { x: p.x, y: p.y + 46, anchor: 'middle', text: st.net } });
+      continue;
+    }
+    const dir = st.side === 'right' ? 1 : -1;
+    const len = stubLength(st.net, !!st.arrow);
+    const end = p.x + dir * len;
+    out.wires.push({ net: st.net, path: `M${p.x},${p.y} H${end}`, arrow: st.arrow || undefined, label: { x: end - dir * (st.arrow ? 12 : 2), y: p.y - 5, anchor: dir > 0 ? 'end' : 'start', text: st.net } });
+  }
+  // Wires, with their junctions; a net's name above the longest level
+  // piece of the wire that carries it (ELK would give each label a layer
+  // of its own, which spreads the drawing).
+  for (const e of r.edges ?? []) {
+    if (e.id.startsWith('g:')) continue; // a ghost edge, for placement only
+    const net = e.id.slice(2, e.id.lastIndexOf(':'));
+    (e.sections ?? []).forEach((s, k) => {
+      const pts = [s.startPoint, ...(s.bendPoints ?? []), s.endPoint].map((p) => ({ x: at(p.x), y: at(p.y) }));
+      const wire: Wire = { net, path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') };
+      out.wires.push(wire);
+      if (k > 0 || !built.named.has(e.id)) return;
+      // On the first level piece long enough for it; a wire too short
+      // for its name everywhere goes unnamed.
+      const level = pts.slice(1).map((p, i) => ({ a: pts[i], z: p })).filter(({ a, z }) => a.y === z.y);
+      const fits = level.find(({ a, z }) => Math.abs(z.x - a.x) >= net.length * CHAR + 12);
+      if (fits) wire.label = { x: (fits.a.x + fits.z.x) / 2, y: fits.a.y - 5, anchor: 'middle', text: net };
+    });
+    for (const j of e.junctionPoints ?? []) out.dots.push({ x: at(j.x), y: at(j.y) });
+  }
+  // As big as everything drawn, with a margin: a passive under a bottom
+  // pin can reach past ELK's box.
+  const extents = [
+    ...out.boxes.map((b) => ({ x: b.x + b.w, y: b.y + b.h + GROUND })),
+    ...out.passives.map((p) => ({ x: p.x + p.w, y: p.y + p.h + GROUND })),
+    ...out.grounds.map((g) => ({ x: g.x + 8, y: g.y + GROUND })),
+    ...out.clusters.map((c) => ({ x: c.x + c.w, y: c.y + c.h })),
+    ...out.wires.map(wireExtent),
+  ];
+  // Each part's and passive's place in the group's grid, as drawn: a
+  // subgroup's members take its place.
+  const grid = cellsOf((r.children ?? []).map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, w: n.width ?? 0, h: n.height ?? 0 })));
+  const groupOf = new Map([...built.d.parts.map((p) => [p.id, p.group] as const), ...built.d.passives.map((q) => [q.id, q.group] as const)]);
+  for (const [id, cell] of grid) {
+    const unit = built.units.find((u) => u.id === id);
+    const members = unit ? [...unit.members] : [id];
+    for (const m of members) {
+      if (!m.startsWith('b:') && !m.startsWith('q:')) continue;
+      const node = m.slice(2);
+      out.cells.push({ node, group: groupOf.get(node), ...cell });
+    }
+  }
+  // A passive under a part's bottom pin is in that part's place.
+  for (const u of built.below) {
+    const cell = grid.get(`b:${u.box.part.id}`);
+    if (cell) out.cells.push({ node: u.passive.id, group: groupOf.get(u.passive.id), ...cell });
+  }
+  out.width = Math.max(out.width, ...extents.map((e) => e.x + PAD));
+  out.height = Math.max(out.height, ...extents.map((e) => e.y + PAD));
+  return out;
+}
+
+/** The far corner of a wire, with its label. */
+function wireExtent(w: Wire): Pt {
+  const xs = [...w.path.matchAll(/(?:[ML](-?[\d.]+),|H(-?[\d.]+))/g)].map((m) => Number(m[1] ?? m[2]));
+  const ys = [...w.path.matchAll(/(?:,(-?[\d.]+)|V(-?[\d.]+))/g)].map((m) => Number(m[1] ?? m[2]));
+  const l = w.label ? labelRect(w.label) : undefined;
+  return { x: Math.max(0, ...xs, l ? l.x + l.w : 0), y: Math.max(0, ...ys, l ? l.y + l.h : 0) };
+}
+
+// ── subgroups ─────────────────────────────────────────────────────────
+
+/**
+ * A subgroup laid out as one unit: the parts hanging off one net (the VDD
+ * decoupling, a button and its pull-up, an LED behind its resistor), or
+ * the parts given one name. Its drawing is local to its frame, from
+ * (0, 0) to (w, h); the group's layout places the frame as one node.
+ */
+interface Unit {
+  id: string;
+  /** As named; "" for one of a net's hanging parts, whose bus says the net. */
+  name: string;
+  /** The nodes drawn inside it. */
+  members: Set<string>;
+  drawing: BlockDrawing;
+  w: number;
+  h: number;
+  /** Where each net from outside reaches it, down one border. */
+  ports: { net: string; y: number }[];
+  /** The part its members are placed by, when they're passives of one. */
+  part?: string;
+  /** Where a net from outside is named inside (a passive's far end), to wire in from the border. */
+  inner: { net: string; x: number; y: number }[];
+  /** The border its ports are on: facing the part its first net comes from. */
+  side: 'WEST' | 'EAST';
+  /** A bus with its parts hanging off it (else its own layout, with a box in it). */
+  bus?: boolean;
+}
+
+const UNIT_PAD = 20; // inside a subgroup's frame
+const UNIT_HEAD = 20; // a bus's name above it, and the frame's
+const ROW_MAX = 6; // parts hanging off one bus before it goes on below
+
+/**
+ * The subgroups the backend found (Diagram.subgroups, one rule each in
+ * internal/core/subgroups.go), each laid out as a unit: a chain on a bus
+ * after its lead; a rail's passives on a bus; a named one on a bus too,
+ * or, with a box in it, its own layout. Each faces the part its first
+ * signal (else its first net) comes from: a subgroup off a pin on a
+ * part's left goes to the left of it.
+ */
+async function clusterUnits(d: Diagram, boxes: Box[], opts: LayoutOptions): Promise<Unit[]> {
+  const plain = graph(d, boxes);
+  const nodeId = (id: string) => (d.parts.some((p) => p.id === id) ? `b:${id}` : `q:${id}`);
+  const units: Unit[] = [];
+  for (const [i, sg] of d.subgroups.entries()) {
+    const ids = new Set(sg.members.map(nodeId));
+    const id = `u:${sg.kind}:${i}`;
+    if ([...ids].some((x) => x.startsWith('b:'))) units.push(await layoutUnit(id, sg.name ?? '', ids, d, boxes, opts));
+    else units.push(busUnit(id, sg.name ?? '', busNodes(sg, plain, d)));
+  }
+  const power = new Set(d.nets.filter((n) => n.kind === 'power').map((n) => n.name.toLowerCase()));
+  for (const u of units) {
+    const net = [...u.ports].sort((a, b) => Number(power.has(a.net.toLowerCase())) - Number(power.has(b.net.toLowerCase())))[0]?.net.toLowerCase();
+    // The pin of the part it's placed by (the MCU its capacitors decouple),
+    // else of any part outside on that net.
+    const outside = d.parts.filter((p) => !u.members.has(`b:${p.id}`));
+    const by = outside.filter((p) => p.id === u.part);
+    const pin = [...by, ...outside].flatMap((p) => p.pins).find((p) => p.net?.toLowerCase() === net && !p.tied);
+    if (pin?.side === 'left') {
+      u.side = 'EAST';
+      if (u.bus) mirror(u);
+    }
+    if (!u.bus) wireIn(u);
+  }
+  return units;
+}
+
+/**
+ * The passive nodes of a bus subgroup, from the plain layout of the
+ * diagram: a lead (a chain's first member, or a member another member
+ * hangs off the far net of) runs along the bus; a member not drawn on
+ * its own, its net reaching no part here, hangs off the bus.
+ */
+function busNodes(sg: DiagramSubgroup, plain: Built, d: Diagram): PassiveNode[] {
+  const key = (s: string) => s.toLowerCase();
+  const nodeOf = new Map(plain.passives.map((q) => [q.node.id, q]));
+  const passiveOf = (id: string) => d.passives.find((q) => q.id === id)!;
+  const farOf = (x: PassiveNode) => (x.end?.ground === false ? key(x.end.text) : x.passive.nets.find((n) => key(n) !== key(x.first)));
+  const members = sg.members;
+  const leads = new Set<string>();
+  if (sg.kind === 'chain') leads.add(members[0]);
+  for (const m of members) {
+    if (nodeOf.has(`q:${m}`)) continue;
+    const q = passiveOf(m);
+    for (const l of members) {
+      const ln = nodeOf.get(`q:${l}`);
+      if (l !== m && ln && !ln.horizontal && !ln.bridge && q.nets.some((n) => key(n) === farOf(ln))) leads.add(l);
+    }
+  }
+  const nodes: PassiveNode[] = [];
+  for (const m of members) {
+    const ln = nodeOf.get(`q:${m}`);
+    if (ln && leads.has(m)) {
+      nodes.push({ ...ln, horizontal: true, end: undefined });
+      continue;
+    }
+    if (ln) {
+      nodes.push(ln);
+      continue;
+    }
+    const q = passiveOf(m);
+    const lead = [...leads].map((l) => nodeOf.get(`q:${l}`)).find((x) => x && q.nets.some((n) => key(n) === farOf(x)));
+    const net = (lead && q.nets.find((n) => key(n) === farOf(lead))) ?? sg.net ?? q.nets[0];
+    const other = q.nets.find((n) => key(n) !== key(net));
+    nodes.push({ passive: q, node: { id: `q:${m}` }, size: passiveSize(q), horizontal: false, first: net, end: other ? { ground: false, text: other } : { ground: true } });
+  }
+  return nodes;
+}
+
+/** Turns a bus subgroup round, so its entry is on its right. */
+function mirror(u: Unit): void {
+  const r = u.drawing;
+  const w = u.w;
+  const pt = <T extends Pt>(p: T): T => ({ ...p, x: at(w - p.x) });
+  // Each end keeps its terminal and its net; only its place mirrors (a
+  // series part's first end, at the entry, is now on the right).
+  r.passives = r.passives.map((p) => ({
+    ...p,
+    x: at(w - p.x - p.w),
+    ends: [pt(p.ends[0]), pt(p.ends[1])],
+    label: { ...pt(p.label), anchor: p.label.anchor === 'start' ? 'end' : p.label.anchor },
+  }));
+  r.wires = r.wires.map((x) => ({
+    ...x,
+    path: x.path.replace(/([MLH])(-?[\d.]+)/g, (_, cmd: string, a: string) => `${cmd}${at(w - Number(a))}`),
+    label: x.label && { ...pt(x.label), anchor: x.label.anchor === 'start' ? 'end' : x.label.anchor === 'end' ? 'start' : 'middle' },
+  }));
+  r.grounds = r.grounds.map(pt);
+  r.flags = r.flags.map(pt);
+  r.dots = r.dots.map(pt);
+}
+
+/** Lays a subgroup with a box in it out on its own, inside its frame. */
+async function layoutUnit(id: string, name: string, ids: Set<string>, d: Diagram, boxes: Box[], opts: LayoutOptions): Promise<Unit> {
+  const parts = boxes.filter((b) => ids.has(`b:${b.part.id}`)).map((b) => b.part);
+  const passives = d.passives.filter((q) => ids.has(`q:${q.id}`));
+  const strip = <T extends { x?: number; y?: number; cluster?: string }>(p: T): T => ({ ...p, x: undefined, y: undefined, cluster: undefined });
+  const columns = [...new Set(parts.map((p) => p.column))].sort((a, b) => a - b);
+  const sub: Diagram = { parts: parts.map((p) => ({ ...strip(p), column: columns.indexOf(p.column) })), passives: passives.map(strip), nets: d.nets, groups: [], links: [], subgroups: [] };
+  const drawn = await layoutOne(sub, opts, false);
+  const corner = topLeft(drawn);
+  const local = moveDrawing(drawn, up(UNIT_PAD - corner.x), up(UNIT_PAD + UNIT_HEAD - corner.y));
+  const far = bottomRight(local);
+  const u: Unit = { id, name, members: ids, drawing: local, w: up(far.x + UNIT_PAD), h: up(far.y + UNIT_PAD), ports: [], side: 'WEST', part: passives[0]?.part, inner: [] };
+  // The nets that also reach a part, or a passive, outside: a port each,
+  // level with the net's name inside, else with a pin on it.
+  const inside = new Set([...parts.flatMap((p) => p.pins.map((pin) => pin.net ?? '')), ...passives.flatMap((q) => q.nets)].map((n) => n.toLowerCase()));
+  const outside = new Set([
+    ...d.parts.filter((p) => !ids.has(`b:${p.id}`)).flatMap((p) => p.pins.map((pin) => (pin.net ?? '').toLowerCase())),
+    ...d.passives.filter((q) => !ids.has(`q:${q.id}`)).flatMap((q) => q.nets.map((n) => n.toLowerCase())),
+  ]);
+  for (const net of d.nets.map((n) => n.name).filter((n) => inside.has(n.toLowerCase()) && outside.has(n.toLowerCase()))) {
+    const flag = local.flags.find((f) => f.text === net);
+    const label = flag ?? local.wires.find((w) => w.label?.text === net)?.label;
+    const pin = local.boxes.flatMap((b) => b.pins).find((p) => p.net === net);
+    const y = label?.y ?? pin?.y;
+    if (y === undefined) continue;
+    u.ports.push({ net, y: at(y) });
+    // A passive's far end named inside: wired in from the border too.
+    if (flag) u.inner.push({ net, x: flag.x, y: at(flag.y) });
+  }
+  u.ports.sort((a, b) => a.y - b.y);
+  return u;
+}
+
+/**
+ * Carries each net from a named subgroup's border in to the passive end
+ * it's named at, along a level line, when nothing is in the way; the
+ * border is the one the subgroup's ports are on.
+ */
+function wireIn(u: Unit): void {
+  const r = u.drawing;
+  const rects: Rect[] = [...r.boxes.map((b) => ({ x: b.x, y: b.y - TITLE, w: b.w, h: b.h + TITLE })), ...r.passives];
+  for (const t of u.inner) {
+    const from = u.side === 'EAST' ? u.w : 0;
+    const line = { x: Math.min(from, t.x), y: t.y, w: Math.abs(t.x - from), h: 0 };
+    if (rects.some((x) => overlaps(line, x, -1))) continue;
+    r.wires.push({ net: t.net, path: `M${from},${t.y} H${t.x}` });
   }
 }
+
+/**
+ * A bus for each net, its name above its left end and its parts hanging
+ * off it in a row (on below, past six), each to ground or its far net's
+ * name below; a series part leads in to the bus from the left, from the
+ * net that reaches it.
+ */
+function busUnit(id: string, name: string, nodes: PassiveNode[]): Unit {
+  const out = empty();
+  const u: Unit = { id, name, members: new Set(nodes.map((q) => q.node.id)), drawing: out, w: 0, h: 0, ports: [], side: 'WEST', bus: true, part: nodes[0]?.passive.part, inner: [] };
+  const buses = new Map<string, { net: string; chain: PassiveNode[]; hangers: PassiveNode[] }>();
+  const bus = (net: string) => {
+    const b = buses.get(net.toLowerCase()) ?? { net, chain: [], hangers: [] };
+    buses.set(net.toLowerCase(), b);
+    return b;
+  };
+  let y = UNIT_PAD + (name ? UNIT_HEAD : 0);
+  let width = 0;
+  // A part across two pins (an inductor between LX1 and LX2), named in
+  // without its IC: down the frame's side, a wire from the border to each
+  // end, a port for each net.
+  for (const q of nodes.filter((x) => x.bridge && x.passive.nets.length === 2)) {
+    const size = passiveSize(q.passive);
+    const x = UNIT_PAD + 20;
+    const p = placePassive(q.passive, x, y, size, false, q.first);
+    const other = q.passive.nets.find((n) => n !== q.first) ?? q.first;
+    out.passives.push(p);
+    out.wires.push({ net: q.first, path: `M0,${p.ends[0].y} H${p.ends[0].x}` });
+    out.wires.push({ net: other, path: `M0,${p.ends[1].y} H${p.ends[1].x}` });
+    u.ports.push({ net: q.first, y: p.ends[0].y }, { net: other, y: p.ends[1].y });
+    width = Math.max(width, x + size.w);
+    y += size.h + UNIT_PAD;
+  }
+  for (const q of nodes) {
+    if (q.bridge && q.passive.nets.length === 2) continue;
+    if (q.horizontal) bus(q.passive.nets.find((n) => n.toLowerCase() !== q.first.toLowerCase()) ?? q.first).chain.push(q);
+    else bus(q.first).hangers.push(q);
+  }
+  for (const b of buses.values()) {
+    let x = UNIT_PAD;
+    // The bus line: below the bus's name, and below the series parts'
+    // names above their symbols along it.
+    let busY = y + Math.max(UNIT_HEAD, ...b.chain.map((q) => passiveSize(q.passive, true).axis));
+    // The series parts along the bus line, wired from the port at the
+    // left border, the bus then on from the last one.
+    const entry = b.chain[0]?.first ?? b.net;
+    u.ports.push({ net: entry, y: busY });
+    let from = b.chain.length ? 0 : x;
+    for (const q of b.chain) {
+      const size = passiveSize(q.passive, true);
+      const p = placePassive(q.passive, x, busY - size.axis, size, true, q.first);
+      out.wires.push({ net: q.first, path: `M${from},${busY} H${x}` });
+      out.passives.push(p);
+      from = x + size.w;
+      x = from + up(Math.max(24, b.net.length * CHAR + 12));
+    }
+    // The hangers, in rows: the bus runs along their top ends, a junction
+    // at each but its ends, and goes on below from its left end.
+    const rows: PassiveNode[][] = [];
+    b.hangers.forEach((q, i) => (i % ROW_MAX ? rows[rows.length - 1].push(q) : rows.push([q])));
+    // From the border (the port) when nothing leads in along the bus.
+    const busX = b.chain.length ? from : 0;
+    rows.forEach((row, r) => {
+      const tops: Pt[] = [];
+      let rowH = 0;
+      for (const q of row) {
+        const size = passiveSize(q.passive);
+        const p = placePassive(q.passive, x, busY, size, false, q.first);
+        out.passives.push(p);
+        tops.push(p.ends[0]);
+        const e = p.ends[1];
+        if (q.end?.ground !== false) {
+          out.wires.push({ net: 'GND', path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+          out.grounds.push({ x: e.x, y: e.y + GRID });
+          rowH = Math.max(rowH, up(size.h + GRID + GROUND));
+        } else {
+          out.wires.push({ net: q.end.text, path: `M${e.x},${e.y} V${e.y + GRID}`, thin: true });
+          out.flags.push({ x: e.x, y: e.y + GRID, text: q.end.text });
+          rowH = Math.max(rowH, up(size.h + GRID + 16));
+        }
+        x += size.w + 10;
+      }
+      const pts = [{ x: busX, y: busY }, ...tops];
+      const wire: Wire = { net: b.net, path: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ') };
+      if (r === 0 && b.chain.length) wire.label = { x: busX, y: busY - 5, anchor: 'start', text: b.net };
+      out.wires.push(wire);
+      // A junction where a hanger meets the bus, and where it goes on below.
+      tops.forEach((t, i) => (i < tops.length - 1 || r < rows.length - 1) && out.dots.push(t));
+      if (r < rows.length - 1) {
+        out.dots.push({ x: busX, y: busY });
+        const next = busY + rowH + UNIT_HEAD;
+        out.wires.push({ net: b.net, path: `M${busX},${busY} V${next}` });
+        busY = next;
+      }
+      width = Math.max(width, x - 10);
+      x = busX;
+      y = busY + rowH;
+    });
+    y += UNIT_PAD;
+  }
+  u.w = up(width + UNIT_PAD);
+  u.h = y;
+  out.width = u.w;
+  out.height = u.h;
+  return u;
+}
+
+/** The bottom-right corner of everything drawn. */
+function bottomRight(r: BlockDrawing): Pt {
+  const pts: Pt[] = [
+    ...r.boxes.map((b) => ({ x: b.x + b.w, y: b.y + b.h })),
+    ...r.passives.map((p) => ({ x: p.x + p.w, y: p.y + p.h })),
+    ...r.grounds.map((g) => ({ x: g.x + 8, y: g.y + GROUND })),
+    ...r.flags.map((f) => ({ x: f.x + f.text.length * 3.6, y: f.y + 14 })),
+    ...r.wires.map(wireExtent),
+  ];
+  return { x: Math.max(0, ...pts.map((p) => p.x)), y: Math.max(0, ...pts.map((p) => p.y)) };
+}
+
+// ── helpers ───────────────────────────────────────────────────────────
 
 /** Whether two rectangles overlap, with a margin. */
 export function overlaps(a: Rect, b: Rect, margin = 0): boolean {
   return a.x < b.x + b.w + margin && b.x < a.x + a.w + margin && a.y < b.y + b.h + margin && b.y < a.y + a.h + margin;
 }
 
-/** A box with its title above and room for its ground symbols below. */
-const footprint = (b: Rect): Rect => ({ x: b.x, y: b.y - TITLE, w: b.w, h: b.h + TITLE + GROUND });
-
-/**
- * Moves boxes that overlap (with their titles) down until none do: a
- * part dragged onto another, or positions saved from an older layout.
- */
-export function separate(boxes: Box[]): void {
-  const order = [...boxes].sort((a, b) => a.y - b.y || a.x - b.x);
-  for (let round = 0; round < order.length * order.length; round++) {
-    let moved = false;
-    for (let i = 0; i < order.length; i++)
-      for (let j = i + 1; j < order.length; j++) {
-        if (overlaps(footprint(order[i]), footprint(order[j]), 24)) {
-          order[j].y = order[i].y + order[i].h + 70 + GROUND;
-          moved = true;
-        }
-      }
-    if (!moved) return;
-  }
-}
-
-// ── pinsAt ────────────────────────────────────────────────────────────
-
-/**
- * Puts each pin on its side, in the backend's order: left (then inside
- * ones below), right, bottom (ground pins last, closer together).
- */
-export function pinsAt(b: Box): void {
-  // Each pin, then the pins tied to it, so a tie spans one pitch.
-  const withTies = (side: 'left' | 'right') => {
-    const own = b.pins.filter((p) => p.side === side && !p.tied);
-    const tied = b.pins.filter((p) => p.side === side && p.tied);
-    const rest = tied.filter((t) => !own.some((p) => p.name === t.tied));
-    return [...own.flatMap((p) => [p, ...tied.filter((t) => t.tied === p.name)]), ...rest];
-  };
-  [...withTies('left'), ...b.pins.filter((p) => p.side === 'inside')].forEach((p, i) => Object.assign(p, { x: b.x, y: b.y + TOP + i * PITCH }));
-  withTies('right').forEach((p, i) => Object.assign(p, { x: b.x + b.w, y: b.y + TOP + i * PITCH }));
-  const bottom = b.pins.filter((p) => p.side === 'bottom' && !p.ground);
-  bottom.forEach((p, i) => Object.assign(p, { x: b.x + 50 + i * SLOT, y: b.y + b.h }));
-  // Ground pins from the right, each as wide as its name.
-  let x = b.x + b.w - 12;
-  for (const p of b.pins.filter((g) => g.ground).reverse()) {
-    x -= groundSlot(p) / 2;
-    Object.assign(p, { x, y: b.y + b.h });
-    x -= groundSlot(p) / 2;
-  }
-}
-
-// ── route ─────────────────────────────────────────────────────────────
-
-/** A straight piece of a net's wire (horizontal or vertical). */
-export interface Seg {
-  net: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-}
-
-/** A piece of wire passives can hang from. */
-interface Trunk {
-  net: string;
-  x1: number;
-  x2: number;
-  y: number;
-  /** A stub that can be made longer when its passives need room. */
-  stub?: { wire: Wire; pin: PlacedPin; dir: 1 | -1 };
-}
-
-export interface Routed {
-  wires: Wire[];
-  grounds: Pt[];
-  /** Junctions where a bus branches. */
-  dots: Pt[];
-  /** Where each net's passives can hang. */
-  trunks: Map<string, Trunk[]>;
-}
-
-/** The pin of a box on a net. */
-export function pinOn(boxes: Box[], part: string, net: string): PlacedPin | undefined {
-  return boxes.find((b) => b.part.id === part)?.pins.find((p) => p.side !== 'inside' && !p.ground && !p.tied && p.net === net);
-}
-
-/** The pieces of a path of M, H, V and L commands. */
-export function pieces(net: string, path: string): Seg[] {
-  const out: Seg[] = [];
-  let x = 0;
-  let y = 0;
-  let first = true;
-  for (const [, cmd, a, b] of path.matchAll(/([MLHV])(-?[\d.]+)(?:,(-?[\d.]+))?/g)) {
-    const [px, py] = [x, y];
-    if (cmd === 'M' || cmd === 'L') [x, y] = [Number(a), Number(b)];
-    if (cmd === 'H') x = Number(a);
-    if (cmd === 'V') y = Number(a);
-    if (!first && cmd !== 'M') out.push({ net, x1: Math.min(px, x), y1: Math.min(py, y), x2: Math.max(px, x), y2: Math.max(py, y) });
-    first = false;
-  }
-  return out;
-}
-
-/** A wire to route through one gap between columns, from a pin to one or more pins. */
-interface Turn {
-  net: string;
-  from: PlacedPin;
-  to: PlacedPin[];
-  /** Where it turns, once given a track. */
-  x?: number;
-}
-
-/**
- * Draws each net's wire:
- * - a net joining three or more parts is a bus: from its driver's pin to
- *   a vertical in the gap, with a branch to each part it feeds;
- * - a net between two parts in neighbouring columns turns in the gap;
- * - a net between parts further apart goes along a channel below the
- *   columns in between;
- * - a stub leaves a box for a net on one part, staggered so a lower pin's
- *   stub is shorter and what hangs from an upper one drops past it.
- * In each gap every wire turning there gets its own track, ordered so
- * they don't cross: going down, a higher source turns later.
- */
-export function route(d: Diagram, boxes: Box[]): Routed {
-  const wires: Wire[] = [];
-  const grounds: Pt[] = [];
-  const dots: Pt[] = [];
-  const trunks = new Map<string, Trunk[]>();
-  const add = (t: Trunk) => trunks.set(t.net, [...(trunks.get(t.net) ?? []), t]);
-  const byName = new Map(d.nets.map((n) => [n.name, n]));
-  const boxOf = new Map(boxes.map((b) => [b.part.id, b]));
-  const reachOf = new Map<string, number>(); // "<box>:<side>" → how far its stubs reach
-
-  // Stubs leaving the board, staggered per side from the lowest pin up.
-  for (const b of boxes) {
-    for (const side of ['right', 'left'] as const) {
-      const dir = side === 'right' ? 1 : -1;
-      let far = side === 'right' && d.passives.some((q) => q.part === b.part.id && q.mount === 'bridge') ? 120 : 0;
-      const outs = b.pins.filter((p) => p.side === side && byName.get(p.net)?.wire === 'out').sort((p, q) => q.y - p.y);
-      for (const p of outs) {
-        const n = byName.get(p.net)!;
-        const drops = d.passives.filter((q) => q.mount === 'out' && q.nets[0] === p.net).length;
-        const len = far + 30 + drops * 80 + (n.arrow ? 40 : 30);
-        const end = p.x + dir * len;
-        const wire: Wire = { net: p.net, path: `M${p.x},${p.y} H${end}`, arrow: n.arrow, label: { x: end - dir * (n.arrow ? 12 : 4), y: p.y - 7, anchor: side === 'right' ? 'end' : 'start', text: p.net } };
-        wires.push(wire);
-        add({ net: p.net, x1: Math.min(p.x + dir * (far + 20), end), x2: Math.max(p.x + dir * (far + 20), end), y: p.y, stub: { wire, pin: p, dir } });
-        far = len;
-      }
-      reachOf.set(`${b.part.id}:${side}`, far);
-    }
-  }
-
-  // Gaps between columns: where wires turn.
-  // A gap is named by the column on its left.
-  const colRight = (c: number) => Math.max(PAD, ...boxes.filter((b) => b.part.column === c).map((b) => b.x + b.w + (reachOf.get(`${b.part.id}:right`) ?? 0)));
-  const colLeft = (c: number) => Math.min(...boxes.filter((b) => b.part.column === c).map((b) => b.x - (reachOf.get(`${b.part.id}:left`) ?? 0)));
-  const colOf = (id: string) => boxOf.get(id)!.part.column;
-  const turns = new Map<number, Turn[]>(); // gap (the column on its left) → wires turning there
-  const turnIn = (gap: number, t: Turn) => turns.set(gap, [...(turns.get(gap) ?? []), t]);
-  const channels: { net: string; a: PlacedPin; z: PlacedPin; down: Turn; up: Turn }[] = [];
-  for (const n of d.nets.filter((x) => x.wire === 'between' || x.wire === 'lane')) {
-    const pins = n.parts.map((id) => ({ id, pin: pinOn(boxes, id, n.name) })).filter((e): e is { id: string; pin: PlacedPin } => !!e.pin);
-    if (pins.length < 2) continue;
-    // The driver: a pin facing right (what makes the net), else the leftmost.
-    const sorted = [...pins].sort((a, b) => a.pin.x - b.pin.x);
-    const driver = sorted.find((e) => e.pin.side === 'right') ?? sorted[0];
-    const fed = pins.filter((e) => e !== driver);
-    const dc = boxOf.get(driver.id)!.part.column;
-    // Parts more than a column away are reached along a channel under the
-    // columns in between (their own branch of the net).
-    const far = fed.filter((e) => Math.abs(colOf(e.id) - dc) > 1);
-    for (const e of far) {
-      const [a, z, ia, iz] = driver.pin.x < e.pin.x ? [driver.pin, e.pin, driver.id, e.id] : [e.pin, driver.pin, e.id, driver.id];
-      const down: Turn = { net: n.name, from: a, to: [a] };
-      const up: Turn = { net: n.name, from: z, to: [z] };
-      channels.push({ net: n.name, a, z, down, up });
-      turnIn(colOf(ia), down);
-      turnIn(colOf(iz) - 1, up);
-    }
-    const near = fed.filter((e) => !far.includes(e));
-    const right = near.filter((e) => e.pin.x > driver.pin.x);
-    const left = near.filter((e) => e.pin.x <= driver.pin.x);
-    // Turning in the gap on the driver's side towards what it feeds.
-    if (right.length) turnIn(dc, { net: n.name, from: driver.pin, to: right.map((e) => e.pin) });
-    if (left.length) turnIn(dc - 1, { net: n.name, from: driver.pin, to: left.map((e) => e.pin) });
-  }
-
-  // Channels: over or under the columns in between, whichever passes
-  // fewer wired pins at its two ends (each would be a crossing).
-  // Only wires across the gap count: stubs end before the tracks, and
-  // other channels nest.
-  const channelNets = new Set(channels.map((c) => c.net));
-  const acrossGap = (p: PlacedPin) => {
-    const w = byName.get(p.net)?.wire;
-    return (w === 'between' || w === 'lane') && !channelNets.has(p.net);
-  };
-  const wiredPast = (pin: PlacedPin, above: boolean) =>
-    boxes.flatMap((b) => b.pins).filter((p) => p !== pin && p.side === pin.side && p.x === pin.x && acrossGap(p) && (above ? p.y < pin.y : p.y > pin.y)).length;
-  const bottomOf = (b: Box) => b.y + b.h + (b.pins.some((p) => p.side === 'bottom' && !p.ground) ? 120 : GROUND + 24);
-  const over = channels.filter((ch) => wiredPast(ch.a, true) + wiredPast(ch.z, true) < wiredPast(ch.a, false) + wiredPast(ch.z, false));
-  const under = channels.filter((ch) => !over.includes(ch));
-  // Nested: under the columns, the lower source outermost (lowest); over
-  // them, the higher source outermost (highest).
-  under.sort((p, q) => q.a.y - p.a.y);
-  under.forEach((ch, i) => {
-    const between = boxes.filter((b) => b.x > ch.a.x && b.x + b.w < ch.z.x);
-    const y = Math.max(ch.a.y, ch.z.y, ...between.map(bottomOf)) + 20 + (under.length - 1 - i) * TRACK;
-    ch.down.to = [{ ...ch.a, y }];
-    ch.up.to = [{ ...ch.z, y }];
-  });
-  over.sort((p, q) => p.a.y - q.a.y);
-  over.forEach((ch, i) => {
-    const between = boxes.filter((b) => b.x + b.w > ch.a.x && b.x < ch.z.x);
-    const y = Math.min(ch.a.y, ch.z.y, ...between.map((b) => b.y - TITLE)) - 14 - (over.length - 1 - i) * TRACK;
-    ch.down.to = [{ ...ch.a, y }];
-    ch.up.to = [{ ...ch.z, y }];
-  });
-
-  // Tracks: per gap, ordered so turning wires don't cross.
-  for (const [gap, list] of turns) {
-    const lo = colRight(gap) + 16;
-    const hi = colLeft(gap + 1) - 16;
-    const span = (t: Turn) => [Math.min(t.from.y, ...t.to.map((p) => p.y)), Math.max(t.from.y, ...t.to.map((p) => p.y))];
-    const goesDown = (t: Turn) => span(t)[1] > t.from.y;
-    const down = list.filter(goesDown).sort((a, b) => a.from.y - b.from.y);
-    const up = list.filter((t) => !goesDown(t)).sort((a, b) => b.from.y - a.from.y);
-    // The first in each list turns last (furthest from where it comes
-    // from). Tracks are near the side wires come from, leaving the rest of
-    // the gap for what hangs from them; wires coming from the right (a
-    // channel's far end, a bus fed leftwards) mirror.
-    const fromLeft = (t: Turn) => t.from.x <= lo;
-    const rightward = [...down, ...up].filter(fromLeft);
-    const leftward = [...down, ...up].filter((t) => !fromLeft(t));
-    rightward.forEach((t, k) => (t.x = Math.min(hi - 20, lo + 20 + (rightward.length - 1 - k) * TRACK)));
-    leftward.forEach((t, k) => (t.x = Math.max(lo + 20, hi - 20 - (leftward.length - 1 - k) * TRACK)));
-  }
-
-  // Draw the turns: from a pin across to the track, along it, and to
-  // each pin it feeds (a bus has a junction where a branch leaves).
-  for (const list of turns.values())
-    for (const t of list) {
-      const x = t.x!;
-      const ys = [t.from.y, ...t.to.map((p) => p.y)];
-      const label = { x: (t.from.x + x) / 2, y: t.from.y - 7, anchor: 'middle' as const, text: t.net };
-      const isChannelEnd = channels.some((c) => c.down === t || c.up === t);
-      if (t.to.length === 1 && t.to[0].y === t.from.y && !isChannelEnd) {
-        // Straight across: labelled in the middle.
-        wires.push({ net: t.net, path: `M${t.from.x},${t.from.y} H${t.to[0].x}`, label: { ...label, x: (t.from.x + t.to[0].x) / 2 } });
-        add({ net: t.net, x1: Math.min(t.from.x, t.to[0].x) + 20, x2: Math.max(t.from.x, t.to[0].x) - 20, y: t.from.y });
-        continue;
-      }
-      wires.push({ net: t.net, path: `M${t.from.x},${t.from.y} H${x}`, label: isChannelEnd && t === channels.find((c) => c.up === t)?.up ? undefined : label });
-      wires.push({ net: t.net, path: `M${x},${Math.min(...ys)} V${Math.max(...ys)}` });
-      add({ net: t.net, x1: Math.min(t.from.x, x) + 20, x2: Math.max(t.from.x, x) - 14, y: t.from.y });
-      for (const p of t.to) {
-        if (isChannelEnd) continue;
-        wires.push({ net: t.net, path: `M${x},${p.y} H${p.x}` });
-        add({ net: t.net, x1: Math.min(x, p.x) + 14, x2: Math.max(x, p.x) - 20, y: p.y });
-        if (p.y !== Math.min(...ys) && p.y !== Math.max(...ys)) dots.push({ x, y: p.y });
-      }
-      if (t.from.y !== Math.min(...ys) && t.from.y !== Math.max(...ys)) dots.push({ x, y: t.from.y });
-    }
-  // A channel's run under the columns between its two turns.
-  for (const ch of channels) {
-    const y = ch.down.to[0].y;
-    wires.push({ net: ch.net, path: `M${ch.down.x},${y} H${ch.up.x}` });
-    add({ net: ch.net, x1: ch.down.x! + 14, x2: ch.up.x! - 14, y });
-  }
-
-  // Tied pins: out, and along to the wire of the pin they're tied to.
-  for (const b of boxes)
-    for (const p of b.pins.filter((x) => x.tied && (x.side === 'left' || x.side === 'right'))) {
-      const to = b.pins.find((x) => x.name === p.tied && !x.tied);
-      if (!to) continue;
-      const x = p.x + (p.side === 'right' ? 10 : -10);
-      wires.push({ net: p.net, path: `M${p.x},${p.y} H${x} V${to.y}` });
-      dots.push({ x, y: to.y });
-    }
-
-  // Ground pins: a short stub to a ground symbol each.
-  for (const b of boxes)
-    for (const p of b.pins.filter((x) => x.ground)) {
-      wires.push({ net: p.net, path: `M${p.x},${p.y} V${p.y + 8}`, thin: true });
-      grounds.push({ x: p.x, y: p.y + 8 });
-    }
-  return { wires, grounds, dots, trunks };
-}
-
-// ── hang ──────────────────────────────────────────────────────────────
-
-/** A passive's size from its text: its name and value, no more. */
-export function passiveSize(p: DiagramPassive): { w: number; h: number } {
-  return { w: Math.max(52, 7.5 * Math.max(p.label.length, (p.value ?? '').length) + 18), h: p.value ? 40 : 26 };
-}
-
-/** What a placed passive must keep clear of. */
-interface Clear {
-  rects: Rect[];
-  segs: Seg[];
-}
-
-/** A net's name at the end of a passive whose other end isn't ground (a pull-up's 3V3). */
-export interface Flag extends Pt {
-  text: string;
-  /** Above the passive (a rail), else below it. */
-  up: boolean;
-}
-
-/** How a passive's far end is shown: a ground symbol, or the net it goes to. */
-type End = { ground: true } | { ground: false; text: string };
-
-/** Where a passive's end symbol goes, for a passive at box hanging in dir. */
-function endRect(end: End, box: Rect, up: boolean): Rect {
-  const cx = box.x + box.w / 2;
-  const w = end.ground ? 14 : end.text.length * 7 + 8;
-  return { x: cx - w / 2, y: up ? box.y - 18 : box.y + box.h, w, h: end.ground ? GROUND : 18 };
-}
-
-/**
- * Whether a passive fits at box, hung from y on a wire by a vertical at
- * x: the drop crosses no other net's wire or a box, and the passive and
- * its end symbol overlap nothing and sit on no other net's wire.
- */
-function fits(c: Clear, net: string, x: number, y: number, box: Rect, end: Rect): boolean {
-  const near = box.y > y ? box.y : box.y + box.h;
-  const [top, bottom] = [Math.min(y, near), Math.max(y, near)];
-  for (const r of [box, end]) {
-    if (c.rects.some((o) => overlaps(o, r, 6))) return false;
-    if (c.segs.some((s) => s.net !== net && overlaps(r, { x: s.x1, y: s.y1, w: s.x2 - s.x1, h: s.y2 - s.y1 }, 4))) return false;
-  }
-  if (c.segs.some((s) => s.net !== net && s.y1 === s.y2 && s.y1 > top && s.y1 < bottom && x >= s.x1 - 2 && x <= s.x2 + 2)) return false;
-  return !c.rects.some((r) => x > r.x && x < r.x + r.w && r.y < bottom && r.y + r.h > top);
-}
-
-export interface Hung {
-  passives: PlacedPassive[];
-  wires: Wire[];
-  grounds: Pt[];
-  flags: Flag[];
-  dots: Pt[];
-}
-
-/**
- * Hangs each passive. A bridge sits between its two pins. The others hang
- * from their wire (or bottom pin) on a short vertical, at the first place
- * along the wire where it crosses no other net and covers nothing (a stub
- * is made longer if it has to be): down to a ground symbol, or, between
- * two nets (a pull-up), with the other net's name at its end, up towards
- * a rail when there's room. Saved positions win.
- */
-export function hang(d: Diagram, boxes: Box[], r: Routed): Hung {
-  const out: Hung = { passives: [], wires: [], grounds: [], flags: [], dots: [] };
-  const clear: Clear = {
-    rects: boxes.map((b) => ({ x: b.x - 6, y: b.y - TITLE, w: b.w + 12, h: b.h + TITLE })),
-    segs: [...r.wires.flatMap((w) => pieces(w.net, w.path))],
-  };
-  for (const w of r.wires) if (w.label) clear.rects.push(labelRect(w.label));
-  for (const g of r.grounds) clear.rects.push({ x: g.x - 7, y: g.y, w: 14, h: GROUND - 8 });
-  const kinds = new Map(d.nets.map((n) => [n.name, n.kind]));
-  const endOf = (q: DiagramPassive): End => (q.nets[1] ? { ground: false, text: q.nets[1] } : { ground: true });
-  const take = (p: PlacedPassive, wires: Wire[], end?: End, up = false) => {
-    out.passives.push(p);
-    out.wires.push(...wires);
-    clear.rects.push(p);
-    for (const w of wires) clear.segs.push(...pieces(w.net, w.path));
-    if (!end) return;
-    const cx = p.x + p.w / 2;
-    clear.rects.push(endRect(end, p, up));
-    if (end.ground) {
-      out.wires.push({ net: 'GND', path: `M${cx},${p.y + p.h} V${p.y + p.h + 6}`, thin: true });
-      out.grounds.push({ x: cx, y: p.y + p.h + 6 });
-    } else {
-      const y = up ? p.y : p.y + p.h;
-      out.wires.push({ net: end.text, path: `M${cx},${y} V${y + (up ? -6 : 6)}`, thin: true });
-      out.flags.push({ x: cx, y: y + (up ? -6 : 6), text: end.text, up });
-    }
-  };
-  const net = (q: DiagramPassive) => q.nets[0];
-  // Bridges first: their place is fixed, between their pins.
-  for (const q of d.passives.filter((x) => x.mount === 'bridge')) {
-    const [a, z] = q.nets
-      .map((n) => pinOn(boxes, q.part, n))
-      .filter((p): p is PlacedPin => !!p)
-      .sort((m, k) => m.y - k.y);
-    if (!a || !z) continue;
-    const x = q.x ?? a.x + 40;
-    const p = { passive: q, x, y: q.y ?? a.y - 15, w: 58, h: Math.max(44, z.y - a.y + 30) };
-    take(p, [a, z].map((pin) => ({ net: pin.net, path: `M${pin.x},${pin.y} H${x}`, thin: true })));
-  }
-  // Then below bottom pins, then on stubs and wires.
-  const rest = [...d.passives.filter((x) => x.mount === 'below'), ...d.passives.filter((x) => x.mount !== 'bridge' && x.mount !== 'below')];
-  for (const q of rest) {
-    const { w, h } = passiveSize(q);
-    const end = endOf(q);
-    if (q.x !== undefined && q.y !== undefined) {
-      // Placed by hand: from the nearest point of its wire.
-      const t = (r.trunks.get(net(q)) ?? [])[0];
-      const pin = pinOn(boxes, q.part, net(q));
-      const from = t ? { x: Math.min(Math.max(q.x + w / 2, t.x1), t.x2), y: t.y } : (pin ?? { x: q.x + w / 2, y: q.y - DROP });
-      const up = q.y + h < from.y;
-      const near = up ? q.y + h : q.y;
-      take({ passive: q, x: q.x, y: q.y, w, h }, [{ net: net(q), path: `M${from.x},${from.y} V${(from.y + near) / 2} H${q.x + w / 2} V${near}`, thin: true }], end, up);
-      continue;
-    }
-    if (q.mount === 'below') {
-      const pin = pinOn(boxes, q.part, net(q));
-      if (!pin) continue;
-      let placed = false;
-      for (let k = 0; k < 40 && !placed; k++) {
-        const cx = pin.x + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 34;
-        for (let dy = 0; dy < 200 && !placed; dy += 20) {
-          const box = { x: cx - w / 2, y: pin.y + DROP - 10 + dy, w, h };
-          const jog = pin.y + 14;
-          if (fits(clear, net(q), cx, jog, box, endRect(end, box, false))) {
-            const path = cx === pin.x ? `M${pin.x},${pin.y} V${box.y}` : `M${pin.x},${pin.y} V${jog} H${cx} V${box.y}`;
-            take({ passive: q, ...box }, [{ net: net(q), path, thin: true }], end);
-            placed = true;
-          }
-        }
-      }
-      continue;
-    }
-    // On a wire: the first spot along it (or along a longer stub). A
-    // pull-up to a rail hangs up first; the rest down first.
-    const dirs = !end.ground && kinds.get(end.text) === 'power' ? [true, false] : [false, true];
-    const trunks = r.trunks.get(net(q)) ?? [];
-    let placed = false;
-    for (let grow = 0; grow < 8 && !placed; grow++) {
-      for (const up of end.ground ? [false] : dirs) {
-        for (const t of trunks) {
-          for (let cx = t.x1 + w / 2 + 8; cx <= t.x2 - w / 2 - 8 && !placed; cx += 6) {
-            const box = { x: cx - w / 2, y: up ? t.y - DROP - h : t.y + DROP, w, h };
-            if (fits(clear, net(q), cx, t.y, box, endRect(end, box, up))) {
-              take({ passive: q, ...box }, [{ net: net(q), path: `M${cx},${t.y} V${up ? box.y + h : box.y}`, thin: true }], end, up);
-              out.dots.push({ x: cx, y: t.y });
-              placed = true;
-            }
-          }
-          if (placed) break;
-        }
-        if (placed) break;
-      }
-      // No room: make the stub longer, if it is one.
-      const stub = trunks.find((t) => t.stub);
-      if (!placed && stub?.stub) {
-        stub.x1 += stub.stub.dir > 0 ? 0 : -60;
-        stub.x2 += stub.stub.dir > 0 ? 60 : 0;
-        const { wire, pin, dir } = stub.stub;
-        const tip = dir > 0 ? stub.x2 + 30 : stub.x1 - 30;
-        wire.path = `M${pin.x},${pin.y} H${tip}`;
-        if (wire.label) wire.label.x = tip - dir * (wire.arrow ? 12 : 4);
-        clear.segs = clear.segs.filter((s) => !(s.net === wire.net && s.y1 === pin.y && s.y2 === pin.y)).concat(pieces(wire.net, wire.path));
-      } else if (!placed) break;
-    }
-    // Still nowhere: below everything, so it's drawn all the same.
-    if (!placed) {
-      const t = trunks[0];
-      const pin = pinOn(boxes, q.part, net(q));
-      const from = t ? { x: (t.x1 + t.x2) / 2, y: t.y } : (pin ?? { x: PAD, y: PAD });
-      const y = Math.max(...clear.rects.map((c) => c.y + c.h)) + 24;
-      take({ passive: q, x: from.x - w / 2, y, w, h }, [{ net: net(q), path: `M${from.x},${from.y} V${y}`, thin: true }], end);
-      if (t) out.dots.push(from);
-    }
-  }
-  return out;
-}
-
-// ── helpers ───────────────────────────────────────────────────────────
-
 /** Where a wire's label is drawn, roughly. */
 export function labelRect(l: NonNullable<Wire['label']>): Rect {
-  const w = l.text.length * 7.5;
+  const w = l.text.length * CHAR;
   const x = l.anchor === 'middle' ? l.x - w / 2 : l.anchor === 'end' ? l.x - w : l.x;
   return { x, y: l.y - 12, w, h: 15 };
-}
-
-/** The far corner of a wire, for the drawing's size. */
-export function wireExtent(w: Wire): Pt {
-  const xs = [...w.path.matchAll(/(?:M(-?[\d.]+),|H(-?[\d.]+))/g)].map((m) => Number(m[1] ?? m[2]));
-  const ys = [...w.path.matchAll(/(?:,(-?[\d.]+)|V(-?[\d.]+))/g)].map((m) => Number(m[1] ?? m[2]));
-  return { x: Math.max(0, ...xs) + (w.label?.anchor === 'start' ? 60 : 0), y: Math.max(0, ...ys) };
 }

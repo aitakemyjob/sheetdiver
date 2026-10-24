@@ -1,12 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
 import { fakeBackend, recorded, type FakeBackend } from '../../test/backend';
 import { ProjectView } from '../ProjectView';
 import { darkTheme, palette, swatch } from '../../lib/diagramPalette';
 import { fitView, zoomAbout } from './BlockDiagram';
-import { connectionsCSV, designators } from './ConnectionTable';
+import { connectionsCSV } from './ConnectionTable';
+import { designators } from './connections';
 import { pinoutsCSV } from './PinTables';
 
 let b: FakeBackend;
@@ -43,16 +44,55 @@ describe('project block diagram, pins and connections', () => {
     expect(svg.querySelector('[data-net="VIN"]')).not.toHaveAttribute('data-hl');
   });
 
+  it("marks a net's wires and the parts on it when its name is clicked, and lets go", async () => {
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of Sensor board' });
+    const name = svg.querySelector('[data-net-name]')!;
+    const net = name.getAttribute('data-net-name')!;
+    fireEvent.click(name);
+    const picked = [...svg.querySelectorAll('[data-net][data-picked]')].map((x) => x.getAttribute('data-net'));
+    expect(picked.length).toBeGreaterThan(0);
+    expect(new Set(picked)).toEqual(new Set([net]));
+    // Each part with a pin on it is tinted; nothing else is dimmed or hidden.
+    const parts = sensor().connections.diagram.parts.filter((p) => p.pins.some((pin) => pin.net === net)).map((p) => p.title);
+    for (const t of parts) expect(svg.querySelector(`[data-part="${t}"] [data-picked]`), t).not.toBeNull();
+    expect(svg.querySelectorAll('[data-part]').length).toBe(sensor().connections.diagram.parts.length);
+    // What isn't on it fades back; what is stays as it was.
+    const opacity = (el: Element) => (el as SVGElement).style.opacity;
+    for (const el of svg.querySelectorAll('[data-net]')) expect(opacity(el), el.getAttribute('data-net')!).toBe(el.getAttribute('data-net') === net ? '' : '0.3');
+    for (const el of svg.querySelectorAll('[data-part]')) expect(opacity(el), el.getAttribute('data-part')!).toBe(parts.includes(el.getAttribute('data-part')!) ? '' : '0.3');
+    // Clicked again, let go, nothing faded; Escape lets go too.
+    fireEvent.click(name);
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    expect([...svg.querySelectorAll('[data-net], [data-part]')].filter((el) => opacity(el) !== '')).toEqual([]);
+    fireEvent.click(name);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(svg.querySelector('[data-picked]')).toBeNull());
+    // So does a click away: on the background, or on a part without moving it.
+    fireEvent.click(name);
+    fireEvent.pointerDown(svg, { clientX: 5, clientY: 5, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 5, clientY: 5, pointerId: 1 });
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    fireEvent.click(name);
+    const part = svg.querySelector('[data-part]')!;
+    fireEvent.pointerDown(part, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 10, clientY: 10, pointerId: 1 });
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    expect(b.callsTo('connections.change')).toHaveLength(0); // a click saves no position
+  });
+
   it('saves where a block is dragged', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
     const svg = await screen.findByRole('img', { name: /Block diagram/ });
     const u2 = svg.querySelector('[data-part="U2 SD1235"]')!;
     fireEvent.pointerDown(u2, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerMove(svg, { clientX: 60, clientY: 90, pointerId: 1 });
+    // Moved 53 by 77: it goes in grid steps, so it's saved on the grid.
+    fireEvent.pointerMove(svg, { clientX: 63, clientY: 87, pointerId: 1 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
     await waitFor(() => expect(b.callsTo('connections.change').length).toBe(1));
     const call = b.callsTo('connections.change')[0] as { project: string; positions: { node: string; x: number; y: number }[] };
     expect(call.project).toBe('Sensor board');
+    expect([call.positions[0].x % 10, call.positions[0].y % 10]).toEqual([0, 0]);
     expect(call.positions[0].node).toBe(sensor().connections.diagram.parts.find((p) => p.title === 'U2 SD1235')!.id);
     fireEvent.click(screen.getByRole('button', { name: /Auto layout/ }));
     await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ resetLayout: true }));
@@ -61,7 +101,7 @@ describe('project block diagram, pins and connections', () => {
   it('lists the connection table and connects a pin', async () => {
     b.on('connections.change', () => ({ problems: ['U2 has no pin “99” in its pin table (saved as given)'] }));
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    const table = await screen.findByRole('table');
+    const table = await screen.findByRole('table', { name: 'Connection table' });
     // Each net with the pins on it, names from the pin table.
     const sda = within(table).getByText('SDA').closest('tr')!;
     expect(sda).toBeInTheDocument();
@@ -77,7 +117,7 @@ describe('project block diagram, pins and connections', () => {
 
   it('edits nets and blocks', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    await screen.findByRole('table');
+    await screen.findByRole('table', { name: 'Connection table' });
     fireEvent.change(screen.getByLabelText('SDA kind'), { target: { value: 'power' } });
     await waitFor(() => expect(b.callsTo('connections.change')[0]).toMatchObject({ nets: [{ name: 'SDA', kind: 'power' }] }));
     fireEvent.change(screen.getByLabelText('New block'), { target: { value: 'USB-C' } });
@@ -126,6 +166,40 @@ describe('project block diagram, pins and connections', () => {
     expect(within(svg as unknown as HTMLElement).getAllByText('EN')).toHaveLength(2);
     expect(svg.querySelectorAll('[data-junction]').length).toBeGreaterThan(0);
     expect(svg.querySelectorAll('[data-ground]').length).toBeGreaterThan(0);
+  });
+
+  it('dims the unconnected pins of a generated symbol, and hides them on request, remembering that', async () => {
+    localStorage.removeItem('sheetdiver.diagram.connectedOnly');
+    render(<ProjectView params={{ project: 'MCU board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of MCU board' });
+    // U1 SD1234's pin table has VFB, which nothing is wired to.
+    await waitFor(() => expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VFB"]')).toHaveAttribute('data-dim', 'true'));
+    expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VIN"]')).not.toHaveAttribute('data-dim');
+    const toggle = screen.getByRole('button', { name: /All pins/ });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(svg.querySelector('[data-dim]')).toBeNull());
+    expect(svg.querySelector('[data-part="U1 SD1234"] [data-pin="VIN"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Connected pins only/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(localStorage.getItem('sheetdiver.diagram.connectedOnly')).toBe('1');
+    // The choice holds for the next board.
+    cleanup();
+    render(<ProjectView params={{ project: 'MCU board', tab: 'diagram' }} />);
+    expect(await screen.findByRole('button', { name: /Connected pins only/ })).toHaveAttribute('aria-pressed', 'true');
+    localStorage.removeItem('sheetdiver.diagram.connectedOnly');
+  });
+
+  it('draws a block of a transistor kind as a transistor, and a two-terminal with its symbol', async () => {
+    render(<ProjectView params={{ project: 'Driver board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of Driver board' });
+    expect(svg.querySelector('[data-part="Q1"] [data-shape="mosfet-n"]')).not.toBeNull();
+    expect(svg.querySelector('[data-part="Q2"] [data-shape="npn"]')).not.toBeNull();
+    expect(svg.querySelector('[data-passive="F1"] [data-shape="fuse"]')).not.toBeNull();
+    // D2's cathode is on the signal, so it's drawn the other way up.
+    expect(svg.querySelector('[data-passive="D2"] [data-shape="led"]')).toHaveAttribute('data-flipped', 'true');
+    expect(svg.querySelector('[data-passive="D1"] [data-shape="led"]')).not.toHaveAttribute('data-flipped');
+    // U1 has a pin table, so the toggle is offered.
+    expect(screen.getByRole('button', { name: /All pins/ })).toBeInTheDocument();
   });
 
   it('exports the table as CSV', () => {
@@ -194,9 +268,72 @@ describe('project block diagram, pins and connections', () => {
     expect(await screen.findByText('No pins yet')).toBeInTheDocument();
   });
 
+  it('puts parts in groups and says what they support', async () => {
+    b.on('connections.change', () => ({ problems: [] }));
+    render(<ProjectView params={{ project: 'Grouped MCU board', tab: 'connections' }} />);
+    const table = await screen.findByRole('table', { name: 'Groups and support' });
+    // The groups, with their description and notes.
+    expect(screen.getByLabelText("Power's description")).toHaveValue('USB 5 V to 3.3 V');
+    expect(screen.getByLabelText("Power's notes")).toHaveValue("Keep the buck's input loop short.");
+    // Each part's group and what it supports: set, or guessed.
+    expect(within(table).getByLabelText("U1's group")).toHaveValue('Power');
+    expect(within(table).getByLabelText('What C4 supports')).toHaveValue('U2 ESP32-C3');
+    const c3 = within(table).getByLabelText('What C3 supports') as HTMLSelectElement;
+    expect(c3.value).toBe('');
+    expect(c3.options[0].text).toBe('auto (U2)');
+    // Unset, a passive is drawn in the group of the part it supports.
+    expect((within(table).getByLabelText("C4's group") as HTMLSelectElement).options[0].text).toBe('auto (MCU)');
+
+    fireEvent.change(within(table).getByLabelText("C3's group"), { target: { value: 'Sensor' } });
+    await waitFor(() => expect(b.callsTo('connections.change')[0]).toEqual({ project: 'Grouped MCU board', assign: [{ part: 'C3', group: 'Sensor' }] }));
+    fireEvent.change(within(table).getByLabelText('What C4 supports'), { target: { value: '' } });
+    await waitFor(() => expect(b.callsTo('connections.change')[1]).toMatchObject({ assign: [{ part: 'C4', supports: '' }] }));
+    // Clearing says it worked, and what happens now.
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: "C4 no longer has a set support: it's guessed from its nets" }));
+    // A subgroup is typed and sent when the field is left.
+    const sub = within(table).getByLabelText("C4's subgroup");
+    fireEvent.change(sub, { target: { value: ' VDD ' } });
+    fireEvent.blur(sub);
+    await waitFor(() => expect(b.callsTo('connections.change').at(-1)).toMatchObject({ assign: [{ part: 'C4', cluster: 'VDD' }] }));
+    const notes = screen.getByLabelText("MCU's notes");
+    fireEvent.change(notes, { target: { value: 'Antenna clear of copper' } });
+    fireEvent.blur(notes);
+    await waitFor(() => expect(b.callsTo('connections.change')[3]).toMatchObject({ groups: [{ name: 'MCU', notes: 'Antenna clear of copper' }] }));
+    // A group can be drawn below another, in its column.
+    fireEvent.change(screen.getByLabelText('What Sensor is drawn below'), { target: { value: 'MCU' } });
+    await waitFor(() => expect(b.callsTo('connections.change').at(-1)).toMatchObject({ groups: [{ name: 'Sensor', below: 'MCU' }] }));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ kind: 'ok', title: 'Sensor is drawn below MCU' }));
+    fireEvent.change(screen.getByLabelText('New group'), { target: { value: 'Debug' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Group$/ }));
+    await waitFor(() => expect(b.callsTo('connections.change')[5]).toMatchObject({ groups: [{ name: 'Debug' }] }));
+    fireEvent.click(screen.getByRole('button', { name: /Remove Sensor/ }));
+    await waitFor(() => expect(b.callsTo('connections.change')[6]).toMatchObject({ groups: [{ name: 'Sensor', remove: true }] }));
+  });
+
+  it('deletes the project once confirmed, and closes it', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'overview' }} />);
+    const del = await screen.findByRole('button', { name: /Delete/ });
+    fireEvent.click(del);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Delete the project Sensor board?'));
+    expect(b.callsTo('projects.delete')).toHaveLength(0);
+    confirm.mockReturnValue(true);
+    fireEvent.click(del);
+    await waitFor(() => expect(b.callsTo('projects.delete')).toEqual([{ id: sensor().project.id }]));
+    confirm.mockRestore();
+  });
+
+  it('frames each group on the block diagram', async () => {
+    render(<ProjectView params={{ project: 'Grouped MCU board', tab: 'diagram' }} />);
+    await screen.findByRole('img', { name: /Block diagram/ });
+    const frames = document.querySelectorAll('[data-group]');
+    expect([...frames].map((f) => f.getAttribute('data-group'))).toEqual(['Power', 'MCU', 'Sensor']);
+    expect(screen.getByText('Notes: Keep the buck\'s input loop short.')).toBeInTheDocument();
+  });
+
   it('edits rows, buses and nets in the connection table', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'connections' }} />);
-    await screen.findByRole('table');
+    await screen.findByRole('table', { name: 'Connection table' });
     fireEvent.click(screen.getAllByRole('button', { name: 'Disconnect' })[0]);
     await waitFor(() => expect(b.callsTo('connections.change')[0]).toMatchObject({ connect: [{ remove: true }] }));
     const bus = screen.getByLabelText('SDA bus');
@@ -207,6 +344,7 @@ describe('project block diagram, pins and connections', () => {
     await waitFor(() => expect(b.callsTo('connections.change')[2]).toMatchObject({ nets: [{ name: 'SDA', remove: true }] }));
     // A passive block with its kind and value.
     fireEvent.change(screen.getByLabelText('New block'), { target: { value: 'R9' } });
+    expect([...screen.getByLabelText<HTMLSelectElement>('Block kind').options].map((o) => o.value)).toContain('mosfet-n');
     fireEvent.change(screen.getByLabelText('Block kind'), { target: { value: 'resistor' } });
     fireEvent.change(screen.getByLabelText('Block value'), { target: { value: '10k' } });
     fireEvent.click(screen.getByRole('button', { name: /^Block$/ }));
@@ -233,7 +371,11 @@ describe('the palette', () => {
     expect(swatch(palette(), 'ic').fill).toBe('#26215C');
     document.documentElement.style.setProperty('--bg', '#ffffff');
     expect(darkTheme()).toBe(false);
-    expect(swatch(palette(), 'transistor')).toEqual(palette().connector);
+    expect(swatch(palette(), 'relay')).toEqual(palette().connector);
+    // The new kinds colour by family: diodes red, transistors blue, odd two-terminals grey.
+    expect(swatch(palette(), 'led')).toEqual(palette().diode);
+    expect(swatch(palette(), 'mosfet-n')).toEqual(palette().transistor);
+    expect(swatch(palette(), 'crystal')).toEqual(palette().other);
     document.documentElement.style.removeProperty('--bg');
     expect(darkTheme()).toBe(false);
   });

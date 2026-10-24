@@ -185,3 +185,21 @@ jobs:
           go run ./scripts/mcpb -bridge "$RUNNER_TEMP/sheetdiver-mcp.exe" -o "$RUNNER_TEMP/sheetdiver.mcpb"
           unzip -q "$RUNNER_TEMP/sheetdiver.mcpb" -d "$RUNNER_TEMP/mcpb"
           npx -y @anthropic-ai/mcpb@2.1.2 validate "$RUNNER_TEMP/mcpb/manifest.json"
+      - name: Claude Desktop extension (Linux) installs and answers
+        run: |
+          # Built, unpacked by the official unpacker (as Claude Desktop does),
+          # then started the way Claude Desktop starts it: the bridge must
+          # stay executable and answer the version probe and initialize.
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/sheetdiver-mcp" ./cmd/sheetdiver-mcp
+          go run ./scripts/mcpb -platform linux -bridge "$RUNNER_TEMP/sheetdiver-mcp" -o "$RUNNER_TEMP/linux.mcpb"
+          npx -y @anthropic-ai/mcpb@2.1.2 unpack "$RUNNER_TEMP/linux.mcpb" "$RUNNER_TEMP/linux"
+          npx -y @anthropic-ai/mcpb@2.1.2 validate "$RUNNER_TEMP/linux/manifest.json"
+          test -x "$RUNNER_TEMP/linux/server/sheetdiver-mcp"
+          export SHEETDIVER_CONFIG="$RUNNER_TEMP/cfg.json" SHEETDIVER_LIBRARY="$RUNNER_TEMP/lib" SHEETDIVER_MCP_LOG="$RUNNER_TEMP/mcp.log"
+          out=$(printf '%s\n%s\n' \
+            '{"jsonrpc":"2.0","id":0,"method":"server/discover","params":{}}' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | "$RUNNER_TEMP/linux/server/sheetdiver-mcp" --port 0)
+          echo "$out" | grep -q '"id":0,"error"'
+          echo "$out" | grep -q '"id":1,"result"'
+          cat "$RUNNER_TEMP/mcp.log"

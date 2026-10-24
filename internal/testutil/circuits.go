@@ -11,12 +11,27 @@ type Circuit struct {
 	// Pins puts pins on nets: {net, designator or block, pin}; an empty
 	// pin connects a block (a passive) without one.
 	Pins [][3]string
+	// Groups are functional groups; Assign puts parts in them and says
+	// what they support: {designator or block, group, supports}; Cluster
+	// names the subgroup a part is wired up in: {designator or block,
+	// subgroup}.
+	Groups  []CircuitGroup
+	Assign  [][3]string
+	Cluster [][2]string
 }
 
-// CircuitRail is a supply rail and its voltage.
+// CircuitGroup is a functional group of a board.
+type CircuitGroup struct {
+	Name, Description, Notes string
+	// Below is the group it's drawn under.
+	Below string
+}
+
+// CircuitRail is a supply rail, its voltage and what supplies it.
 type CircuitRail struct {
-	Name string
-	V    float64
+	Name   string
+	V      float64
+	Source string
 }
 
 // CircuitPart is a library part in the BOM (Ref set) or a block.
@@ -34,8 +49,16 @@ type CircuitNet struct {
 
 // Circuits are the boards the block diagram is tested on: the USB-C
 // to 3.3 V sketch (a connector, an eFuse and a buck-boost with their
-// passives), a battery board whose 4.2 V rail joins four parts, and a
-// microcontroller board with I2C, USB data, pull-ups and an LED.
+// passives), a battery board whose 4.2 V rail joins four parts, a
+// microcontroller board with I2C, USB data, pull-ups and an LED, and
+// that board in functional groups with decoupling capacitors that each
+// serve one part on the shared 3.3 V rail, two STM32 boards, and a
+// driver board with every standard symbol: a fuse, a polarised
+// capacitor, LEDs, a crystal with its load capacitors, a button, a
+// MOSFET switching a motor with a flyback diode, and an NPN with its
+// base resistor; and boards from testing: a buck board, a boost board
+// with chained passives and an ESP32-C6 board with its reset, boot
+// straps and decoupling named into subgroups.
 func Circuits() []Circuit {
 	return []Circuit{
 		{
@@ -120,6 +143,258 @@ func Circuits() []Circuit {
 				{"D+", "U2 ESP32-C3", "GPIO19"}, {"D-", "U2 ESP32-C3", "GPIO18"}, {"SDA", "U2 ESP32-C3", "GPIO8"}, {"SCL", "U2 ESP32-C3", "GPIO9"}, {"LED", "U2 ESP32-C3", "GPIO2"}, {"LED", "LED1", ""},
 				{"3V3", "U3 BME280", "VDD"}, {"3V3", "U3 BME280", "CSB"}, {"GND", "U3 BME280", "GND"}, {"SDA", "U3 BME280", "SDA"}, {"SCL", "U3 BME280", "SCL"},
 				{"SDA", "R2", "1"}, {"3V3", "R2", "2"}, {"SCL", "R3", "1"}, {"3V3", "R3", "2"},
+			},
+		},
+		{
+			Name:  "Grouped MCU board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS", Output: "3V3"}, {Name: "U2 ESP32-C3", Kind: "ic"}, {Name: "U3 BME280", Kind: "ic"},
+				{Name: "C1", Kind: "capacitor", Value: "1µF"}, {Name: "C2", Kind: "capacitor", Value: "1µF"}, {Name: "C3", Kind: "capacitor", Value: "1µF"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"},
+				{Name: "R1", Kind: "resistor", Value: "10k"}, {Name: "R2", Kind: "resistor", Value: "4.7k"}, {Name: "R3", Kind: "resistor", Value: "4.7k"}, {Name: "LED1", Kind: "diode", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "SDA", Bus: "I2C"}, {Name: "SCL", Bus: "I2C"}, {Name: "D+", Bus: "USB"}, {Name: "D-", Bus: "USB"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"D+", "J1 USB-C", "D+"}, {"D-", "J1 USB-C", "D-"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"3V3", "U1", "SW"}, {"VBUS", "C1", ""}, {"3V3", "C2", ""},
+				{"3V3", "U2 ESP32-C3", "3V3"}, {"GND", "U2 ESP32-C3", "GND"}, {"EN", "U2 ESP32-C3", "EN"}, {"EN", "R1", "1"}, {"3V3", "R1", "2"}, {"EN", "C3", ""},
+				{"D+", "U2 ESP32-C3", "GPIO19"}, {"D-", "U2 ESP32-C3", "GPIO18"}, {"SDA", "U2 ESP32-C3", "GPIO8"}, {"SCL", "U2 ESP32-C3", "GPIO9"}, {"LED", "U2 ESP32-C3", "GPIO2"}, {"LED", "LED1", ""},
+				{"3V3", "U3 BME280", "VDD"}, {"3V3", "U3 BME280", "CSB"}, {"GND", "U3 BME280", "GND"}, {"SDA", "U3 BME280", "SDA"}, {"SCL", "U3 BME280", "SCL"},
+				{"SDA", "R2", "1"}, {"3V3", "R2", "2"}, {"SCL", "R3", "1"}, {"3V3", "R3", "2"},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""},
+			},
+			Groups: []CircuitGroup{
+				{Name: "Power", Description: "USB 5 V to 3.3 V", Notes: "Keep the buck's input loop short."},
+				{Name: "MCU", Description: "ESP32-C3 with USB and status LED"},
+				{Name: "Sensor", Description: "BME280 on I2C"},
+			},
+			Assign: [][3]string{
+				{"J1 USB-C", "Power", ""}, {"U1", "Power", ""}, {"U2 ESP32-C3", "MCU", ""}, {"U3 BME280", "Sensor", ""},
+				// Each decoupling capacitor serves one part on the 3.3 V rail.
+				{"C2", "", "U1"}, {"C4", "", "U2 ESP32-C3"}, {"C5", "", "U3 BME280"},
+				// The pull-ups sit with the sensor.
+				{"R2", "Sensor", ""}, {"R3", "Sensor", ""},
+			},
+		},
+		{
+			// Shaped like a tester's STM32 board: a buck in a Power group
+			// feeding an MCU group with VBAT, reset and boot switches, a
+			// 32 kHz crystal, an SWD header, nine decoupling capacitors and
+			// an LED behind a series resistor.
+			Name:  "STM32 board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1 MAX77827", Kind: "ic"}, {Name: "L1", Kind: "inductor", Value: "1µH"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "22µF"}, {Name: "C3", Kind: "capacitor", Value: "22µF"},
+				{Name: "U2 STM32G0", Kind: "ic"}, {Name: "SW1 Reset", Kind: "ic"}, {Name: "SW2 Boot", Kind: "ic"}, {Name: "J2 SWD", Kind: "connector"}, {Name: "Y1 32k", Kind: "ic"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"}, {Name: "C6", Kind: "capacitor", Value: "100nF"},
+				{Name: "C7", Kind: "capacitor", Value: "100nF"}, {Name: "C8", Kind: "capacitor", Value: "100nF"}, {Name: "C9", Kind: "capacitor", Value: "100nF"},
+				{Name: "C10", Kind: "capacitor", Value: "100nF"}, {Name: "C11", Kind: "capacitor", Value: "4.7µF"}, {Name: "C12", Kind: "capacitor", Value: "1µF"},
+				{Name: "C13", Kind: "capacitor", Value: "10pF"}, {Name: "C14", Kind: "capacitor", Value: "10pF"},
+				{Name: "R5", Kind: "resistor", Value: "1k"}, {Name: "R6", Kind: "resistor", Value: "10k"}, {Name: "D1 LED", Kind: "ic"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS", Kind: "power"}, {Name: "3V3", Kind: "power"}, {Name: "SWDIO", Bus: "SWD"}, {Name: "SWCLK", Bus: "SWD"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "EN"}, {"3V3", "U1 MAX77827", "OUT"}, {"POK", "U1 MAX77827", "POK"},
+				{"LX1", "U1 MAX77827", "LX1"}, {"LX2", "U1 MAX77827", "LX2"}, {"LX1", "L1", "1"}, {"LX2", "L1", "2"}, {"GND", "U1 MAX77827", "GND"},
+				{"VBUS", "C1", ""}, {"3V3", "C2", ""}, {"3V3", "C3", ""},
+				{"3V3", "U2 STM32G0", "VDD"}, {"3V3", "U2 STM32G0", "VBAT"}, {"3V3", "U2 STM32G0", "VDDA"}, {"GND", "U2 STM32G0", "VSS"}, {"GND", "U2 STM32G0", "VSSA"},
+				{"NRST", "U2 STM32G0", "NRST"}, {"BOOT0", "U2 STM32G0", "PH3-BOOT0"}, {"OSC32_IN", "U2 STM32G0", "PC14-OSC32_IN"}, {"OSC32_OUT", "U2 STM32G0", "PC15-OSC32_OUT"},
+				{"SWDIO", "U2 STM32G0", "PA13"}, {"SWCLK", "U2 STM32G0", "PA14"}, {"PA5", "U2 STM32G0", "PA5"}, {"POK", "U2 STM32G0", "PB0"},
+				{"NRST", "SW1 Reset", "1"}, {"GND", "SW1 Reset", "2"}, {"3V3", "SW2 Boot", "1"}, {"BOOT0", "SW2 Boot", "2"}, {"BOOT0", "R6", "1"}, {"GND", "R6", "2"},
+				{"3V3", "J2 SWD", "VTref"}, {"SWDIO", "J2 SWD", "SWDIO"}, {"SWCLK", "J2 SWD", "SWCLK"}, {"NRST", "J2 SWD", "nRESET"}, {"GND", "J2 SWD", "GND"},
+				{"OSC32_IN", "Y1 32k", "1"}, {"OSC32_OUT", "Y1 32k", "2"}, {"OSC32_IN", "C13", ""}, {"OSC32_OUT", "C14", ""},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""}, {"3V3", "C6", ""}, {"3V3", "C7", ""}, {"3V3", "C8", ""}, {"3V3", "C9", ""}, {"3V3", "C10", ""}, {"3V3", "C11", ""}, {"3V3", "C12", ""},
+				{"PA5", "R5", "1"}, {"LED_A", "R5", "2"}, {"LED_A", "D1 LED", "A"}, {"GND", "D1 LED", "K"},
+			},
+			Groups: []CircuitGroup{
+				{Name: "Power", Description: "USB 5 V to 3.3 V"},
+				{Name: "MCU", Description: "STM32 with reset, boot, crystal and SWD"},
+			},
+			Assign: [][3]string{
+				{"J1 USB-C", "Power", ""}, {"U1 MAX77827", "Power", ""}, {"C1", "", "U1 MAX77827"}, {"C2", "", "U1 MAX77827"}, {"C3", "", "U1 MAX77827"},
+				{"U2 STM32G0", "MCU", ""}, {"SW1 Reset", "MCU", ""}, {"SW2 Boot", "MCU", ""}, {"J2 SWD", "MCU", ""}, {"Y1 32k", "MCU", ""}, {"D1 LED", "MCU", ""},
+				{"C4", "", "U2 STM32G0"}, {"C5", "", "U2 STM32G0"}, {"C6", "", "U2 STM32G0"}, {"C7", "", "U2 STM32G0"}, {"C8", "", "U2 STM32G0"},
+				{"C9", "", "U2 STM32G0"}, {"C10", "", "U2 STM32G0"}, {"C11", "", "U2 STM32G0"}, {"C12", "", "U2 STM32G0"}, {"R5", "", "D1 LED"},
+			},
+		},
+		{
+			// A tester's STM32U545 USB-C board as entered, in five groups:
+			// parts with two pins of one name on a net (J1's VBUS, U1's IN
+			// and OUT), a crystal in a group of its own, switches on BOOT0
+			// and NRST, an LED behind a series resistor, and a pull-up
+			// between the regulator's POK and 3V3.
+			Name:  "U545 USB-C board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 TYPE-C", Kind: "connector"}, {Name: "U3 USBLC6", Kind: "ic"}, {Name: "R1", Kind: "resistor", Value: "5.1k"}, {Name: "R2", Kind: "resistor", Value: "5.1k"},
+				{Name: "U1 MAX77827", Kind: "ic"}, {Name: "L1", Kind: "inductor", Value: "1µH"}, {Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "10µF"},
+				{Name: "C3", Kind: "capacitor", Value: "22µF"}, {Name: "R4", Kind: "resistor", Value: "100k"},
+				{Name: "J2 SWD", Kind: "connector"},
+				{Name: "U2 STM32U545", Kind: "ic"}, {Name: "D1 LED", Kind: "ic"}, {Name: "SW1 Reset", Kind: "ic"}, {Name: "SW2 Boot", Kind: "ic"},
+				{Name: "C4", Kind: "capacitor", Value: "100nF"}, {Name: "C5", Kind: "capacitor", Value: "100nF"}, {Name: "C6", Kind: "capacitor", Value: "100nF"}, {Name: "C7", Kind: "capacitor", Value: "100nF"},
+				{Name: "C8", Kind: "capacitor", Value: "100nF"}, {Name: "C9", Kind: "capacitor", Value: "100nF"}, {Name: "C10", Kind: "capacitor", Value: "4.7µF"}, {Name: "C11", Kind: "capacitor", Value: "100nF"}, {Name: "C12", Kind: "capacitor", Value: "100nF"},
+				{Name: "R3", Kind: "resistor", Value: "10k"}, {Name: "R5", Kind: "resistor", Value: "1k"},
+				{Name: "Y1 FC-135", Kind: "ic"}, {Name: "C13", Kind: "capacitor", Value: "6.8pF"}, {Name: "C14", Kind: "capacitor", Value: "6.8pF"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS", Kind: "power"}, {Name: "3V3", Kind: "power"}, {Name: "USB_DP", Bus: "USB"}, {Name: "USB_DM", Bus: "USB"}, {Name: "SWDIO", Bus: "SWD"}, {Name: "SWCLK", Bus: "SWD"}, {Name: "SWO", Bus: "SWD"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 TYPE-C", "VBUS"}, {"VBUS", "J1 TYPE-C", "VBUS"}, {"USB_DP", "J1 TYPE-C", "DP1"}, {"USB_DP", "J1 TYPE-C", "DP2"}, {"USB_DM", "J1 TYPE-C", "DN1"}, {"USB_DM", "J1 TYPE-C", "DN2"},
+				{"CC1", "J1 TYPE-C", "CC1"}, {"CC2", "J1 TYPE-C", "CC2"}, {"GND", "J1 TYPE-C", "GND"}, {"GND", "J1 TYPE-C", "SHIELD"},
+				{"VBUS", "U3 USBLC6", "VBUS"}, {"USB_DP", "U3 USBLC6", "I/O1"}, {"USB_DP", "U3 USBLC6", "I/O1"}, {"USB_DM", "U3 USBLC6", "I/O2"}, {"USB_DM", "U3 USBLC6", "I/O2"}, {"GND", "U3 USBLC6", "GND"},
+				{"CC1", "R1", ""}, {"CC2", "R2", ""},
+				{"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "IN"}, {"VBUS", "U1 MAX77827", "EN"}, {"VBUS", "U1 MAX77827", "BIAS"}, {"POK", "U1 MAX77827", "POK"},
+				{"3V3", "U1 MAX77827", "OUT"}, {"3V3", "U1 MAX77827", "OUT"}, {"3V3", "U1 MAX77827", "OUTS"}, {"LX1", "U1 MAX77827", "LX1"}, {"LX2", "U1 MAX77827", "LX2"},
+				{"GND", "U1 MAX77827", "SEL"}, {"GND", "U1 MAX77827", "AGND"}, {"GND", "U1 MAX77827", "PGND"}, {"GND", "U1 MAX77827", "FPWM"},
+				{"LX1", "L1", "1"}, {"LX2", "L1", "2"}, {"VBUS", "C1", ""}, {"VBUS", "C2", ""}, {"3V3", "C3", ""}, {"3V3", "R4", "1"}, {"POK", "R4", "2"},
+				{"3V3", "J2 SWD", "1"}, {"SWDIO", "J2 SWD", "2"}, {"SWCLK", "J2 SWD", "4"}, {"SWO", "J2 SWD", "6"}, {"NRST", "J2 SWD", "10"}, {"GND", "J2 SWD", "3"}, {"GND", "J2 SWD", "5"}, {"GND", "J2 SWD", "9"},
+				{"POK", "U2 STM32U545", "PA0"}, {"LED", "U2 STM32U545", "PA5"}, {"USB_DM", "U2 STM32U545", "PA11"}, {"USB_DP", "U2 STM32U545", "PA12"},
+				{"SWDIO", "U2 STM32U545", "PA13"}, {"SWCLK", "U2 STM32U545", "PA14"}, {"SWO", "U2 STM32U545", "PB3"},
+				{"NRST", "U2 STM32U545", "NRST"}, {"BOOT0", "U2 STM32U545", "PH3-BOOT0"}, {"3V3", "U2 STM32U545", "VBAT"}, {"3V3", "U2 STM32U545", "VDDA"},
+				{"3V3", "U2 STM32U545", "VDD"}, {"3V3", "U2 STM32U545", "VDD"}, {"3V3", "U2 STM32U545", "VDD"}, {"VCAP", "U2 STM32U545", "VCAP"},
+				{"OSC32_IN", "U2 STM32U545", "PC14-OSC32_IN"}, {"OSC32_OUT", "U2 STM32U545", "PC15-OSC32_OUT"}, {"GND", "U2 STM32U545", "VSSA"}, {"GND", "U2 STM32U545", "VSS"},
+				{"LED_A", "D1 LED", "A"}, {"GND", "D1 LED", "K"}, {"LED", "R5", "1"}, {"LED_A", "R5", "2"},
+				{"BOOT0", "SW2 Boot", "B"}, {"BOOT0", "SW2 Boot", "B"}, {"3V3", "SW2 Boot", "A"}, {"3V3", "SW2 Boot", "A"}, {"BOOT0", "R3", ""},
+				{"NRST", "SW1 Reset", "A"}, {"NRST", "SW1 Reset", "A"}, {"GND", "SW1 Reset", "B"}, {"NRST", "C9", ""},
+				{"3V3", "C4", ""}, {"3V3", "C5", ""}, {"3V3", "C6", ""}, {"3V3", "C7", ""}, {"3V3", "C8", ""}, {"3V3", "C11", ""}, {"3V3", "C12", ""}, {"VCAP", "C10", ""},
+				{"OSC32_IN", "Y1 FC-135", "1"}, {"OSC32_OUT", "Y1 FC-135", "2"}, {"OSC32_IN", "C13", ""}, {"OSC32_OUT", "C14", ""},
+			},
+			Groups: []CircuitGroup{
+				{Name: "USB Input", Description: "USB-C 5 V sink with ESD", Notes: "Separate 5.1k per CC pin; USBLC6 close to J1"},
+				{Name: "Power", Description: "MAX77827 5 V → 3.3 V buck-boost", Notes: "C1/C3 tight to IN/OUT; short LX loop"},
+				{Name: "Debug", Description: "SWD on MIPI-10 (ST-LINK)", Below: "Power"},
+				{Name: "MCU", Description: "STM32U545CET6 with decoupling, reset, BOOT0, user LED", Notes: "One 100 nF per VDD pin; VCAP 4.7 µF close to pin 22"},
+				{Name: "Clock", Description: "32.768 kHz LSE", Notes: "Guard ring to GND; keep traces <5 mm", Below: "MCU"},
+			},
+			Assign: [][3]string{
+				{"J1 TYPE-C", "USB Input", ""}, {"U3 USBLC6", "USB Input", ""}, {"R1", "", "J1 TYPE-C"}, {"R2", "", "J1 TYPE-C"},
+				{"U1 MAX77827", "Power", ""}, {"C1", "", "U1 MAX77827"}, {"C2", "", "U1 MAX77827"}, {"C3", "", "U1 MAX77827"}, {"R4", "", "U1 MAX77827"},
+				{"J2 SWD", "Debug", ""},
+				{"U2 STM32U545", "MCU", ""}, {"D1 LED", "MCU", ""}, {"SW1 Reset", "MCU", ""}, {"SW2 Boot", "MCU", ""},
+				{"C4", "", "U2 STM32U545"}, {"C5", "", "U2 STM32U545"}, {"C6", "", "U2 STM32U545"}, {"C7", "", "U2 STM32U545"}, {"C8", "", "U2 STM32U545"},
+				{"C9", "", "U2 STM32U545"}, {"C10", "", "U2 STM32U545"}, {"C11", "", "U2 STM32U545"}, {"C12", "", "U2 STM32U545"}, {"R3", "", "U2 STM32U545"}, {"R5", "", "D1 LED"},
+				{"Y1 FC-135", "Clock", ""}, {"C13", "", "Y1 FC-135"}, {"C14", "", "Y1 FC-135"},
+			},
+			// The tester's subgroups: decoupling split by name on one rail by
+			// one MCU (VDD, VDDA), single parts named on their own (VCAP, the
+			// inductor across two pins), a button with its capacitor, the
+			// boot switch with its pull-down, the LED with its resistor, the
+			// crystal with its load capacitors, and two resistors on two
+			// nets as one (Feedback).
+			Cluster: [][2]string{
+				{"C4", "VDD"}, {"C5", "VDD"}, {"C6", "VDD"}, {"C11", "VDD"}, {"C12", "VDD"}, {"C7", "VDDA"}, {"C8", "VDDA"},
+				{"C10", "VCAP"}, {"SW1 Reset", "Reset"}, {"C9", "Reset"}, {"SW2 Boot", "Boot"}, {"R3", "Boot"},
+				{"D1 LED", "User LED"}, {"R5", "User LED"}, {"Y1 FC-135", "LSE"}, {"C13", "LSE"}, {"C14", "LSE"},
+				{"L1", "Switch"}, {"R4", "Feedback"}, {"C3", "Feedback"},
+			},
+		},
+		{
+			Name:  "Driver board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}, {Name: "3V3", V: 3.3}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS", Output: "3V3"}, {Name: "U2 MCU", Kind: "ic"}, {Name: "M1 Motor", Kind: "connector"},
+				{Name: "Q1", Kind: "mosfet-n", Value: "AO3400"}, {Name: "Q2", Kind: "npn", Value: "BC847"},
+				{Name: "F1", Kind: "fuse", Value: "500mA"}, {Name: "C1", Kind: "capacitor-polarised", Value: "100µF"}, {Name: "C2", Kind: "capacitor", Value: "10µF"},
+				{Name: "D1", Kind: "led", Value: "red"}, {Name: "R3", Kind: "resistor", Value: "1k"}, {Name: "D2", Kind: "led", Value: "green"},
+				{Name: "Y1", Kind: "crystal", Value: "8MHz"}, {Name: "C3", Kind: "capacitor", Value: "18pF"}, {Name: "C4", Kind: "capacitor", Value: "18pF"},
+				{Name: "SW1", Kind: "switch"}, {Name: "R2", Kind: "resistor", Value: "10k"}, {Name: "D3", Kind: "schottky", Value: "SS14"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VBUS_IN", Kind: "power"}},
+			Pins: [][3]string{
+				{"VBUS_IN", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"}, {"VBUS_IN", "F1", "1"}, {"VBUS", "F1", "2"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"3V3", "U1", "SW"}, {"VBUS", "C1", ""}, {"3V3", "C2", ""},
+				{"3V3", "U2 MCU", "VDD"}, {"GND", "U2 MCU", "GND"}, {"PWM", "U2 MCU", "PA0"}, {"LED", "U2 MCU", "PA1"}, {"XIN", "U2 MCU", "XIN"}, {"XOUT", "U2 MCU", "XOUT"}, {"BTN", "U2 MCU", "PA2"}, {"CTRL", "U2 MCU", "PA3"},
+				{"LED", "D1", "A"}, {"GND", "D1", "K"},
+				{"XIN", "Y1", "1"}, {"XOUT", "Y1", "2"}, {"XIN", "C3", ""}, {"XOUT", "C4", ""},
+				{"BTN", "SW1", "1"}, {"GND", "SW1", "2"}, {"BTN", "R2", "1"}, {"3V3", "R2", "2"},
+				{"PWM", "Q1", "G"}, {"MOTOR", "Q1", "D"}, {"GND", "Q1", "S"},
+				{"VBUS", "M1 Motor", "+"}, {"MOTOR", "M1 Motor", "-"}, {"MOTOR", "D3", "A"}, {"VBUS", "D3", "K"},
+				{"CTRL", "R3", "1"}, {"BASE", "R3", "2"}, {"BASE", "Q2", "B"}, {"LED2_K", "Q2", "C"}, {"GND", "Q2", "E"}, {"3V3", "D2", "A"}, {"LED2_K", "D2", "K"},
+			},
+			Groups:  []CircuitGroup{{Name: "MCU", Description: "The controller, its clock, button and status LED"}},
+			Assign:  [][3]string{{"U2 MCU", "MCU", ""}, {"Q2", "MCU", ""}},
+			Cluster: [][2]string{{"Q2", "Status LED"}, {"R3", "Status LED"}, {"D2", "Status LED"}},
+		},
+		{
+			// A tester's buck board: USB-C in with a TVS, a buck whose
+			// inductor leads to the 3V3 rail it is the source of, the output
+			// capacitor set to support it, an output connector on the rail
+			// in a subgroup of its own, and a power LED behind its resistor
+			// off the rail at that connector, on a net of their own, named
+			// into a subgroup.
+			Name:  "Buck board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5, Source: "USB"}, {Name: "3V3", V: 3.3, Source: "U1"}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "D1", Kind: "tvs", Value: "5V"}, {Name: "U1 BUCK", Kind: "ic"}, {Name: "J2 OUT", Kind: "connector"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "L1", Kind: "inductor", Value: "2.2µH"}, {Name: "C3", Kind: "capacitor", Value: "22µF"},
+				{Name: "R4", Kind: "resistor", Value: "1k"}, {Name: "D2", Kind: "led", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"}, {"VBUS", "D1", ""},
+				{"VBUS", "U1 BUCK", "IN"}, {"VBUS", "U1 BUCK", "EN"}, {"GND", "U1 BUCK", "GND"}, {"LX", "U1 BUCK", "LX"},
+				{"LX", "L1", "1"}, {"3V3", "L1", "2"}, {"VBUS", "C1", ""}, {"3V3", "C3", ""},
+				{"3V3", "J2 OUT", "1"}, {"GND", "J2 OUT", "2"},
+				{"3V3", "R4", "1"}, {"LED_A", "R4", "2"}, {"LED_A", "D2", "A"}, {"GND", "D2", "K"},
+			},
+			Groups:  []CircuitGroup{{Name: "Input"}, {Name: "Power"}, {Name: "Output"}},
+			Assign:  [][3]string{{"J1 USB-C", "Input", ""}, {"U1 BUCK", "Power", ""}, {"C3", "Power", "U1 BUCK"}, {"J2 OUT", "Output", ""}},
+			Cluster: [][2]string{{"J2 OUT", "Out"}, {"D2", "PWR LED"}},
+		},
+		{
+			// Passives reached only through another passive: the output
+			// capacitor after the inductor, with the feedback resistor off
+			// the same net, and an LED after its series resistor.
+			Name:  "Boost board",
+			Rails: []CircuitRail{{Name: "VBUS", V: 5}},
+			Parts: []CircuitPart{
+				{Name: "J1 USB-C", Kind: "connector"}, {Name: "U1", Ref: "SD1234", Supply: "VBUS"}, {Name: "U2 MCU", Kind: "ic"},
+				{Name: "L1", Kind: "inductor", Value: "4.7µH"}, {Name: "C2", Kind: "capacitor", Value: "22µF"}, {Name: "R4", Kind: "resistor", Value: "100k"},
+				{Name: "R5", Kind: "resistor", Value: "1k"}, {Name: "D1", Kind: "led", Value: "green"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}},
+			Pins: [][3]string{
+				{"VBUS", "J1 USB-C", "VBUS"}, {"GND", "J1 USB-C", "GND"},
+				{"VBUS", "U1", "VIN"}, {"GND", "U1", "GND"}, {"SW", "U1", "SW"}, {"FB", "U1", "VFB"},
+				{"SW", "L1", "1"}, {"VOUT", "L1", "2"}, {"VOUT", "C2", ""}, {"VOUT", "R4", "1"}, {"FB", "R4", "2"},
+				{"VBUS", "U2 MCU", "VDD"}, {"GND", "U2 MCU", "GND"}, {"LEDR", "U2 MCU", "PA5"},
+				{"LEDR", "R5", "1"}, {"LEDK", "R5", "2"}, {"LEDK", "D1", "A"}, {"GND", "D1", "K"},
+			},
+		},
+		{
+			// A tester's ESP32-C6 board: the MCU's reset (a button, its
+			// pull-up and RC capacitor on EN), its boot straps (IO8 pulled
+			// up, IO9 to a button) and its decoupling, each named into a
+			// subgroup.
+			Name:  "ESP32-C6 board",
+			Rails: []CircuitRail{{Name: "3V3", V: 3.3, Source: "U1"}},
+			Parts: []CircuitPart{
+				{Name: "U1 LDO", Kind: "ic"}, {Name: "U2 ESP32-C6", Kind: "ic"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "100nF"},
+				{Name: "C6", Kind: "capacitor", Value: "22µF"}, {Name: "C7", Kind: "capacitor", Value: "100nF"}, {Name: "C8", Kind: "capacitor", Value: "1µF"},
+				{Name: "R5", Kind: "resistor", Value: "10k"}, {Name: "R6", Kind: "resistor", Value: "10k"},
+				{Name: "SW1", Kind: "switch"}, {Name: "SW2", Kind: "switch"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VIN", Kind: "power"}},
+			Pins: [][3]string{
+				{"VIN", "U1 LDO", "VIN"}, {"GND", "U1 LDO", "GND"}, {"3V3", "U1 LDO", "VOUT"}, {"VIN", "C1", ""}, {"VIN", "C2", ""},
+				{"3V3", "U2 ESP32-C6", "3V3"}, {"GND", "U2 ESP32-C6", "GND"}, {"MCU_EN", "U2 ESP32-C6", "EN"},
+				{"IO8_STRAP", "U2 ESP32-C6", "IO8"}, {"BOOT", "U2 ESP32-C6", "IO9"}, {"UART_TX", "U2 ESP32-C6", "TXD0"}, {"UART_RX", "U2 ESP32-C6", "RXD0"},
+				{"3V3", "C6", ""}, {"3V3", "C7", ""},
+				{"MCU_EN", "SW1", "1"}, {"GND", "SW1", "2"}, {"MCU_EN", "R5", "1"}, {"3V3", "R5", "2"}, {"MCU_EN", "C8", ""},
+				{"IO8_STRAP", "R6", "1"}, {"3V3", "R6", "2"}, {"BOOT", "SW2", "1"}, {"GND", "SW2", "2"},
+			},
+			Groups: []CircuitGroup{{Name: "Power"}, {Name: "MCU"}},
+			Assign: [][3]string{
+				{"U1 LDO", "Power", ""}, {"C1", "Power", "U1 LDO"}, {"C2", "Power", "U1 LDO"}, {"U2 ESP32-C6", "MCU", ""},
+				{"C6", "MCU", "U2 ESP32-C6"}, {"C7", "MCU", "U2 ESP32-C6"}, {"C8", "MCU", "U2 ESP32-C6"}, {"R5", "MCU", "U2 ESP32-C6"}, {"R6", "MCU", "U2 ESP32-C6"},
+				{"SW1", "MCU", ""}, {"SW2", "MCU", ""},
+			},
+			Cluster: [][2]string{
+				{"C1", "VIN caps"}, {"C2", "VIN caps"}, {"C6", "Decoupling"}, {"C7", "Decoupling"},
+				{"SW1", "Reset"}, {"R5", "Reset"}, {"C8", "Reset"}, {"R6", "Boot"}, {"SW2", "Boot"},
 			},
 		},
 	}

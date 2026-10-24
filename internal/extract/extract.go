@@ -15,7 +15,7 @@ import (
 
 // Version identifies the extractor; stored with each datasheet so
 // re-extraction can be offered when it changes.
-const Version = "4"
+const Version = "5"
 
 // Line is a run of spans on one baseline that belong together (spans are
 // split into separate lines at wide gaps, so two captions side by side

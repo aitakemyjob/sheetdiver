@@ -57,45 +57,11 @@ func serveOn(t *testing.T, port int, h http.Handler) {
 	t.Cleanup(func() { s.Close() })
 }
 
-// connect relays an in-memory client to the app on port, and returns the
-// client session and Relay's result.
-func connect(t *testing.T, port int) (*mcp.ClientSession, <-chan error) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	t.Cleanup(cancel)
-	client, server := mcp.NewInMemoryTransports()
-	done := make(chan error, 1)
-	go func() { done <- Relay(ctx, server, Endpoint(port)) }()
-	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, client, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return cs, done
-}
-
-// echo calls the echo tool through cs.
-func echo(t *testing.T, cs *mcp.ClientSession) string {
-	t.Helper()
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "echo", Arguments: map[string]any{"text": "hi"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res.Content[0].(*mcp.TextContent).Text
-}
-
-func TestRelayToTheRunningApp(t *testing.T) {
+func TestRunning(t *testing.T) {
 	port := freePort(t)
 	serveOn(t, port, fakeApp(t))
 	if !Running(context.Background(), BaseURL(port)) {
 		t.Fatal("the app isn't seen running")
-	}
-	cs, done := connect(t, port)
-	if got := echo(t, cs); got != "hi" {
-		t.Errorf("echo = %q", got)
-	}
-	cs.Close()
-	if err := <-done; err != nil {
-		t.Errorf("relay: %v", err)
 	}
 	if Running(context.Background(), BaseURL(freePort(t))) {
 		t.Error("nothing listening is seen running")
@@ -164,22 +130,9 @@ func (nopWriteCloser) Close() error { return nil }
 // know, which it must still answer.
 const versionProbe = `{"jsonrpc":"2.0","id":0,"method":"server/discover","params":{}}` + "\n"
 
-func TestRepliesBeforeTheClientsInputCloses(t *testing.T) {
+func TestDrainRepliesBeforeTheClientsInputCloses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	t.Run("relay", func(t *testing.T) {
-		port := freePort(t)
-		serveOn(t, port, fakeApp(t))
-		for range 5 {
-			var out syncBuffer
-			if err := Relay(ctx, closedStdio(versionProbe, &out), Endpoint(port)); err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(out.String(), `"id":0,"error"`) {
-				t.Fatalf("relayed %q, want the probe's reply", out.String())
-			}
-		}
-	})
 	t.Run("server", func(t *testing.T) {
 		srv := mcp.NewServer(&mcp.Implementation{Name: "sheetdiver", Version: "test"}, nil)
 		var out syncBuffer

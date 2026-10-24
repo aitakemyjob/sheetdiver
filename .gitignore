@@ -24,3 +24,6 @@
 *.swp
 /frontend/public/bergamot/
 /frontend/coverage/
+
+# a stray install at the root (the app is in frontend/)
+/node_modules/

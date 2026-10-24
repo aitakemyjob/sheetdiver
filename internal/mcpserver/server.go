@@ -47,7 +47,7 @@ registers. Projects group the parts of a board with their supply rails.
   record_parameters (with page), describe_figure (what a graph shows: axes, conditions, curves), record_pins,
   record_registers, record_recommendations (inductors, capacitors, suggested part numbers) and add_note. Recorded
   data is kept when a datasheet is re-extracted and is what the calculators and project checks use.
-- Projects: create_project, set_rail, add_to_project (with supply/output rails and load currents), then
+- Projects: create_project (delete_project removes one), set_rail, add_to_project (with supply/output rails and load currents), then
   get_project for the BOM, power budget per rail (regulator input currents included) and voltage/current checks.
   set_connections drafts the block diagram and connection table (pins of BOM parts on nets, blocks off the
   BOM such as a battery or connector); get_connections checks them against the pin tables and rails.
@@ -63,6 +63,16 @@ type Server struct {
 	srv  *mcp.Server
 }
 
+// protocolVersions are the MCP versions served: those with the
+// initialize handshake, up to 2025-11-25. Clients that probe for the
+// stateless 2026-07-28 protocol (server/discover) are told so and fall
+// back to initialize, on the same connection if they like: a server that
+// answered the probe in the new protocol would refuse that initialize
+// ("duplicate initialize"), which is how Claude Desktop probes in place.
+// The HTTP endpoint is limited to these anyway (its sessions are
+// stateful); serving 2026-07-28 is issue #68.
+var protocolVersions = []string{"2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"}
+
 // New creates the MCP server with every tool registered and logs each
 // newly connected client to the activity feed.
 func New(c *core.Service) *Server {
@@ -72,7 +82,8 @@ func New(c *core.Service) *Server {
 		Title:   "SheetDiver",
 		Version: c.Version,
 	}, &mcp.ServerOptions{
-		Instructions: instructions,
+		Instructions:              instructions,
+		SupportedProtocolVersions: protocolVersions,
 		InitializedHandler: func(ctx context.Context, req *mcp.InitializedRequest) {
 			name := "agent"
 			if p := req.Session.InitializeParams(); p != nil && p.ClientInfo != nil && p.ClientInfo.Name != "" {
@@ -173,4 +184,9 @@ func readOnly(title string) *mcp.ToolAnnotations {
 // it), idempotent when re-run with the same arguments.
 func writes(title string, idempotent bool) *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{Title: title, DestructiveHint: boolPtr(false), IdempotentHint: idempotent, OpenWorldHint: boolPtr(false)}
+}
+
+// destructive annotates a tool that removes something for good.
+func destructive(title string) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{Title: title, DestructiveHint: boolPtr(true), IdempotentHint: true, OpenWorldHint: boolPtr(false)}
 }

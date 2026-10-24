@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -24,12 +25,18 @@ type createProjectArgs struct {
 	Activate    bool   `json:"activate,omitempty" jsonschema:"make it the default project"`
 }
 
+type deleteProjectArgs struct {
+	Project string `json:"project" jsonschema:"the project to delete, by name (never defaulted to the active one)"`
+}
+
 type connectionsArgs struct {
 	Project   string                `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
 	Blocks    []blockArgs           `json:"blocks,omitempty" jsonschema:"things off the BOM the board connects to (Battery, USB-C, a sensor still to be chosen); added before the connections, so they can be connected"`
 	Nets      []netArgs             `json:"nets,omitempty" jsonschema:"set a net's kind, bus or I/O voltage, or remove it with its connections. Nets are also created by connecting to them; a net named like a rail is that rail, GND/VSS are ground"`
 	Connect   []connectArgs         `json:"connect,omitempty" jsonschema:"pins to put on nets (or take off): one entry per pin"`
-	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"place blocks on the block diagram: node (designator, part number or block name), x and y in pixels, left to right"`
+	Groups    []groupArgs           `json:"groups,omitempty" jsonschema:"functional groups (Power, MCU, Sensors), each drawn as a frame with its description and notes; wires run inside a group, and a net reaching other groups is a labelled stub"`
+	Assign    []assignArgs          `json:"assign,omitempty" jsonschema:"put parts and blocks in groups, and say which part a passive serves so it's drawn by that part: {part: C5, supports: U3} for U3's decoupling capacitor (the passive is part, the IC it serves is supports). Each result is listed back"`
+	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"pixel positions, as the app saves where a part is dragged; to place a part yourself, give it a column and row in assign instead"`
 	// ResetLayout forgets saved positions.
 	ResetLayout bool `json:"reset_layout,omitempty" jsonschema:"go back to the automatic layout"`
 	Show        bool `json:"show,omitempty" jsonschema:"also open the project's block diagram in SheetDiver"`
@@ -37,10 +44,27 @@ type connectionsArgs struct {
 
 type blockArgs struct {
 	Name   string `json:"name" jsonschema:"what's printed on the block diagram: J1 USB-C, Battery, R4, C1,C2"`
-	Kind   string `json:"kind,omitempty" jsonschema:"connector, module, resistor, capacitor, inductor or diode; passives are drawn hanging off their nets"`
+	Kind   string `json:"kind,omitempty" jsonschema:"what it's drawn as: connector, module or ic (a box with its pins); resistor, capacitor, capacitor-polarised, inductor, diode, schottky, zener, led, tvs, fuse, ferrite, crystal, battery or switch (its standard symbol, hanging off its nets, its ends as pins 1 and 2, A and K, or + and -); mosfet-n, mosfet-p, npn or pnp (its symbol, pins G, D, S or B, C, E)"`
 	Value  string `json:"value,omitempty" jsonschema:"printed under the name: 36.5k, 10µF, 2.2µH, TVS"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
+}
+
+type groupArgs struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty" jsonschema:"what the group does, shown under its name: USB 5 V to 3.3 V"`
+	Notes       *string `json:"notes,omitempty" jsonschema:"design notes shown in the frame: keep the input loop short"`
+	Below       *string `json:"below,omitempty" jsonschema:"another group to draw this one under, in that group's column (Clock below MCU); several can stack. Groups go left to right in power-flow order otherwise. \"\" puts it back in a column of its own; omit to keep it"`
+	Remove      bool    `json:"remove,omitempty" jsonschema:"remove the group; its parts are drawn ungrouped, and groups below it start columns of their own"`
+}
+
+type assignArgs struct {
+	Part     string  `json:"part" jsonschema:"what's being assigned: a BOM designator (C5), one designator of an entry with several (C1 of C1,C2), a part number, or a block name. For supports, this is the passive"`
+	Group    *string `json:"group,omitempty" jsonschema:"group to draw it in (created if new); \"\" takes it out of its group; omit to keep it"`
+	Supports *string `json:"supports,omitempty" jsonschema:"the part this passive serves, drawn beside it: U3 for {part: C5} when C5 decouples U3. \"\" clears it, and the passive's support is guessed again (the IC on its nets, preferring one it feeds over one that drives the net; a protection diode by its connector); omit to keep it"`
+	Column   *int    `json:"column,omitempty" jsonschema:"the column in its group to draw it in, from 0 at the left (power flows left to right, so put what feeds a part in an earlier column; a part stays on the side of the pin it's wired to, so a pull-up off a pin on the MCU's left can't go right of the MCU); -1 clears it. get_connections shows the columns as drawn"`
+	Row      *int    `json:"row,omitempty" jsonschema:"its place in that column, from 0 at the top; -1 clears it"`
+	Cluster  *string `json:"cluster,omitempty" jsonschema:"subgroup within its group to wire it up in with the other parts given the same name, drawn as one unit in a faint frame: VDD for the decoupling capacitors, BTN for a button and its pull-up. Parts hanging off one net already stand aside together without this; name one to pull more in, or to split them. \"\" takes it out; omit to keep it"`
 }
 
 type netArgs struct {
@@ -63,6 +87,12 @@ type connectArgs struct {
 type projectArgs struct {
 	Project string `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
 	Show    bool   `json:"show,omitempty" jsonschema:"also open the project in SheetDiver"`
+}
+
+type diagramImageArgs struct {
+	Project string `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
+	Group   string `json:"group,omitempty" jsonschema:"one group's frame (MCU), drawn larger: best on a big board; default: the whole diagram"`
+	Show    bool   `json:"show,omitempty" jsonschema:"open the project's Block diagram in SheetDiver first (the picture is of what the app shows, so it must be open)"`
 }
 
 type railArgs struct {
@@ -156,6 +186,25 @@ func (s *Server) registerProjects() {
 			return text(fmt.Sprintf("created project %s (#%d). Add rails with set_rail and parts with add_to_project.", p.Name, p.ID)), nil
 		})
 
+	addTool(s, &mcp.Tool{Name: "delete_project", Description: "Delete a project: its BOM, rails, connections, groups, calculations and notes. The parts stay in the library. Not undoable.", Annotations: destructive("Delete project")},
+		write, func(a deleteProjectArgs) string { return "delete project " + a.Project }, func(ctx context.Context, a deleteProjectArgs) (result, error) {
+			if strings.TrimSpace(a.Project) == "" {
+				return result{}, fmt.Errorf("name the project to delete (see list_projects)")
+			}
+			p, err := c.Lib.Project(ctx, a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			if err := c.Lib.DeleteProject(ctx, p.ID); err != nil {
+				return result{}, err
+			}
+			if strings.EqualFold(c.Config.Get().ActiveProject, p.Name) {
+				_ = c.Config.SetActiveProject("")
+			}
+			c.ProjectChanged(p.Name, "deleted")
+			return text(fmt.Sprintf("deleted project %s (its parts stay in the library)", p.Name)), nil
+		})
+
 	addTool(s, &mcp.Tool{Name: "get_project", Description: "A project's BOM, rails with computed load (direct loads plus regulator input currents), capacity and power, input power, voltage/current checks against each part's datasheet limits, saved calculations and notes.", Annotations: readOnly("Get project")},
 		read, func(a projectArgs) string { return "project " + a.Project }, func(ctx context.Context, a projectArgs) (result, error) {
 			name, err := s.project(a.Project)
@@ -185,10 +234,48 @@ func (s *Server) registerProjects() {
 			if a.Show {
 				c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "connections"})
 			}
-			return text(connectionsText(d)), nil
+			drawn, ok := c.DrawnLayout(d.Project.Name)
+			return text(connectionsText(d) + placementText(d.Connections, drawn, ok)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2, or one pinless connection to hang it from a net to ground), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
+	addTool(s, &mcp.Tool{Name: "get_diagram_image", Description: "A picture (PNG) of a project's block diagram as SheetDiver draws it, whole or one group's frame, with what the layout checks found there (wires looping round a part or through one, parts on top of each other, wires crossing). The project's Block diagram must be open in the app (show: true opens it). Use it to see what the connection table and placement look like; get_connections lists where each part went as text.", Annotations: readOnly("Get diagram image")},
+		read, func(a diagramImageArgs) string {
+			return strings.TrimSpace("diagram image " + a.Project + " " + a.Group)
+		}, func(ctx context.Context, a diagramImageArgs) (result, error) {
+			name, err := s.project(a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			d, err := c.ProjectDetail(ctx, name)
+			if err != nil {
+				return result{}, err
+			}
+			if len(d.Connections.Diagram.Parts) == 0 {
+				return result{}, fmt.Errorf("%s has nothing connected to draw yet (set_connections)", d.Project.Name)
+			}
+			if a.Show {
+				waitForDrawing(ctx, c, d.Project.Name, func() { c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"}) })
+			}
+			snap, err := c.DiagramSnapshot(ctx, d.Project.Name, a.Group)
+			if err != nil {
+				return result{}, err
+			}
+			what := "the block diagram of " + d.Project.Name
+			if a.Group != "" {
+				what = fmt.Sprintf("group %s of %s's block diagram", a.Group, d.Project.Name)
+			}
+			txt := fmt.Sprintf("%s as SheetDiver draws it (%d×%d px).", what, snap.Width, snap.Height)
+			if a.Group == "" && len(d.Connections.Diagram.Groups) > 1 {
+				txt += " Ask for one group (group: " + d.Connections.Diagram.Groups[0].Name + ") to see it larger."
+			}
+			txt += "\n"
+			if drawn, ok := c.DrawnLayout(d.Project.Name); ok {
+				txt += layoutProblemsText(drawn.Problems, a.Group)
+			}
+			return result{text: txt, images: [][]byte{snap.PNG}}, nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM with a kind that says what they're drawn as (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF, D1 led, Q1 mosfet-n), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2 (A and K, + and -), or one pinless connection to hang it from a net to ground; a transistor's G, D, S or B, C, E), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (assign {part: C5, supports: U3}: drawn by U3; unset, it's guessed from its nets), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
 		write, func(a connectionsArgs) string { return "connections " + a.Project }, func(ctx context.Context, a connectionsArgs) (result, error) {
 			name, err := s.project(a.Project)
 			if err != nil {
@@ -204,6 +291,12 @@ func (s *Server) registerProjects() {
 			for _, cn := range a.Connect {
 				ch.Connect = append(ch.Connect, core.ConnectChange{Net: cn.Net, Part: cn.Part, Pin: cn.Pin, Notes: cn.Notes, Remove: cn.Remove})
 			}
+			for _, g := range a.Groups {
+				ch.Groups = append(ch.Groups, core.GroupChange{Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Remove: g.Remove})
+			}
+			for _, as := range a.Assign {
+				ch.Assign = append(ch.Assign, core.AssignChange{Part: as.Part, Group: as.Group, Supports: as.Supports, Cluster: as.Cluster, Column: as.Column, Row: as.Row})
+			}
 			problems, err := c.ChangeConnections(ctx, name, ch, library.SourceAgent)
 			if err != nil {
 				return result{}, err
@@ -217,9 +310,16 @@ func (s *Server) registerProjects() {
 			}
 			var b strings.Builder
 			if len(problems) > 0 {
-				b.WriteString("not applied:\n")
+				b.WriteString("problems (what couldn't be applied, or was applied with a warning):\n")
 				for _, p := range problems {
 					b.WriteString("  " + p + "\n")
+				}
+				b.WriteString("\n")
+			}
+			if len(a.Assign) > 0 {
+				b.WriteString("assignments now:\n")
+				for _, as := range a.Assign {
+					b.WriteString("  " + assignedText(d, as.Part) + "\n")
 				}
 				b.WriteString("\n")
 			}
@@ -966,6 +1066,7 @@ func connectionsText(d core.ProjectDetail) string {
 	label := map[string]string{}
 	for _, p := range c.Diagram.Parts {
 		label[p.ID] = p.Title
+		b.WriteString(symbolText(p) + "\n")
 	}
 	for _, e := range c.Diagram.Links {
 		arrow := "—"
@@ -974,10 +1075,52 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		fmt.Fprintf(&b, "%s %s %s: %s (%s)\n", label[e.From], arrow, label[e.To], e.Label, e.Kind)
 	}
+	drawnGroups := map[string]bool{}
+	for _, g := range c.Diagram.Groups {
+		members := make([]string, 0, len(g.Parts))
+		for _, id := range g.Parts {
+			members = append(members, label[id])
+		}
+		for _, p := range c.Diagram.Passives {
+			if strings.EqualFold(p.Group, g.Name) {
+				members = append(members, p.Label)
+			}
+		}
+		fmt.Fprintf(&b, "group %s: %s", g.Name, strings.Join(members, ", "))
+		if t := subgroupsText(c.Diagram, g.Name, label, passiveLabels(c.Diagram)); t != "" {
+			b.WriteString("; subgroups: " + t)
+		}
+		drawnGroups[strings.ToLower(g.Name)] = true
+		if g.Description != "" {
+			b.WriteString(" — " + g.Description)
+		}
+		if g.Notes != "" {
+			b.WriteString(" (notes: " + g.Notes + ")")
+		}
+		if g.Below != "" {
+			b.WriteString(" [drawn below " + g.Below + "]")
+		}
+		b.WriteString("\n")
+	}
+	// A group defined but drawn empty is still a group; subgroups of
+	// parts in no group are listed too.
+	for _, g := range c.Groups {
+		if !drawnGroups[strings.ToLower(g.Name)] {
+			fmt.Fprintf(&b, "group %s: no connected parts yet\n", g.Name)
+		}
+	}
+	if t := subgroupsText(c.Diagram, "", label, passiveLabels(c.Diagram)); t != "" {
+		b.WriteString("subgroups in no group: " + t + "\n")
+	}
 	// The passives, as the app draws them: strapping that the links above
 	// don't show.
+	passiveLabel := map[string]string{}
+	for _, p := range c.Diagram.Passives {
+		passiveLabel[p.ID] = p.Label
+	}
 	for _, p := range c.Diagram.Passives {
 		name := strings.TrimSpace(p.Label + " " + p.Value)
+		name += supportsText(p, label)
 		part := label[p.Part]
 		to := "ground"
 		if len(p.Nets) > 1 {
@@ -985,12 +1128,15 @@ func connectionsText(d core.ProjectDetail) string {
 		}
 		switch p.Mount {
 		case core.MountBridge:
-			fmt.Fprintf(&b, "%s across %s %s\n", name, part, strings.Join(p.Nets, "/"))
+			fmt.Fprintf(&b, "%s across %s %s", name, part, strings.Join(p.Nets, "/"))
+		case core.MountChain:
+			fmt.Fprintf(&b, "%s on %s after %s, to %s", name, p.Nets[0], passiveLabel[p.Part], to)
 		case core.MountBelow:
-			fmt.Fprintf(&b, "%s on %s at %s, to %s\n", name, p.Nets[0], part, to)
+			fmt.Fprintf(&b, "%s on %s at %s, to %s", name, p.Nets[0], part, to)
 		default:
-			fmt.Fprintf(&b, "%s on %s (by %s), to %s\n", name, p.Nets[0], part, to)
+			fmt.Fprintf(&b, "%s on %s (by %s), to %s", name, p.Nets[0], part, to)
 		}
+		b.WriteString(endsText(p) + "\n")
 	}
 	if len(c.Pinouts) > 0 {
 		b.WriteString("\n## Pins by part\n")
@@ -1022,4 +1168,297 @@ func connectionsText(d core.ProjectDetail) string {
 		b.WriteString("none\n")
 	}
 	return b.String()
+}
+
+// symbolText says how a part is drawn: "U1 TPS63900 (ic, 11 pins, 9
+// connected)" for a generated symbol, "Q1 (mosfet-n: G=PWM D=MOTOR
+// S=GND)" for a transistor, "J1 USB-C (connector, 3 pins)" for a box
+// drawn from its connections.
+func symbolText(p core.DiagramPart) string {
+	if p.Shape != "ic" {
+		terms := make([]string, 0, len(p.Pins))
+		for _, pin := range p.Pins {
+			terms = append(terms, pin.Name+"="+pin.Net)
+		}
+		return fmt.Sprintf("%s (%s: %s)", p.Title, p.Shape, strings.Join(terms, " "))
+	}
+	if p.Full {
+		n := 0
+		for _, pin := range p.Pins {
+			if pin.Connected {
+				n++
+			}
+		}
+		return fmt.Sprintf("%s (%s, %d pins, %d connected)", p.Title, p.Kind, len(p.Pins), n)
+	}
+	return fmt.Sprintf("%s (%s, %d pins)", p.Title, p.Kind, len(p.Pins))
+}
+
+// endsText names a passive's symbol and, when its terminals aren't just
+// 1 and 2, which is at each end: " [led: anode on LED_A, cathode to ground]".
+func endsText(p core.DiagramPassive) string {
+	if len(p.Ends) != 2 || p.Ends[0] == "1" {
+		return " [" + p.Shape + "]"
+	}
+	far := "to ground"
+	if len(p.Nets) > 1 {
+		far = "on " + p.Nets[1]
+	}
+	return fmt.Sprintf(" [%s: %s on %s, %s %s]", p.Shape, p.Ends[0], p.Nets[0], p.Ends[1], far)
+}
+
+// passiveLabelOf names a drawn passive by its id.
+func passiveLabelOf(dg core.Diagram, id string) string {
+	for _, p := range dg.Passives {
+		if p.ID == id {
+			return p.Label
+		}
+	}
+	return id
+}
+
+// passiveLabels names each drawn passive by its id.
+func passiveLabels(dg core.Diagram) map[string]string {
+	out := map[string]string{}
+	for _, p := range dg.Passives {
+		out[p.ID] = p.Label
+	}
+	return out
+}
+
+// subgroupsText lists a group's subgroups with their members, as the
+// diagram draws them: "PWR LED (R4, D2)" as named; "3V3 at U2 (C4, C5)"
+// for a rail's capacitors by one part; "after L1 (C3)" for a chain.
+// "" for none.
+func subgroupsText(dg core.Diagram, group string, label, passive map[string]string) string {
+	name := func(id string) string {
+		if l, ok := label[id]; ok {
+			return l
+		}
+		return passive[id]
+	}
+	var out []string
+	for _, sg := range dg.Subgroups {
+		if !strings.EqualFold(sg.Group, group) {
+			continue
+		}
+		var members []string
+		for _, id := range sg.Members {
+			members = append(members, name(id))
+		}
+		switch sg.Kind {
+		case core.SubgroupChain:
+			out = append(out, "after "+members[0]+" ("+strings.Join(members[1:], ", ")+")")
+		case core.SubgroupRail:
+			by := ""
+			for _, p := range dg.Passives {
+				if p.ID == sg.Members[0] {
+					by = " at " + label[p.Part]
+				}
+			}
+			out = append(out, sg.Net+by+" ("+strings.Join(members, ", ")+")")
+		default:
+			out = append(out, sg.Name+" ("+strings.Join(members, ", ")+")")
+		}
+	}
+	return strings.Join(out, ", ")
+}
+
+// supportsText says what a passive supports, and whether that was set or
+// guessed: " (supports U3)", " (supports U3, guessed)"; "" for nothing.
+func supportsText(p core.DiagramPassive, label map[string]string) string {
+	if p.Supports == "" {
+		return ""
+	}
+	if p.Guessed {
+		return " (supports " + label[p.Supports] + ", guessed)"
+	}
+	return " (supports " + label[p.Supports] + ")"
+}
+
+// assignedText says where a part or block belongs after a change: its
+// group and what it supports (set or guessed), from the diagram.
+func assignedText(d core.ProjectDetail, part string) string {
+	c := d.Connections
+	label := map[string]string{}
+	for _, p := range c.Diagram.Parts {
+		label[p.ID] = p.Title
+	}
+	// Its group, then its subgroup and the place it's asked for, if any.
+	group, supports, cluster := "", "no part", ""
+	for _, a := range c.Assignments {
+		if !strings.EqualFold(a.Endpoint, part) {
+			continue
+		}
+		group = a.Group
+		if a.Cluster != "" {
+			cluster += "; subgroup " + a.Cluster
+		}
+		if cell := (&core.Cell{Column: a.Column, Row: a.Row}).String(); cell != "" {
+			cluster += "; asked for " + cell
+		}
+	}
+	for _, p := range c.Diagram.Passives {
+		if !slices.ContainsFunc(strings.Split(p.Label, ","), func(l string) bool { return strings.EqualFold(l, part) }) {
+			continue
+		}
+		if p.Group != "" && group == "" {
+			group = p.Group + " (its part's)"
+		}
+		if t := supportsText(p, label); t != "" {
+			supports = strings.TrimSuffix(strings.TrimPrefix(t, " (supports "), ")")
+		}
+		by := "hangs by " + label[p.Part]
+		if p.Mount == core.MountChain {
+			by = "after " + passiveLabelOf(c.Diagram, p.Part)
+		}
+		return fmt.Sprintf("%s: group %s%s; supports %s; %s", part, orNone(group), cluster, supports, by)
+	}
+	for _, p := range c.Diagram.Parts {
+		if strings.EqualFold(strings.Fields(p.Title)[0], part) || strings.EqualFold(p.Title, part) {
+			return fmt.Sprintf("%s: group %s%s", part, orNone(p.Group), cluster)
+		}
+	}
+	return part + ": not drawn (it isn't connected)"
+}
+
+// orNone is s, or "none".
+func orNone(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
+}
+
+// placementText says where the app drew each group's parts, column by
+// column from the left and top to bottom in each, and where a part asked
+// for a place didn't get it; or that it hasn't drawn them since the last
+// change.
+func placementText(c core.Connections, drawn core.Drawn, ok bool) string {
+	label := map[string]string{}
+	for _, p := range c.Diagram.Parts {
+		label[p.ID] = p.Title
+	}
+	for _, p := range c.Diagram.Passives {
+		label[p.ID] = p.Label
+	}
+	var b strings.Builder
+	b.WriteString("\n## Placement\n")
+	if !ok {
+		b.WriteString("not drawn since the last change: open the project's Block diagram in SheetDiver (set_connections with show: true), then get_connections again to see where each part went\n")
+	} else {
+		type key struct {
+			group  string
+			column int
+		}
+		byCol := map[key][]core.DrawnCell{}
+		var groups []string
+		maxCol := map[string]int{}
+		for _, cell := range drawn.Cells {
+			k := key{cell.Group, cell.Column}
+			if _, seen := maxCol[cell.Group]; !seen {
+				groups = append(groups, cell.Group)
+			}
+			maxCol[cell.Group] = max(maxCol[cell.Group], cell.Column)
+			byCol[k] = append(byCol[k], cell)
+		}
+		for _, g := range groups {
+			name := g
+			if name == "" {
+				name = "(no group)"
+			}
+			var cols []string
+			for col := 0; col <= maxCol[g]; col++ {
+				cells := byCol[key{g, col}]
+				slices.SortFunc(cells, func(a, b core.DrawnCell) int { return a.Row - b.Row })
+				var names []string
+				for _, cell := range cells {
+					names = append(names, label[cell.Node])
+				}
+				cols = append(cols, fmt.Sprintf("column %d: %s", col, strings.Join(names, ", ")))
+			}
+			fmt.Fprintf(&b, "%s: %s\n", name, strings.Join(cols, " | "))
+		}
+	}
+	// Each place asked for, and whether it was kept.
+	at := map[string]core.DrawnCell{}
+	for _, cell := range drawn.Cells {
+		at[cell.Node] = cell
+	}
+	asked := func(id string, want *core.Cell) {
+		if want == nil {
+			return
+		}
+		line := fmt.Sprintf("%s asked for %s", label[id], want.String())
+		if cell, drawnThere := at[id]; ok && drawnThere {
+			kept := (want.Column == nil || *want.Column == cell.Column) && (want.Row == nil || *want.Row == cell.Row)
+			if kept {
+				line += ": drawn there"
+			} else {
+				line += fmt.Sprintf(": drawn in column %d, row %d (the wiring didn't allow it)", cell.Column, cell.Row)
+			}
+		}
+		b.WriteString(line + "\n")
+	}
+	for _, p := range c.Diagram.Parts {
+		asked(p.ID, p.Want)
+	}
+	for _, p := range c.Diagram.Passives {
+		asked(p.ID, p.Want)
+	}
+	if ok {
+		b.WriteString(layoutProblemsText(drawn.Problems, ""))
+	}
+	return b.String()
+}
+
+// layoutProblemsText lists what looks wrong on the drawn diagram, in one
+// group or all of them ("").
+func layoutProblemsText(problems []core.LayoutProblem, group string) string {
+	var b strings.Builder
+	b.WriteString("\n## Layout problems\n")
+	n := 0
+	for _, p := range problems {
+		if group != "" && !strings.EqualFold(p.Group, group) {
+			continue
+		}
+		n++
+		if p.Group != "" && group == "" {
+			fmt.Fprintf(&b, "%s: ", p.Group)
+		}
+		fmt.Fprintf(&b, "%s (%s)\n", p.Text, p.Check)
+	}
+	if n == 0 {
+		b.WriteString("none found\n")
+	} else {
+		b.WriteString("Move a part with assign's column and row, or put it in another subgroup or group; get_diagram_image shows the drawing.\n")
+	}
+	return b.String()
+}
+
+// drawingWait is how long get_diagram_image's show waits for the app to
+// draw the diagram it opened.
+var drawingWait = 3 * time.Second
+
+// waitForDrawing opens a project's block diagram and waits until the app
+// reports drawing it (or a little while, when it was open already and
+// isn't drawn again), so a picture asked for next finds it on screen.
+func waitForDrawing(ctx context.Context, c *core.Service, project string, open func()) {
+	since := time.Now()
+	open()
+	deadline := time.After(drawingWait)
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if d, ok := c.DrawnLayout(project); ok && !d.At.Before(since) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			return
+		case <-tick.C:
+		}
+	}
 }
