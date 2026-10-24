@@ -64,6 +64,11 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Click a net's name to see what's on it.** On the block diagram, a
+  click on a net's name (on its wire, its stub or a pull-up's flag)
+  marks the net's wires and junctions in the accent colour over a soft
+  band and tints the parts and passives on it faintly, leaving the rest
+  as it was; clicking the name again, Escape or the background lets go.
 - **Agents can see the block diagram.** `get_diagram_image` returns a
   PNG of a project's block diagram as the app draws it, whole or one
   group's frame drawn larger, made by the app from what it shows (the

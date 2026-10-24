@@ -44,6 +44,27 @@ describe('project block diagram, pins and connections', () => {
     expect(svg.querySelector('[data-net="VIN"]')).not.toHaveAttribute('data-hl');
   });
 
+  it("marks a net's wires and the parts on it when its name is clicked, and lets go", async () => {
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of Sensor board' });
+    const name = svg.querySelector('[data-net-name]')!;
+    const net = name.getAttribute('data-net-name')!;
+    fireEvent.click(name);
+    const picked = [...svg.querySelectorAll('[data-net][data-picked]')].map((x) => x.getAttribute('data-net'));
+    expect(picked.length).toBeGreaterThan(0);
+    expect(new Set(picked)).toEqual(new Set([net]));
+    // Each part with a pin on it is tinted; nothing else is dimmed or hidden.
+    const parts = sensor().connections.diagram.parts.filter((p) => p.pins.some((pin) => pin.net === net)).map((p) => p.title);
+    for (const t of parts) expect(svg.querySelector(`[data-part="${t}"] [data-picked]`), t).not.toBeNull();
+    expect(svg.querySelectorAll('[data-part]').length).toBe(sensor().connections.diagram.parts.length);
+    // Clicked again, let go; Escape lets go too.
+    fireEvent.click(name);
+    expect(svg.querySelector('[data-picked]')).toBeNull();
+    fireEvent.click(name);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(svg.querySelector('[data-picked]')).toBeNull());
+  });
+
   it('saves where a block is dragged', async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
     const svg = await screen.findByRole('img', { name: /Block diagram/ });
