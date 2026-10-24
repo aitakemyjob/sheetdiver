@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
+import { lint } from './diagram/lint';
 import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
@@ -601,6 +602,7 @@ describe('parts asked for a column and a row', () => {
     expect(cellOf(d, dg, 'U2').column).toBeGreaterThan(d.cells.find((c) => c.node === dg.passives.find((q) => q.label === 'R6')!.id)!.column);
     // No IO8 wire past the MCU's right side.
     for (const w of d.wires.filter((x) => x.net === 'IO8_STRAP')) for (const pt of points(w.path)) expect(pt.x).toBeLessThanOrEqual(mcu.x);
+    expect(lint(d).filter((p) => p.check === 'wire round a part')).toEqual([]);
   });
 });
 

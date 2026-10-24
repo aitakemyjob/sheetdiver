@@ -29,6 +29,8 @@ const (
 	EvImport   = "import"
 	EvProject  = "project"
 	EvContext  = "context"
+	// EvSnapshot asks the app for a picture of a block diagram.
+	EvSnapshot = "snapshot"
 	EvMCP      = "mcp"
 	EvCalc     = "calc"
 	EvCatalog  = "catalog"
@@ -249,6 +251,9 @@ type session struct {
 	// drawn is where the app last drew each project's parts, by project
 	// (lower case); a change to the project's connections forgets it.
 	drawn map[string]Drawn
+	// snapshots are the pictures of block diagrams asked of the app and
+	// not yet answered, by request id.
+	snapshots map[string]chan Snapshot
 }
 
 // DrawnCell is where the app drew a part or passive: its group, the
@@ -260,11 +265,21 @@ type DrawnCell struct {
 	Row    int    `json:"row"`
 }
 
+// LayoutProblem is something that looks wrong on the drawn block
+// diagram (a wire looping round a part, parts on top of each other), as
+// the app's layout checks name it.
+type LayoutProblem struct {
+	Check string `json:"check"`
+	Group string `json:"group,omitempty"`
+	Text  string `json:"text"`
+}
+
 // Drawn is the app's report of a project's block diagram as drawn.
 type Drawn struct {
-	Project string      `json:"project"`
-	Cells   []DrawnCell `json:"cells"`
-	At      time.Time   `json:"at"`
+	Project  string          `json:"project"`
+	Cells    []DrawnCell     `json:"cells"`
+	Problems []LayoutProblem `json:"problems"`
+	At       time.Time       `json:"at"`
 }
 
 // SetDrawn records where the app drew a project's parts.

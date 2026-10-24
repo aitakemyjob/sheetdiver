@@ -64,6 +64,14 @@ every merged pull request.
   regulator's VIN); a protection diode goes by its connector. The app
   shows a guess as "auto (U2)", agents as "(supports U2, guessed)", and
   confirms each change. (#71)
+- **Agents can see the block diagram.** `get_diagram_image` returns a
+  PNG of a project's block diagram as the app draws it, whole or one
+  group's frame drawn larger, made by the app from what it shows (the
+  Block diagram must be open; `show: true` opens it). The app also
+  checks each drawing for what looks wrong and reports it:
+  `get_connections` lists, under "Layout problems", a wire that leaves
+  a pin and loops round its part, a wire through a part, parts on top
+  of each other and wires of two nets crossing, by group.
 - **Agents place parts by column and row.** `assign` takes a `column`
   and `row` for a part or passive: its place in its group's grid of
   parts, from 0 at the left and the top. The layout keeps it there

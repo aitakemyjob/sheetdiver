@@ -8,6 +8,9 @@ import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
 import { Empty, ErrorBox } from '../../components/ui';
 import { change, marked } from './connections';
+import { drawnReport } from '../../lib/diagram/report';
+import { answerSnapshots, canvasRasterize, documentResolve, SnapshotResponder, standaloneSVG } from '../../lib/diagram/snapshot';
+import { getTransport } from '../../lib/transport';
 
 /** The view's zoom (k) and pan (x, y, screen pixels). */
 type View = { k: number; x: number; y: number };
@@ -158,8 +161,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
         if (!live) return;
         setDrawing(r);
         setProblem(null);
-        // Where each part went, so the agent can check its placement.
-        api.reportDrawn({ project: d.project.name, cells: r.cells }).catch(() => {});
+        // Where each part went and what looks wrong, so the agent can check its placement.
+        api.reportDrawn(drawnReport(d.project.name, r)).catch(() => {});
       })
       .catch((e: unknown) => {
         if (!live) return;
@@ -171,6 +174,27 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       live = false;
     };
   }, [d, connectedOnly]);
+  // The agent's requests for a picture of what's shown (get_diagram_image).
+  const responder = useMemo(() => new SnapshotResponder(canvasRasterize, documentResolve), []);
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    let live = true;
+    getTransport()
+      .then((t) => {
+        if (!live) return;
+        off = answerSnapshots(
+          (fn) => t.subscribe(fn),
+          responder,
+          () => (drawing && svg.current ? { project: d.project.name, drawing, svg: svg.current } : undefined),
+          api.deliverSnapshot,
+        );
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, [drawing, d.project.name, responder]);
   const toggleConnectedOnly = () => {
     const next = !connectedOnly;
     setConnectedOnly(next);
@@ -252,14 +276,7 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
   const exportSVG = async () => {
     if (!svg.current) return;
     // The whole drawing at full size, whatever the view.
-    const copy = svg.current.cloneNode(true) as SVGSVGElement;
-    copy.setAttribute('width', String(drawing.width));
-    copy.setAttribute('height', String(height));
-    copy.setAttribute('viewBox', `0 0 ${drawing.width} ${height}`);
-    copy.removeAttribute('style');
-    copy.querySelector('g[data-view]')?.removeAttribute('transform');
-    const css = getComputedStyle(document.documentElement);
-    const text = copy.outerHTML.replace(/var\((--[\w-]+)\)/g, (_, v: string) => css.getPropertyValue(v).trim() || 'sans-serif');
+    const text = standaloneSVG(svg.current, { x: 0, y: 0, w: drawing.width, h: height }, drawing.width, height, documentResolve);
     const where = await saveText(`${d.project.name}-block-diagram.svg`, `<?xml version="1.0" encoding="UTF-8"?>\n${text}`, 'image/svg+xml', !!s.app?.canSaveFile);
     if (where) s.toast({ kind: 'ok', title: 'Block diagram saved', body: where });
   };

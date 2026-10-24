@@ -152,7 +152,16 @@ interactive layering and crossing minimisation: `lib/diagram/cells.ts`
 turns the first layout's columns and the places asked for into the
 coordinates the second pass reads, and the drawn layout's columns back
 into each node's cell, which the app reports (`diagram.drawn`) for
-`get_connections`.
+`get_connections`; `keepSides` keeps a place asked for on its side of
+what the node is wired to. The report carries what the layout checks
+in `lib/diagram/lint.ts` find on the drawing (each check a rule of its
+own: a wire round a part, a wire through one, overlaps, crossings),
+built by `lib/diagram/report.ts`. For `get_diagram_image` the backend
+publishes a `snapshot` request on the event bus (`core/snapshot.go`)
+and waits for the app showing that project's diagram to answer
+(`diagram.snapshot`): `lib/diagram/snapshot.ts` crops the shown SVG to
+the drawing or a group's frame, resolves the theme's variables and
+draws it on a canvas as PNG.
 Groups are placed by `lib/diagram/placement.ts`: frames in columns in
 power-flow order, a group stacked under the one it names as `below`.
 `lib/symbols.ts` holds the standard

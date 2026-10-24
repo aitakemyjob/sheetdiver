@@ -497,12 +497,53 @@ func TestConnectionsTools(t *testing.T) {
 	for _, p := range d.Connections.Diagram.Passives {
 		ids[p.Label] = p.ID
 	}
-	h.core.SetDrawn(core.Drawn{Project: "board", Cells: []core.DrawnCell{
+	drawn := core.Drawn{Project: "board", Cells: []core.DrawnCell{
 		{Node: ids["U1"], Group: "Power", Column: 0, Row: 0}, {Node: ids["Battery"], Group: "Power", Column: 0, Row: 1},
 		{Node: ids["U2"], Group: "Load", Column: 1, Row: 0}, {Node: ids["C9"], Group: "Load", Column: 1, Row: 1}, {Node: ids["R9"], Group: "Load", Column: 2, Row: 0},
-	}})
+	}, Problems: []core.LayoutProblem{{Check: "wire round a part", Group: "Load", Text: "I2C1_SDA's wire leaves U2 SD1235's SDA on its left and runs round U2 SD1235 to its right"}}}
+	h.core.SetDrawn(drawn)
 	h.must("get_connections", map[string]any{}, "Power: column 0: U1 SD1234, Battery\n", "Load: column 0:  | column 1: U2 SD1235, C9 | column 2: R9\n",
-		"U2 SD1235 asked for column 1, row 0: drawn there", "R9 asked for column 0: drawn in column 2, row 0 (the wiring didn't allow it)")
+		"U2 SD1235 asked for column 1, row 0: drawn there", "R9 asked for column 0: drawn in column 2, row 0 (the wiring didn't allow it)",
+		"## Layout problems\nLoad: I2C1_SDA's wire leaves U2 SD1235's SDA on its left and runs round U2 SD1235 to its right (wire round a part)\n")
+	// A picture of the diagram, from the app showing it: this plays the
+	// app, drawing again when it's asked to show the diagram.
+	events, stop := h.core.Bus.Subscribe()
+	defer stop()
+	opened := make(chan core.Focus, 4)
+	go func() {
+		for ev := range events {
+			switch ev.Type {
+			case core.EvSnapshot:
+				req := ev.Data.(core.SnapshotRequest)
+				answer := core.Snapshot{ID: req.ID, PNG: append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 200)...), Width: 640, Height: 480}
+				if req.Project != "board" || req.Group == "Clock" {
+					answer = core.Snapshot{ID: req.ID, Problem: `no group "Clock" on the diagram; its groups are Power, Load`}
+				}
+				_ = h.core.DeliverSnapshot(answer)
+			case core.EvFocus:
+				opened <- ev.Data.(core.Focus)
+				h.core.SetDrawn(drawn)
+			}
+		}
+	}()
+	out, img, isErr := h.call("get_diagram_image", map[string]any{"group": "Load"})
+	if isErr || !img || !strings.Contains(out, "group Load of board's block diagram as SheetDiver draws it (640×480 px).") ||
+		!strings.Contains(out, "## Layout problems\nI2C1_SDA's wire leaves") {
+		t.Errorf("Load's picture (image %v):\n%s", img, out)
+	}
+	h.must("get_diagram_image", map[string]any{"group": "Power"}, "## Layout problems\nnone found\n")
+	h.must("get_diagram_image", map[string]any{}, "the block diagram of board as SheetDiver draws it", "Ask for one group", "Load: I2C1_SDA's wire")
+	if out, _, isErr := h.call("get_diagram_image", map[string]any{"group": "Clock"}); !isErr || !strings.Contains(out, `no group "Clock"`) {
+		t.Errorf("an unknown group: %s", out)
+	}
+	if _, img, isErr := h.call("get_diagram_image", map[string]any{"show": true}); isErr || !img {
+		t.Error("show then picture failed")
+	}
+	if f := <-opened; f.Kind != "project" || f.Tab != "diagram" || f.Project != "board" {
+		t.Errorf("show opened %+v", f)
+	}
+	stop()
+
 	// A change makes the drawing out of date until the app draws again.
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "column": -1}}}, "R9: group Load (its part's); supports")
 	h.must("get_connections", map[string]any{}, "not drawn since the last change")

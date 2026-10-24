@@ -1,5 +1,7 @@
 // Typed wrappers over the backend method table (internal/api).
 import { getTransport } from './transport';
+import type { DrawnReport } from './diagram/report';
+import type { Snapshot } from './diagram/snapshot';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
@@ -18,7 +20,8 @@ export const api = {
   saveSettings: (s: Settings) => call<void>('settings.update', s),
   activity: () => call<Activity[]>('activity.list'),
   /** Where the app drew a project's parts, for the agent (get_connections). */
-  reportDrawn: (d: { project: string; cells: { node: string; group?: string; column: number; row: number }[] }) => call<void>('diagram.drawn', d),
+  reportDrawn: (d: DrawnReport) => call<void>('diagram.drawn', d),
+  deliverSnapshot: (s: Snapshot) => call<void>('diagram.snapshot', s),
   uiContext: (c: { view: string; part?: string; datasheetId?: number; page?: number; figureId?: number; project?: string; selection?: string; problem?: string }) => call<void>('ui.context', c),
   pickPDFs: () => call<{ paths: string[] | null }>('files.pickPDFs'),
 

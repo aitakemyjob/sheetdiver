@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -86,6 +87,12 @@ type connectArgs struct {
 type projectArgs struct {
 	Project string `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
 	Show    bool   `json:"show,omitempty" jsonschema:"also open the project in SheetDiver"`
+}
+
+type diagramImageArgs struct {
+	Project string `json:"project,omitempty" jsonschema:"project name or id; default: the active project"`
+	Group   string `json:"group,omitempty" jsonschema:"one group's frame (MCU), drawn larger: best on a big board; default: the whole diagram"`
+	Show    bool   `json:"show,omitempty" jsonschema:"open the project's Block diagram in SheetDiver first (the picture is of what the app shows, so it must be open)"`
 }
 
 type railArgs struct {
@@ -229,6 +236,43 @@ func (s *Server) registerProjects() {
 			}
 			drawn, ok := c.DrawnLayout(d.Project.Name)
 			return text(connectionsText(d) + placementText(d.Connections, drawn, ok)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "get_diagram_image", Description: "A picture (PNG) of a project's block diagram as SheetDiver draws it, whole or one group's frame, with what the layout checks found there (wires looping round a part or through one, parts on top of each other, wires crossing). The project's Block diagram must be open in the app (show: true opens it). Use it to see what the connection table and placement look like; get_connections lists where each part went as text.", Annotations: readOnly("Get diagram image")},
+		read, func(a diagramImageArgs) string {
+			return strings.TrimSpace("diagram image " + a.Project + " " + a.Group)
+		}, func(ctx context.Context, a diagramImageArgs) (result, error) {
+			name, err := s.project(a.Project)
+			if err != nil {
+				return result{}, err
+			}
+			d, err := c.ProjectDetail(ctx, name)
+			if err != nil {
+				return result{}, err
+			}
+			if len(d.Connections.Diagram.Parts) == 0 {
+				return result{}, fmt.Errorf("%s has nothing connected to draw yet (set_connections)", d.Project.Name)
+			}
+			if a.Show {
+				waitForDrawing(ctx, c, d.Project.Name, func() { c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"}) })
+			}
+			snap, err := c.DiagramSnapshot(ctx, d.Project.Name, a.Group)
+			if err != nil {
+				return result{}, err
+			}
+			what := "the block diagram of " + d.Project.Name
+			if a.Group != "" {
+				what = fmt.Sprintf("group %s of %s's block diagram", a.Group, d.Project.Name)
+			}
+			txt := fmt.Sprintf("%s as SheetDiver draws it (%d×%d px).", what, snap.Width, snap.Height)
+			if a.Group == "" && len(d.Connections.Diagram.Groups) > 1 {
+				txt += " Ask for one group (group: " + d.Connections.Diagram.Groups[0].Name + ") to see it larger."
+			}
+			txt += "\n"
+			if drawn, ok := c.DrawnLayout(d.Project.Name); ok {
+				txt += layoutProblemsText(drawn.Problems, a.Group)
+			}
+			return result{text: txt, images: [][]byte{snap.PNG}}, nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "set_connections", Description: "Draft or edit a project's block diagram and connection table: add blocks off the BOM with a kind that says what they're drawn as (a connector with its pins, a battery, passives not in the library with their value: R4 36.5k, C1,C2 10µF, D1 led, Q1 mosfet-n), put pins on nets (U1 pin SDA on I2C_SDA; a connector's pins by name; a passive's two ends as pins 1 and 2 (A and K, + and -), or one pinless connection to hang it from a net to ground; a transistor's G, D, S or B, C, E), set nets' kind or bus (I2C1 groups SDA and SCL on the diagram), put parts in functional groups (each drawn as a frame with a description and notes; a net between groups is a labelled stub), say which part a passive supports (assign {part: C5, supports: U3}: drawn by U3; unset, it's guessed from its nets), and place blocks. Power links on the diagram come from the rails (set_rail, add_to_project). Returns what couldn't be applied and the checks.", Annotations: writes("Set connections", true)},
@@ -1362,5 +1406,59 @@ func placementText(c core.Connections, drawn core.Drawn, ok bool) string {
 	for _, p := range c.Diagram.Passives {
 		asked(p.ID, p.Want)
 	}
+	if ok {
+		b.WriteString(layoutProblemsText(drawn.Problems, ""))
+	}
 	return b.String()
+}
+
+// layoutProblemsText lists what looks wrong on the drawn diagram, in one
+// group or all of them ("").
+func layoutProblemsText(problems []core.LayoutProblem, group string) string {
+	var b strings.Builder
+	b.WriteString("\n## Layout problems\n")
+	n := 0
+	for _, p := range problems {
+		if group != "" && !strings.EqualFold(p.Group, group) {
+			continue
+		}
+		n++
+		if p.Group != "" && group == "" {
+			fmt.Fprintf(&b, "%s: ", p.Group)
+		}
+		fmt.Fprintf(&b, "%s (%s)\n", p.Text, p.Check)
+	}
+	if n == 0 {
+		b.WriteString("none found\n")
+	} else {
+		b.WriteString("Move a part with assign's column and row, or put it in another subgroup or group; get_diagram_image shows the drawing.\n")
+	}
+	return b.String()
+}
+
+// drawingWait is how long get_diagram_image's show waits for the app to
+// draw the diagram it opened.
+var drawingWait = 3 * time.Second
+
+// waitForDrawing opens a project's block diagram and waits until the app
+// reports drawing it (or a little while, when it was open already and
+// isn't drawn again), so a picture asked for next finds it on screen.
+func waitForDrawing(ctx context.Context, c *core.Service, project string, open func()) {
+	since := time.Now()
+	open()
+	deadline := time.After(drawingWait)
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if d, ok := c.DrawnLayout(project); ok && !d.At.Before(since) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			return
+		case <-tick.C:
+		}
+	}
 }
