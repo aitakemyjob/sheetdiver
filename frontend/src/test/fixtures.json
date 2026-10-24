@@ -19241,5 +19241,1017 @@
    },
    "inputPower": 0
   }
+ },
+ {
+  "method": "project.detail",
+  "args": {
+   "project": "ESP32-C6 board"
+  },
+  "result": {
+   "project": {
+    "id": 13,
+    "name": "ESP32-C6 board",
+    "description": "",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z",
+    "parts": 0,
+    "rails": 0
+   },
+   "parts": [],
+   "rails": [
+    {
+     "id": 16,
+     "projectId": 13,
+     "name": "3V3",
+     "vNom": 3.3,
+     "source": "U1",
+     "loadTyp": 0,
+     "loadMax": 0,
+     "consumers": [],
+     "power": 0
+    }
+   ],
+   "checks": [
+    {
+     "level": "warn",
+     "message": "UART_RX only goes to U2 ESP32-C6",
+     "part": "U2 ESP32-C6",
+     "area": "connections"
+    },
+    {
+     "level": "warn",
+     "message": "UART_TX only goes to U2 ESP32-C6",
+     "part": "U2 ESP32-C6",
+     "area": "connections"
+    }
+   ],
+   "calculations": [],
+   "notes": [],
+   "connections": {
+    "nets": [
+     {
+      "id": 117,
+      "projectId": 13,
+      "name": "3V3",
+      "kind": "power",
+      "source": "user"
+     },
+     {
+      "id": 120,
+      "projectId": 13,
+      "name": "BOOT",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 115,
+      "projectId": 13,
+      "name": "GND",
+      "kind": "ground",
+      "source": "user"
+     },
+     {
+      "id": 119,
+      "projectId": 13,
+      "name": "IO8_STRAP",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 118,
+      "projectId": 13,
+      "name": "MCU_EN",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 122,
+      "projectId": 13,
+      "name": "UART_RX",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 121,
+      "projectId": 13,
+      "name": "UART_TX",
+      "kind": "signal",
+      "source": "user"
+     },
+     {
+      "id": 116,
+      "projectId": 13,
+      "name": "VIN",
+      "kind": "power",
+      "source": "user"
+     }
+    ],
+    "blocks": [
+     {
+      "id": 156,
+      "projectId": 13,
+      "name": "C1",
+      "kind": "capacitor",
+      "value": "10µF",
+      "source": "user"
+     },
+     {
+      "id": 157,
+      "projectId": 13,
+      "name": "C2",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 158,
+      "projectId": 13,
+      "name": "C6",
+      "kind": "capacitor",
+      "value": "22µF",
+      "source": "user"
+     },
+     {
+      "id": 159,
+      "projectId": 13,
+      "name": "C7",
+      "kind": "capacitor",
+      "value": "100nF",
+      "source": "user"
+     },
+     {
+      "id": 160,
+      "projectId": 13,
+      "name": "C8",
+      "kind": "capacitor",
+      "value": "1µF",
+      "source": "user"
+     },
+     {
+      "id": 161,
+      "projectId": 13,
+      "name": "R5",
+      "kind": "resistor",
+      "value": "10k",
+      "source": "user"
+     },
+     {
+      "id": 162,
+      "projectId": 13,
+      "name": "R6",
+      "kind": "resistor",
+      "value": "10k",
+      "source": "user"
+     },
+     {
+      "id": 163,
+      "projectId": 13,
+      "name": "SW1",
+      "kind": "switch",
+      "source": "user"
+     },
+     {
+      "id": 164,
+      "projectId": 13,
+      "name": "SW2",
+      "kind": "switch",
+      "source": "user"
+     },
+     {
+      "id": 154,
+      "projectId": 13,
+      "name": "U1 LDO",
+      "kind": "ic",
+      "source": "user"
+     },
+     {
+      "id": 155,
+      "projectId": 13,
+      "name": "U2 ESP32-C6",
+      "kind": "ic",
+      "source": "user"
+     }
+    ],
+    "connections": [
+     {
+      "id": 377,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 154,
+      "pin": "VOUT",
+      "source": "user",
+      "endpoint": "U1 LDO"
+     },
+     {
+      "id": 380,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 155,
+      "pin": "3V3",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 387,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 158,
+      "source": "user",
+      "endpoint": "C6"
+     },
+     {
+      "id": 388,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 159,
+      "source": "user",
+      "endpoint": "C7"
+     },
+     {
+      "id": 392,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 161,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 395,
+      "netId": 117,
+      "net": "3V3",
+      "blockId": 162,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "R6"
+     },
+     {
+      "id": 384,
+      "netId": 120,
+      "net": "BOOT",
+      "blockId": 155,
+      "pin": "IO9",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 396,
+      "netId": 120,
+      "net": "BOOT",
+      "blockId": 164,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "SW2"
+     },
+     {
+      "id": 376,
+      "netId": 115,
+      "net": "GND",
+      "blockId": 154,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U1 LDO"
+     },
+     {
+      "id": 381,
+      "netId": 115,
+      "net": "GND",
+      "blockId": 155,
+      "pin": "GND",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 390,
+      "netId": 115,
+      "net": "GND",
+      "blockId": 163,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "SW1"
+     },
+     {
+      "id": 397,
+      "netId": 115,
+      "net": "GND",
+      "blockId": 164,
+      "pin": "2",
+      "source": "user",
+      "endpoint": "SW2"
+     },
+     {
+      "id": 383,
+      "netId": 119,
+      "net": "IO8_STRAP",
+      "blockId": 155,
+      "pin": "IO8",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 394,
+      "netId": 119,
+      "net": "IO8_STRAP",
+      "blockId": 162,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R6"
+     },
+     {
+      "id": 382,
+      "netId": 118,
+      "net": "MCU_EN",
+      "blockId": 155,
+      "pin": "EN",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 393,
+      "netId": 118,
+      "net": "MCU_EN",
+      "blockId": 160,
+      "source": "user",
+      "endpoint": "C8"
+     },
+     {
+      "id": 391,
+      "netId": 118,
+      "net": "MCU_EN",
+      "blockId": 161,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "R5"
+     },
+     {
+      "id": 389,
+      "netId": 118,
+      "net": "MCU_EN",
+      "blockId": 163,
+      "pin": "1",
+      "source": "user",
+      "endpoint": "SW1"
+     },
+     {
+      "id": 386,
+      "netId": 122,
+      "net": "UART_RX",
+      "blockId": 155,
+      "pin": "RXD0",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 385,
+      "netId": 121,
+      "net": "UART_TX",
+      "blockId": 155,
+      "pin": "TXD0",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "id": 375,
+      "netId": 116,
+      "net": "VIN",
+      "blockId": 154,
+      "pin": "VIN",
+      "source": "user",
+      "endpoint": "U1 LDO"
+     },
+     {
+      "id": 378,
+      "netId": 116,
+      "net": "VIN",
+      "blockId": 156,
+      "source": "user",
+      "endpoint": "C1"
+     },
+     {
+      "id": 379,
+      "netId": 116,
+      "net": "VIN",
+      "blockId": 157,
+      "source": "user",
+      "endpoint": "C2"
+     }
+    ],
+    "groups": [
+     {
+      "id": 16,
+      "projectId": 13,
+      "name": "MCU",
+      "source": "user"
+     },
+     {
+      "id": 15,
+      "projectId": 13,
+      "name": "Power",
+      "source": "user"
+     }
+    ],
+    "assignments": [
+     {
+      "node": "block:154",
+      "group": "Power",
+      "source": "user",
+      "endpoint": "U1 LDO"
+     },
+     {
+      "node": "block:155",
+      "group": "MCU",
+      "source": "user",
+      "endpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:156",
+      "group": "Power",
+      "supports": "block:154",
+      "cluster": "VIN caps",
+      "source": "user",
+      "endpoint": "C1",
+      "supportsEndpoint": "U1 LDO"
+     },
+     {
+      "node": "block:157",
+      "group": "Power",
+      "supports": "block:154",
+      "cluster": "VIN caps",
+      "source": "user",
+      "endpoint": "C2",
+      "supportsEndpoint": "U1 LDO"
+     },
+     {
+      "node": "block:158",
+      "group": "MCU",
+      "supports": "block:155",
+      "cluster": "Decoupling",
+      "source": "user",
+      "endpoint": "C6",
+      "supportsEndpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:159",
+      "group": "MCU",
+      "supports": "block:155",
+      "cluster": "Decoupling",
+      "source": "user",
+      "endpoint": "C7",
+      "supportsEndpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:160",
+      "group": "MCU",
+      "supports": "block:155",
+      "cluster": "Reset",
+      "source": "user",
+      "endpoint": "C8",
+      "supportsEndpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:161",
+      "group": "MCU",
+      "supports": "block:155",
+      "cluster": "Reset",
+      "source": "user",
+      "endpoint": "R5",
+      "supportsEndpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:162",
+      "group": "MCU",
+      "supports": "block:155",
+      "cluster": "Boot",
+      "source": "user",
+      "endpoint": "R6",
+      "supportsEndpoint": "U2 ESP32-C6"
+     },
+     {
+      "node": "block:163",
+      "group": "MCU",
+      "cluster": "Reset",
+      "source": "user",
+      "endpoint": "SW1"
+     },
+     {
+      "node": "block:164",
+      "group": "MCU",
+      "cluster": "Boot",
+      "source": "user",
+      "endpoint": "SW2"
+     }
+    ],
+    "diagram": {
+     "parts": [
+      {
+       "id": "block:154",
+       "title": "U1 LDO",
+       "kind": "ic",
+       "shape": "ic",
+       "column": 0,
+       "group": "Power",
+       "pins": [
+        {
+         "name": "VIN",
+         "net": "VIN",
+         "side": "bottom",
+         "role": "power",
+         "connected": true
+        },
+        {
+         "name": "VOUT",
+         "net": "3V3",
+         "side": "right",
+         "role": "output",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      },
+      {
+       "id": "block:155",
+       "title": "U2 ESP32-C6",
+       "kind": "ic",
+       "shape": "ic",
+       "column": 1,
+       "group": "MCU",
+       "pins": [
+        {
+         "name": "3V3",
+         "net": "3V3",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "EN",
+         "net": "MCU_EN",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "IO8",
+         "net": "IO8_STRAP",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "IO9",
+         "net": "BOOT",
+         "side": "bottom",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "TXD0",
+         "net": "UART_TX",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "RXD0",
+         "net": "UART_RX",
+         "side": "left",
+         "role": "other",
+         "connected": true
+        },
+        {
+         "name": "GND",
+         "net": "GND",
+         "side": "bottom",
+         "role": "ground",
+         "connected": true,
+         "ground": true
+        }
+       ]
+      }
+     ],
+     "passives": [
+      {
+       "id": "block:156",
+       "label": "C1",
+       "value": "10µF",
+       "kind": "capacitor",
+       "mount": "below",
+       "part": "block:154",
+       "nets": [
+        "VIN"
+       ],
+       "supports": "block:154",
+       "group": "Power",
+       "cluster": "VIN caps",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:157",
+       "label": "C2",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "below",
+       "part": "block:154",
+       "nets": [
+        "VIN"
+       ],
+       "supports": "block:154",
+       "group": "Power",
+       "cluster": "VIN caps",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:158",
+       "label": "C6",
+       "value": "22µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:155",
+       "group": "MCU",
+       "cluster": "Decoupling",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:159",
+       "label": "C7",
+       "value": "100nF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "3V3"
+       ],
+       "supports": "block:155",
+       "group": "MCU",
+       "cluster": "Decoupling",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:160",
+       "label": "C8",
+       "value": "1µF",
+       "kind": "capacitor",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "MCU_EN"
+       ],
+       "supports": "block:155",
+       "group": "MCU",
+       "cluster": "Reset",
+       "shape": "capacitor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:161",
+       "label": "R5",
+       "value": "10k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "MCU_EN",
+        "3V3"
+       ],
+       "supports": "block:155",
+       "group": "MCU",
+       "cluster": "Reset",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:162",
+       "label": "R6",
+       "value": "10k",
+       "kind": "resistor",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "IO8_STRAP",
+        "3V3"
+       ],
+       "supports": "block:155",
+       "group": "MCU",
+       "cluster": "Boot",
+       "shape": "resistor",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:163",
+       "label": "SW1",
+       "kind": "switch",
+       "mount": "out",
+       "part": "block:155",
+       "nets": [
+        "MCU_EN"
+       ],
+       "supports": "block:155",
+       "guessed": true,
+       "group": "MCU",
+       "cluster": "Reset",
+       "shape": "switch",
+       "ends": [
+        "1",
+        "2"
+       ]
+      },
+      {
+       "id": "block:164",
+       "label": "SW2",
+       "kind": "switch",
+       "mount": "below",
+       "part": "block:155",
+       "nets": [
+        "BOOT"
+       ],
+       "supports": "block:155",
+       "guessed": true,
+       "group": "MCU",
+       "cluster": "Boot",
+       "shape": "switch",
+       "ends": [
+        "1",
+        "2"
+       ]
+      }
+     ],
+     "nets": [
+      {
+       "name": "VIN",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "block:154"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "Power",
+       "parts": [
+        "block:154"
+       ],
+       "wire": "out",
+       "arrow": true,
+       "offboard": true
+      },
+      {
+       "name": "3V3",
+       "kind": "power",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": "out",
+       "offboard": true
+      },
+      {
+       "name": "MCU_EN",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "IO8_STRAP",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "BOOT",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": ""
+      },
+      {
+       "name": "UART_TX",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": "out"
+      },
+      {
+       "name": "UART_RX",
+       "kind": "signal",
+       "group": "MCU",
+       "parts": [
+        "block:155"
+       ],
+       "wire": "out"
+      }
+     ],
+     "groups": [
+      {
+       "name": "Power",
+       "parts": [
+        "block:154"
+       ]
+      },
+      {
+       "name": "MCU",
+       "parts": [
+        "block:155"
+       ]
+      }
+     ],
+     "links": [
+      {
+       "from": "block:154",
+       "to": "block:155",
+       "label": "3V3",
+       "kind": "power",
+       "nets": [
+        "3V3"
+       ]
+      }
+     ],
+     "subgroups": [
+      {
+       "name": "VIN caps",
+       "group": "Power",
+       "kind": "named",
+       "members": [
+        "block:156",
+        "block:157"
+       ]
+      },
+      {
+       "name": "Decoupling",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:158",
+        "block:159"
+       ]
+      },
+      {
+       "name": "Reset",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:160",
+        "block:161",
+        "block:163"
+       ]
+      },
+      {
+       "name": "Boot",
+       "group": "MCU",
+       "kind": "named",
+       "members": [
+        "block:162",
+        "block:164"
+       ]
+      }
+     ]
+    },
+    "pinouts": [
+     {
+      "node": "block:154",
+      "title": "U1 LDO",
+      "pins": [
+       {
+        "name": "VOUT",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U2 ESP32-C6.3V3",
+         "C6 22µF",
+         "C7 100nF",
+         "R5.2",
+         "R6.2"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "VIN",
+        "net": "VIN",
+        "netKind": "power",
+        "to": [
+         "C1 10µF",
+         "C2 100nF"
+        ]
+       }
+      ]
+     },
+     {
+      "node": "block:155",
+      "title": "U2 ESP32-C6",
+      "pins": [
+       {
+        "name": "3V3",
+        "net": "3V3",
+        "netKind": "power",
+        "to": [
+         "U1 LDO.VOUT",
+         "C6 22µF",
+         "C7 100nF",
+         "R5.2",
+         "R6.2"
+        ]
+       },
+       {
+        "name": "IO9",
+        "net": "BOOT",
+        "netKind": "signal",
+        "to": [
+         "SW2.1"
+        ]
+       },
+       {
+        "name": "GND",
+        "net": "GND",
+        "netKind": "ground",
+        "to": []
+       },
+       {
+        "name": "IO8",
+        "net": "IO8_STRAP",
+        "netKind": "signal",
+        "to": [
+         "R6.1"
+        ]
+       },
+       {
+        "name": "EN",
+        "net": "MCU_EN",
+        "netKind": "signal",
+        "to": [
+         "C8 1µF",
+         "R5.1",
+         "SW1.1"
+        ]
+       },
+       {
+        "name": "RXD0",
+        "net": "UART_RX",
+        "netKind": "signal",
+        "to": []
+       },
+       {
+        "name": "TXD0",
+        "net": "UART_TX",
+        "netKind": "signal",
+        "to": []
+       }
+      ]
+     }
+    ]
+   },
+   "inputPower": 0
+  }
  }
 ]

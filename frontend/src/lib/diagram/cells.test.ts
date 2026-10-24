@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cells, columns, hints, type Placed } from './cells';
+import { cells, columns, hints, keepSides, type Placed } from './cells';
 
 const n = (id: string, x: number, y: number, w = 40, h = 40): Placed => ({ id, x, y, w, h });
 // Three columns: A; B over C; D.
@@ -45,5 +45,23 @@ describe('the grid of parts', () => {
   it('keeps a dragged node in its column, where it was dragged across the flow', () => {
     const h = hints(layout, new Map(), new Map([['C', { y: -40 }]]));
     expect(h.get('C')).toEqual({ x: 120, y: -40 });
+  });
+
+  it('keeps a node asking for a column on its side of a node it is wired to', () => {
+    // A is wired to B; A asks for D's column, past B: it's put just short of B.
+    const wants = new Map([['A', { column: 2 }]]);
+    const h = keepSides(layout, hints(layout, wants), [['A', 'B']], wants);
+    expect(h.get('A')!.x + 40).toBeLessThanOrEqual(h.get('B')!.x);
+    expect(h.get('A')!.x).toBeGreaterThanOrEqual(0); // not further back than it was
+    // Not wired to anything in its way, it goes where it asked.
+    const free = keepSides(layout, hints(layout, wants), [['B', 'D']], wants);
+    expect(free.get('A')).toEqual(hints(layout, wants).get('A'));
+  });
+
+  it('moves only nodes that asked for a place', () => {
+    const wants = new Map([['D', { column: 0 }]]);
+    const h = keepSides(layout, hints(layout, wants), [['C', 'D']], wants);
+    expect(h.get('C')).toEqual({ x: 120, y: 100 });
+    expect(h.get('D')!.x).toBeGreaterThanOrEqual(120 + 60);
   });
 });

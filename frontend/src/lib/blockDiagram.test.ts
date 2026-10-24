@@ -5,7 +5,7 @@ import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type Bl
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
-const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board', 'Boost board', 'Buck board'];
+const circuits = ['USB-C to 3V3', 'Battery board', 'MCU board', 'Tester board', 'Grouped MCU board', 'STM32 board', 'U545 USB-C board', 'Driver board', 'Boost board', 'Buck board', 'ESP32-C6 board'];
 
 /** The corner points of an SVG path of M, H, V and L commands. */
 function points(path: string): Pt[] {
@@ -557,14 +557,25 @@ describe('parts asked for a column and a row', () => {
 
   it('draws a part in the column and row it asks for when the wiring allows', async () => {
     const dg = sketch();
-    // U2 in the first column, under the connector (nothing joins them directly).
-    dg.parts.find((p) => p.title.startsWith('U2'))!.want = { column: 0, row: 1 };
+    // Rd2, hanging off J1's CC2, a column further on: under U2 (nothing joins them).
+    const rd2 = dg.passives.find((q) => q.label === 'Rd2')!;
+    rd2.want = { column: 2, row: 1 };
     const d = await layoutBlockDiagram(dg);
-    expect(cellOf(d, dg, 'U2')).toMatchObject({ column: 0, row: 1 });
-    expect(cellOf(d, dg, 'J1')).toMatchObject({ column: 0, row: 0 });
+    expect(d.cells.find((c) => c.node === rd2.id)).toMatchObject({ column: 2, row: 1 });
+    expect(cellOf(d, dg, 'U2')).toMatchObject({ column: 2, row: 0 });
     // Still on the grid, nothing overlapping.
     for (const b of d.boxes) expect([b.x % GRID, b.y % GRID]).toEqual([0, 0]);
-    d.boxes.forEach((a, i) => d.boxes.slice(i + 1).forEach((b) => expect(overlaps(a, b), `${a.part.title} / ${b.part.title}`).toBe(false)));
+    const rects: (Rect & { what: string })[] = [...d.boxes.map((b) => ({ ...b, what: b.part.title })), ...d.passives.map((q) => ({ ...q, what: q.passive.label }))];
+    rects.forEach((a, i) => rects.slice(i + 1).forEach((b) => expect(overlaps(a, b), `${a.what} / ${b.what}`).toBe(false)));
+  });
+
+  it('keeps a part on its side of one it is wired to when it asks for a column past it', async () => {
+    const dg = sketch();
+    // U2 asking for J1's column would put it before U1, which feeds its
+    // VIN from the right: 5V_PROT would loop back round the board.
+    dg.parts.find((p) => p.title.startsWith('U2'))!.want = { column: 0 };
+    const d = await layoutBlockDiagram(dg);
+    expect(cellOf(d, dg, 'U2').column).toBeGreaterThan(cellOf(d, dg, 'U1').column);
   });
 
   it("keeps a part after what drives it when it asks to share that part's column", async () => {
@@ -573,6 +584,33 @@ describe('parts asked for a column and a row', () => {
     dg.parts.find((p) => p.title.startsWith('U1'))!.want = { column: 0 };
     const d = await layoutBlockDiagram(dg);
     expect(cellOf(d, dg, 'U1').column).toBeGreaterThan(cellOf(d, dg, 'J1').column);
+  });
+
+  it("keeps a subgroup on the side of the pin it hangs off when it asks for a column past the part", async () => {
+    // The tester's ESP32-C6 board: the Boot strap's pull-up off IO8 on the
+    // MCU's left, asked for the column right of the MCU, was drawn there
+    // with its wires looping round the MCU.
+    const dg = structuredClone(circuit('ESP32-C6 board'));
+    const u2 = dg.parts.find((p) => p.title.startsWith('U2'))!;
+    expect(u2.pins.find((p) => p.name === 'IO8')!.side).toBe('left');
+    dg.passives.find((q) => q.label === 'R6')!.want = { column: 2 };
+    const d = await layoutBlockDiagram(dg);
+    const boot = d.clusters.find((c) => c.name === 'Boot')!;
+    const mcu = d.boxes.find((b) => b.part.id === u2.id)!;
+    expect(boot.x + boot.w).toBeLessThan(mcu.x);
+    expect(cellOf(d, dg, 'U2').column).toBeGreaterThan(d.cells.find((c) => c.node === dg.passives.find((q) => q.label === 'R6')!.id)!.column);
+    // No IO8 wire past the MCU's right side.
+    for (const w of d.wires.filter((x) => x.net === 'IO8_STRAP')) for (const pt of points(w.path)) expect(pt.x).toBeLessThanOrEqual(mcu.x);
+  });
+});
+
+describe('a passive named into a subgroup on a bottom pin', () => {
+  it('is drawn once, in its subgroup, not also under the pin', async () => {
+    // C1 on the LDO's VIN, a bottom pin, named into "VIN caps".
+    const d = await layoutBlockDiagram(circuit('ESP32-C6 board'));
+    expect(d.passives.filter((q) => q.passive.label === 'C1')).toHaveLength(1);
+    const caps = d.clusters.find((c) => c.name === 'VIN caps')!;
+    expect(inside(d.passives.find((q) => q.passive.label === 'C1')!, caps)).toBe(true);
   });
 });
 

@@ -31,7 +31,7 @@
 // the flow), and the wires are routed again.
 import type { ELK, ElkExtendedEdge, ElkNode, ElkPort } from 'elkjs/lib/elk-api';
 import { hang, type FarEnd } from './diagram/hanging';
-import { cells as cellsOf, hints, type Placed, type Want } from './diagram/cells';
+import { cells as cellsOf, hints, keepSides, type Placed, type Want } from './diagram/cells';
 import { placeFrames } from './diagram/placement';
 import { wire, type NetContext, type NetEnd } from './diagram/wiring';
 import { threeTerminal } from './symbols';
@@ -579,7 +579,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
 
   // A passive on a bottom pin alone (a configuration resistor) hangs
   // under that pin, not laid out by ELK: the box keeps room for it.
-  const under = (b: Box, p: PlacedPin) => d.passives.find((q) => q.mount === 'below' && q.part === b.part.id && q.nets[0] === p.net);
+  const under = (b: Box, p: PlacedPin) => d.passives.find((q) => q.mount === 'below' && q.part === b.part.id && q.nets[0] === p.net && !member.has(`q:${q.id}`));
 
   // Boxes, with their pins as ports on their sides: ELK orders the pins
   // on a side to keep their wires from crossing. A port is a pin's slot,
@@ -806,7 +806,10 @@ async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Pro
   // also pick its column (lib/diagram/cells.ts), which takes ELK's
   // interactive layering, and cycle breaking so a column before what
   // drives it can be kept.
-  const at = wants.size ? hints(placed, wants, hint) : new Map(placed.map((p) => [p.id, hint.get(p.id) ?? { x: p.x, y: p.y }]));
+  // A place on the far side of a part a node is wired to isn't kept.
+  const owner = (port: string) => port.slice(0, port.lastIndexOf('/'));
+  const links = (first.root.edges ?? []).map((e): [string, string] => [owner(e.sources[0]), owner(e.targets[0])]);
+  const at = wants.size ? keepSides(placed, hints(placed, wants, hint), links, wants) : new Map(placed.map((p) => [p.id, hint.get(p.id) ?? { x: p.x, y: p.y }]));
   for (const n of again.root.children ?? []) {
     const p = at.get(n.id);
     if (!p) continue;

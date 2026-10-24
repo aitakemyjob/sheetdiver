@@ -83,3 +83,34 @@ export function hints(first: Placed[], wants: Map<string, Want>, dragged: Map<st
   }
   return out;
 }
+
+/**
+ * Keeps each node that asked for a place on its side of every node it's
+ * wired to directly, as the first layout had it: its wires leave fixed
+ * sides (a pull-up off a pin on a part's left goes in from the left), so
+ * a place on the far side would only have them loop round the part. A
+ * node asking for a column past one it's wired to is put just short of
+ * it instead; the layout then draws it as near as the wiring allows.
+ */
+export function keepSides(first: Placed[], at: Map<string, { x: number; y: number }>, links: [string, string][], wants: Map<string, Want>): Map<string, { x: number; y: number }> {
+  const node = new Map(first.map((n) => [n.id, n]));
+  const out = new Map([...at].map(([id, p]) => [id, { ...p }]));
+  // Each move can break a link checked before it: go round again, a
+  // node moving only towards where it was.
+  for (let round = 0; round < first.length; round++) {
+    let moved = false;
+    for (const [a, b] of links) {
+      const [na, nb] = [node.get(a), node.get(b)];
+      if (!na || !nb || na.x === nb.x) continue;
+      const [l, r] = na.x < nb.x ? [na, nb] : [nb, na];
+      const [pl, pr] = [out.get(l.id)!, out.get(r.id)!];
+      if (pl.x + l.w <= pr.x) continue;
+      if (wants.has(l.id) && pl.x > l.x) pl.x = Math.max(l.x, pr.x - l.w);
+      else if (wants.has(r.id) && pr.x < r.x) pr.x = Math.min(r.x, pl.x + l.w);
+      else continue;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return out;
+}

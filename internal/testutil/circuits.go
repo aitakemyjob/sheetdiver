@@ -56,7 +56,9 @@ type CircuitNet struct {
 // driver board with every standard symbol: a fuse, a polarised
 // capacitor, LEDs, a crystal with its load capacitors, a button, a
 // MOSFET switching a motor with a flyback diode, and an NPN with its
-// base resistor.
+// base resistor; and boards from testing: a buck board, a boost board
+// with chained passives and an ESP32-C6 board with its reset, boot
+// straps and decoupling named into subgroups.
 func Circuits() []Circuit {
 	return []Circuit{
 		{
@@ -359,6 +361,40 @@ func Circuits() []Circuit {
 				{"SW", "L1", "1"}, {"VOUT", "L1", "2"}, {"VOUT", "C2", ""}, {"VOUT", "R4", "1"}, {"FB", "R4", "2"},
 				{"VBUS", "U2 MCU", "VDD"}, {"GND", "U2 MCU", "GND"}, {"LEDR", "U2 MCU", "PA5"},
 				{"LEDR", "R5", "1"}, {"LEDK", "R5", "2"}, {"LEDK", "D1", "A"}, {"GND", "D1", "K"},
+			},
+		},
+		{
+			// A tester's ESP32-C6 board: the MCU's reset (a button, its
+			// pull-up and RC capacitor on EN), its boot straps (IO8 pulled
+			// up, IO9 to a button) and its decoupling, each named into a
+			// subgroup.
+			Name:  "ESP32-C6 board",
+			Rails: []CircuitRail{{Name: "3V3", V: 3.3, Source: "U1"}},
+			Parts: []CircuitPart{
+				{Name: "U1 LDO", Kind: "ic"}, {Name: "U2 ESP32-C6", Kind: "ic"},
+				{Name: "C1", Kind: "capacitor", Value: "10µF"}, {Name: "C2", Kind: "capacitor", Value: "100nF"},
+				{Name: "C6", Kind: "capacitor", Value: "22µF"}, {Name: "C7", Kind: "capacitor", Value: "100nF"}, {Name: "C8", Kind: "capacitor", Value: "1µF"},
+				{Name: "R5", Kind: "resistor", Value: "10k"}, {Name: "R6", Kind: "resistor", Value: "10k"},
+				{Name: "SW1", Kind: "switch"}, {Name: "SW2", Kind: "switch"},
+			},
+			Nets: []CircuitNet{{Name: "GND", Kind: "ground"}, {Name: "VIN", Kind: "power"}},
+			Pins: [][3]string{
+				{"VIN", "U1 LDO", "VIN"}, {"GND", "U1 LDO", "GND"}, {"3V3", "U1 LDO", "VOUT"}, {"VIN", "C1", ""}, {"VIN", "C2", ""},
+				{"3V3", "U2 ESP32-C6", "3V3"}, {"GND", "U2 ESP32-C6", "GND"}, {"MCU_EN", "U2 ESP32-C6", "EN"},
+				{"IO8_STRAP", "U2 ESP32-C6", "IO8"}, {"BOOT", "U2 ESP32-C6", "IO9"}, {"UART_TX", "U2 ESP32-C6", "TXD0"}, {"UART_RX", "U2 ESP32-C6", "RXD0"},
+				{"3V3", "C6", ""}, {"3V3", "C7", ""},
+				{"MCU_EN", "SW1", "1"}, {"GND", "SW1", "2"}, {"MCU_EN", "R5", "1"}, {"3V3", "R5", "2"}, {"MCU_EN", "C8", ""},
+				{"IO8_STRAP", "R6", "1"}, {"3V3", "R6", "2"}, {"BOOT", "SW2", "1"}, {"GND", "SW2", "2"},
+			},
+			Groups: []CircuitGroup{{Name: "Power"}, {Name: "MCU"}},
+			Assign: [][3]string{
+				{"U1 LDO", "Power", ""}, {"C1", "Power", "U1 LDO"}, {"C2", "Power", "U1 LDO"}, {"U2 ESP32-C6", "MCU", ""},
+				{"C6", "MCU", "U2 ESP32-C6"}, {"C7", "MCU", "U2 ESP32-C6"}, {"C8", "MCU", "U2 ESP32-C6"}, {"R5", "MCU", "U2 ESP32-C6"}, {"R6", "MCU", "U2 ESP32-C6"},
+				{"SW1", "MCU", ""}, {"SW2", "MCU", ""},
+			},
+			Cluster: [][2]string{
+				{"C1", "VIN caps"}, {"C2", "VIN caps"}, {"C6", "Decoupling"}, {"C7", "Decoupling"},
+				{"SW1", "Reset"}, {"R5", "Reset"}, {"C8", "Reset"}, {"R6", "Boot"}, {"SW2", "Boot"},
 			},
 		},
 	}

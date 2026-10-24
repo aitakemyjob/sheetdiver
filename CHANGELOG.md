@@ -67,13 +67,17 @@ every merged pull request.
 - **Agents place parts by column and row.** `assign` takes a `column`
   and `row` for a part or passive: its place in its group's grid of
   parts, from 0 at the left and the top. The layout keeps it there
-  where the wiring allows (a part can't share a column with one it's
-  wired to directly, which must stay on its side), using ELK's
-  interactive layering. The app reports where it drew each part, and
+  where the wiring allows, using ELK's interactive layering: a part
+  can't share a column with one it's wired to directly, nor go past it
+  (a subgroup off a pin on a part's left stays left of the part rather
+  than looping its wires round it). The app reports where it drew each part, and
   `get_connections` shows each group column by column, with each place
   asked for and whether it was kept ("drawn there", or where it went
   instead); after a change it says it hasn't been drawn yet. Pixel
   `positions` stay for what the app saves when a part is dragged.
+- **A passive named into a subgroup is drawn once.** One on a bottom pin
+  (a regulator's VIN capacitor) was drawn in its subgroup and again
+  under the pin.
 - **The block diagram sits on a 10 px grid.** Every pin end, wire
   corner, passive end, ground symbol and frame corner is on it, so pins
   that face each other line up and their wire is straight, and parallel
