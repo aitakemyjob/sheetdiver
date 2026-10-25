@@ -63,6 +63,26 @@ From "which part?" to "can I buy it and build it?".
 - **Reference designs:** turn a datasheet's typical application and
   recommended components into a starting BOM.
 
+## 0.5 — Simulation
+
+Your agent simulates the board, and the results stay with the project.
+([#87](https://github.com/aitakemyjob/sheetdiver/issues/87))
+
+- **Agent-run simulations:** the agent decides what's worth checking
+  (inrush on hot-plug, a power-mux switchover, start-up, ripple) and runs
+  as many configurations as it needs with a bundled ngspice: sanitized
+  netlists, each run in its own directory with a time limit.
+- **Saved per project:** every run keeps its netlist, models, raw data
+  and measurements, and is marked stale when the board changes, so a
+  result can always be reproduced or rerun.
+- **Presentations and graphs:** the agent writes up each result set
+  (plots, measurements against targets, conclusions); the app shows it,
+  with interactive graphs over the raw data for zooming, cursors and
+  comparing runs.
+- **From the board:** netlists built from the connection table, SPICE
+  models imported alongside datasheets, and every stand-in for a part
+  without a model called out.
+
 ## Toward 1.0
 
 - **Shared libraries:** sync through a git repository or shared folder,
