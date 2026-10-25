@@ -4948,7 +4948,7 @@
          "name": "LX1",
          "net": "LX1",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -4956,7 +4956,7 @@
          "name": "LX2",
          "net": "LX2",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -6120,7 +6120,7 @@
          "name": "LX1",
          "net": "LX1",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -6128,7 +6128,7 @@
          "name": "LX2",
          "net": "LX2",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -7288,7 +7288,7 @@
          "name": "LX1",
          "net": "LX1",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -7296,7 +7296,7 @@
          "name": "LX2",
          "net": "LX2",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -11621,7 +11621,7 @@
          "name": "LX1",
          "net": "LX1",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -11629,7 +11629,7 @@
          "name": "LX2",
          "net": "LX2",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -14339,7 +14339,7 @@
          "name": "LX1",
          "net": "LX1",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -14347,7 +14347,7 @@
          "name": "LX2",
          "net": "LX2",
          "side": "right",
-         "role": "other",
+         "role": "output",
          "connected": true,
          "bridged": true
         },
@@ -18179,8 +18179,8 @@
         {
          "name": "LX",
          "net": "LX",
-         "side": "left",
-         "role": "other",
+         "side": "right",
+         "role": "output",
          "connected": true
         },
         {
@@ -18349,7 +18349,8 @@
        "parts": [
         "block:140"
        ],
-       "wire": "out"
+       "wire": "out",
+       "arrow": true
       }
      ],
      "groups": [
