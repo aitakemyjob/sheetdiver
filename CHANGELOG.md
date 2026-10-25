@@ -178,6 +178,12 @@ every merged pull request.
   ordering suffix after `+` or `#` (lead-free, tape and reel) is ignored
   when looking a part up. The extractor version is now 6, so re-extraction
   is offered. (#83)
+- **The agent sees a parts catalogue downloaded after it connected.**
+  When the MCP server was serving the library on its own (the app not
+  running when the agent connected), it opened the catalogue folder once
+  and kept saying the catalogue wasn't downloaded until it was restarted.
+  It now notices the catalogue being downloaded, replaced or removed by
+  the app. (#70)
 - **Subgroups named through `set_connections` are kept.** The tool
   accepted `cluster` and then dropped it before it reached the project,
   so no name was stored, echoed or drawn. It's now stored, shown in

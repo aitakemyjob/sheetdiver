@@ -139,6 +139,7 @@ func (c *Catalog) candidates(ctx context.Context, q Query, cols string) (*sql.Ro
 // so the package list shows the packages still available after
 // "VDS ≥ 30 V", and keeps listing the alternatives to the package picked.
 func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {

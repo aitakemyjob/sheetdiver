@@ -119,7 +119,7 @@ func (c *Catalog) swap(src string, in info) error {
 	if err != nil {
 		return err
 	}
-	c.db = db
+	c.db, c.opened = db, modTime(c.path())
 	return nil
 }
 

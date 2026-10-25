@@ -44,6 +44,9 @@ type Catalog struct {
 	mu       sync.RWMutex
 	db       *sql.DB
 	updating bool
+	// opened is the database file's modification time when it was
+	// opened, to notice another process replacing it.
+	opened time.Time
 }
 
 // Open opens the catalogue in dir (which needn't contain one yet).
@@ -57,9 +60,49 @@ func Open(dir string) (*Catalog, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.db = db
+		c.db, c.opened = db, modTime(c.path())
 	}
 	return c, nil
+}
+
+// modTime is a file's modification time, zero when it can't be read.
+func modTime(path string) time.Time {
+	st, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return st.ModTime()
+}
+
+// refresh follows a catalogue another process downloaded, replaced or
+// removed since this one opened it: the MCP server, serving the library
+// on its own while the app was closed, opened the folder before the app
+// downloaded the catalogue, and kept saying it wasn't installed until it
+// was restarted. A download in this process swaps the database itself.
+func (c *Catalog) refresh() {
+	now := modTime(c.path())
+	c.mu.RLock()
+	current := c.updating || (c.db == nil) == now.IsZero() && (now.IsZero() || now.Equal(c.opened))
+	c.mu.RUnlock()
+	if current {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now = modTime(c.path())
+	if c.updating || (c.db == nil) == now.IsZero() && (now.IsZero() || now.Equal(c.opened)) {
+		return
+	}
+	if c.db != nil {
+		c.db.Close()
+		c.db = nil
+	}
+	if now.IsZero() {
+		return // removed
+	}
+	if db, err := openDB(c.path()); err == nil {
+		c.db, c.opened = db, now
+	}
 }
 
 // path is the catalogue database file.
@@ -119,6 +162,7 @@ func (c *Catalog) infoPath() string { return filepath.Join(c.dir, "jlc.json") }
 
 // Status reports what is installed.
 func (c *Catalog) Status(ctx context.Context) Status {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	st := Status{Updating: c.updating, Source: c.Source}
@@ -260,6 +304,7 @@ func likeEscape(s string) string {
 // or description contain every word, in-stock basic parts first. It reads
 // the jlcparts database directly (a scan: a few hundred milliseconds).
 func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
@@ -355,6 +400,7 @@ func (q Query) order() string {
 // first, else ones that start with it (orderable codes with a suffix).
 // In-stock parts come first.
 func (c *Catalog) ByMPN(ctx context.Context, mpn string) ([]Item, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
@@ -390,6 +436,7 @@ func (c *Catalog) ByMPN(ctx context.Context, mpn string) ([]Item, error) {
 // Get returns parts by LCSC code ("C20917" or "20917"), in the given
 // order; unknown codes are skipped.
 func (c *Catalog) Get(ctx context.Context, codes []string) ([]Item, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
@@ -425,6 +472,7 @@ type Category struct {
 // grouped by category (most in-stock parts first). It scans the
 // catalogue once (about a second); callers cache it.
 func (c *Catalog) Categories(ctx context.Context) ([]Category, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
@@ -465,6 +513,7 @@ func (c *Catalog) Categories(ctx context.Context) ([]Category, error) {
 // Subcategories lists the categories of in-stock parts with their counts,
 // largest first.
 func (c *Catalog) Subcategories(ctx context.Context) (map[string]int, error) {
+	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.db == nil {
