@@ -87,12 +87,78 @@ func (s *Store) Resolve(ctx context.Context, ref string) (Resolution, error) {
 		}
 		rows.Close()
 	}
+	// One of the numbers a part was stored under, joined by a slash, by an
+	// import before they were split ("MAX17048/MAX17049").
+	if r, ok := s.resolveJoined(ctx, ref); ok {
+		return r, nil
+	}
 	// A family pattern: the part from that datasheet whose number the
 	// reference matches best.
 	if r, ok := s.resolveFamily(ctx, ref); ok {
 		return r, nil
 	}
+	// An orderable number: what follows a + or # (lead-free, RoHS, tape
+	// and reel: MAX17048G+T10) says nothing about the part.
+	if base := orderingBase(ref); base != ref {
+		if r, err := s.Resolve(ctx, base); err == nil {
+			if r.Variant == "" || r.Variant == base {
+				r.Variant = ref
+			}
+			return r, nil
+		}
+	}
 	return Resolution{}, s.notFound(ctx, ref)
+}
+
+// orderingBase is a part number without its ordering suffix: everything
+// from the first + or # (MAX17048G+T10 → MAX17048G).
+func orderingBase(ref string) string {
+	if i := strings.IndexAny(ref, "+#"); i > 0 {
+		return ref[:i]
+	}
+	return ref
+}
+
+// resolveJoined matches ref against parts stored under several numbers
+// joined by slashes, the longest that ref starts with.
+func (s *Store) resolveJoined(ctx context.Context, ref string) (Resolution, bool) {
+	up := strings.ToUpper(ref)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+partCols+` FROM parts WHERE mpn LIKE '%/%'`)
+	if err != nil {
+		return Resolution{}, false
+	}
+	defer rows.Close()
+	var best Resolution
+	n := 0
+	for rows.Next() {
+		p, err := scanPart(rows)
+		if err != nil {
+			continue
+		}
+		for _, alt := range joined(p.MPN) {
+			if len(alt) >= 4 && len(alt) > n && strings.HasPrefix(up, strings.ToUpper(alt)) {
+				best, n = Resolution{Part: p, Via: "prefix", Variant: ref}, len(alt)
+			}
+		}
+	}
+	return best, n > 0
+}
+
+// joined splits numbers joined by slashes, completing a short second one
+// from the first ("MAX17048/9" is MAX17048 and MAX17049).
+func joined(mpn string) []string {
+	pieces := strings.Split(mpn, "/")
+	out := []string{pieces[0]}
+	for _, p := range pieces[1:] {
+		if p == "" {
+			continue
+		}
+		if first := pieces[0]; len(p) < len(first) && strings.Trim(p, "0123456789") == "" && strings.Trim(first[len(first)-len(p):], "0123456789") == "" {
+			p = first[:len(first)-len(p)] + p
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // resolveFamily matches ref against datasheet family patterns.
