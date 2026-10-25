@@ -606,6 +606,24 @@ describe('parts asked for a column and a row', () => {
   });
 });
 
+describe('a passive across two pins that can\'t be bridged', () => {
+  it('hangs off one pin with the other named, never both nets into one end (LX1 and LX2 on top)', async () => {
+    // The tester's TPS63900 had LX1 and LX2 typed P, so on top: L1, drawn
+    // across them, folded up with both nets into its left end.
+    const dg = structuredClone(circuit('Tester board'));
+    const u2 = dg.parts.find((p) => p.title.startsWith('U2'))!;
+    for (const p of u2.pins) if (p.name === 'LX1' || p.name === 'LX2') p.side = 'top';
+    const d = await layoutBlockDiagram(dg);
+    const l1 = d.passives.find((q) => q.passive.label === 'L1')!;
+    const at = (end: Pt) => new Set(d.wires.filter((w) => points(w.path).some((p) => p.x === end.x && p.y === end.y) || segments({ ...d, wires: [w] }).some((s) => end.x >= s.x1 && end.x <= s.x2 && end.y >= s.y1 && end.y <= s.y2)).map((w) => w.net));
+    const [a, b] = l1.ends.map(at);
+    // No end takes both nets, and between the two ends and the name at the far end, both nets are there.
+    for (const end of [a, b]) expect([...end].filter((n) => n === 'LX1' || n === 'LX2').length, [...end].join()).toBeLessThanOrEqual(1);
+    const named = d.flags.filter((f) => f.text === 'LX1' || f.text === 'LX2').map((f) => f.text);
+    expect(new Set([...a, ...b, ...named])).toEqual(new Set(['LX1', 'LX2']));
+  });
+});
+
 describe('a passive named into a subgroup on a bottom pin', () => {
   it('is drawn once, in its subgroup, not also under the pin', async () => {
     // C1 on the LDO's VIN, a bottom pin, named into "VIN caps".

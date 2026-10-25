@@ -26,7 +26,7 @@ const (
 	Analog  Role = "analog"  // an analog pin with no direction given
 	Passive Role = "passive" // a two-terminal's end: 1, 2, A, K, +, -
 	NC      Role = "nc"      // no connection
-	Other   Role = "other"   // anything else (EN, CFG1, LX1)
+	Other   Role = "other"   // anything else (EN, CFG1)
 )
 
 var (
@@ -35,6 +35,10 @@ var (
 	// a capacitor: an MCU's VCAP (typed S, supply, in STM32 tables), VCORE,
 	// VREGOUT, VDDCORE when it's the LDO's output (it says so).
 	regOutRe = regexp.MustCompile(`(?i)^(VCAP|VCORE|VREG(OUT)?|VLDO)\w*$`)
+	// switchRe is a converter's switch node (LX, LX1, SW2, PH): what it
+	// drives through its inductor, whatever the table types it (TI types
+	// LX1 and LX2 P, power, which put them with the supplies).
+	switchRe = regexp.MustCompile(`(?i)^(LX|SW|PH)\d?$`)
 	groundRe = regexp.MustCompile(`(?i)^(A|D|P|S)?(GND|VSS)\w*$|^GROUND$`)
 	powerRe  = regexp.MustCompile(`(?i)^(A|D|P)?V(DD|CC|IN|BAT|IO|S|SUP|SYS|BUS)\w*$|^VDDIO\w*$|^(IN|SUPPLY)$`)
 	ncRe     = regexp.MustCompile(`(?i)^(NC|N\.C\.?|DNC)$`)
@@ -54,7 +58,7 @@ func Of(name, typ, description string) Role {
 	switch t := strings.ToUpper(strings.TrimSpace(typ)); {
 	case padRe.MatchString(name):
 		return Pad
-	case regOutRe.MatchString(name):
+	case regOutRe.MatchString(name), switchRe.MatchString(name):
 		return Output
 	case t == "G" || t == "GND" || t == "GROUND" || groundRe.MatchString(name):
 		return Ground
