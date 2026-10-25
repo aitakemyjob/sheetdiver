@@ -486,7 +486,7 @@ func projectChecks(rails []RailStatus, parts []library.ProjectPart, params map[i
 	}
 	for _, pp := range parts {
 		label := firstNonEmpty(pp.Designator, pp.MPN)
-		if inLine(pp) && pp.Category != "battery-protection" && pp.Category != "load-switch" {
+		if inLine(pp) && pp.Category != "battery-protection" && pp.Category != "load-switch" && pp.Category != "efuse" {
 			add(calc.Warn, label, pp.SupplyRail, 0, "%s (%s) has %s as both supply and output, so it's counted as a load on %s, not as its source; if it converts the voltage, set its output to another rail", label, pp.MPN, pp.SupplyRail, pp.SupplyRail)
 		}
 		// Currents entered on a regulator's row are its input current, so

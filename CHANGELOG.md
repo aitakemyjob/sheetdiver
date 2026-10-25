@@ -186,6 +186,13 @@ every merged pull request.
   it is: downloaded, replaced or removed by the app. Nothing holds the
   file between queries either, so on Windows a download or removal no
   longer fails because another process has the catalogue open. (#70)
+- **Imports get the right category.** Fuel gauges, TVS and surge
+  protection devices and eFuses have categories of their own (and power
+  multiplexers count as load switches), so a MAX17048 is no longer an
+  MCU because it talks to a "host microcontroller", a TVS0500 a sensor,
+  or a TPS2595 a load switch. What a datasheet says a part doesn't need
+  or has inside ("no external MOSFET", "internal PMOSFET") no longer
+  makes a charger a MOSFET. Re-extraction is offered. (#78)
 - **Subgroups named through `set_connections` are kept.** The tool
   accepted `cluster` and then dropped it before it reached the project,
   so no name was stored, echoed or drawn. It's now stored, shown in

@@ -311,8 +311,15 @@ var categoryRules = []struct {
 	re  *regexp.Regexp
 	cat string
 }{
+	// What a part is that also mentions what it talks to or switches: a
+	// fuel gauge reports to a host microcontroller, an eFuse or a load
+	// switch has a MOSFET inside.
+	{regexp.MustCompile(`(?i)fuel[- ]gauge|gas[- ]gauge|battery gauge|state[- ]of[- ]charge`), "fuel-gauge"},
 	{regexp.MustCompile(`(?i)microcontroller|\bMCU\b|arm.*cortex|risc-v|\bSoC\b|wi-?fi.*bluetooth`), "mcu"},
 	{regexp.MustCompile(`(?i)battery protection|protection IC for .{0,30}(lithium|li-ion)|overcharge.{0,40}overdischarge|电池保护|锂电保护`), "battery-protection"},
+	{regexp.MustCompile(`(?i)\bTVS\b|transient[- ]voltage[- ]suppress|surge protection|flat[- ]clamp|\bESD protection|ESD suppress`), "tvs"},
+	{regexp.MustCompile(`(?i)\be-?fuse|hot[- ]swap`), "efuse"},
+	{regexp.MustCompile(`(?i)load switch|ideal diode|power mux|power multiplexer`), "load-switch"},
 	{regexp.MustCompile(`(?i)n[- ]channel.*(mosfet|power|fet)|nexfet|n-ch`), "mosfet-n"},
 	{regexp.MustCompile(`(?i)p[- ]channel.*(mosfet|power|fet)|p-ch`), "mosfet-p"},
 	{regexp.MustCompile(`(?i)\bmosfet|\bhexfet|power fet`), "mosfet"},
@@ -323,7 +330,6 @@ var categoryRules = []struct {
 	{regexp.MustCompile(`(?i)step[- ]?down|buck`), "buck"},
 	{regexp.MustCompile(`(?i)step[- ]?up|boost`), "boost"},
 	{regexp.MustCompile(`(?i)gate driver|half[- ]bridge driver|mosfet driver`), "gate-driver"},
-	{regexp.MustCompile(`(?i)load switch|e-?fuse|hot[- ]swap|ideal diode`), "load-switch"},
 	{regexp.MustCompile(`(?i)op(erational)? ?amp|amplifier`), "amplifier"},
 	{regexp.MustCompile(`(?i)\bADC\b|analog[- ]to[- ]digital`), "adc"},
 	{regexp.MustCompile(`(?i)\bDAC\b|digital[- ]to[- ]analog`), "dac"},
@@ -336,11 +342,18 @@ var categoryRules = []struct {
 	{regexp.MustCompile(`(?i)regulator|converter|controller`), "power"},
 }
 
+// notWhatItIs is what a datasheet says a part doesn't need, has inside or
+// talks to, which isn't what it is: a charger with "no external MOSFET"
+// and an "internal PMOSFET" isn't a MOSFET; a fuel gauge that reports to
+// a "host microcontroller" isn't one.
+var notWhatItIs = regexp.MustCompile(`(?i)\b(no|without|eliminat\w*|replac\w*)\s+(the need for\s+)?(an?\s+)?((external|blocking|sense|discrete|additional)\s+)*(power\s+)?([pn][- ]?channel\s+)?(p?mosfet|fet|diode|resistor)s?|\binternal\s+(power\s+)?(p|n)?-?(mosfet|fet)s?|\b(the\s+|a\s+|an\s+)?(host|external|system)\s+(microcontroller|mcu|processor|soc)s?`)
+
 // Category guesses the device category, trusting the title over the
 // description and the description over the first page's text (a MOSFET
 // datasheet mentions buck converters; an MCU datasheet its internal SMPS).
 func Category(texts ...string) string {
 	for _, text := range texts {
+		text = notWhatItIs.ReplaceAllString(text, " ")
 		for _, r := range categoryRules {
 			if r.re.MatchString(text) {
 				return r.cat

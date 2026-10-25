@@ -468,3 +468,32 @@ func TestChineseHeadings(t *testing.T) {
 		}
 	}
 }
+
+func TestCategoriesFromTheTesterBoard(t *testing.T) {
+	// The 21700 power board's imports (#78): what each datasheet says it is
+	// against what it mentions.
+	for _, c := range []struct {
+		title, desc, page, want string
+	}{
+		{"MAX17048/MAX17049 3µA 1-Cell/2-Cell Fuel Gauge with ModelGauge", "", "It reports to the host microcontroller over I2C.", "fuel-gauge"},
+		{"", "", "The MAX17048 reports state of charge to a host microcontroller.", "fuel-gauge"},
+		{"TVS0500 5-V Flat-Clamp Surge Protection Device", "", "Protects sensors and industrial I/O.", "tvs"},
+		{"TPS2595xx 2.7 V to 18 V, 4 A, 34 mΩ eFuse With Fast Overvoltage Protection", "", "", "efuse"},
+		{"TPS2121 2.7-V to 22-V Priority Power MUX With Seamless Switchover", "", "integrated N-channel MOSFETs", "load-switch"},
+		{"", "TP4056 is a complete constant-current/constant-voltage linear charger for single cell lithium-ion batteries. No external MOSFET, sense resistor or blocking diode is required.", "", "charger"},
+		{"", "", "Due to the internal PMOSFET architecture, the TP4056 is a linear charger.", "charger"},
+		// Still what they were.
+		{"AO3400A 30V N-Channel MOSFET", "", "", "mosfet-n"},
+		{"CSD17578Q3A 30-V N-Channel NexFET Power MOSFET", "", "for buck converters", "mosfet-n"},
+		{"One Cell Lithium-ion/Polymer Battery Protection IC", "", "", "battery-protection"},
+		{"BQ24074 1.5-A USB-Friendly Li-Ion Battery Charger and Power-Path Management IC", "", "", "charger"},
+		{"INA219 Zero-Drift, Bidirectional Current/Power Monitor With I2C Interface", "", "", "current-monitor"},
+		{"ESP32-C3 Series Datasheet: Ultra-Low-Power SoC with RISC-V Single-Core CPU, Wi-Fi and Bluetooth LE", "", "", "mcu"},
+		{"TPS563200 4.5-V to 17-V Input, 3-A Synchronous Step-Down Voltage Regulator", "", "", "buck"},
+		{"Load switch with reverse current blocking", "", "", "load-switch"},
+	} {
+		if got := Category(c.title, c.desc, c.page); got != c.want {
+			t.Errorf("Category(%q, %q, %q) = %q, want %q", c.title, c.desc, c.page, got, c.want)
+		}
+	}
+}
