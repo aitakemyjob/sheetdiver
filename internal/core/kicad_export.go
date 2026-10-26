@@ -69,7 +69,7 @@ func (s *Service) ExportKiCad(ctx context.Context, project, dir string) (KiCadEx
 		return KiCadExport{}, err
 	}
 	info := s.entryInfo(ctx, detail.Parts)
-	sch := schematicOf(detail, info, kicad.DefaultFootprints(kicad.FindFootprints()))
+	sch := schematicOf(detail, info, s.drawnCells(detail.Project.Name), kicad.DefaultFootprints(kicad.FindFootprints()))
 	sch.Date = time.Now().Format("2006-01-02")
 	out := KiCadExport{Dir: dir, Components: len(sch.Components), Unplaced: []string{}}
 	for _, c := range sch.Components {
@@ -178,7 +178,7 @@ func blockRef(name string) (string, string) {
 // schematicOf turns a project's block diagram into a KiCad schematic:
 // each box with its pins, each passive (one per designator) with its
 // ends on its nets, in the diagram's groups.
-func schematicOf(detail ProjectDetail, info map[int64]entryInfo, footprints *kicad.FootprintChain) kicad.Schematic {
+func schematicOf(detail ProjectDetail, info map[int64]entryInfo, drawn map[string]kicad.Cell, footprints *kicad.FootprintChain) kicad.Schematic {
 	conns := detail.Connections
 	d := conns.Diagram
 	nodes := diagramNodes(detail.Parts, conns.Blocks)
@@ -204,9 +204,14 @@ func schematicOf(detail ProjectDetail, info map[int64]entryInfo, footprints *kic
 		}
 		return fmt.Sprintf("%s_%d", ref, refs[ref])
 	}
+	placed := map[string]kicad.Component{} // diagram part → its component
+	cells := partCells(d.Parts, drawn)
 	for _, p := range d.Parts {
 		n := nodes[p.ID]
 		c := kicad.Component{Ref: unique(firstNonEmpty(n.ref, p.Title)), MPN: p.MPN, Group: p.Group, Kind: componentKind(p.Kind, p.Shape)}
+		if cell, ok := cells[p.ID]; ok {
+			c.Cell = &cell
+		}
 		var texts []string
 		if n.entry != nil {
 			e := info[n.entry.ID]
@@ -237,8 +242,12 @@ func schematicOf(detail ProjectDetail, info map[int64]entryInfo, footprints *kic
 			}
 			c.Pins = append(c.Pins, kp)
 		}
+		if !transistor {
+			c.Pins = schematicSides(c.Pins, func(net string) bool { return kinds[strings.ToLower(net)] == library.NetGround })
+		}
 		c.Footprint = footprints.Footprint(kicad.FootprintQuery{Kind: c.Kind, Texts: texts, Pads: padCount(c.Pins, p.Full)})
 		sch.Components = append(sch.Components, c)
+		placed[p.ID] = c
 	}
 	for _, q := range d.Passives {
 		ids, labels := strings.Split(q.ID, ","), strings.Split(q.Label, ",")
@@ -265,10 +274,105 @@ func schematicOf(detail ProjectDetail, info map[int64]entryInfo, footprints *kic
 				{Number: kicad.TerminalPin(kind, q.Ends[1]), Net: far, Type: kicad.Passive},
 			}
 			c.Footprint = footprints.Footprint(kicad.FootprintQuery{Kind: kind, Texts: texts, Pads: 2})
+			c.Anchor = anchorOf(q, placed)
 			sch.Components = append(sch.Components, c)
 		}
 	}
 	return sch
+}
+
+// drawnCells is where the app last drew each part of a project, by node:
+// the column and row in its group.
+func (s *Service) drawnCells(project string) map[string]kicad.Cell {
+	out := map[string]kicad.Cell{}
+	if d, ok := s.DrawnLayout(project); ok {
+		for _, c := range d.Cells {
+			out[c.Node] = kicad.Cell{Column: c.Column, Row: c.Row}
+		}
+	}
+	return out
+}
+
+// partCells is where each part goes in its group: where the app drew it,
+// else where it's asked to be, else its column along the power flow, in
+// diagram order down the column.
+func partCells(parts []DiagramPart, drawn map[string]kicad.Cell) map[string]kicad.Cell {
+	out := map[string]kicad.Cell{}
+	rows := map[string]int{} // group and column → parts placed there
+	for _, p := range parts {
+		if c, ok := drawn[p.ID]; ok {
+			out[p.ID] = c
+			continue
+		}
+		c := kicad.Cell{Column: p.Column, Row: -1}
+		if p.Want != nil && p.Want.Column != nil {
+			c.Column = *p.Want.Column
+		}
+		if p.Want != nil && p.Want.Row != nil {
+			c.Row = *p.Want.Row
+		}
+		key := fmt.Sprintf("%s|%d", p.Group, c.Column)
+		if c.Row < 0 {
+			c.Row = rows[key]
+		}
+		rows[key]++
+		out[p.ID] = c
+	}
+	return out
+}
+
+// schematicSides puts a box's pins where schematics usually have them:
+// supplies on the left, at the top, ground at the bottom, so decoupling
+// capacitors hang from the supply's wire to ground. A pin the block
+// diagram puts along the bottom for its passive (a configuration pin)
+// goes on the left, last.
+func schematicSides(pins []kicad.Pin, ground func(net string) bool) []kicad.Pin {
+	var top, rest, last []kicad.Pin
+	for _, p := range pins {
+		switch {
+		case p.Side == kicad.Top:
+			p.Side = kicad.Left
+			top = append(top, p)
+		case p.Side == kicad.Bottom && p.Net != "" && !ground(p.Net):
+			p.Side = kicad.Left
+			last = append(last, p)
+		default:
+			rest = append(rest, p)
+		}
+	}
+	return append(append(top, rest...), last...)
+}
+
+// anchorOf is the part and pins a passive is wired to on the schematic:
+// the pins of the part it hangs by on its nets, both for one across two
+// pins (an inductor across LX1 and LX2), the one on its first net else.
+// A passive after another (C2 after L1) or between parts has none.
+func anchorOf(q DiagramPassive, placed map[string]kicad.Component) *kicad.Anchor {
+	part, ok := placed[q.Part]
+	if !ok {
+		return nil
+	}
+	pinOn := func(net string) string {
+		for _, p := range part.Pins {
+			if strings.EqualFold(p.Net, net) {
+				return firstNonEmpty(p.Number, p.Name)
+			}
+		}
+		return ""
+	}
+	switch q.Mount {
+	case MountBridge:
+		if len(q.Nets) == 2 {
+			if a, b := pinOn(q.Nets[0]), pinOn(q.Nets[1]); a != "" && b != "" {
+				return &kicad.Anchor{Ref: part.Ref, Pins: []string{a, b}}
+			}
+		}
+	case MountBelow, MountLane, MountOut, MountWire:
+		if a := pinOn(q.Nets[0]); a != "" {
+			return &kicad.Anchor{Ref: part.Ref, Pins: []string{a}}
+		}
+	}
+	return nil
 }
 
 // componentKind is how a diagram part is drawn in KiCad: a transistor by

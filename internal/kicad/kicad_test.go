@@ -20,22 +20,25 @@ func buckBoard() Schematic {
 		Components: []Component{
 			{Ref: "U1", MPN: "TPS62160", Kind: KindIC, Group: "Power", Pins: []Pin{
 				{Number: "1", Name: "SW", Net: "SW", Side: Right, Type: Output},
-				{Number: "2", Name: "VIN", Net: "VIN", Side: Top, Type: PowerIn},
+				{Number: "2", Name: "VIN", Net: "VIN", Side: Left, Type: PowerIn},
 				{Number: "3", Name: "EN", Net: "VIN", Side: Left, Type: Input},
 				{Number: "4", Name: "FB", Net: "FB", Side: Left, Type: Input},
 				{Number: "5", Name: "NC", Side: Left, Type: NoConnect},
 				{Number: "6", Name: "GND", Net: "GND", Side: Bottom, Type: PowerIn},
 				{Number: "7", Name: "VOS", Net: "3V3", Side: Right, Type: Input},
+				{Number: "8", Name: "LX1", Net: "LX1", Side: Right, Type: Output},
+				{Number: "9", Name: "LX2", Net: "LX2", Side: Right, Type: Output},
 			}},
+			{Ref: "L2", Value: "1uH", Kind: KindInductor, Group: "Power", Anchor: &Anchor{Ref: "U1", Pins: []string{"8", "9"}}, Pins: []Pin{{Number: "1", Net: "LX1"}, {Number: "2", Net: "LX2"}}},
 			{Ref: "L1", Value: "2.2uH", Kind: KindInductor, Group: "Power", Pins: []Pin{{Number: "1", Net: "SW"}, {Number: "2", Net: "3V3"}}},
-			{Ref: "C1", Value: "10uF", Kind: KindCapacitor, Group: "Power", Pins: []Pin{{Number: "1", Net: "VIN"}, {Number: "2", Net: "GND"}}},
-			{Ref: "C2", Value: "22uF", Kind: KindCapacitor, Group: "Power", Pins: []Pin{{Number: "1", Net: "3V3"}, {Number: "2", Net: "GND"}}},
-			{Ref: "R1", Value: "100k", Kind: KindResistor, Group: "Power", Pins: []Pin{{Number: "1", Net: "3V3"}, {Number: "2", Net: "FB"}}},
-			{Ref: "R2", Value: "22k", Kind: KindResistor, Group: "Power", Pins: []Pin{{Number: "1", Net: "FB"}, {Number: "2", Net: "GND"}}},
+			{Ref: "C1", Value: "10uF", Kind: KindCapacitor, Group: "Power", Anchor: &Anchor{Ref: "U1", Pins: []string{"2"}}, Pins: []Pin{{Number: "1", Net: "VIN"}, {Number: "2", Net: "GND"}}},
+			{Ref: "C2", Value: "22uF", Kind: KindCapacitor, Group: "Power", Anchor: &Anchor{Ref: "U1", Pins: []string{"7"}}, Pins: []Pin{{Number: "1", Net: "3V3"}, {Number: "2", Net: "GND"}}},
+			{Ref: "R1", Value: "100k", Kind: KindResistor, Group: "Power", Anchor: &Anchor{Ref: "U1", Pins: []string{"4"}}, Pins: []Pin{{Number: "1", Net: "3V3"}, {Number: "2", Net: "FB"}}},
+			{Ref: "R2", Value: "22k", Kind: KindResistor, Group: "Power", Anchor: &Anchor{Ref: "U1", Pins: []string{"4"}}, Pins: []Pin{{Number: "1", Net: "FB"}, {Number: "2", Net: "GND"}}},
 			{Ref: "J1", Value: "Power in", Kind: KindConnector, Group: "IO", Pins: []Pin{
 				{Name: "VBUS", Net: "VIN", Side: Right, Type: Passive}, {Name: "GND", Net: "GND", Side: Right, Type: Passive},
 			}},
-			{Ref: "D1", Value: "green", Kind: KindLED, Group: "IO", Pins: []Pin{{Number: TerminalPin(KindLED, "anode"), Net: "LED_A"}, {Number: TerminalPin(KindLED, "cathode"), Net: "LED_K"}}},
+			{Ref: "D1", Value: "green", Kind: KindLED, Group: "IO", Anchor: &Anchor{Ref: "Q1", Pins: []string{"3"}}, Pins: []Pin{{Number: TerminalPin(KindLED, "anode"), Net: "LED_A"}, {Number: TerminalPin(KindLED, "cathode"), Net: "LED_K"}}},
 			{Ref: "R3", Value: "1k", Kind: KindResistor, Group: "IO", Pins: []Pin{{Number: "1", Net: "3V3"}, {Number: "2", Net: "LED_A"}}},
 			{Ref: "Q1", MPN: "AO3400A", Kind: KindMOSFETN, Group: "IO", Pins: []Pin{{Number: "1", Name: "gate", Net: "LED_EN"}, {Number: "2", Name: "source", Net: "GND"}, {Number: "3", Name: "drain", Net: "LED_K"}}},
 		},
@@ -44,19 +47,23 @@ func buckBoard() Schematic {
 
 // wantNets is each pin's net as KiCad's netlist names it.
 var wantNets = map[string]string{
-	"U1.1": "/SW", "U1.2": "/VIN", "U1.3": "/VIN", "U1.4": "/FB", "U1.6": "GND", "U1.7": "/3V3",
+	"U1.1": "/SW", "U1.2": "/VIN", "U1.3": "/VIN", "U1.6": "GND", "U1.7": "/3V3",
 	"L1.1": "/SW", "L1.2": "/3V3", "C1.1": "/VIN", "C1.2": "GND", "C2.1": "/3V3", "C2.2": "GND",
-	"R1.1": "/3V3", "R1.2": "/FB", "R2.1": "/FB", "R2.2": "GND",
+	"R1.1": "/3V3", "R2.2": "GND",
 	"J1.VBUS": "/VIN", "J1.GND": "GND",
 	"D1.2": "/LED_A", "D1.1": "/LED_K", "R3.1": "/3V3", "R3.2": "/LED_A",
 	"Q1.1": "/LED_EN", "Q1.2": "GND", "Q1.3": "/LED_K",
 }
 
+// sameNets are pins wired together without a label: on one net, whatever
+// KiCad names it.
+var sameNets = [][2]string{{"U1.8", "L2.1"}, {"U1.9", "L2.2"}, {"U1.4", "R1.2"}, {"U1.4", "R2.1"}}
+
 func TestWriteSchematic(t *testing.T) {
 	out := NewWriter().Write(buckBoard())
 	for _, want := range []string{
 		`(lib_id "SheetDiver:TPS62160")`, `(lib_id "Device:R")`, `(lib_id "Device:LED")`, `(lib_id "SheetDiver:AO3400A")`, `(lib_id "power:GND")`,
-		`(label "VIN"`, `(no_connect`, `(text "Power"`,
+		`(label "VIN"`, `(no_connect`, `(text "Power"`, `(junction`,
 	} {
 		if !strings.Contains(out.Schematic, want) {
 			t.Errorf("schematic lacks %s", want)
@@ -126,6 +133,14 @@ func TestNetlistInKiCad(t *testing.T) {
 		if got[pin] != net {
 			t.Errorf("%s on %q, want %q", pin, got[pin], net)
 		}
+	}
+	for _, pair := range sameNets {
+		if got[pair[0]] == "" || got[pair[0]] != got[pair[1]] || strings.HasPrefix(got[pair[0]], "unconnected") {
+			t.Errorf("%s on %q and %s on %q: want them wired together", pair[0], got[pair[0]], pair[1], got[pair[1]])
+		}
+	}
+	if got["U1.8"] == got["U1.9"] {
+		t.Errorf("LX1 and LX2 joined: %q", got["U1.8"])
 	}
 	if !strings.HasPrefix(got["U1.5"], "unconnected") {
 		t.Errorf("U1 pin 5 on %q, want it unconnected", got["U1.5"])

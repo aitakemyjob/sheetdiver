@@ -4,16 +4,15 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 )
 
-// The sheet. Each group is a frame with its components inside: the
-// boxes in a row, the two-terminals in rows under them. Nothing is wired
-// across the sheet: every pin gets a short wire ending in a label with
-// its net's name (or a ground symbol), and labels of the same name are
-// the same net, so the netlist is exact however the parts are arranged.
-// Moving them into a readable circuit is left to the designer.
+// The sheet. Each group is a frame with its components inside, placed
+// as placement.go says: each part with its passives wired to it, the
+// nets that leave it labelled. Labels of the same name are the same
+// net, so the netlist is exact however the clusters are arranged.
 
 // fileVersion is the KiCad 7 schematic format; KiCad 8 and 9 open it.
 const fileVersion = 20230121
@@ -51,33 +50,29 @@ func NewWriter() *Writer {
 	return &Writer{Symbols: NewSymbolFactory()}
 }
 
-// placed is a component on the sheet: its symbol and where its origin is.
-type placed struct {
-	c      Component
-	s      LibSymbol
-	x, y   float64
-	extent Rect // sheet coordinates (Y down), around its labels
-}
-
 // Write draws the schematic.
 func (w *Writer) Write(s Schematic) Export {
 	ids := newIDs(s.Project + "/" + s.Title)
 	root := ids.next("root")
-	ground := map[string]bool{}
-	for _, g := range s.GroundNets {
-		ground[g] = true
-	}
 
 	// The symbols, one per library ID.
 	syms := map[string]LibSymbol{}
 	var order []string
-	symbolOf := func(c Component) LibSymbol {
+	pl := &placer{members: map[string]int{}, gnd: slices.Contains(s.GroundNets, "GND")}
+	pl.symbol = func(c Component) LibSymbol {
 		ls := w.Symbols.Build(c)
 		if _, ok := syms[ls.ID]; !ok {
 			syms[ls.ID] = ls
 			order = append(order, ls.ID)
 		}
 		return syms[ls.ID]
+	}
+	for _, c := range s.Components {
+		for _, p := range c.Pins {
+			if p.Net != "" {
+				pl.members[p.Net]++
+			}
+		}
 	}
 
 	// Components by group, in the groups' order, then those in none.
@@ -91,63 +86,33 @@ func (w *Writer) Write(s Schematic) Export {
 	}
 
 	sch := list("kicad_sch", list("version", fileVersion), list("generator", sym("sheetdiver")), list("uuid", root))
-	var body []*node
+	var items []item
 	frames := []frame{}
 	const margin, gap, maxWidth = 25.4, 12.7, 380.0
+	const inset, titleH = 2 * grid, 5.08
 	cx, cy, rowH := margin, margin, 0.0
-	gnd := groundSymbol()
-	usedGround := false
 	for _, g := range groups {
-		comps := byGroup[g.Name]
-		if len(comps) == 0 {
+		if len(byGroup[g.Name]) == 0 {
 			continue
 		}
-		var items []*placed
-		for _, c := range comps {
-			p := &placed{c: c, s: symbolOf(c)}
-			p.extent = extentOf(p)
-			items = append(items, p)
-		}
-		width, height := arrange(items)
+		drawn, width, height := pl.group(byGroup[g.Name])
 		// A frame with its title above.
-		fw, fh := width+2*grid*2, height+2*grid*2+5.08
+		fw, fh := width+2*inset, height+2*inset+titleH
 		if cx+fw > maxWidth && cx > margin {
 			cx, cy, rowH = margin, cy+rowH+gap, 0
 		}
-		fx, fy := cx, cy
-		for _, p := range items {
-			p.x, p.y = snap(fx+grid*2+p.x), snap(fy+grid*2+5.08+p.y)
-		}
-		frames = append(frames, frame{x0: fx, y0: fy, x1: fx + fw, y1: fy + fh, title: g.Name, description: g.Description})
+		items = append(items, moveAll(drawn, snap(cx+inset), snap(cy+inset+titleH))...)
+		frames = append(frames, frame{x0: cx, y0: cy, x1: cx + fw, y1: cy + fh, title: g.Name, description: g.Description})
 		cx += fw + gap
 		rowH = math.Max(rowH, fh)
-		for _, p := range items {
-			body = append(body, w.instance(p, root, s.Project, ids))
-			for _, number := range sortedPins(p.s) {
-				pin := pinOf(p.c, number)
-				place := p.s.Pins[number]
-				px, py := p.x+place.X, p.y-place.Y
-				switch {
-				case pin.Net == "":
-					if _, two := twoTerminals[p.c.Kind]; !two {
-						body = append(body, list("no_connect", list("at", px, py), list("uuid", ids.next("nc"))))
-					}
-				case pin.Net == "GND" && ground["GND"]:
-					usedGround = true
-					qx, qy := px, py
-					if place.Out != Bottom {
-						qx, qy = step(px, py, place.Out, grid)
-						body = append(body, wire(px, py, qx, qy, ids))
-					}
-					body = append(body, groundInstance(gnd, qx, qy, place.Out == Top, root, s.Project, ids))
-				default:
-					qx, qy := step(px, py, place.Out, grid)
-					body = append(body, wire(px, py, qx, qy, ids), label(pin.Net, qx, qy, place.Out, ids))
-				}
-			}
-		}
 	}
-	if usedGround {
+	e := &emitter{ids: ids, root: root, project: s.Project}
+	var body []*node
+	for _, it := range items {
+		body = append(body, it.write(e))
+	}
+	if e.usedGround {
+		gnd := groundSymbol()
 		syms[gnd.ID] = gnd
 		order = append(order, gnd.ID)
 	}
@@ -165,8 +130,8 @@ func (w *Writer) Write(s Schematic) Export {
 	if s.Revision != "" {
 		tb.add(list("rev", s.Revision))
 	}
-	tb.add(list("comment", 1, "Drawn by SheetDiver from the block diagram: every pin is labelled with its net."))
-	tb.add(list("comment", 2, "Arrange the parts and replace labels with wires as you like; the nets stay the same."))
+	tb.add(list("comment", 1, "Drawn by SheetDiver from the block diagram: each part with the passives that serve it."))
+	tb.add(list("comment", 2, "Nets that leave a part's cluster end in labels: wire them as you like, the nets stay the same."))
 	sch.add(tb)
 	libs := list("lib_symbols")
 	for _, id := range order {
@@ -191,157 +156,6 @@ func (w *Writer) Write(s Schematic) Export {
 	}
 	table := list("sym_lib_table", list("lib", list("name", SymbolLibrary), list("type", "KiCad"), list("uri", "${KIPRJMOD}/sheetdiver.kicad_sym"), list("options", ""), list("descr", "Symbols SheetDiver generated from datasheet pin tables")))
 	return Export{Schematic: sch.String(), Symbols: symLib.String(), SymLibTable: table.String(), Project: projectFile(s.Project)}
-}
-
-// arrange places a group's components relative to its top-left corner:
-// boxes and transistors in a row, two-terminals in rows under them no
-// wider than the boxes or six two-terminals. It returns the size used.
-func arrange(items []*placed) (float64, float64) {
-	const gap = 5.08
-	var boxes, small []*placed
-	for _, p := range items {
-		if _, ok := twoTerminals[p.c.Kind]; ok {
-			small = append(small, p)
-		} else {
-			boxes = append(boxes, p)
-		}
-	}
-	x, rowH := 0.0, 0.0
-	for _, p := range boxes {
-		p.x, p.y = x-p.extent.X0, -p.extent.Y0
-		x += p.extent.X1 - p.extent.X0 + gap
-		rowH = math.Max(rowH, p.extent.Y1-p.extent.Y0)
-	}
-	width := math.Max(x-gap, 0)
-	six := 0.0
-	for i, p := range small {
-		if i < 6 {
-			six += p.extent.X1 - p.extent.X0 + gap
-		}
-	}
-	limit := math.Max(width, six)
-	y := rowH
-	if len(boxes) > 0 {
-		y += gap * 2
-	}
-	x, rowH = 0, 0
-	for _, p := range small {
-		w := p.extent.X1 - p.extent.X0
-		if x > 0 && x+w > limit {
-			x, y, rowH = 0, y+rowH+gap, 0
-		}
-		p.x, p.y = x-p.extent.X0, y-p.extent.Y0
-		x += w + gap
-		width = math.Max(width, x-gap)
-		rowH = math.Max(rowH, p.extent.Y1-p.extent.Y0)
-	}
-	return width, y + rowH
-}
-
-// extentOf is the area a component covers with its pins' wires and
-// labels, in sheet coordinates around its origin.
-func extentOf(p *placed) Rect {
-	b := p.s.Bounds
-	r := Rect{b.X0, -b.Y1, b.X1, -b.Y0}
-	for number, place := range p.s.Pins {
-		x, y := place.X, -place.Y
-		reach := grid + float64(len([]rune(pinOf(p.c, number).Net))+2)*charWidth
-		switch place.Out {
-		case Left:
-			r.X0 = math.Min(r.X0, x-reach)
-		case Right:
-			r.X1 = math.Max(r.X1, x+reach)
-		case Top:
-			r.Y0 = math.Min(r.Y0, y-reach)
-		case Bottom:
-			r.Y1 = math.Max(r.Y1, y+reach)
-		}
-	}
-	// Room for the reference and value, as wide as they're written.
-	value := p.c.Value
-	if value == "" {
-		value = p.c.MPN
-	}
-	for _, f := range []struct {
-		at   textPlace
-		text string
-	}{{p.s.Ref, p.c.Ref}, {p.s.Val, value}} {
-		w := float64(len([]rune(f.text))) * charWidth
-		x0, x1 := f.at.x-w/2, f.at.x+w/2
-		if f.at.justify == "left" {
-			x0, x1 = f.at.x, f.at.x+w
-		}
-		r = Rect{math.Min(r.X0, x0), math.Min(r.Y0, -f.at.y-grid), math.Max(r.X1, x1), math.Max(r.Y1, -f.at.y+grid)}
-	}
-	return r
-}
-
-// instance is a component placed on the sheet.
-func (w *Writer) instance(p *placed, root, project string, ids *idGen) *node {
-	ref := p.c.Ref
-	n := list("symbol", list("lib_id", p.s.ID), at(p.x, p.y, 0), list("unit", 1),
-		list("in_bom", sym("yes")), list("on_board", sym("yes")), list("dnp", sym("no")), list("uuid", ids.next("sym:"+ref)))
-	field := func(name, value string, t textPlace, dy float64, hidden bool) *node {
-		return list("property", name, value, at(p.x+t.x, p.y-t.y+dy, 0), t.effects(hidden))
-	}
-	value := p.c.Value
-	if value == "" {
-		value = p.c.MPN
-	}
-	n.add(field("Reference", ref, p.s.Ref, 0, false), field("Value", value, p.s.Val, 0, false))
-	n.add(field("Footprint", p.c.Footprint.LibID, p.s.Val, 2.54, true), field("Datasheet", p.c.Datasheet, p.s.Val, 2.54, true))
-	extra := []struct{ name, value string }{{"MPN", p.c.MPN}, {"Manufacturer", p.c.Manufacturer}, {"Description", p.c.Description}}
-	if p.c.Footprint.LibID == "" && p.c.Footprint.Hint != "" {
-		extra = append(extra, struct{ name, value string }{"Package", p.c.Footprint.Hint})
-	}
-	for _, e := range extra {
-		if e.value != "" {
-			n.add(field(e.name, e.value, p.s.Val, 2.54, true))
-		}
-	}
-	for _, number := range sortedPins(p.s) {
-		n.add(list("pin", number, list("uuid", ids.next("pin:"+ref+":"+number))))
-	}
-	return n.add(list("instances", list("project", project, list("path", "/"+root, list("reference", ref), list("unit", 1)))))
-}
-
-// groundInstance is a ground symbol at a point, upside down above a pin
-// on top of its part.
-func groundInstance(g LibSymbol, x, y float64, up bool, root, project string, ids *idGen) *node {
-	ref := fmt.Sprintf("#PWR%03d", ids.count("#PWR"))
-	angle, dy := 0.0, 1.0
-	if up {
-		angle, dy = 180, -1
-	}
-	return list("symbol", list("lib_id", g.ID), at(x, y, angle), list("unit", 1),
-		list("in_bom", sym("yes")), list("on_board", sym("yes")), list("dnp", sym("no")), list("uuid", ids.next("gnd:"+ref)),
-		list("property", "Reference", ref, at(x, y+6.35*dy, 0), effects(true)),
-		// Its value is always GND: hidden, so the symbols on pins a step
-		// apart don't print over each other.
-		list("property", "Value", "GND", at(x, y+3.81*dy, 0), effects(true)),
-		list("property", "Footprint", "", at(x, y, 0), effects(true)),
-		list("property", "Datasheet", "", at(x, y, 0), effects(true)),
-		list("pin", "1", list("uuid", ids.next("gndpin:"+ref))),
-		list("instances", list("project", project, list("path", "/"+root, list("reference", ref), list("unit", 1)))))
-}
-
-// wire is a wire between two points.
-func wire(x0, y0, x1, y1 float64, ids *idGen) *node {
-	return list("wire", list("pts", xy(x0, y0), xy(x1, y1)), stroke(0), list("uuid", ids.next("wire")))
-}
-
-// label is a net label at the end of a pin's wire, reading away from it.
-func label(net string, x, y float64, out Side, ids *idGen) *node {
-	angle, justify := 0.0, "left"
-	switch out {
-	case Left:
-		angle, justify = 180, "right"
-	case Top:
-		angle = 90
-	case Bottom:
-		angle, justify = 270, "right"
-	}
-	return list("label", net, at(x, y, angle), list("fields_autoplaced"), effects(false, justify, "bottom"), list("uuid", ids.next("label")))
 }
 
 // step is a point d further from a pin, the way it leaves its symbol

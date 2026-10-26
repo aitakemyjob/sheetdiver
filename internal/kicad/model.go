@@ -80,9 +80,24 @@ type Footprint struct {
 	Hint  string
 }
 
+// Cell is where in its group a part is drawn: the column from the left
+// and the place in it from the top.
+type Cell struct {
+	Column, Row int
+}
+
+// Anchor is the part a passive serves and the pins it's wired to there:
+// one (a capacitor from VIN to ground, a pull-up on SDA) or two (an
+// inductor across LX1 and LX2), by number on that part's symbol.
+type Anchor struct {
+	Ref  string
+	Pins []string
+}
+
 // Component is a part on the sheet. Symbol names the symbol generated
 // for a box or transistor (its part number), shared by components with
-// the same one; Group is the functional group it's drawn in.
+// the same one; Group is the functional group it's drawn in, Cell where
+// in it (a part), Anchor what it hangs from (a passive).
 type Component struct {
 	Ref          string
 	Value        string
@@ -95,6 +110,8 @@ type Component struct {
 	Pins         []Pin
 	Footprint    Footprint
 	Group        string
+	Cell         *Cell
+	Anchor       *Anchor
 }
 
 // Group is a functional group, drawn as a frame around its components.

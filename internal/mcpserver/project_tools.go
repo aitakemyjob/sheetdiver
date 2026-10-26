@@ -667,7 +667,7 @@ func (s *Server) registerDesign() {
 			return text(md), err
 		})
 
-	addTool(s, &mcp.Tool{Name: "export_kicad", Description: "Export a project's block diagram as a KiCad schematic (KiCad 7 or later): every part with its pins labelled with their nets, symbols generated from the datasheets' pin tables (passives use KiCad's Device symbols), footprints from KiCad's libraries where the package says which, in the diagram's groups. Also writes a PDF layout guide: each datasheet's layout sections and figures, general layout practice for each part, and the footprints used. Returns the folder and the parts still needing a footprint.", Annotations: writes("Export KiCad schematic", true)},
+	addTool(s, &mcp.Tool{Name: "export_kicad", Description: "Export a project's block diagram as a KiCad schematic (KiCad 7 or later): every part where the app drew it, with the passives that serve it wired to its pins and the nets that leave it labelled, symbols generated from the datasheets' pin tables (passives use KiCad's Device symbols), footprints from KiCad's libraries where the package says which, in the diagram's groups. Also writes a PDF layout guide: each datasheet's layout sections and figures, general layout practice for each part, and the footprints used. Returns the folder and the parts still needing a footprint.", Annotations: writes("Export KiCad schematic", true)},
 		write, func(a kicadArgs) string { return "export kicad " + a.Project }, func(ctx context.Context, a kicadArgs) (result, error) {
 			out, err := c.ExportKiCad(ctx, a.Project, a.Dir)
 			if err != nil {
@@ -681,7 +681,7 @@ func (s *Server) registerDesign() {
 					b.WriteString("- " + u + "\n")
 				}
 			}
-			b.WriteString("Open the .kicad_pro in KiCad: every pin ends in a net label, so the netlist is complete; arrange the parts and wire them as you like.")
+			b.WriteString("Open the .kicad_pro in KiCad: each part is drawn with its passives wired to it, and nets between parts end in labels, so the netlist is complete; move and wire things as you like.")
 			return text(b.String()), nil
 		})
 

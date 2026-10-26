@@ -11,9 +11,12 @@ every merged pull request.
 ### Added
 - **KiCad schematic export (preview).** `export_kicad` (and `sheetdiver
   kicad PROJECT [DIR]`) writes a project's block diagram as a KiCad 7+
-  project: a schematic with every part in its group, each pin ending in
-  a label with its net (so the netlist is exact, however the parts are
-  arranged), and the symbols it drew. A part with a pin table gets a
+  project: a schematic with every part in its group, where the app drew
+  it, with the passives that serve it wired to their pins as a designer
+  draws them (decoupling capacitors from the supply's wire to ground, a
+  feedback divider on FB, an inductor across LX1 and LX2, pull-downs and
+  ESD diodes on a connector's lines). Nets that leave a part's cluster
+  end in labels, so the netlist is exact however the parts are moved. A part with a pin table gets a
   symbol generated from it; resistors, capacitors, diodes and the like use
   KiCad's Device symbols, with the same pins in the same places; a
   transistor gets the standard shape with its own pin numbers.
