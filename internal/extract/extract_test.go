@@ -484,6 +484,8 @@ func TestCategoriesFromTheTesterBoard(t *testing.T) {
 		{"", "", "Due to the internal PMOSFET architecture, the TP4056 is a linear charger.", "charger"},
 		// Still what they were.
 		{"AO3400A 30V N-Channel MOSFET", "", "", "mosfet-n"},
+		// A MOSFET lists load switches among its applications (the corpus's AO3400A).
+		{"", "The AO3400A uses advanced trench technology. This device is suitable for use as a load switch or in PWM applications. N-Channel MOSFET.", "", "mosfet-n"},
 		{"CSD17578Q3A 30-V N-Channel NexFET Power MOSFET", "", "for buck converters", "mosfet-n"},
 		{"One Cell Lithium-ion/Polymer Battery Protection IC", "", "", "battery-protection"},
 		{"BQ24074 1.5-A USB-Friendly Li-Ion Battery Charger and Power-Path Management IC", "", "", "charger"},

@@ -311,18 +311,20 @@ var categoryRules = []struct {
 	re  *regexp.Regexp
 	cat string
 }{
-	// What a part is that also mentions what it talks to or switches: a
-	// fuel gauge reports to a host microcontroller, an eFuse or a load
-	// switch has a MOSFET inside.
+	// What a part is that also mentions what it talks to: a fuel gauge
+	// reports to a host microcontroller.
 	{regexp.MustCompile(`(?i)fuel[- ]gauge|gas[- ]gauge|battery gauge|state[- ]of[- ]charge`), "fuel-gauge"},
 	{regexp.MustCompile(`(?i)microcontroller|\bMCU\b|arm.*cortex|risc-v|\bSoC\b|wi-?fi.*bluetooth`), "mcu"},
 	{regexp.MustCompile(`(?i)battery protection|protection IC for .{0,30}(lithium|li-ion)|overcharge.{0,40}overdischarge|电池保护|锂电保护`), "battery-protection"},
 	{regexp.MustCompile(`(?i)\bTVS\b|transient[- ]voltage[- ]suppress|surge protection|flat[- ]clamp|\bESD protection|ESD suppress`), "tvs"},
-	{regexp.MustCompile(`(?i)\be-?fuse|hot[- ]swap`), "efuse"},
-	{regexp.MustCompile(`(?i)load switch|ideal diode|power mux|power multiplexer`), "load-switch"},
 	{regexp.MustCompile(`(?i)n[- ]channel.*(mosfet|power|fet)|nexfet|n-ch`), "mosfet-n"},
 	{regexp.MustCompile(`(?i)p[- ]channel.*(mosfet|power|fet)|p-ch`), "mosfet-p"},
 	{regexp.MustCompile(`(?i)\bmosfet|\bhexfet|power fet`), "mosfet"},
+	// Below the MOSFETs: a MOSFET's datasheet lists load switches among
+	// its applications; an eFuse or load switch's title doesn't call it a
+	// MOSFET.
+	{regexp.MustCompile(`(?i)\be-?fuse|hot[- ]swap`), "efuse"},
+	{regexp.MustCompile(`(?i)load switch|ideal diode|power mux|power multiplexer`), "load-switch"},
 	{regexp.MustCompile(`(?i)current.{0,12}monitor|current sense|power monitor`), "current-monitor"},
 	{regexp.MustCompile(`(?i)charger|charge management|battery charg|充电`), "charger"},
 	{regexp.MustCompile(`(?i)\bLDO\b|low[- ]dropout|linear regulator|adjustable regulator|3-pin.*regulator|positive voltage regulator`), "ldo"},

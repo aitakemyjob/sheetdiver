@@ -518,6 +518,67 @@
           }
         }
       }
+    },
+    {
+      "file": "max17048.pdf",
+      "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/MAX17048-MAX17049.pdf",
+      "sha256": "70dc8eef0e012276dcdc58b6dce64af08258304bcf865ceace64e856b8029330",
+      "manual": true,
+      "why": "A fuel gauge whose page text talks of the host microcontroller (imported as an MCU, #78); its title names two parts with a slash (#83). analog.com refuses scripted downloads.",
+      "expect": {
+        "manufacturer": "Analog Devices",
+        "category": "fuel-gauge"
+      }
+    },
+    {
+      "file": "tvs0500.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tvs0500.pdf",
+      "sha256": "ac7a4dc56da905c36f143d2dc76760d526b9e143bfedaacfacf6c8f5c9541fc7",
+      "why": "A surge protection device whose applications list sensors (imported as a sensor, #78); its pin table gives pin ranges and the thermal pad on one row (#76).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "tvs",
+        "partNumbers": [
+          "TVS0500"
+        ]
+      }
+    },
+    {
+      "file": "tps2595.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps2595.pdf",
+      "sha256": "53968dbb14ef48a79fddf24bd473a34344dbc3d0f4ce141bac440f2d95f6a525",
+      "why": "An eFuse (imported as a load switch, #78), a family of variants in one datasheet.",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "efuse"
+      }
+    },
+    {
+      "file": "tps2121.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tps2121.pdf",
+      "sha256": "b2f5950f596dc2c4ca33e4ebac27fd35e4dcc68ea63e173466123e1118e91a06",
+      "why": "A priority power multiplexer, two parts behind a family pattern (TPS212x); no pins were extracted on the tester's board (#75).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "load-switch",
+        "partNumbers": [
+          "TPS2120",
+          "TPS2121"
+        ]
+      }
+    },
+    {
+      "file": "tpd2e2u06.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/tpd2e2u06.pdf",
+      "sha256": "a133b86ea3d3c3d34667339b92d3b5e98d541d10e9775d63e7cdfa153794f4ed",
+      "why": "An ESD protection array whose pin table has one number column per package, DRL and DCK (#76).",
+      "expect": {
+        "manufacturer": "Texas Instruments",
+        "category": "tvs",
+        "partNumbers": [
+          "TPD2E2U06"
+        ]
+      }
     }
   ]
 }
