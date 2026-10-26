@@ -56,6 +56,13 @@ every merged pull request.
   or a TPS2595 a load switch. What a datasheet says a part doesn't need
   or has inside ("no external MOSFET", "internal PMOSFET") no longer
   makes a charger a MOSFET. Re-extraction is offered. (#78)
+- **An inductor across a converter's LX pins is drawn properly.** A
+  switch node (LX, LX1, SW2, PH) is an output whatever its pin table
+  types it, so it sits on the right of the symbol: the TPS63900's LX1 and
+  LX2, typed P, went on top with the supplies, and the inductor drawn
+  across them folded up with both nets into one end. A passive is only
+  drawn across two pins on the same left or right side now; across any
+  other two, it hangs off one with the other net named at its far end. (#86)
 
 ## [0.1.1] - 2026-10-24
 
@@ -220,14 +227,6 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
-
-- **An inductor across a converter's LX pins is drawn properly.** A
-  switch node (LX, LX1, SW2, PH) is an output whatever its pin table
-  types it, so it sits on the right of the symbol: the TPS63900's LX1 and
-  LX2, typed P, went on top with the supplies, and the inductor drawn
-  across them folded up with both nets into one end. A passive is only
-  drawn across two pins on the same left or right side now; across any
-  other two, it hangs off one with the other net named at its far end.
 - **Subgroups named through `set_connections` are kept.** The tool
   accepted `cluster` and then dropped it before it reached the project,
   so no name was stored, echoed or drawn. It's now stored, shown in
