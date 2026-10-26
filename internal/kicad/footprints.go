@@ -284,6 +284,9 @@ func FindFootprints() *DirIndex {
 
 // Footprints lists a library's footprints by name, sorted.
 func (d *DirIndex) Footprints(library string) []string {
+	if d == nil {
+		return nil
+	}
 	if names, ok := d.cache[library]; ok {
 		return names
 	}

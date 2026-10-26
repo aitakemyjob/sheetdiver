@@ -69,7 +69,13 @@ func (s *Service) ExportKiCad(ctx context.Context, project, dir string) (KiCadEx
 		return KiCadExport{}, err
 	}
 	info := s.entryInfo(ctx, detail.Parts)
-	sch := schematicOf(detail, info, s.drawnCells(detail.Project.Name), kicad.DefaultFootprints(kicad.FindFootprints()))
+	// A nil *DirIndex in the interface would pass DefaultFootprints' nil
+	// check: only an installed library is handed over.
+	var index kicad.FootprintIndex
+	if installed := kicad.FindFootprints(); installed != nil {
+		index = installed
+	}
+	sch := schematicOf(detail, info, s.drawnCells(detail.Project.Name), kicad.DefaultFootprints(index))
 	sch.Date = time.Now().Format("2006-01-02")
 	out := KiCadExport{Dir: dir, Components: len(sch.Components), Unplaced: []string{}}
 	for _, c := range sch.Components {

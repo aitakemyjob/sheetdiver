@@ -186,3 +186,19 @@ func TestFootprints(t *testing.T) {
 		t.Errorf("unresolved: %+v", got)
 	}
 }
+
+// TestFootprintsWithoutKiCad: with no libraries installed, the chain
+// still places what it can by name and leaves a QFN unplaced.
+func TestFootprintsWithoutKiCad(t *testing.T) {
+	var missing *DirIndex
+	if got := missing.Footprints("Package_DFN_QFN"); got != nil {
+		t.Errorf("footprints of no library: %q", got)
+	}
+	chain := DefaultFootprints(nil)
+	if got := chain.Footprint(FootprintQuery{Kind: KindIC, Texts: []string{"VQFN-12 3x3mm"}}); got.LibID != "" {
+		t.Errorf("QFN without KiCad: %+v", got)
+	}
+	if got := chain.Footprint(FootprintQuery{Kind: KindResistor, Texts: []string{"0402"}}); got.LibID != "Resistor_SMD:R_0402_1005Metric" {
+		t.Errorf("chip without KiCad: %+v", got)
+	}
+}
