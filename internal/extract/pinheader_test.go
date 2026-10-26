@@ -2,6 +2,7 @@ package extract
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -128,5 +129,118 @@ func TestPinHeaderRejects(t *testing.T) {
 	// Eight columns are fine.
 	if _, _, ok := pinHeader([]Row{hrow(100, append(words[:12:12], 490.0, "NAME", 540.0, "DESCRIPTION")...)}, 0); !ok {
 		t.Error("eight columns")
+	}
+}
+
+// pinsOf reads a pin table from its header rows and body rows.
+func pinsOf(t *testing.T, rows []Row, headerRows int) []Pin {
+	t.Helper()
+	cols, last, ok := pinHeader(rows, 0)
+	if !ok || last != headerRows-1 {
+		t.Fatalf("header not found: %v, last %d", ok, last)
+	}
+	_, pins := pinTable(cols, rows[0], rows[headerRows:], 3, "Pin Functions")
+	return pins
+}
+
+// pinList is "package number name" for each pin.
+func pinList(pins []Pin) []string {
+	var out []string
+	for _, p := range pins {
+		out = append(out, strings.Join(strings.Fields(p.Package+" "+p.Number+" "+p.Name), " "))
+	}
+	return out
+}
+
+func TestPinTableOnePackagePerPart(t *testing.T) {
+	// The TPS2121's table: a column per part and package, under three
+	// header rows; OUT's numbers set above and below its name (#75, #76).
+	rows := []Row{
+		hrow(493, 125.0, "PIN"),
+		hrow(507, 115.0, "TPS2120", 163.0, "TPS2121", 226.0, "I/O", 379.0, "DESCRIPTION"),
+		hrow(514, 59.0, "NAME"),
+		hrow(521, 119.0, "WCSP", 163.0, "VQFN-HR"),
+		hrow(535, 59.0, "IN1", 112.0, "B1, B2, C1", 179.0, "7", 230.0, "I", 259.0, "Power Input for Source 1"),
+		hrow(563, 111.0, "C2, C3, D1,", 175.0, "1, 8"),
+		hrow(568, 59.0, "OUT", 230.0, "I", 259.0, "Power Output"),
+		hrow(573, 112.0, "D2, D3, D4"),
+		hrow(586, 59.0, "ST", 127.0, "E1", 179.0, "9", 228.0, "O", 259.0, "Status output"),
+		hrow(717, 59.0, "SEL", 126.0, "A4", 177.0, "—", 230.0, "I", 259.0, "TPS2120 only."),
+	}
+	got := pinList(pinsOf(t, rows, 4))
+	want := []string{
+		"TPS2120 WCSP B1 IN1", "TPS2120 WCSP B2 IN1", "TPS2120 WCSP C1 IN1", "TPS2121 VQFN-HR 7 IN1",
+		"TPS2120 WCSP C2 OUT", "TPS2120 WCSP C3 OUT", "TPS2120 WCSP D1 OUT", "TPS2120 WCSP D2 OUT", "TPS2120 WCSP D3 OUT", "TPS2120 WCSP D4 OUT",
+		"TPS2121 VQFN-HR 1 OUT", "TPS2121 VQFN-HR 8 OUT",
+		"TPS2120 WCSP E1 ST", "TPS2121 VQFN-HR 9 ST",
+		"TPS2120 WCSP A4 SEL",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("pins =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestPinTablePackageColumns(t *testing.T) {
+	// The TPD2E2U06's: DRL and DCK columns; NC on two pins in DRL only.
+	// The header row naming the packages isn't a pin.
+	rows := []Row{
+		hrow(419, 123.0, "PIN"),
+		hrow(425, 225.0, "I/O", 380.0, "DESCRIPTION"),
+		hrow(432, 57.0, "NAME", 122.0, "DRL", 172.0, "DCK"),
+		hrow(445, 57.0, "IO1", 127.0, "3", 178.0, "1", 225.0, "I/O", 259.0, "ESD protected channel"),
+		hrow(472, 57.0, "NC", 123.0, "1, 2", 176.0, "—", 259.0, "Not connected"),
+		hrow(485, 57.0, "GND", 127.0, "4", 178.0, "3", 227.0, "G", 259.0, "Ground"),
+	}
+	got := pinList(pinsOf(t, rows, 3))
+	want := []string{"DRL 3 IO1", "DCK 1 IO1", "DRL 1 NC", "DRL 2 NC", "DRL 4 GND", "DCK 3 GND"}
+	if !slices.Equal(got, want) {
+		t.Errorf("pins = %q, want %q", got, want)
+	}
+	// The MAX17048's: TDFN and WLP under PIN/BUMP; the exposed pad, a dash
+	// in both, belongs to the package its description names.
+	rows = []Row{
+		hrow(411, 76.0, "PIN/BUMP"),
+		hrow(417, 150.0, "NAME", 351.0, "FUNCTION"),
+		hrow(424, 64.0, "TDFN", 108.0, "WLP"),
+		hrow(437, 74.0, "1", 112.0, "A1", 154.0, "CTG", 192.0, "Connect to Ground"),
+		hrow(618, 71.0, "—", 113.0, "—", 157.0, "EP", 192.0, "Exposed Pad (TDFN Only). Connect to GND."),
+	}
+	got = pinList(pinsOf(t, rows, 3))
+	want = []string{"TDFN 1 CTG", "WLP A1 CTG", "TDFN EP"}
+	if !slices.Equal(got, want) {
+		t.Errorf("pins = %q, want %q", got, want)
+	}
+}
+
+func TestPinNumbers(t *testing.T) {
+	for cell, want := range map[string][]string{
+		"4, 5, 6":                      {"4", "5", "6"},
+		"4–6":                          {"4", "5", "6"},
+		"B1, B2, C1":                   {"B1", "B2", "C1"},
+		"1, 2, 3, exposed thermal pad": {"1", "2", "3", "PAD"},
+		"PAD":                          {"PAD"},
+		"—":                            nil,
+		"":                             nil,
+		"17":                           {"17"},
+		"3,4":                          {"3", "4"},
+	} {
+		if got := pinNumbers(cell); !slices.Equal(got, want) {
+			t.Errorf("pinNumbers(%q) = %q, want %q", cell, got, want)
+		}
+	}
+	// The TVS0500's: pin ranges, and the pad's words wrapped onto a second line.
+	rows := []Row{
+		hrow(291, 127.0, "PIN"),
+		hrow(298, 265.0, "TYPE", 422.0, "DESCRIPTION"),
+		hrow(305, 71.0, "NAME", 155.0, "No."),
+		hrow(318, 58.0, "IN", 150.0, "4, 5, 6", 275.0, "I", 343.0, "ESD and surge protected channel"),
+		hrow(331, 118.0, "1, 2, 3, exposed thermal"),
+		hrow(335, 57.0, "GND", 267.0, "GND", 342.0, "Ground"),
+		hrow(340, 155.0, "pad"),
+	}
+	got := pinList(pinsOf(t, rows, 3))
+	want := []string{"4 IN", "5 IN", "6 IN", "1 GND", "2 GND", "3 GND", "PAD GND"}
+	if !slices.Equal(got, want) {
+		t.Errorf("pins = %q, want %q", got, want)
 	}
 }

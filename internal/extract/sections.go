@@ -56,7 +56,7 @@ var sectionKinds = []struct {
 	{regexp.MustCompile(`(?i)typical (performance )?characteristics|typical performance|performance curves|typical operating characteristics`), KindTypical},
 	{regexp.MustCompile(`(?i)register|memory map|bit description`), KindRegisters},
 	{regexp.MustCompile(`(?i)block diagram`), KindBlock},
-	{regexp.MustCompile(`(?i)pin (configuration|description|function|assignment|out|definition)|pinout|pin ?map|terminal (configuration|functions)|ball (map|configuration)`), KindPins},
+	{regexp.MustCompile(`(?i)pin(/(bump|ball))? (configuration|description|function|assignment|out|definition)|pinout|pin ?map|terminal (configuration|functions)|ball (map|configuration)`), KindPins},
 	{regexp.MustCompile(`(?i)detailed design|design procedure|design steps|design requirements|design parameters|calculat`), KindDesign},
 	{regexp.MustCompile(`(?i)\bselection\b|selecting the|external components|choosing|component values`), KindComponents},
 	{regexp.MustCompile(`(?i)application curves|performance curves|typical waveforms`), KindTypical},
@@ -103,7 +103,7 @@ var headingRe = regexp.MustCompile(`^(\d{1,2}(?:\.\d{1,2}){0,3})\.?\s+([A-Z][A-Z
 
 // plainHeadings are unnumbered headings worth recognising when set in a
 // larger or bold font.
-var plainHeadings = regexp.MustCompile(`(?i)^(features|applications|description|general description|pin (configurations?|descriptions?|functions?|assignments?)( and functions)?|absolute maximum ratings|recommended operating conditions|electrical (characteristics|parameters)|thermal (information|characteristics)|typical (performance )?characteristics|typical applications?( circuit)?|block diagram|functional block diagram|application information|detailed description|layout( guidelines)?|package (information|dimensions)|ordering information|register (map|description)s?)( \(notes? [\d, ]+\))?$`)
+var plainHeadings = regexp.MustCompile(`(?i)^(features|applications|description|general description|pin(/(bump|ball))? (configurations?|descriptions?|functions?|assignments?)( and functions)?|absolute maximum ratings|recommended operating conditions|electrical (characteristics|parameters)|thermal (information|characteristics)|typical (performance )?characteristics|typical applications?( circuit)?|block diagram|functional block diagram|application information|detailed description|layout( guidelines)?|package (information|dimensions)|ordering information|register (map|description)s?)( \(notes? [\d, ]+\))?$`)
 
 // Sections builds the section tree, preferring the PDF outline (exact and
 // already nested) and falling back to heading detection by font.
