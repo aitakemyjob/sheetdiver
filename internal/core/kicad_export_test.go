@@ -37,6 +37,12 @@ func TestExportKiCad(t *testing.T) {
 			t.Errorf("schematic lacks %s", w)
 		}
 	}
+	// With KiCad's footprints installed, a board comes too.
+	if kicad.FindFootprints() != nil {
+		if out.Board != "USB-C_to_3V3.kicad_pcb" || !slices.Contains(out.Files, out.Board) {
+			t.Errorf("board %q in %q", out.Board, out.Files)
+		}
+	}
 	if out.Components != 15 {
 		t.Errorf("components = %d", out.Components)
 	}

@@ -667,7 +667,7 @@ func (s *Server) registerDesign() {
 			return text(md), err
 		})
 
-	addTool(s, &mcp.Tool{Name: "export_kicad", Description: "Export a project's block diagram as a KiCad schematic (KiCad 7 or later): every part where the app drew it, with the passives that serve it wired to its pins and the nets that leave it labelled, symbols generated from the datasheets' pin tables (passives use KiCad's Device symbols), footprints from KiCad's libraries where the package says which, in the diagram's groups. Also writes a PDF layout guide: each datasheet's layout sections and figures, general layout practice for each part, and the footprints used. Returns the folder and the parts still needing a footprint.", Annotations: writes("Export KiCad schematic", true)},
+	addTool(s, &mcp.Tool{Name: "export_kicad", Description: "Export a project's block diagram as a KiCad schematic (KiCad 7 or later): every part where the app drew it, with the passives that serve it wired to its pins and the nets that leave it labelled, symbols generated from the datasheets' pin tables (passives use KiCad's Device symbols), footprints from KiCad's libraries where the package says which, in the diagram's groups. With KiCad's footprint libraries installed, also writes a board with the parts placed (each passive at the pin it serves, nothing routed). Also writes a PDF layout guide: each datasheet's layout sections and figures, general layout practice for each part, and the footprints used. Returns the folder and the parts still needing a footprint.", Annotations: writes("Export KiCad schematic", true)},
 		write, func(a kicadArgs) string { return "export kicad " + a.Project }, func(ctx context.Context, a kicadArgs) (result, error) {
 			out, err := c.ExportKiCad(ctx, a.Project, a.Dir)
 			if err != nil {
@@ -675,6 +675,14 @@ func (s *Server) registerDesign() {
 			}
 			var b strings.Builder
 			fmt.Fprintf(&b, "wrote %s to %s\n%d symbols, %d with a footprint; the layout guide has %d pieces of advice and datasheet layout sections or figures.\n", strings.Join(out.Files, ", "), out.Dir, out.Components, out.Footprints, out.Advice)
+			if out.Board != "" {
+				fmt.Fprintf(&b, "%s has the parts placed (each passive at the pin it serves, nothing routed, a ground plane on In1.Cu); the layout guide says where each went and why.\n", out.Board)
+				for _, o := range out.OffBoard {
+					b.WriteString("- not on the board: " + o + "\n")
+				}
+			} else {
+				b.WriteString("No board: KiCad's footprint libraries aren't installed here, so nothing could be placed.\n")
+			}
 			if len(out.Unplaced) > 0 {
 				b.WriteString("no footprint yet (choose one in KiCad, or set the part's package with update_part and export again):\n")
 				for _, u := range out.Unplaced {

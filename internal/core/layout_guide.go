@@ -32,7 +32,7 @@ const maxLayoutFigures = 4
 
 // layoutGuide writes the guide as a PDF, with how many pieces of advice
 // and datasheet sections it has.
-func (s *Service) layoutGuide(ctx context.Context, detail ProjectDetail, info map[int64]entryInfo, sch kicad.Schematic) ([]byte, int) {
+func (s *Service) layoutGuide(ctx context.Context, detail ProjectDetail, info map[int64]entryInfo, sch kicad.Schematic, board *kicad.BoardResult) ([]byte, int) {
 	name := detail.Project.Name
 	doc := docpdf.New(name+" PCB layout guide", name+" layout guide · SheetDiver")
 	doc.Heading(1, name+": PCB layout guide")
@@ -69,6 +69,17 @@ func (s *Service) layoutGuide(ctx context.Context, detail ProjectDetail, info ma
 			for _, a := range mine {
 				doc.Bullet(a.Topic + ": " + a.Text)
 			}
+		}
+	}
+
+	if board != nil {
+		doc.Heading(2, "Board placement")
+		doc.Small("How SheetDiver placed the parts on the board it wrote: a starting point, with each passive at the pin it serves. Nothing is routed; the airwires show what's left. Move parts as the datasheets' layout examples above show.")
+		for _, n := range board.Notes {
+			doc.Bullet(n.Text)
+		}
+		for _, m := range append(append([]string{}, board.Missing...), board.Unmatched...) {
+			doc.Bullet("Not on the board: " + m)
 		}
 	}
 

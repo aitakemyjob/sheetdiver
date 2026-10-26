@@ -36,6 +36,10 @@ type KiCadExport struct {
 	// and datasheet sections it has.
 	Guide  string `json:"guide"`
 	Advice int    `json:"advice"`
+	// Board is the board's file, "" when KiCad's footprints aren't
+	// installed to place; OffBoard the parts and pins left off it.
+	Board    string   `json:"board,omitempty"`
+	OffBoard []string `json:"offBoard"`
 }
 
 // entryInfo is what the export needs of a BOM entry's part.
@@ -69,9 +73,14 @@ func (s *Service) ExportKiCad(ctx context.Context, project, dir string) (KiCadEx
 		return KiCadExport{}, err
 	}
 	info := s.entryInfo(ctx, detail.Parts)
-	sch := schematicOf(detail, info, s.drawnCells(detail.Project.Name), kicad.DefaultFootprints(kicad.FindFootprints()))
+	installed := kicad.FindFootprints()
+	var index kicad.FootprintIndex
+	if installed != nil {
+		index = installed
+	}
+	sch := schematicOf(detail, info, s.drawnCells(detail.Project.Name), kicad.DefaultFootprints(index))
 	sch.Date = time.Now().Format("2006-01-02")
-	out := KiCadExport{Dir: dir, Components: len(sch.Components), Unplaced: []string{}}
+	out := KiCadExport{Dir: dir, Components: len(sch.Components), Unplaced: []string{}, OffBoard: []string{}}
 	for _, c := range sch.Components {
 		if c.Footprint.LibID != "" {
 			out.Footprints++
@@ -80,7 +89,15 @@ func (s *Service) ExportKiCad(ctx context.Context, project, dir string) (KiCadEx
 		}
 	}
 	files := kicad.NewWriter().Write(sch).Files(base)
-	guide, advice := s.layoutGuide(ctx, detail, info, sch)
+	var board *kicad.BoardResult
+	if installed != nil {
+		b := (&kicad.BoardWriter{Footprints: installed}).Write(sch)
+		board = &b
+		out.Board = base + ".kicad_pcb"
+		files[out.Board] = b.Board
+		out.OffBoard = append(append(out.OffBoard, b.Missing...), b.Unmatched...)
+	}
+	guide, advice := s.layoutGuide(ctx, detail, info, sch, board)
 	out.Guide, out.Advice = base+"-layout-guide.pdf", advice
 	names := slices.Sorted(func(yield func(string) bool) {
 		for name := range files {

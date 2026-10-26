@@ -1,6 +1,8 @@
 package kicad
 
 import (
+	"encoding/json"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -184,5 +186,94 @@ func TestFootprints(t *testing.T) {
 	}
 	if got := chain.Footprint(FootprintQuery{Kind: KindIC, Texts: []string{"WCSP"}, Pads: 20}); got.LibID != "" || !strings.Contains(got.Hint, "WCSP") {
 		t.Errorf("unresolved: %+v", got)
+	}
+}
+
+// boardFootprints are footprints for the test board, from KiCad's
+// libraries.
+var boardFootprints = map[string]string{
+	"U1": "Package_SO:MSOP-10_3x3mm_P0.5mm", "L1": "Inductor_SMD:L_1210_3225Metric", "L2": "Inductor_SMD:L_1210_3225Metric",
+	"C1": "Capacitor_SMD:C_0603_1608Metric", "C2": "Capacitor_SMD:C_0805_2012Metric", "R1": "Resistor_SMD:R_0402_1005Metric",
+	"R2": "Resistor_SMD:R_0402_1005Metric", "R3": "Resistor_SMD:R_0402_1005Metric", "D1": "LED_SMD:LED_0603_1608Metric",
+	"Q1": "Package_TO_SOT_SMD:SOT-23", "J1": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+}
+
+// TestBoardInKiCad has KiCad load the board and checks each pad's net,
+// that no courtyards overlap, and that the passives sit at their pins.
+// It needs KiCad's footprints and its Python module.
+func TestBoardInKiCad(t *testing.T) {
+	src := FindFootprints()
+	if src == nil {
+		t.Skip("KiCad's footprints aren't installed")
+	}
+	if exec.Command("python3", "-c", "import pcbnew").Run() != nil {
+		t.Skip("KiCad's Python module isn't installed")
+	}
+	s := buckBoard()
+	for i := range s.Components {
+		s.Components[i].Footprint.LibID = boardFootprints[s.Components[i].Ref]
+	}
+	res := (&BoardWriter{Footprints: src}).Write(s)
+	if len(res.Missing) != 0 {
+		t.Errorf("missing: %q", res.Missing)
+	}
+	// The header's pins are named, not numbered: said, not guessed.
+	if len(res.Unmatched) != 2 || !strings.Contains(res.Unmatched[0], "J1 pin VBUS") {
+		t.Errorf("unmatched: %q", res.Unmatched)
+	}
+	path := filepath.Join(t.TempDir(), "buck.kicad_pcb")
+	if err := os.WriteFile(path, []byte(res.Board), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("python3", "testdata/board_report.py", path).Output()
+	if err != nil {
+		t.Fatalf("KiCad can't load the board: %v", err)
+	}
+	var report struct {
+		Footprints []struct {
+			Ref  string
+			Pads []struct {
+				Number string
+				Net    string
+				X, Y   float64
+			}
+		}
+		DRC []string
+	}
+	if err := json.Unmarshal(out, &report); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	type pad struct {
+		net  string
+		x, y float64
+	}
+	pads := map[string]pad{}
+	for _, f := range report.Footprints {
+		for _, p := range f.Pads {
+			pads[f.Ref+"."+p.Number] = pad{p.Net, p.X, p.Y}
+		}
+	}
+	if len(report.Footprints) != len(s.Components) {
+		t.Errorf("%d footprints on the board, want %d", len(report.Footprints), len(s.Components))
+	}
+	for pin, net := range wantNets {
+		if strings.HasPrefix(pin, "J1.") {
+			continue
+		}
+		if got := pads[pin].net; "/"+got != net && got != net {
+			t.Errorf("pad %s on %q, want %q", pin, got, net)
+		}
+	}
+	for _, d := range report.DRC {
+		if strings.Contains(d, "courtyard") || strings.Contains(d, "clearance") || strings.Contains(d, "short") {
+			t.Errorf("DRC: %s", d)
+		}
+	}
+	// Each passive's pad on the shared net close to the pin it serves.
+	for _, c := range [][2]string{{"C1.1", "U1.2"}, {"R1.2", "U1.4"}, {"L2.1", "U1.8"}, {"L2.2", "U1.9"}} {
+		a, b := pads[c[0]], pads[c[1]]
+		if d := math.Hypot(a.x-b.x, a.y-b.y); d > 3.5 {
+			t.Errorf("%s is %.1f mm from %s", c[0], d, c[1])
+		}
 	}
 }

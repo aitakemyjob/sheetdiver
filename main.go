@@ -334,6 +334,9 @@ func runKiCad(args []string) error {
 	for _, u := range out.Unplaced {
 		fmt.Println("  no footprint:", u)
 	}
+	for _, o := range out.OffBoard {
+		fmt.Println("  not on the board:", o)
+	}
 	return nil
 }
 

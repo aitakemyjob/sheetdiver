@@ -25,6 +25,14 @@ every merged pull request.
   package code (DBV, DCK) with the pin count, or a QFN/DFN of a given size
   among the footprints installed with KiCad. The rest are listed, with
   what is known of their package.
+- **A first board placement (preview).** When KiCad's footprint
+  libraries are installed, the export also writes a four-layer
+  `.kicad_pcb`: each part's footprint with its pads on their nets, and
+  the passives that serve it right at the pins they serve (the pad on the
+  shared net facing the pin, as close as the courtyards allow; an
+  inductor lying beside the two pins it bridges), parts packed by group,
+  a ground plane on the first inner layer, nothing routed. The layout
+  guide lists where each part went and why, and what was left off.
 - **A PCB layout guide with the export.** A PDF with each part's layout
   advice from its datasheet (the layout sections, quoted with their pages,
   and the layout figures) kept apart from general practice for what the

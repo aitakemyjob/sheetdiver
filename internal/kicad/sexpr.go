@@ -1,6 +1,7 @@
 package kicad
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -133,4 +134,138 @@ func yesNo(b bool) sym {
 		return "yes"
 	}
 	return "no"
+}
+
+// Reading S-expressions, as KiCad's footprint files are written.
+
+// parse reads one list from text: bare words become syms, quoted
+// strings strings, lists nodes.
+func parse(text string) (*node, error) {
+	p := &parser{text: text}
+	p.space()
+	if p.pos >= len(p.text) || p.text[p.pos] != '(' {
+		return nil, fmt.Errorf("not an S-expression")
+	}
+	return p.list()
+}
+
+// parser is a position in a text being read.
+type parser struct {
+	text string
+	pos  int
+}
+
+// space skips white space.
+func (p *parser) space() {
+	for p.pos < len(p.text) && strings.ContainsRune(" \t\r\n", rune(p.text[p.pos])) {
+		p.pos++
+	}
+}
+
+// list reads a list from its opening parenthesis.
+func (p *parser) list() (*node, error) {
+	p.pos++ // (
+	n := &node{}
+	for {
+		p.space()
+		if p.pos >= len(p.text) {
+			return nil, fmt.Errorf("unclosed list")
+		}
+		switch c := p.text[p.pos]; c {
+		case ')':
+			p.pos++
+			return n, nil
+		case '(':
+			child, err := p.list()
+			if err != nil {
+				return nil, err
+			}
+			n.items = append(n.items, child)
+		case '"':
+			s, err := p.quoted()
+			if err != nil {
+				return nil, err
+			}
+			n.items = append(n.items, s)
+		default:
+			start := p.pos
+			for p.pos < len(p.text) && !strings.ContainsRune(" \t\r\n()", rune(p.text[p.pos])) {
+				p.pos++
+			}
+			n.items = append(n.items, sym(p.text[start:p.pos]))
+		}
+	}
+}
+
+// quoted reads a quoted string, unescaping it.
+func (p *parser) quoted() (string, error) {
+	start := p.pos
+	p.pos++
+	for p.pos < len(p.text) {
+		switch p.text[p.pos] {
+		case '\\':
+			p.pos += 2
+			continue
+		case '"':
+			p.pos++
+			s, err := strconv.Unquote(p.text[start:p.pos])
+			if err != nil {
+				// KiCad escapes less than Go: keep the text as written.
+				return p.text[start+1 : p.pos-1], nil
+			}
+			return s, nil
+		}
+		p.pos++
+	}
+	return "", fmt.Errorf("unclosed string")
+}
+
+// head is a list's keyword.
+func (n *node) head() string {
+	if len(n.items) == 0 {
+		return ""
+	}
+	s, _ := n.items[0].(sym)
+	return string(s)
+}
+
+// text is an atom of a list as text, quoted or not; "" when it isn't one.
+func (n *node) text(i int) string {
+	if i >= len(n.items) {
+		return ""
+	}
+	switch v := n.items[i].(type) {
+	case sym:
+		return string(v)
+	case string:
+		return v
+	}
+	return ""
+}
+
+// float is an atom of a list as a number; 0 when it isn't one.
+func (n *node) float(i int) float64 {
+	f, _ := strconv.ParseFloat(n.text(i), 64)
+	return f
+}
+
+// child is a list's first list with a keyword, nil when there's none.
+func (n *node) child(head string) *node {
+	for _, it := range n.items {
+		if c, ok := it.(*node); ok && c.head() == head {
+			return c
+		}
+	}
+	return nil
+}
+
+// children are a list's lists with a keyword.
+func (n *node) children(head string) []*node {
+	var out []*node
+	for _, it := range n.items {
+		if c, ok := it.(*node); ok && c.head() == head {
+			out = append(out, c)
+		}
+	}
+	return out
 }
