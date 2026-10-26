@@ -59,6 +59,8 @@ type ImportResult struct {
 	Families  []string          `json:"families"`
 	Variants  int               `json:"variants"`
 	Took      string            `json:"took"`
+	// Warnings are what to check by hand: pins the extraction missed.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Import reads a datasheet into the library and tracks it as an import
@@ -162,7 +164,8 @@ func (s *Service) importPDF(ctx context.Context, req ImportRequest, job *ImportJ
 			"pages": len(doc.Pages), "sections": len(res.Sections), "figures": len(res.Figures),
 			"tables": len(res.Tables), "parameters": len(res.Params), "pins": len(res.Pins),
 		},
-		Took: time.Since(start).Round(time.Millisecond).String(),
+		Took:     time.Since(start).Round(time.Millisecond).String(),
+		Warnings: res.PinWarnings,
 	}
 	s.emit(EvLibrary, map[string]any{"datasheetId": id, "action": "imported"})
 	return out, nil

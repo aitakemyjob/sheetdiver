@@ -104,23 +104,26 @@ type Pin struct {
 
 // Result is everything Analyze found.
 type Result struct {
-	Title        string      `json:"title"`
-	Description  string      `json:"description"`
-	Manufacturer string      `json:"manufacturer"`
-	PartNumbers  []string    `json:"partNumbers"`
-	Families     []string    `json:"families"`
-	Revision     Revision    `json:"revision"`
-	Variants     []Variant   `json:"variants"`
-	Category     string      `json:"category"`
-	Lines        [][]Line    `json:"-"`
-	PageText     []string    `json:"-"`
-	Sections     []Section   `json:"sections"`
-	Figures      []Figure    `json:"figures"`
-	Tables       []Table     `json:"tables"`
-	Params       []Param     `json:"params"`
-	Pins         []Pin       `json:"pins"`
-	BodySize     float64     `json:"bodySize"`
-	Pages        []PageShape `json:"pages"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description"`
+	Manufacturer string    `json:"manufacturer"`
+	PartNumbers  []string  `json:"partNumbers"`
+	Families     []string  `json:"families"`
+	Revision     Revision  `json:"revision"`
+	Variants     []Variant `json:"variants"`
+	Category     string    `json:"category"`
+	Lines        [][]Line  `json:"-"`
+	PageText     []string  `json:"-"`
+	Sections     []Section `json:"sections"`
+	Figures      []Figure  `json:"figures"`
+	Tables       []Table   `json:"tables"`
+	Params       []Param   `json:"params"`
+	Pins         []Pin     `json:"pins"`
+	// PinWarnings say when the pins read fall short of what the datasheet
+	// says its packages have (or none were read).
+	PinWarnings []string    `json:"pinWarnings,omitempty"`
+	BodySize    float64     `json:"bodySize"`
+	Pages       []PageShape `json:"pages"`
 	// Language is the datasheet's main language: en, zh, ja or ko.
 	Language string `json:"language"`
 }
@@ -153,17 +156,22 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	r.Sections = Sections(doc, r.Lines, r.BodySize, lay)
 	r.Figures = Figures(doc, r.Lines, r.Sections, lay)
 	r.Figures = append(r.Figures, SectionFigures(doc, r.Lines, r.Sections, lay, r.Figures)...)
+	r.Title, r.Description = titleAndDescription(doc, r.Lines)
+	r.Category = Category(r.Title, r.Description, first(r.PageText))
 	tables, params, pins := Tables(doc, r.Sections, lay)
 	r.Tables, r.Params, r.Pins = tables, params, pins
 	if len(r.Pins) == 0 {
 		r.Pins = ProsePins(r.Lines, r.Sections, lay)
 	}
+	if len(r.Pins) == 0 {
+		r.Pins = drawingPins(r.Lines, r.Category)
+	}
 	fillSectionText(r.Sections, r.Lines, lay, r.BodySize, contentRegions(r.Figures, r.Tables))
-	r.Title, r.Description = titleAndDescription(doc, r.Lines)
+	r.Pins = numberPads(r.Pins)
+	r.PinWarnings = pinWarnings(r.Pins, packagePinCounts(pinTexts(r.Sections, r.Figures), first(r.PageText)))
 	r.Manufacturer = Manufacturer(doc, r.PageText)
 	r.Families = Families(doc, r.PageText)
 	r.PartNumbers, r.Variants = Expand(r.PageText, PartNumbers(doc, r.Lines, filename), r.Families)
-	r.Category = Category(r.Title, r.Description, first(r.PageText))
 	// A row whose minimum exceeds its maximum was misread; don't let it
 	// stand for a key.
 	for i, p := range r.Params {

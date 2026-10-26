@@ -77,7 +77,11 @@
             "typ": 1
           }
         },
-        "revision": "SLVSET3 rev D (OCTOBER 2020)"
+        "revision": "SLVSET3 rev D (OCTOBER 2020)",
+        "pins": 11,
+        "pinNames": [
+          "Thermal Pad"
+        ]
       }
     },
     {
@@ -628,6 +632,45 @@
           "IO2",
           "NC",
           "GND"
+        ]
+      }
+    },
+    {
+      "file": "nds331n.pdf",
+      "url": "https://www.onsemi.com/download/data-sheet/pdf/nds331n-d.pdf",
+      "sha256": "befcb8cccb29d08f7c49c226e596c55347c4585cb5ef4dcbb656831619098bbc",
+      "manual": true,
+      "why": "A SOT-23 MOSFET with no pin table: its pins are only on the marking diagram, \"1 Gate\", \"2 Source\", \"Drain 3\" (#75). onsemi refuses scripted downloads.",
+      "expect": {
+        "manufacturer": "onsemi",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "NDS331N"
+        ],
+        "pins": 3,
+        "pinNames": [
+          "Gate",
+          "Source",
+          "Drain"
+        ]
+      }
+    },
+    {
+      "file": "nds331n-rev5.pdf",
+      "url": "https://jlcpcb.com/api/file/downloadByFileSystemAccessId/8588918452362874880",
+      "sha256": "0d564f427d26ca86af66104fba96cbaca15dc23eaa4944ec15220840157b4d44",
+      "why": "The NDS331N's Rev. 5 (2017, the old Fairchild layout), which the catalogue links to: no pin table, no marking diagram, and no pin number anywhere. Its package drawing letters the leads \"D\", \"S\", \"G\", which are the pins, unnumbered (#75).",
+      "expect": {
+        "manufacturer": "onsemi",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "NDS331N"
+        ],
+        "pins": 3,
+        "pinNames": [
+          "Gate",
+          "Source",
+          "Drain"
         ]
       }
     }
