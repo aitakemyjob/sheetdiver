@@ -3,6 +3,7 @@ package extract
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"slices"
@@ -98,13 +99,14 @@ func pinWarnings(pins []Pin, counts []packageCount) []string {
 		n := slices.MaxFunc(counts, func(a, b packageCount) int { return a.n - b.n })
 		return []string{fmt.Sprintf("no pins were read, though the datasheet describes a %s package: record them with record_pins", n.text)}
 	}
-	numbers := map[string]map[string]bool{}
+	numbers, named := map[string]map[string]bool{}, map[string]int{}
 	var pkgs []string
 	for _, p := range pins {
 		if numbers[p.Package] == nil {
 			numbers[p.Package] = map[string]bool{}
 			pkgs = append(pkgs, p.Package)
 		}
+		named[p.Package]++
 		if p.Number != "" && !padRe.MatchString(p.Name+" "+p.Description) {
 			numbers[p.Package][p.Number] = true
 		}
@@ -112,11 +114,15 @@ func pinWarnings(pins []Pin, counts []packageCount) []string {
 	var out []string
 	for _, pkg := range pkgs {
 		want := expectedCount(pkg, counts, len(pkgs) == 1)
-		if got := len(numbers[pkg]); want > 0 && got < want {
-			label := ""
-			if pkg != "" {
-				label = " for " + pkg
-			}
+		got := len(numbers[pkg])
+		label := ""
+		if pkg != "" {
+			label = " for " + pkg
+		}
+		switch {
+		case want > 0 && got == 0:
+			out = append(out, fmt.Sprintf("%d pins were read%s but the datasheet gives them no numbers: record them with record_pins", named[pkg], label))
+		case want > 0 && got < want:
 			out = append(out, fmt.Sprintf("only %d of %d pins were read%s: check the pin table and record the rest with record_pins", got, want, label))
 		}
 	}
@@ -171,17 +177,31 @@ var terminalRe = regexp.MustCompile(`^(?i:gate|drain|source|base|collector|emitt
 // pinDigitRe is a pin number on a pinout drawing.
 var pinDigitRe = regexp.MustCompile(`^\d{1,2}$`)
 
+// terminalLetters are the letters a drawing labels a discrete part's
+// terminals with when it gives no numbers at all, by category: an old
+// datasheet's package drawing with just "D", "S" and "G" beside the
+// leads (the NDS331N's Rev. 5). The whole set must be there.
+var terminalLetters = map[string]map[string]string{
+	"mosfet":   {"G": "Gate", "D": "Drain", "S": "Source"},
+	"mosfet-n": {"G": "Gate", "D": "Drain", "S": "Source"},
+	"mosfet-p": {"G": "Gate", "D": "Drain", "S": "Source"},
+	"diode":    {"A": "Anode", "K": "Cathode"},
+	"tvs":      {"A": "Anode", "K": "Cathode"},
+}
+
 // drawingPins reads the pins of a part without a pin table from its
 // pinout drawing on the first pages: each terminal name with the pin
 // number nearest it ("1 Gate", "2 Source", "Drain 3" around a SOT-23).
-// Two terminals at least, each with its own number, or none.
-func drawingPins(lines [][]Line) []Pin {
+// Two terminals at least, each with its own number, or none. A drawing
+// that only letters its leads ("D", "S", "G"), with no numbers to pair
+// them with, gives the category's terminals unnumbered.
+func drawingPins(lines [][]Line, category string) []Pin {
 	type place struct {
 		w    word
 		page int
 	}
 	for pi := 0; pi < min(2, len(lines)); pi++ {
-		var terms, digits []place
+		var terms, digits, letters []place
 		for _, l := range lines[pi] {
 			for _, w := range words(l.Spans) {
 				switch {
@@ -189,6 +209,8 @@ func drawingPins(lines [][]Line) []Pin {
 					terms = append(terms, place{w, pi})
 				case pinDigitRe.MatchString(w.text):
 					digits = append(digits, place{w, pi})
+				case terminalLetters[category][w.text] != "":
+					letters = append(letters, place{w, pi})
 				}
 			}
 		}
@@ -222,6 +244,71 @@ func drawingPins(lines [][]Line) []Pin {
 			slices.SortFunc(pins, func(a, b Pin) int { return cmp.Compare(a.Number, b.Number) })
 			return pins
 		}
+		var ws []word
+		for _, l := range letters {
+			ws = append(ws, l.w)
+		}
+		if pins := letteredPins(ws, terminalLetters[category], pi); len(pins) > 0 {
+			return pins
+		}
 	}
 	return nil
+}
+
+// letterSpread is how far apart (in points) the letters on one package
+// drawing can be: a SOT-23 drawn an inch or two across.
+const letterSpread = 120
+
+// letteredPins reads a drawing that letters its leads without numbering
+// them: the tightest cluster with every letter of the set once, each
+// letter the pin it names, numbers left for the user. Letters scattered
+// over the page (a table's subscripts) are no drawing.
+func letteredPins(ws []word, set map[string]string, page int) []Pin {
+	keys := slices.Sorted(maps.Keys(set))
+	byLetter := make([][]word, len(keys))
+	for i, k := range keys {
+		for _, w := range ws {
+			if w.text == k {
+				byLetter[i] = append(byLetter[i], w)
+			}
+		}
+		if len(byLetter[i]) == 0 {
+			return nil
+		}
+	}
+	centre := func(w word) (float64, float64) { return (w.box.X0 + w.box.X1) / 2, (w.box.Y0 + w.box.Y1) / 2 }
+	best, bestSpread := []word(nil), math.Inf(1)
+	var pick []word
+	var walk func(i int)
+	walk = func(i int) {
+		if i == len(keys) {
+			spread := 0.0
+			for a := range pick {
+				for b := a + 1; b < len(pick); b++ {
+					ax, ay := centre(pick[a])
+					bx, by := centre(pick[b])
+					spread = max(spread, math.Hypot(ax-bx, ay-by))
+				}
+			}
+			if spread < bestSpread {
+				best, bestSpread = slices.Clone(pick), spread
+			}
+			return
+		}
+		for _, w := range byLetter[i] {
+			pick = append(pick, w)
+			walk(i + 1)
+			pick = pick[:len(pick)-1]
+		}
+	}
+	walk(0)
+	if bestSpread > letterSpread {
+		return nil
+	}
+	var pins []Pin
+	for i, w := range best {
+		pins = append(pins, Pin{Name: set[keys[i]], Description: "From the pinout drawing, which letters the leads (" + w.text + ") and gives no pin numbers.", Page: page})
+	}
+	slices.SortFunc(pins, func(a, b Pin) int { return cmp.Compare(a.Name, b.Name) })
+	return pins
 }

@@ -48,6 +48,11 @@ func TestPinWarnings(t *testing.T) {
 	if got := pinWarnings(nil, counts("SOT−23/SUPERSOT−23, 3 LEAD, 1.4x2.9")); len(got) != 1 || !strings.Contains(got[0], "no pins were read") {
 		t.Errorf("no pins: %q", got)
 	}
+	// Read from a drawing that gives no numbers (the NDS331N's Rev. 5).
+	lettered := []Pin{{Name: "Drain"}, {Name: "Gate"}, {Name: "Source"}}
+	if got := pinWarnings(lettered, counts("SOT-23 surface mount package")); len(got) != 1 || !strings.Contains(got[0], "3 pins were read but the datasheet gives them no numbers") {
+		t.Errorf("unnumbered: %q", got)
+	}
 	// All there, the exposed pad aside: nothing to say.
 	full := []Pin{{Number: "1"}, {Number: "2"}, {Number: "3"}, {Number: "4"}, {Number: "5"}, {Number: "6"}, {Number: "7"}, {Number: "8"}, {Number: "9", Name: "EP", Description: "Exposed pad"}}
 	if got := pinWarnings(full, counts("8-pin TDFN package")); len(got) != 0 {
@@ -101,14 +106,50 @@ func TestDrawingPins(t *testing.T) {
 		line(426, 261, "Gate Source"),
 	}
 	var got []string
-	for _, p := range drawingPins([][]Line{page}) {
+	for _, p := range drawingPins([][]Line{page}, "mosfet-n") {
 		got = append(got, p.Number+" "+p.Name)
 	}
 	if want := []string{"1 Gate", "2 Source", "3 Drain"}; !slices.Equal(got, want) {
 		t.Errorf("pins = %q, want %q", got, want)
 	}
 	// Terminal names without numbers near them (a description): none.
-	if pins := drawingPins([][]Line{{line(60, 200, "Drain"), line(60, 400, "Source"), line(300, 600, "7")}}); len(pins) != 0 {
+	if pins := drawingPins([][]Line{{line(60, 200, "Drain"), line(60, 400, "Source"), line(300, 600, "7")}}, "mosfet-n"); len(pins) != 0 {
 		t.Errorf("pins from prose: %+v", pins)
+	}
+	// The NDS331N's Rev. 5: the package drawing letters its leads "D", "S"
+	// and "G" and numbers nothing, and the ratings table has subscript
+	// "D"s of its own far below. The letters are the pins, unnumbered.
+	rev5 := []Line{
+		line(405, 369, "D"), line(437, 441, "S"), line(373, 441, "G"),
+		line(77, 555, "D"), line(80, 582, "D"),
+	}
+	got = nil
+	for _, p := range drawingPins([][]Line{rev5}, "mosfet-n") {
+		got = append(got, p.Number+"|"+p.Name+"|"+strconv.Itoa(p.Page))
+	}
+	if want := []string{"|Drain|0", "|Gate|0", "|Source|0"}; !slices.Equal(got, want) {
+		t.Errorf("lettered pins = %q, want %q", got, want)
+	}
+	// Not for an IC, whose lone letters are subscripts; not when the set
+	// is incomplete or scattered over the page.
+	for name, tc := range map[string]struct {
+		page     []Line
+		category string
+	}{
+		"ic":         {rev5, "buck"},
+		"incomplete": {[]Line{line(405, 369, "D"), line(437, 441, "S")}, "mosfet-n"},
+		"scattered":  {[]Line{line(405, 369, "D"), line(437, 441, "S"), line(60, 700, "G")}, "mosfet-n"},
+	} {
+		if pins := drawingPins([][]Line{tc.page}, tc.category); len(pins) != 0 {
+			t.Errorf("%s: pins = %+v", name, pins)
+		}
+	}
+	// A diode's drawing: "A" and "K".
+	got = nil
+	for _, p := range drawingPins([][]Line{{line(100, 100, "A"), line(160, 100, "K")}}, "diode") {
+		got = append(got, p.Name)
+	}
+	if want := []string{"Anode", "Cathode"}; !slices.Equal(got, want) {
+		t.Errorf("diode pins = %q, want %q", got, want)
 	}
 }

@@ -192,7 +192,9 @@ every merged pull request.
   fewer ("only 4 of 32 pins were read: … record the rest with
   record_pins") instead of a bare count. A small part with no pin table
   gets its pins from its pinout drawing ("1 Gate", "2 Source", "Drain 3"
-  on the NDS331N), and an exposed pad the table doesn't number is
+  on the NDS331N; the "D", "S", "G" beside the leads on its older Rev. 5,
+  which gives no numbers at all, so those pins are recorded unnumbered
+  and the import says so), and an exposed pad the table doesn't number is
   numbered after the last pin (the TPS63900's thermal pad is 11), its
   description saying the number is SheetDiver's. (#75)
 - **Pin tables with a column per package or per part are read.** The

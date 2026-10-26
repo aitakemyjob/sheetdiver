@@ -654,6 +654,25 @@
           "Drain"
         ]
       }
+    },
+    {
+      "file": "nds331n-rev5.pdf",
+      "url": "https://jlcpcb.com/api/file/downloadByFileSystemAccessId/8588918452362874880",
+      "sha256": "0d564f427d26ca86af66104fba96cbaca15dc23eaa4944ec15220840157b4d44",
+      "why": "The NDS331N's Rev. 5 (2017, the old Fairchild layout), which the catalogue links to: no pin table, no marking diagram, and no pin number anywhere. Its package drawing letters the leads \"D\", \"S\", \"G\", which are the pins, unnumbered (#75).",
+      "expect": {
+        "manufacturer": "onsemi",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "NDS331N"
+        ],
+        "pins": 3,
+        "pinNames": [
+          "Gate",
+          "Source",
+          "Drain"
+        ]
+      }
     }
   ]
 }
