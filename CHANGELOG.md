@@ -8,6 +8,57 @@ every merged pull request.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+### Fixed
+- **Orderable part numbers find their part.** `MAX17048G+T10` found
+  nothing although the MAX17048 was in the library: its datasheet title
+  names "MAX17048/MAX17049", which was stored as one part number. Titles
+  joining part numbers with a slash now give one part each ("MAX17048/9"
+  too), parts stored that way before still match either number, and an
+  ordering suffix after `+` or `#` (lead-free, tape and reel) is ignored
+  when looking a part up. The extractor version is now 6, so re-extraction
+  is offered. (#83)
+- **The agent sees a parts catalogue downloaded after it connected.**
+  When the MCP server was serving the library on its own (the app not
+  running when the agent connected), it opened the catalogue folder once
+  and kept saying the catalogue wasn't downloaded until it was restarted.
+  The catalogue is now opened for each query, so every process sees it as
+  it is: downloaded, replaced or removed by the app. Nothing holds the
+  file between queries either, so on Windows a download or removal no
+  longer fails because another process has the catalogue open. (#70)
+- **An import says when pins are missing.** The extractor reads how many
+  pins a datasheet gives each package ("12-Pin VQFN-HR", "8-pin TDFN",
+  "SOT-23-6", "QFN32") and the import result says when it read none or
+  fewer ("only 4 of 32 pins were read: … record the rest with
+  record_pins") instead of a bare count. A small part with no pin table
+  gets its pins from its pinout drawing ("1 Gate", "2 Source", "Drain 3"
+  on the NDS331N; the "D", "S", "G" beside the leads on its older Rev. 5,
+  which gives no numbers at all, so those pins are recorded unnumbered
+  and the import says so), and an exposed pad the table doesn't number is
+  numbered after the last pin (the TPS63900's thermal pad is 11), its
+  description saying the number is SheetDiver's. (#75)
+- **Pin tables with a column per package or per part are read.** The
+  TPS2121's table (a WCSP column for the TPS2120 and a VQFN-HR one for
+  the TPS2121, under three header rows) and the MAX17048's (TDFN and WLP,
+  under "Pin/Bump Descriptions") gave no pins; the TPD2E2U06's DRL and DCK
+  columns came out merged into the names, with the header row stored as
+  a pin. Each package now gets its own pins, labelled with the package
+  (and the part it's for), and a project part gets its own package's
+  pins (else the first package's, never all of them mixed). A pin listed
+  under several numbers ("4, 5, 6", "B1, B2, C1", "1, 2, 3, exposed
+  thermal pad") is a pin for each, and numbers set on the line above or
+  below a pin's name belong to it. (#76)
+- **Imports get the right category.** Fuel gauges, TVS and surge
+  protection devices and eFuses have categories of their own (and power
+  multiplexers count as load switches), so a MAX17048 is no longer an
+  MCU because it talks to a "host microcontroller", a TVS0500 a sensor,
+  or a TPS2595 a load switch. What a datasheet says a part doesn't need
+  or has inside ("no external MOSFET", "internal PMOSFET") no longer
+  makes a charger a MOSFET. Re-extraction is offered. (#78)
+
+## [0.1.1] - 2026-10-24
+
 ### Added
 - **Schematic symbols on the block diagram.** A part with a pin table in
   its datasheet is drawn as a symbol generated from it: every pin, with
@@ -169,52 +220,6 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
-
-- **Orderable part numbers find their part.** `MAX17048G+T10` found
-  nothing although the MAX17048 was in the library: its datasheet title
-  names "MAX17048/MAX17049", which was stored as one part number. Titles
-  joining part numbers with a slash now give one part each ("MAX17048/9"
-  too), parts stored that way before still match either number, and an
-  ordering suffix after `+` or `#` (lead-free, tape and reel) is ignored
-  when looking a part up. The extractor version is now 6, so re-extraction
-  is offered. (#83)
-- **The agent sees a parts catalogue downloaded after it connected.**
-  When the MCP server was serving the library on its own (the app not
-  running when the agent connected), it opened the catalogue folder once
-  and kept saying the catalogue wasn't downloaded until it was restarted.
-  The catalogue is now opened for each query, so every process sees it as
-  it is: downloaded, replaced or removed by the app. Nothing holds the
-  file between queries either, so on Windows a download or removal no
-  longer fails because another process has the catalogue open. (#70)
-- **An import says when pins are missing.** The extractor reads how many
-  pins a datasheet gives each package ("12-Pin VQFN-HR", "8-pin TDFN",
-  "SOT-23-6", "QFN32") and the import result says when it read none or
-  fewer ("only 4 of 32 pins were read: … record the rest with
-  record_pins") instead of a bare count. A small part with no pin table
-  gets its pins from its pinout drawing ("1 Gate", "2 Source", "Drain 3"
-  on the NDS331N; the "D", "S", "G" beside the leads on its older Rev. 5,
-  which gives no numbers at all, so those pins are recorded unnumbered
-  and the import says so), and an exposed pad the table doesn't number is
-  numbered after the last pin (the TPS63900's thermal pad is 11), its
-  description saying the number is SheetDiver's. (#75)
-- **Pin tables with a column per package or per part are read.** The
-  TPS2121's table (a WCSP column for the TPS2120 and a VQFN-HR one for
-  the TPS2121, under three header rows) and the MAX17048's (TDFN and WLP,
-  under "Pin/Bump Descriptions") gave no pins; the TPD2E2U06's DRL and DCK
-  columns came out merged into the names, with the header row stored as
-  a pin. Each package now gets its own pins, labelled with the package
-  (and the part it's for), and a project part gets its own package's
-  pins (else the first package's, never all of them mixed). A pin listed
-  under several numbers ("4, 5, 6", "B1, B2, C1", "1, 2, 3, exposed
-  thermal pad") is a pin for each, and numbers set on the line above or
-  below a pin's name belong to it. (#76)
-- **Imports get the right category.** Fuel gauges, TVS and surge
-  protection devices and eFuses have categories of their own (and power
-  multiplexers count as load switches), so a MAX17048 is no longer an
-  MCU because it talks to a "host microcontroller", a TVS0500 a sensor,
-  or a TPS2595 a load switch. What a datasheet says a part doesn't need
-  or has inside ("no external MOSFET", "internal PMOSFET") no longer
-  makes a charger a MOSFET. Re-extraction is offered. (#78)
 - **Subgroups named through `set_connections` are kept.** The tool
   accepted `cluster` and then dropped it before it reached the project,
   so no name was stored, echoed or drawn. It's now stored, shown in
@@ -513,5 +518,7 @@ your AI agent over MCP.
 - Releases ship checksums, an SPDX SBOM, signed build provenance, and the
   third-party notices (`sheetdiver licenses`).
 
-[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.0
+[0.1.1]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.1
 [0.1.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.0
