@@ -30,6 +30,8 @@ var categoryKeys = map[string][]string{
 	"mosfet":             {"vds", "id", "rdson", "vgs_th", "vgs", "qg", "ciss", "rth_ja"},
 	"gate-driver":        {"vin", "iout", "iq", "vih", "vil", "rth_ja"},
 	"load-switch":        {"vin", "iout", "rdson", "iq", "ilim", "rth_ja"},
+	"efuse":              {"vin", "iout", "rdson", "iq", "ilim", "rth_ja"},
+	"fuel-gauge":         {"vin", "iq", "isd", "tj"},
 	"mcu":                {"vin", "iq", "isd", "fsw", "vih", "vil", "tj"},
 	"current-monitor":    {"vin", "iq", "isd", "tj"},
 	"battery-protection": {"vocp", "vodp", "iq", "isd"},
