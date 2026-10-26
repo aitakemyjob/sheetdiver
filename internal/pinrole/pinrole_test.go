@@ -42,7 +42,16 @@ func TestOf(t *testing.T) {
 		{"EN", "", "Device enable input", Input},
 		{"STDBY", "", "Open-drain output, low while charging", Output},
 		{"EN", "", "Device enable. A high level applied to this pin enables the device.", Other},
-		{"LX1", "", "Switching node of the buck stage", Other},
+		// A converter's switch node drives its inductor, whatever the
+		// table types it: TI types the TPS63900's LX1 and LX2 P.
+		{"LX1", "", "Switching node of the buck stage", Output},
+		{"LX1", "P", "Inductor connection", Output},
+		{"LX2", "PWR", "", Output},
+		{"SW", "P", "", Output},
+		{"PH", "", "", Output},
+		// Not a switch node: names that only start like one.
+		{"SWDIO", "I/O", "", Bidir},
+		{"SWCLK", "I", "", Input},
 		{"CFG1", "I", "Configuration pin 1.", Input},
 		// I/O and analog.
 		{"PA0", "I/O", "", Bidir},

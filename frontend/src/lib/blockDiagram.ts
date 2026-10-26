@@ -562,6 +562,16 @@ function room(width: number, above: number, below: number): Pick<ElkNode, 'label
 }
 
 /**
+ * Whether a passive can be drawn across two pins of one box: both on the
+ * same left or right side, one above the other, so its ends face them.
+ * Two pins along the top or bottom, or on different sides, can't be
+ * bridged (the passive would fold onto itself); it hangs instead.
+ */
+export function bridgeable(pins: PlacedPin[]): boolean {
+  return pins.length === 2 && pins[0].side === pins[1].side && (pins[0].side === 'left' || pins[0].side === 'right') && pins[0].y !== pins[1].y;
+}
+
+/**
  * Builds the ELK graph of a diagram. Every pin on a side of a box is a
  * port at its place. A net's edges go from the port that drives it (a
  * right-side pin, or a series passive's far end; else the first pin on
@@ -639,7 +649,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
       reaching: boxesOn,
       power: (n) => kinds.get(n.toLowerCase()) === 'power',
       driven: (n) => endsOf(n).some((e) => e.side === 'EAST'),
-      bridged: pins.length === 2,
+      bridged: bridgeable(pins),
     });
     if (!how) continue; // between passives only: not drawn on its own
     if (how.kind === 'bridge') {
