@@ -527,7 +527,23 @@
       "why": "A fuel gauge whose page text talks of the host microcontroller (imported as an MCU, #78); its title names two parts with a slash (#83). analog.com refuses scripted downloads.",
       "expect": {
         "manufacturer": "Analog Devices",
-        "category": "fuel-gauge"
+        "category": "fuel-gauge",
+        "pins": 17,
+        "pinPackages": [
+          "TDFN",
+          "WLP"
+        ],
+        "pinNames": [
+          "CTG",
+          "CELL",
+          "VDD",
+          "GND",
+          "ALRT",
+          "QSTRT",
+          "SCL",
+          "SDA",
+          "EP"
+        ]
       }
     },
     {
@@ -540,6 +556,11 @@
         "category": "tvs",
         "partNumbers": [
           "TVS0500"
+        ],
+        "pins": 7,
+        "pinNames": [
+          "IN",
+          "GND"
         ]
       }
     },
@@ -564,6 +585,25 @@
         "partNumbers": [
           "TPS2120",
           "TPS2121"
+        ],
+        "pins": 32,
+        "pinPackages": [
+          "TPS2120 WCSP",
+          "TPS2121 VQFN-HR"
+        ],
+        "pinNames": [
+          "IN1",
+          "IN2",
+          "OUT",
+          "ST",
+          "ILIM",
+          "SS",
+          "GND",
+          "PR1",
+          "OV1",
+          "OV2",
+          "SEL",
+          "CP2"
         ]
       }
     },
@@ -577,6 +617,17 @@
         "category": "tvs",
         "partNumbers": [
           "TPD2E2U06"
+        ],
+        "pins": 8,
+        "pinPackages": [
+          "DRL",
+          "DCK"
+        ],
+        "pinNames": [
+          "IO1",
+          "IO2",
+          "NC",
+          "GND"
         ]
       }
     }

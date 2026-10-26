@@ -186,6 +186,17 @@ every merged pull request.
   it is: downloaded, replaced or removed by the app. Nothing holds the
   file between queries either, so on Windows a download or removal no
   longer fails because another process has the catalogue open. (#70)
+- **Pin tables with a column per package or per part are read.** The
+  TPS2121's table (a WCSP column for the TPS2120 and a VQFN-HR one for
+  the TPS2121, under three header rows) and the MAX17048's (TDFN and WLP,
+  under "Pin/Bump Descriptions") gave no pins; the TPD2E2U06's DRL and DCK
+  columns came out merged into the names, with the header row stored as
+  a pin. Each package now gets its own pins, labelled with the package
+  (and the part it's for), and a project part gets its own package's
+  pins (else the first package's, never all of them mixed). A pin listed
+  under several numbers ("4, 5, 6", "B1, B2, C1", "1, 2, 3, exposed
+  thermal pad") is a pin for each, and numbers set on the line above or
+  below a pin's name belong to it. (#76)
 - **Imports get the right category.** Fuel gauges, TVS and surge
   protection devices and eFuses have categories of their own (and power
   multiplexers count as load switches), so a MAX17048 is no longer an
