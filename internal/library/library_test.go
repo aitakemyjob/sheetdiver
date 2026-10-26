@@ -307,3 +307,46 @@ func TestRecordedPinsSurviveReExtraction(t *testing.T) {
 		t.Errorf("pins = %v", names)
 	}
 }
+
+func TestResolveOrderingNumbers(t *testing.T) {
+	ctx := context.Background()
+	save := func(s *Store, sha string, mpns ...string) {
+		t.Helper()
+		var parts []Part
+		for _, m := range mpns {
+			parts = append(parts, Part{MPN: m, Category: "fuel-gauge"})
+		}
+		if _, err := s.SaveImport(ctx, &Import{Datasheet: Datasheet{SHA256: sha, File: sha + ".pdf", Filename: sha + ".pdf", Pages: 1}, Parts: parts}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// An import before slash-joined numbers were split: one part stored as
+	// "MAX17048/MAX17049" (the tester's library), and one with shorthand.
+	s := openTemp(t)
+	save(s, "a", "MAX17048/MAX17049")
+	save(s, "b", "TPS2120/21")
+	for ref, want := range map[string]string{
+		"MAX17048G+T10": "MAX17048/MAX17049",
+		"max17049x+t":   "MAX17048/MAX17049",
+		"MAX17048":      "MAX17048/MAX17049",
+		"TPS2121RUXR":   "TPS2120/21",
+	} {
+		r, err := s.Resolve(ctx, ref)
+		if err != nil || r.Part.MPN != want {
+			t.Errorf("%s: %+v %v", ref, r, err)
+		}
+	}
+	// Ordering suffixes after + or # don't stop a part being found, the
+	// orderable number kept as its variant.
+	s = openTemp(t)
+	save(s, "c", "MAX17048", "LTC3780")
+	for ref, want := range map[string]string{"MAX17048G+T10": "MAX17048", "MAX17048+": "MAX17048", "LTC3780EGN#PBF": "LTC3780"} {
+		r, err := s.Resolve(ctx, ref)
+		if err != nil || r.Part.MPN != want || r.Variant != ref {
+			t.Errorf("%s: %+v %v", ref, r, err)
+		}
+	}
+	if _, err := s.Resolve(ctx, "MAX99999+T"); err == nil {
+		t.Error("an unknown part with an ordering suffix was found")
+	}
+}

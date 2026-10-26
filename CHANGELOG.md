@@ -169,6 +169,15 @@ every merged pull request.
   `SHEETDIVER_CONFIG`, still run side by side.)
 
 ### Fixed
+
+- **Orderable part numbers find their part.** `MAX17048G+T10` found
+  nothing although the MAX17048 was in the library: its datasheet title
+  names "MAX17048/MAX17049", which was stored as one part number. Titles
+  joining part numbers with a slash now give one part each ("MAX17048/9"
+  too), parts stored that way before still match either number, and an
+  ordering suffix after `+` or `#` (lead-free, tape and reel) is ignored
+  when looking a part up. The extractor version is now 6, so re-extraction
+  is offered. (#83)
 - **Subgroups named through `set_connections` are kept.** The tool
   accepted `cluster` and then dropped it before it reached the project,
   so no name was stored, echoed or drawn. It's now stored, shown in

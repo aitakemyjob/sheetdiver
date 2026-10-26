@@ -24,8 +24,10 @@ func PartNumbers(doc *pdf.Document, lines [][]Line, filename string) []string {
 	score := map[string]float64{}
 	add := func(text string, w float64) {
 		for _, tok := range tokenize(text) {
-			if isPartToken(tok) {
-				score[tok] += w
+			for _, alt := range alternatives(tok) {
+				if isPartToken(alt) {
+					score[alt] += w
+				}
 			}
 		}
 	}
@@ -95,6 +97,38 @@ func PartNumbers(doc *pdf.Document, lines [][]Line, filename string) []string {
 		}
 	}
 	return out
+}
+
+// alternatives splits part numbers a title joins with slashes
+// ("MAX17048/MAX17049"), completing a short second one from the first
+// ("MAX17048/9" is MAX17049). A token without a slash is itself.
+func alternatives(tok string) []string {
+	pieces := strings.Split(tok, "/")
+	if len(pieces) < 2 {
+		return []string{tok}
+	}
+	first := pieces[0]
+	out := []string{first}
+	for _, p := range pieces[1:] {
+		switch {
+		case p == "":
+		case len(p) < len(first) && allDigits(p) && allDigits(first[len(first)-len(p):]):
+			out = append(out, first[:len(first)-len(p)]+p)
+		default:
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// allDigits reports whether s is a non-empty run of digits.
+func allDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // fileIDRe is a distributor's file or catalogue number, never a part:
