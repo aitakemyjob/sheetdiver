@@ -338,3 +338,41 @@ func (c *countingPublisher) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		c.gets.Add(1)
 	}
 }
+
+func TestFollowsADownloadByAnotherProcess(t *testing.T) {
+	// The MCP server, serving the library on its own, opened the catalogue
+	// folder before the app downloaded the catalogue into it, and said it
+	// wasn't installed until it was restarted (#70).
+	ctx := context.Background()
+	app := serve(t, &publisher{files: splitZip(t, sourceDB(t, sourceFormat), 1<<20), modified: func(string) string { return published }})
+	mcp, err := Open(app.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { mcp.Close() })
+	if _, err := mcp.Search(ctx, Query{Text: "ao3400a"}); err != ErrNotInstalled {
+		t.Fatalf("before the download: %v", err)
+	}
+	if err := app.Download(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if items, err := mcp.Search(ctx, Query{Text: "ao3400a"}); err != nil || len(items) != 2 {
+		t.Fatalf("after the app downloaded it: %+v %v", items, err)
+	}
+	if st := mcp.Status(ctx); !st.Installed || st.Parts != 5 {
+		t.Errorf("status = %+v", st)
+	}
+	// Removed by the app: not installed here either; downloaded again: back.
+	if err := app.Remove(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mcp.Search(ctx, Query{Text: "ao3400a"}); err != ErrNotInstalled {
+		t.Errorf("after the app removed it: %v", err)
+	}
+	if err := app.Download(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if items, err := mcp.ByMPN(ctx, "AO3400A"); err != nil || len(items) == 0 {
+		t.Errorf("after the app downloaded it again: %+v %v", items, err)
+	}
+}

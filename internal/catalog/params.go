@@ -119,12 +119,12 @@ const maxScan = 200000
 
 // candidates runs a query's text and flag filters without a limit and
 // returns the matching rows' attributes, in the query's order.
-func (c *Catalog) candidates(ctx context.Context, q Query, cols string) (*sql.Rows, error) {
+func (c *Catalog) candidates(ctx context.Context, db *sql.DB, q Query, cols string) (*sql.Rows, error) {
 	where, args := q.where()
 	if q.Subcategory == "" && strings.TrimSpace(q.Text) == "" {
 		return nil, errors.New("pick a category (or search words) before filtering on parameters")
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT `+cols+` FROM jlc_components WHERE `+where+ //nolint:gosec // constant SQL fragments; values are placeholders
+	rows, err := db.QueryContext(ctx, `SELECT `+cols+` FROM jlc_components WHERE `+where+ //nolint:gosec // constant SQL fragments; values are placeholders
 		` ORDER BY `+q.order()+` LIMIT ?`, append(args, maxScan)...)
 	if err != nil {
 		return nil, err
@@ -141,16 +141,18 @@ func (c *Catalog) candidates(ctx context.Context, q Query, cols string) (*sql.Ro
 func (c *Catalog) Params(ctx context.Context, q Query) ([]Param, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
+	defer db.Close()
 	filters := slices.Clone(q.Attrs)
 	if err := checkFilters(filters); err != nil {
 		return nil, err
 	}
 	scan := q
 	scan.Attrs = nil // every filter is applied here, per facet
-	rows, err := c.candidates(ctx, scan, "package, attributes")
+	rows, err := c.candidates(ctx, db, scan, "package, attributes")
 	if err != nil {
 		return nil, err
 	}
@@ -461,11 +463,11 @@ func attrSort(s string) string {
 // searchAttrs runs a search with attribute filters or an attribute sort:
 // the text and flag filters select candidates in SQL, attributes are
 // checked here, then the page is cut.
-func (c *Catalog) searchAttrs(ctx context.Context, q Query, limit int) ([]Item, error) {
+func (c *Catalog) searchAttrs(ctx context.Context, db *sql.DB, q Query, limit int) ([]Item, error) {
 	if err := checkFilters(q.Attrs); err != nil {
 		return nil, err
 	}
-	rows, err := c.candidates(ctx, q, itemCols)
+	rows, err := c.candidates(ctx, db, q, itemCols)
 	if err != nil {
 		return nil, err
 	}
