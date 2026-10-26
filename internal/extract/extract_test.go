@@ -297,14 +297,18 @@ func TestMultiPackagePinTable(t *testing.T) {
 		t.Fatalf("columns = %v", names)
 	}
 	_, pins := pinTable(cols, rows[3], rows[4:], 9, "Pin Description")
-	if len(pins) != 6 {
-		t.Fatalf("one pin per package, no comma rows: %+v", pins)
+	// A pin listed under several numbers ("A3, B3") is one pin each (#76);
+	// the stray comma row makes none.
+	if len(pins) != 8 {
+		t.Fatalf("one pin per number and package, no comma rows: %+v", pins)
 	}
 	want := []Pin{
 		{Package: "20-BUMP WLP", Number: "A1", Name: "VSYS"},
 		{Package: "20-PIN TQFN", Number: "5", Name: "VSYS"},
-		{Package: "20-BUMP WLP", Number: "A3, B3", Name: "AGND"},
-		{Package: "20-PIN TQFN", Number: "8, 9", Name: "AGND"},
+		{Package: "20-BUMP WLP", Number: "A3", Name: "AGND"},
+		{Package: "20-BUMP WLP", Number: "B3", Name: "AGND"},
+		{Package: "20-PIN TQFN", Number: "8", Name: "AGND"},
+		{Package: "20-PIN TQFN", Number: "9", Name: "AGND"},
 	}
 	for i, w := range want {
 		p := pins[i]

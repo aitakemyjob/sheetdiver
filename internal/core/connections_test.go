@@ -669,3 +669,36 @@ func TestGroupsAreDrawnBelowTheGroupTheyName(t *testing.T) {
 		t.Errorf("after clearing: %v", got)
 	}
 }
+
+func TestPackagePins(t *testing.T) {
+	pin := func(pkg, num, name string) library.Pin { return library.Pin{Package: pkg, Number: num, Name: name} }
+	// One table for the TPS2120 (WCSP) and the TPS2121 (VQFN-HR) (#76).
+	mux := []library.Pin{pin("TPS2120 WCSP", "B1", "IN1"), pin("TPS2121 VQFN-HR", "7", "IN1"), pin("TPS2120 WCSP", "E4", "GND"), pin("TPS2121 VQFN-HR", "12", "GND")}
+	// The MAX17048's TDFN and WLP, with the TDFN's exposed pad.
+	gauge := []library.Pin{pin("TDFN", "1", "CTG"), pin("WLP", "A1", "CTG"), pin("TDFN", "", "EP")}
+	numbers := func(ps []library.Pin) string {
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.Package+":"+firstNonEmpty(p.Number, p.Name))
+		}
+		return strings.Join(out, " ")
+	}
+	for _, c := range []struct {
+		pins []library.Pin
+		part library.Part
+		want string
+	}{
+		{mux, library.Part{MPN: "TPS2121"}, "TPS2121 VQFN-HR:7 TPS2121 VQFN-HR:12"},
+		{mux, library.Part{MPN: "TPS2120"}, "TPS2120 WCSP:B1 TPS2120 WCSP:E4"},
+		{gauge, library.Part{MPN: "MAX17048", Package: "WLP-8"}, "WLP:A1"},
+		{gauge, library.Part{MPN: "MAX17048", Package: "8-pin TDFN"}, "TDFN:1 TDFN:EP"},
+		// Nothing says which: the first package, not both mixed.
+		{gauge, library.Part{MPN: "MAX17048"}, "TDFN:1 TDFN:EP"},
+		// One package: every pin.
+		{[]library.Pin{pin("", "1", "EN"), pin("", "2", "SEL")}, library.Part{MPN: "TPS63900"}, ":1 :2"},
+	} {
+		if got := numbers(packagePins(c.pins, c.part)); got != c.want {
+			t.Errorf("%s (%s): %s, want %s", c.part.MPN, c.part.Package, got, c.want)
+		}
+	}
+}

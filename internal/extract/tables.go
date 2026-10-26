@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -391,12 +393,12 @@ var pinRoles = map[string]string{
 	"NAME": "name", "SIGNAL": "name", "MNEMONIC": "name", "SYMBOL": "name",
 	"I/O": "type", "TYPE": "type", "DIRECTION": "type", "TYPE(1)": "type",
 	"DESCRIPTION": "description", "FUNCTION": "description", "FUNCTIONS": "description",
-	"PIN": "pin",
+	"PIN": "pin", "PIN/BUMP": "pin", "PIN/BALL": "pin", "PINS": "pin",
 }
 
 // packageHeaderRe matches package column headers in pin tables:
 // "20-PIN", "20-BUMP", "48-BALL", "WLP", "TQFN", "SOT-23", "DDC"…
-var packageHeaderRe = regexp.MustCompile(`^(\d+-?(PIN|PINS|BUMP|BUMPS|BALL|BALLS|LEAD|LEADS)|WLP|WLCSP|WCSP|CSP|DSBGA|BGA|UFBGA|TQFN|QFN|VQFN|WQFN|UQFN|DFN|WDFN|SON|WSON|VSON|SOIC|TSSOP|MSOP|HTSSOP|QFP|LQFP|TQFP|SOT-?\d*|SC-?70|TO-?\d+|DPAK|D2PAK|DDC|DBV|DRL|DRV|DGK|DGN|RGT|RTE|YCH|DQN|YFF|YZF|PDIP|SO-?\d+)$`)
+var packageHeaderRe = regexp.MustCompile(`^(\d+-?(PIN|PINS|BUMP|BUMPS|BALL|BALLS|LEAD|LEADS)|WLP|WLCSP|WCSP|CSP|DSBGA|BGA|UFBGA|[A-Z]{0,3}(QFN|DFN|SON|SOP|SOIC|QFP)(-[A-Z0-9]{1,4})?|SOIC|TSSOP|MSOP|HTSSOP|SOT-?\d*|SC-?70|TO-?\d+|DPAK|D2PAK|DDC|DBV|DCK|DRL|DRV|DGK|DGN|DSG|DSK|RGT|RTE|RUX|YCH|DQN|YFF|YFP|YZF|PDIP|SO-?\d+)$`)
 
 // pinRole returns a pin-table header word's role; package names are
 // headerWordSpans are the spans of a row in the size of its first span.
@@ -433,6 +435,11 @@ func pinRole(tok string) (string, bool) {
 		return r, true
 	}
 	if packageHeaderRe.MatchString(tok) {
+		return "number", true
+	}
+	// A part number over a package's column, when one table serves
+	// several parts ("TPS2120" over "WCSP", "TPS2121" over "VQFN-HR").
+	if len(tok) >= 6 && isPartToken(tok) {
 		return "number", true
 	}
 	return "", false
@@ -1416,6 +1423,57 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		y    float64
 		text string
 	}
+	// With a name column, a row without a name is part of the nearest
+	// named row: numbers set on the line above or below the name (the
+	// TPS2121's OUT, "1, 8" above it and a second line of ball numbers
+	// below), not a pin of its own.
+	if slices.ContainsFunc(cols, func(c column) bool { return c.role == "name" }) {
+		frags := map[[2]int][]extra{}
+		for j, r := range rows {
+			rows[j].pin = hasAlnum(role(r.cells, "name"))
+		}
+		for _, r := range rows {
+			if r.pin {
+				continue
+			}
+			best, dist := -1, math.Inf(1)
+			for j, o := range rows {
+				if o.pin && math.Abs(o.y-r.y) < dist {
+					best, dist = j, math.Abs(o.y-r.y)
+				}
+			}
+			if best < 0 || dist >= 12 {
+				continue
+			}
+			for _, k := range numCols {
+				if hasAlnum(r.cells[k]) {
+					frags[[2]int{best, k}] = append(frags[[2]int{best, k}], extra{r.y, r.cells[k]})
+					r.cells[k] = ""
+				}
+			}
+		}
+		for jk, fs := range frags {
+			j, k := jk[0], jk[1]
+			fs = append(fs, extra{rows[j].y, rows[j].cells[k]})
+			sort.SliceStable(fs, func(a, b int) bool { return fs[a].y < fs[b].y })
+			// A line without a digit continues the one above ("exposed
+			// thermal" over "pad"); others list more numbers.
+			cell := ""
+			for _, f := range fs {
+				t := strings.Trim(strings.TrimSpace(f.text), ",")
+				switch {
+				case !hasAlnum(t):
+				case cell == "":
+					cell = t
+				case !strings.ContainsAny(t, "0123456789"):
+					cell += " " + t
+				default:
+					cell += ", " + t
+				}
+			}
+			rows[j].cells[k] = cell
+		}
+	}
 	attached := map[int][]extra{}
 	for _, r := range rows {
 		if r.pin {
@@ -1465,21 +1523,70 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 			if len(numCols) == 1 {
 				num = strings.TrimSpace(r.cells[numCols[0]])
 			}
-			if !hasAlnum(num) {
-				num = ""
+			nums := pinNumbers(num)
+			if len(nums) == 0 {
+				nums = []string{""}
 			}
-			pins = append(pins, Pin{Number: num, Name: name, Type: typ, Description: d, Page: page})
+			for _, n := range nums {
+				pins = append(pins, Pin{Number: n, Name: name, Type: typ, Description: d, Page: page})
+			}
 			continue
 		}
+		before := len(pins)
 		for _, k := range numCols {
-			num := strings.TrimSpace(r.cells[k])
-			if !hasAlnum(num) {
-				continue
+			for _, n := range pinNumbers(r.cells[k]) {
+				pins = append(pins, Pin{Package: cols[k].name, Number: n, Name: name, Type: typ, Description: d, Page: page})
 			}
-			pins = append(pins, Pin{Package: cols[k].name, Number: num, Name: name, Type: typ, Description: d, Page: page})
+		}
+		// A pad with a dash for a number in every package ("EP … Exposed
+		// Pad (TDFN Only)"): the pad of the package its description names,
+		// else of the first.
+		if len(pins) == before && padRe.MatchString(name) {
+			k := numCols[0]
+			for _, c := range numCols {
+				if strings.Contains(strings.ToUpper(d), strings.ToUpper(cols[c].name)) {
+					k = c
+					break
+				}
+			}
+			pins = append(pins, Pin{Package: cols[k].name, Name: name, Type: typ, Description: d, Page: page})
 		}
 	}
 	return t, pins
+}
+
+// padRe is an exposed or thermal pad in a pin-number cell.
+var padRe = regexp.MustCompile(`(?i)thermal|exposed|\bpad\b|^EP$|^PAD$`)
+
+// pinRangeRe is a run of pin numbers ("4-6", "4–6", "4 to 6").
+var pinRangeRe = regexp.MustCompile(`^(\d{1,3})\s*(?:-|–|—|to)\s*(\d{1,3})$`)
+
+// pinNumbers splits a pin-number cell into the pins it lists: "4, 5, 6",
+// "B1, B2, C1", "4–6", and "1, 2, 3, exposed thermal pad" (the pad as
+// PAD). A dash or an empty cell (not in this package) lists none.
+func pinNumbers(cell string) []string {
+	var out []string
+	for _, tok := range strings.FieldsFunc(cell, func(r rune) bool { return r == ',' || r == ';' }) {
+		tok = strings.TrimSpace(tok)
+		switch m := pinRangeRe.FindStringSubmatch(tok); {
+		case !hasAlnum(tok):
+		case padRe.MatchString(tok):
+			out = append(out, "PAD")
+		case m != nil:
+			lo, _ := strconv.Atoi(m[1])
+			hi, _ := strconv.Atoi(m[2])
+			if hi <= lo || hi-lo > 64 {
+				out = append(out, tok)
+				continue
+			}
+			for n := lo; n <= hi; n++ {
+				out = append(out, strconv.Itoa(n))
+			}
+		default:
+			out = append(out, tok)
+		}
+	}
+	return slices.Compact(out)
 }
 
 // prosePin matches a pin described in prose, one heading per pin:

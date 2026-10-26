@@ -159,19 +159,44 @@ func (s *Service) entryPins(ctx context.Context, parts []library.ProjectPart) ma
 		if err != nil || len(all) == 0 {
 			continue
 		}
-		pins := all
-		if part, err := s.Lib.PartByID(ctx, pp.PartID); err == nil && part.Package != "" {
-			var mine []library.Pin
-			for _, pin := range all {
-				if pin.Package != "" && strings.Contains(strings.ToLower(part.Package), strings.ToLower(pin.Package)) {
-					mine = append(mine, pin)
-				}
-			}
-			if len(mine) > 0 {
-				pins = mine
-			}
+		part, _ := s.Lib.PartByID(ctx, pp.PartID)
+		out[pp.ID] = packagePins(all, part)
+	}
+	return out
+}
+
+// packagePins are a part's pins when its datasheet lists several
+// packages: those of the package named like the part's package, or
+// labelled with its part number ("TPS2121 VQFN-HR" for the TPS2121, when
+// one table serves the TPS2120 and the TPS2121); else the first package
+// listed, not every package's pins mixed. A table of one package is all
+// the part's.
+func packagePins(all []library.Pin, part library.Part) []library.Pin {
+	var pkgs []string
+	for _, pin := range all {
+		if pin.Package != "" && !slices.Contains(pkgs, pin.Package) {
+			pkgs = append(pkgs, pin.Package)
 		}
-		out[pp.ID] = pins
+	}
+	if len(pkgs) < 2 {
+		return all
+	}
+	mpn, own := strings.ToUpper(part.MPN), strings.ToUpper(part.Package)
+	choose := pkgs[0]
+	for _, pkg := range pkgs {
+		label := strings.ToUpper(pkg)
+		named := own != "" && (strings.Contains(own, label) || slices.ContainsFunc(strings.Fields(label), func(w string) bool { return len(w) >= 3 && strings.Contains(own, w) }))
+		mine := mpn != "" && slices.ContainsFunc(strings.Fields(label), func(w string) bool { return w == mpn || strings.HasPrefix(mpn, w) && len(w) >= 6 })
+		if named || mine {
+			choose = pkg
+			break
+		}
+	}
+	var out []library.Pin
+	for _, pin := range all {
+		if pin.Package == choose || pin.Package == "" {
+			out = append(out, pin)
+		}
 	}
 	return out
 }
