@@ -105,22 +105,10 @@ func (c *Catalog) swap(src string, in info) error {
 	b, _ := json.Marshal(in)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.db != nil {
-		c.db.Close()
-		c.db = nil
-	}
-	if err := os.Rename(src, c.path()); err != nil {
+	if err := retryBusy(func() error { return os.Rename(src, c.path()) }); err != nil {
 		return err
 	}
-	if err := os.WriteFile(c.infoPath(), b, 0o644); err != nil {
-		return err
-	}
-	db, err := openDB(c.path())
-	if err != nil {
-		return err
-	}
-	c.db, c.opened = db, modTime(c.path())
-	return nil
+	return os.WriteFile(c.infoPath(), b, 0o644)
 }
 
 // errMixed means the archive parts come from different publications.

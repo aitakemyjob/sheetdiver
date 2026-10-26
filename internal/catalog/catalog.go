@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -41,15 +42,14 @@ type Catalog struct {
 
 	dir string
 
+	// mu serializes a download or removal against queries: a query holds
+	// it shared for its duration, so the file is never replaced under one.
 	mu       sync.RWMutex
-	db       *sql.DB
 	updating bool
-	// opened is the database file's modification time when it was
-	// opened, to notice another process replacing it.
-	opened time.Time
 }
 
-// Open opens the catalogue in dir (which needn't contain one yet).
+// Open opens the catalogue in dir (which needn't contain one yet). A
+// catalogue already there is checked to open.
 func Open(dir string) (*Catalog, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -60,49 +60,23 @@ func Open(dir string) (*Catalog, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.db, c.opened = db, modTime(c.path())
+		_ = db.Close()
 	}
 	return c, nil
 }
 
-// modTime is a file's modification time, zero when it can't be read.
-func modTime(path string) time.Time {
-	st, err := os.Stat(path)
-	if err != nil {
-		return time.Time{}
+// open opens the installed catalogue for one call; the caller closes it
+// and holds c.mu (shared) meanwhile. Nothing keeps the database open
+// between calls: every call sees the catalogue as it is now, including
+// one the app downloaded, replaced or removed after this process started
+// (the MCP server serving the library on its own said the catalogue
+// wasn't downloaded until it was restarted, #70), and no process holds
+// the file while another replaces it, which Windows refuses.
+func (c *Catalog) open() (*sql.DB, error) {
+	if _, err := os.Stat(c.path()); err != nil {
+		return nil, ErrNotInstalled
 	}
-	return st.ModTime()
-}
-
-// refresh follows a catalogue another process downloaded, replaced or
-// removed since this one opened it: the MCP server, serving the library
-// on its own while the app was closed, opened the folder before the app
-// downloaded the catalogue, and kept saying it wasn't installed until it
-// was restarted. A download in this process swaps the database itself.
-func (c *Catalog) refresh() {
-	now := modTime(c.path())
-	c.mu.RLock()
-	current := c.updating || (c.db == nil) == now.IsZero() && (now.IsZero() || now.Equal(c.opened))
-	c.mu.RUnlock()
-	if current {
-		return
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	now = modTime(c.path())
-	if c.updating || (c.db == nil) == now.IsZero() && (now.IsZero() || now.Equal(c.opened)) {
-		return
-	}
-	if c.db != nil {
-		c.db.Close()
-		c.db = nil
-	}
-	if now.IsZero() {
-		return // removed
-	}
-	if db, err := openDB(c.path()); err == nil {
-		c.db, c.opened = db, now
-	}
+	return openDB(c.path())
 }
 
 // path is the catalogue database file.
@@ -121,16 +95,12 @@ func openDB(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// Close closes the catalogue.
+// Close releases the catalogue. Nothing is held between calls, so it
+// only waits for a query in progress.
 func (c *Catalog) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.db == nil {
-		return nil
-	}
-	err := c.db.Close()
-	c.db = nil
-	return err
+	return nil
 }
 
 // Status describes the installed catalogue.
@@ -162,22 +132,19 @@ func (c *Catalog) infoPath() string { return filepath.Join(c.dir, "jlc.json") }
 
 // Status reports what is installed.
 func (c *Catalog) Status(ctx context.Context) Status {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	st := Status{Updating: c.updating, Source: c.Source}
-	if c.db == nil {
+	fi, err := os.Stat(c.path())
+	if err != nil {
 		return st
 	}
-	st.Installed = true
+	st.Installed, st.SizeBytes = true, fi.Size()
 	var in info
 	if b, err := os.ReadFile(c.infoPath()); err == nil {
 		_ = json.Unmarshal(b, &in)
 	}
 	st.Parts, st.InStock, st.Published, st.Downloaded = in.Parts, in.InStock, in.Published, in.Downloaded
-	if fi, err := os.Stat(c.path()); err == nil {
-		st.SizeBytes = fi.Size()
-	}
 	return st
 }
 
@@ -304,12 +271,13 @@ func likeEscape(s string) string {
 // or description contain every word, in-stock basic parts first. It reads
 // the jlcparts database directly (a scan: a few hundred milliseconds).
 func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
+	defer db.Close()
 	limit := q.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 50
@@ -319,11 +287,11 @@ func (c *Catalog) Search(ctx context.Context, q Query) ([]Item, error) {
 	}
 	// Package filters are plain SQL; other attributes are checked in Go.
 	if attrSort(q.Sort) != "" || slices.ContainsFunc(q.Attrs, func(f AttrFilter) bool { return f.Key != PackageKey }) {
-		return c.searchAttrs(ctx, q, limit)
+		return c.searchAttrs(ctx, db, q, limit)
 	}
 	where, args := q.where()
 	args = append(args, limit, max(0, q.Offset))
-	rows, err := c.db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE `+where+ //nolint:gosec // constant SQL fragments; values are placeholders
+	rows, err := db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE `+where+ //nolint:gosec // constant SQL fragments; values are placeholders
 		` ORDER BY `+q.order()+` LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, err
@@ -400,18 +368,19 @@ func (q Query) order() string {
 // first, else ones that start with it (orderable codes with a suffix).
 // In-stock parts come first.
 func (c *Catalog) ByMPN(ctx context.Context, mpn string) ([]Item, error) {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
+	defer db.Close()
 	key := strings.ToUpper(strings.TrimSpace(mpn))
 	if len(key) < 3 {
 		return nil, nil
 	}
 	query := func(cond string, arg string) ([]Item, error) {
-		rows, err := c.db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE present = 1 AND `+cond+` ORDER BY stock > 0 DESC, datasheet = '', stock DESC LIMIT 20`, arg) //nolint:gosec // constant SQL fragments; values are placeholders
+		rows, err := db.QueryContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE present = 1 AND `+cond+` ORDER BY stock > 0 DESC, datasheet = '', stock DESC LIMIT 20`, arg) //nolint:gosec // constant SQL fragments; values are placeholders
 		if err != nil {
 			return nil, err
 		}
@@ -436,19 +405,20 @@ func (c *Catalog) ByMPN(ctx context.Context, mpn string) ([]Item, error) {
 // Get returns parts by LCSC code ("C20917" or "20917"), in the given
 // order; unknown codes are skipped.
 func (c *Catalog) Get(ctx context.Context, codes []string) ([]Item, error) {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
+	defer db.Close()
 	var out []Item
 	for _, code := range codes {
 		n, err := strconv.ParseInt(strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(code)), "C"), 10, 64)
 		if err != nil {
 			continue
 		}
-		it, err := scanItem(c.db.QueryRowContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE lcsc = ?`, n))
+		it, err := scanItem(db.QueryRowContext(ctx, `SELECT `+itemCols+` FROM jlc_components WHERE lcsc = ?`, n))
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
@@ -472,13 +442,14 @@ type Category struct {
 // grouped by category (most in-stock parts first). It scans the
 // catalogue once (about a second); callers cache it.
 func (c *Catalog) Categories(ctx context.Context) ([]Category, error) {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT category, subcategory, COUNT(*), SUM(stock > 0) FROM jlc_components
+	defer db.Close()
+	rows, err := db.QueryContext(ctx, `SELECT category, subcategory, COUNT(*), SUM(stock > 0) FROM jlc_components
 		WHERE present = 1 AND subcategory <> '' GROUP BY category, subcategory`)
 	if err != nil {
 		return nil, err
@@ -513,13 +484,14 @@ func (c *Catalog) Categories(ctx context.Context) ([]Category, error) {
 // Subcategories lists the categories of in-stock parts with their counts,
 // largest first.
 func (c *Catalog) Subcategories(ctx context.Context) (map[string]int, error) {
-	c.refresh()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.db == nil {
-		return nil, ErrNotInstalled
+	db, err := c.open()
+	if err != nil {
+		return nil, err
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT subcategory, COUNT(*) FROM jlc_components WHERE present = 1 AND stock > 0 AND subcategory <> '' GROUP BY subcategory`)
+	defer db.Close()
+	rows, err := db.QueryContext(ctx, `SELECT subcategory, COUNT(*) FROM jlc_components WHERE present = 1 AND stock > 0 AND subcategory <> '' GROUP BY subcategory`)
 	if err != nil {
 		return nil, err
 	}
@@ -561,16 +533,28 @@ func (c *Catalog) Remove() error {
 	if c.updating {
 		return errors.New("the catalogue is being downloaded")
 	}
-	if c.db != nil {
-		c.db.Close()
-		c.db = nil
-	}
 	_ = os.Remove(c.infoPath())
-	err := os.Remove(c.path())
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
+	return retryBusy(func() error {
+		err := os.Remove(c.path())
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	})
+}
+
+// retryBusy runs a rename or removal of the catalogue file, retrying for
+// a few seconds on Windows, which refuses while another process has the
+// file open: queries open it only for their own duration.
+func retryBusy(op func() error) error {
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := op()
+		if err == nil || runtime.GOOS != "windows" || time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
-	return err
 }
 
 // lcscCodeRe matches an LCSC/JLCPCB part code.
