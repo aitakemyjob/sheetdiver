@@ -8,6 +8,28 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Added
+- **KiCad schematic export (preview).** `export_kicad` (and `sheetdiver
+  kicad PROJECT [DIR]`) writes a project's block diagram as a KiCad 7+
+  project: a schematic with every part in its group, each pin ending in
+  a label with its net (so the netlist is exact, however the parts are
+  arranged), and the symbols it drew. A part with a pin table gets a
+  symbol generated from it; resistors, capacitors, diodes and the like use
+  KiCad's Device symbols, with the same pins in the same places; a
+  transistor gets the standard shape with its own pin numbers.
+  Footprints come from KiCad's libraries when a part's package says which:
+  a chip size (0603), a standard package (SOT-23-6, SOIC-8, SOD-123), a TI
+  package code (DBV, DCK) with the pin count, or a QFN/DFN of a given size
+  among the footprints installed with KiCad. The rest are listed, with
+  what is known of their package.
+- **A PCB layout guide with the export.** A PDF with each part's layout
+  advice from its datasheet (the layout sections, quoted with their pages,
+  and the layout figures) kept apart from general practice for what the
+  part is (a switching regulator's input loop and switch node, decoupling,
+  exposed pads, ESD at the connector, crystals, I2C and USB lines), power
+  trace widths for each rail's current (IPC-2221), and the footprints the
+  schematic uses.
+
 ## [0.2.0] - 2026-10-25
 
 ### Fixed

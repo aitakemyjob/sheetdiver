@@ -61,6 +61,7 @@ maps, notes), so the library gets better every time it's used.
 | **Parts catalogue** | One click downloads JLCPCB's catalogue (about 2.5 million parts, via the open [jlcparts](https://github.com/yaqwsx/jlcparts) dataset) for offline search by part number or specs, browsing by category and filtering on each category's parameters (V<sub>DS</sub> ≥ 30 V, R<sub>DS(on)</sub> ≤ 10 mΩ…), with stock, price and JLC library; tick the parts you want and their datasheets are imported. |
 | **BOM import** | Load a CSV/KiCad BOM and get a project: each part is found in the library or its datasheet is fetched by part number; parts that can't be fetched join as "no datasheet". |
 | **Alternatives** | "What else in my library could replace this?" ranked key by key: ▲ better, = same, ▼ worse, with drop-ins first. |
+| **KiCad export** (preview) | A project's block diagram becomes a KiCad schematic: symbols generated from the datasheets' pin tables, KiCad's own for passives, footprints from KiCad's libraries where the package says which, and every pin labelled with its net. A PDF layout guide comes with it: each datasheet's layout advice and figures, with general practice for each part. |
 | **Design reviews** | One click turns a project into a Markdown report: findings, rails and power budget, parts with key parameters and status, the block diagram (Mermaid), connections and each part's pins, calculations. |
 | **Datasheet revisions** | Revisions are detected on import; check for newer ones, see which spec rows changed, update in place without losing recorded data. |
 | **Favorites and status** | Star parts and mark them preferred, approved, avoid, NRND or EOL. Filter the library and comparisons by them; projects warn about avoid/NRND/EOL parts, and agents are told to prefer your preferred parts. |
@@ -162,6 +163,7 @@ sheetdiver-mcp [-port N]      the same as a small console program (Claude Deskto
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)
+sheetdiver kicad PROJECT [DIR]    export a project as a KiCad schematic with a PDF layout guide
 sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
 sheetdiver licenses           SheetDiver's licence and the third-party notices

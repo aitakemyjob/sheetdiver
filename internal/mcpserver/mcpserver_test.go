@@ -267,6 +267,9 @@ func TestAlternativesReportAndUpdates(t *testing.T) {
 	h.must("create_project", map[string]any{"name": "b"})
 	h.must("add_to_project", map[string]any{"project": "b", "part": "ZX7001", "designator": "U1"})
 	h.must("export_project_report", map[string]any{"project": "b"}, "# b — design review", "| U1 | 1 | ZX7001 |")
+	h.must("set_connections", map[string]any{"project": "b", "connect": []map[string]any{{"net": "VIN", "part": "U1", "pin": "VIN"}}})
+	dir := t.TempDir()
+	h.must("export_kicad", map[string]any{"project": "b", "dir": dir}, "b.kicad_sch", "b-layout-guide.pdf", "Open the .kicad_pro in KiCad")
 	// A project is deleted by name only, and its parts stay.
 	if out, _, isErr := h.call("delete_project", map[string]any{"project": " "}); !isErr || !strings.Contains(out, "name the project") {
 		t.Errorf("delete_project without a name: %s", out)

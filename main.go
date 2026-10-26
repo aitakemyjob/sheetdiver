@@ -48,6 +48,7 @@ Usage:
   sheetdiver import FILE|DIR|URL|MPN…  import datasheets, several at a time (part numbers are looked up)
   sheetdiver bom FILE [-project NAME]  build a project from a CSV/KiCad BOM, fetching missing datasheets
   sheetdiver report PROJECT     print a project's design review (Markdown)
+  sheetdiver kicad PROJECT [DIR]  export a project as a KiCad schematic with a PDF layout guide
   sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
   sheetdiver licenses             print SheetDiver's licence and third-party notices
@@ -136,6 +137,8 @@ func main() {
 		fmt.Print(licenseText, "\n", noticesText)
 	case "report":
 		err = runReport(fl.Args())
+	case "kicad":
+		err = runKiCad(fl.Args())
 	case "inspect":
 		err = runInspect(fl.Args())
 	case "version", "--version":
@@ -306,6 +309,31 @@ func runReport(args []string) error {
 		return err
 	}
 	fmt.Print(md)
+	return nil
+}
+
+// runKiCad exports a project as a KiCad schematic and layout guide.
+func runKiCad(args []string) error {
+	if len(args) < 1 || len(args) > 2 {
+		return fmt.Errorf("give a project name and, optionally, the folder to write into")
+	}
+	a, err := bootstrap(0, false)
+	if err != nil {
+		return err
+	}
+	defer a.core.Close()
+	dir := ""
+	if len(args) == 2 {
+		dir = args[1]
+	}
+	out, err := a.core.ExportKiCad(context.Background(), args[0], dir)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("wrote %s to %s\n%d symbols, %d with a footprint\n", strings.Join(out.Files, ", "), out.Dir, out.Components, out.Footprints)
+	for _, u := range out.Unplaced {
+		fmt.Println("  no footprint:", u)
+	}
 	return nil
 }
 

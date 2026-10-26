@@ -48,7 +48,8 @@ From "which part?" to "can I buy it and build it?".
   in-stock alternatives from the catalogue.
 - **BOM export:** costed CSV, and JLCPCB assembly BOMs with LCSC codes.
 - **KiCad:** build a project (parts, designators, rails) from a KiCad
-  schematic or netlist, and keep it in sync.
+  schematic or netlist, and keep it in sync. (The other way, a project
+  exported as a KiCad schematic with a layout guide, is in as a preview.)
 
 ## 0.4 — Deeper design help
 

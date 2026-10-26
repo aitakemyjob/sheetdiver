@@ -504,6 +504,11 @@ type reportArgs struct {
 	Project string `json:"project"`
 }
 
+type kicadArgs struct {
+	Project string `json:"project"`
+	Dir     string `json:"dir,omitempty" jsonschema:"folder to write into (default: the library's exports folder)"`
+}
+
 type updateArgs struct {
 	Part string `json:"part,omitempty" jsonschema:"check the datasheet of this part; omit to check every datasheet in the library"`
 }
@@ -660,6 +665,24 @@ func (s *Server) registerDesign() {
 		read, func(a reportArgs) string { return "report " + a.Project }, func(ctx context.Context, a reportArgs) (result, error) {
 			md, err := c.ProjectReport(ctx, a.Project)
 			return text(md), err
+		})
+
+	addTool(s, &mcp.Tool{Name: "export_kicad", Description: "Export a project's block diagram as a KiCad schematic (KiCad 7 or later): every part with its pins labelled with their nets, symbols generated from the datasheets' pin tables (passives use KiCad's Device symbols), footprints from KiCad's libraries where the package says which, in the diagram's groups. Also writes a PDF layout guide: each datasheet's layout sections and figures, general layout practice for each part, and the footprints used. Returns the folder and the parts still needing a footprint.", Annotations: writes("Export KiCad schematic", true)},
+		write, func(a kicadArgs) string { return "export kicad " + a.Project }, func(ctx context.Context, a kicadArgs) (result, error) {
+			out, err := c.ExportKiCad(ctx, a.Project, a.Dir)
+			if err != nil {
+				return result{}, err
+			}
+			var b strings.Builder
+			fmt.Fprintf(&b, "wrote %s to %s\n%d symbols, %d with a footprint; the layout guide has %d pieces of advice and datasheet layout sections or figures.\n", strings.Join(out.Files, ", "), out.Dir, out.Components, out.Footprints, out.Advice)
+			if len(out.Unplaced) > 0 {
+				b.WriteString("no footprint yet (choose one in KiCad, or set the part's package with update_part and export again):\n")
+				for _, u := range out.Unplaced {
+					b.WriteString("- " + u + "\n")
+				}
+			}
+			b.WriteString("Open the .kicad_pro in KiCad: every pin ends in a net label, so the netlist is complete; arrange the parts and wire them as you like.")
+			return text(b.String()), nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "check_datasheet_updates", Description: "Download a datasheet again from its source (or by part number) and report whether a newer revision exists, with the spec rows that changed. Without a part, checks every datasheet. Apply with apply_datasheet_update.", Annotations: &mcp.ToolAnnotations{Title: "Check datasheet updates", ReadOnlyHint: true, OpenWorldHint: boolPtr(true)}},
