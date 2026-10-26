@@ -77,7 +77,11 @@
             "typ": 1
           }
         },
-        "revision": "SLVSET3 rev D (OCTOBER 2020)"
+        "revision": "SLVSET3 rev D (OCTOBER 2020)",
+        "pins": 11,
+        "pinNames": [
+          "Thermal Pad"
+        ]
       }
     },
     {
@@ -628,6 +632,26 @@
           "IO2",
           "NC",
           "GND"
+        ]
+      }
+    },
+    {
+      "file": "nds331n.pdf",
+      "url": "https://www.onsemi.com/download/data-sheet/pdf/nds331n-d.pdf",
+      "sha256": "befcb8cccb29d08f7c49c226e596c55347c4585cb5ef4dcbb656831619098bbc",
+      "manual": true,
+      "why": "A SOT-23 MOSFET with no pin table: its pins are only on the marking diagram, \"1 Gate\", \"2 Source\", \"Drain 3\" (#75). onsemi refuses scripted downloads.",
+      "expect": {
+        "manufacturer": "onsemi",
+        "category": "mosfet-n",
+        "partNumbers": [
+          "NDS331N"
+        ],
+        "pins": 3,
+        "pinNames": [
+          "Gate",
+          "Source",
+          "Drain"
         ]
       }
     }

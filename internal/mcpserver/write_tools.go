@@ -225,6 +225,9 @@ func (s *Server) registerWrite() {
 				fmt.Fprintf(&b, "extracted: %d pages, %d sections, %d figures, %d tables, %d parameters, %d pins in %s\n",
 					res.Counts["pages"], res.Counts["sections"], res.Counts["figures"], res.Counts["tables"], res.Counts["parameters"], res.Counts["pins"], res.Took)
 			}
+			for _, w := range res.Warnings {
+				fmt.Fprintf(&b, "check: %s\n", w)
+			}
 			b.WriteString("Next: get_part to review; fix part numbers with update_part and key values with record_parameters.")
 			if a.Show && len(res.Parts) > 0 {
 				c.Show(core.Focus{Kind: "part", Part: res.Parts[0].MPN})
@@ -279,6 +282,11 @@ func (s *Server) registerWrite() {
 					fmt.Fprintf(&b, "FAILED %s: %s\n", j.Source, j.Error)
 				default:
 					fmt.Fprintf(&b, "%s %s → %s\n", j.Status, j.Source, strings.Join(j.Parts, ", "))
+					if o.Result != nil {
+						for _, w := range o.Result.Warnings {
+							fmt.Fprintf(&b, "  check: %s\n", w)
+						}
+					}
 				}
 			}
 			return text(b.String()), nil

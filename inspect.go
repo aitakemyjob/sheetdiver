@@ -68,6 +68,9 @@ func runInspect(files []string) error {
 			fmt.Printf("  %s%-6s %-8s %-4s %s\n", pkg, p.Number, p.Name, p.Type, p.Description)
 		}
 	}
+	for _, w := range r.PinWarnings {
+		fmt.Printf("  warning: %s\n", w)
+	}
 	fmt.Printf("\ntables (%d):\n", len(r.Tables))
 	for _, t := range r.Tables {
 		irr := ""
