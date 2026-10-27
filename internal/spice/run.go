@@ -87,10 +87,10 @@ type Model struct {
 // Job is a run to do: the folder it runs in (its own, empty), the
 // netlist and variant, and the models it includes.
 type Job struct {
-	Dir     string
-	Netlist Netlist
-	Variant Variant
-	Models  []Model
+	Dir       string
+	Netlist   Netlist
+	Condition Condition
+	Models    []Model
 }
 
 // Result is what a run produced: the deck it ran, ngspice's log, the
@@ -146,7 +146,7 @@ func (rn Runner) Run(ctx context.Context, job Job) Result {
 		includes = append(includes, m.File)
 		pspice = pspice || m.PSpice
 	}
-	deck, err := Deck(job.Netlist, job.Variant, includes)
+	deck, err := Deck(job.Netlist, job.Condition, includes)
 	if err != nil {
 		res.Err = err
 		return res

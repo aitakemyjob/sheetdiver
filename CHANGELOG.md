@@ -9,22 +9,24 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
-- **Circuit simulation with ngspice (preview).** Agents set up
-  simulations of a project — any number, testing whatever they judge
-  worth it (inrush, start-up, load steps, loop gain, corners, one part on
-  a test bench) — with `simulate`: a netlist with its analyses and `.meas`
-  measurements, the part models it uses (`record_spice_model`) and
-  variants with other parameter values or temperatures. SheetDiver checks
-  the netlist (no `.control`, `.include` or file paths), runs each variant
+- **Circuit simulation with ngspice (preview).** Agents set up tests
+  of a project — any number, each one question they judge worth checking
+  (inrush, start-up, load steps, loop gain, corners, one part on a test
+  bench) — and try each in variations with `simulate`: the circuit as the
+  schematic is at the time, or an alternative, with what changed, the part
+  models it uses (`record_spice_model`) and the conditions it runs in
+  (parameter values, temperatures). Variations are added, not replaced, so
+  a test keeps its history as the design moves. SheetDiver checks each
+  netlist (no `.control`, `.include` or file paths), runs each condition
   with the ngspice set in Settings → Simulation (or found on the PATH or
   in its usual place on Windows, macOS and Linux) in its own folder with
-  a time limit, and keeps the runs, measurements and results with the
-  project. The agent presents them with `present_simulation`: a summary,
-  charts, targets that pass or fail per variant, and conclusions, shown in
-  the project's new **Simulations** tab with interactive charts (a
-  crosshair reading every line, AC as magnitude and phase on a log
-  frequency axis, a table of the values). Changing a simulation marks its
-  runs stale; deleting it or its project removes the results. (#87)
+  a time limit, and keeps the results with the test. The agent writes up
+  a test with `present_simulation`: a summary, charts comparing
+  variations and conditions, targets that pass or fail for every
+  variation in every condition, a note per variation, and conclusions,
+  shown in the project's new **Simulations** tab with interactive charts
+  (a crosshair reading every line, AC as magnitude and phase on a log
+  frequency axis, a table of the values). (#87)
 
 ## [0.2.0] - 2026-10-25
 

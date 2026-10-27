@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-// Variant is one run of a simulation: a name and the parameter values
-// and temperature it changes from the netlist's ("hot", "load 2 A",
-// "corner ss"). The empty variant runs the netlist as written.
-type Variant struct {
+// Condition is what a run changes from the netlist as written: its name
+// and the parameter values and temperature it sets ("hot", "load 2 A",
+// "corner ss"). The empty condition runs the netlist as written.
+type Condition struct {
 	Name   string            `json:"name"`
 	Params map[string]string `json:"params,omitempty"`
 	// Temp is the circuit temperature in °C, replacing any .temp.
@@ -29,9 +29,9 @@ var paramValueRe = regexp.MustCompile(`^[\w.+\-*/()^ ]+$|^\{[\w.+\-*/()^ ]+\}$`)
 // paramNameRe is a parameter's name.
 var paramNameRe = regexp.MustCompile(`^[A-Za-z_]\w*$`)
 
-// apply is the netlist's lines with a variant's values: each parameter
+// apply is the netlist's lines with a condition's values: each parameter
 // set where the netlist defines it, else added; the temperature set.
-func (v Variant) apply(lines []string) ([]string, error) {
+func (v Condition) apply(lines []string) ([]string, error) {
 	out := append([]string(nil), lines...)
 	names := make([]string, 0, len(v.Params))
 	for n := range v.Params {
@@ -41,7 +41,7 @@ func (v Variant) apply(lines []string) ([]string, error) {
 	for _, name := range names {
 		value := strings.TrimSpace(v.Params[name])
 		if !paramNameRe.MatchString(name) || !paramValueRe.MatchString(value) {
-			return nil, fmt.Errorf("variant %q: %s=%s isn't a parameter value", v.Name, name, value)
+			return nil, fmt.Errorf("condition %q: %s=%s isn't a parameter value", v.Name, name, value)
 		}
 		re := regexp.MustCompile(`(?i)(^|\s)(` + regexp.QuoteMeta(name) + `)\s*=\s*` + valueRe)
 		found := false
@@ -90,11 +90,11 @@ func PlotIDs(as []Analysis) []string {
 // RawFile is the name of the results file in a run's folder.
 const RawFile = "results.raw"
 
-// Deck is the deck ngspice runs: the netlist with a variant's values,
+// Deck is the deck ngspice runs: the netlist with a condition's values,
 // the models it includes (files in the run's folder), and SheetDiver's
 // control block, which runs the analyses and writes every plot to the
 // results file.
-func Deck(nl Netlist, v Variant, includes []string) (string, error) {
+func Deck(nl Netlist, v Condition, includes []string) (string, error) {
 	lines, err := v.apply(nl.Lines)
 	if err != nil {
 		return "", err

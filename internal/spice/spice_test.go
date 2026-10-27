@@ -58,10 +58,10 @@ func TestParseNumber(t *testing.T) {
 	}
 }
 
-func TestVariant(t *testing.T) {
+func TestCondition(t *testing.T) {
 	nl, _ := Check(rc)
 	hot := 85.0
-	deck, err := Deck(nl, Variant{Name: "10k hot", Params: map[string]string{"rval": "10k", "cload": "{2*1u}"}, Temp: &hot}, []string{"m1.lib"})
+	deck, err := Deck(nl, Condition{Name: "10k hot", Params: map[string]string{"rval": "10k", "cload": "{2*1u}"}, Temp: &hot}, []string{"m1.lib"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestVariant(t *testing.T) {
 			t.Errorf("deck lacks %q:\n%s", want, deck)
 		}
 	}
-	if _, err := Deck(nl, Variant{Params: map[string]string{"r": "1k\n.control"}}, nil); err == nil {
+	if _, err := Deck(nl, Condition{Params: map[string]string{"r": "1k\n.control"}}, nil); err == nil {
 		t.Error("a value with a line break got in")
 	}
 	if got := PlotIDs([]Analysis{{Kind: "tran"}, {Kind: "noise"}, {Kind: "tran"}}); strings.Join(got, ",") != "tran1,noise1,noise2,tran2" {
@@ -141,8 +141,8 @@ func TestRunInNgspice(t *testing.T) {
 		t.Fatal(err)
 	}
 	vmax := map[string]float64{}
-	for _, v := range []Variant{{Name: "1k"}, {Name: "100R", Params: map[string]string{"rval": "100"}}} {
-		res := Runner{Install: inst}.Run(context.Background(), Job{Dir: t.TempDir(), Netlist: nl, Variant: v})
+	for _, v := range []Condition{{Name: "1k"}, {Name: "100R", Params: map[string]string{"rval": "100"}}} {
+		res := Runner{Install: inst}.Run(context.Background(), Job{Dir: t.TempDir(), Netlist: nl, Condition: v})
 		if res.Err != nil {
 			t.Fatalf("%s: %v\n%s", v.Name, res.Err, res.Log)
 		}

@@ -617,8 +617,9 @@ type NgspiceState struct {
 }
 
 // registerSimulations adds the simulation methods: ngspice's state, a
-// project's simulations, one with its runs, a run's chart data, and
-// re-running or deleting one from the app.
+// project's tests, one with its variations and runs, a run's chart data,
+// and running a variation again or deleting a test or a variation from
+// the app.
 func (a *API) registerSimulations() {
 	c := a.core
 	a.methods["sim.ngspice"] = method(func(ctx context.Context, _ struct{}) (any, error) {
@@ -642,11 +643,18 @@ func (a *API) registerSimulations() {
 	})
 	a.methods["sim.run"] = method(func(ctx context.Context, in struct {
 		simReq
-		Variants []string `json:"variants"`
+		Variation  string   `json:"variation"`
+		Conditions []string `json:"conditions"`
 	}) (any, error) {
-		return c.RunSimulation(ctx, in.Project, in.Name, in.Variants)
+		return c.RunVariation(ctx, in.Project, in.Name, in.Variation, in.Conditions)
 	})
 	a.methods["sim.delete"] = method(func(ctx context.Context, in simReq) (any, error) {
 		return nil, c.DeleteSimulation(ctx, in.Project, in.Name)
+	})
+	a.methods["sim.deleteVariation"] = method(func(ctx context.Context, in struct {
+		simReq
+		Variation string `json:"variation"`
+	}) (any, error) {
+		return nil, c.DeleteVariation(ctx, in.Project, in.Name, in.Variation)
 	})
 }

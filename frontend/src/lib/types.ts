@@ -1010,7 +1010,8 @@ export interface SimModel {
   name: string;
 }
 
-export interface SimVariant {
+/** A condition a variation runs in: parameter values and temperature (a corner, a load). */
+export interface SimCondition {
   name: string;
   params?: Record<string, string>;
   temp?: number;
@@ -1022,8 +1023,10 @@ export interface SimPlot {
   /** The analysis's plot: tran1, ac1, dc1… */
   plot: string;
   signals: string[];
-  /** Which variants (none: all). */
-  variants?: string[];
+  /** Which variations it compares (none: the latest). */
+  variations?: string[];
+  /** Which conditions (none: all). */
+  conditions?: string[];
   /** For AC: mag (dB) or phase; none shows both. */
   part?: string;
   xLog?: boolean;
@@ -1040,16 +1043,19 @@ export interface SimCheck {
   why?: string;
 }
 
-/** The agent's write-up of a simulation's results. */
+/** The agent's write-up of a test across its variations. */
 export interface Presentation {
   summary: string;
   plots: SimPlot[];
   checks: SimCheck[];
+  /** What the agent took from each variation. */
+  notes?: { variation: string; text: string }[];
   conclusions?: string;
   standIns?: string[];
   updated?: string;
 }
 
+/** A test: one question, tried in variations. */
 export interface Simulation {
   id: number;
   projectId: number;
@@ -1058,10 +1064,21 @@ export interface Simulation {
   purpose?: string;
   /** The part it tests on its own; empty for the board. */
   target?: string;
+  presentation?: Presentation;
+  source: string;
+  created: string;
+  updated: string;
+}
+
+/** A try of a test: the circuit then, or an alternative, with what changed. */
+export interface Variation {
+  id: number;
+  simulationId: number;
+  name: string;
+  change?: string;
   netlist: string;
   models: SimModel[];
-  variants: SimVariant[];
-  presentation?: Presentation;
+  conditions: SimCondition[];
   source: string;
   created: string;
   updated: string;
@@ -1082,10 +1099,12 @@ export interface RunMeasure {
   error?: string;
 }
 
+/** A run of a variation in one condition. */
 export interface SimRun {
   id: number;
-  simulationId: number;
-  variant: string;
+  variationId: number;
+  variation: string;
+  condition: string;
   state: RunState;
   ngspice?: string;
   deckSha?: string;
@@ -1098,30 +1117,41 @@ export interface SimRun {
   plots: RunPlot[];
 }
 
-/** A target checked against a variant's latest run; pass is absent without a value. */
+/** A target checked against a variation's latest run in a condition; pass is absent without a value. */
 export interface CheckResult extends SimCheck {
-  variant: string;
+  variation: string;
+  condition: string;
   value?: number;
   pass?: boolean;
 }
 
-export interface SimulationDetail {
-  simulation: Simulation;
+/** A variation with its analyses, each condition's latest run and its targets. */
+export interface VariationDetail {
+  variation: Variation;
   analyses: { kind: string; line: string }[];
   measures: string[];
-  /** Each variant's latest run. */
   latest: SimRun[];
-  runs: SimRun[];
   checks: CheckResult[];
 }
 
+/** A test with its variations, in the order they were added. */
+export interface SimulationDetail {
+  simulation: Simulation;
+  variations: VariationDetail[];
+  runs: SimRun[];
+}
+
+/** A test in a project's list. */
 export interface SimulationSummary {
   name: string;
   kind?: string;
   purpose?: string;
   target?: string;
   updated: string;
-  /** Each variant's latest state. */
+  variations: number;
+  /** The latest variation's name. */
+  latest?: string;
+  /** The latest variation's state by condition. */
   states: Record<string, RunState>;
   pass: number;
   fail: number;
@@ -1139,7 +1169,8 @@ export interface SimSeries {
 /** A run's chart data: series against the plot's scale. */
 export interface SimulationData {
   run: number;
-  variant: string;
+  variation: string;
+  condition: string;
   plot: string;
   xName: string;
   xUnit: string;

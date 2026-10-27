@@ -12,13 +12,16 @@ import (
 	"strings"
 )
 
-// Simulations of a project, their runs, and the SPICE models of parts
-// they use. A simulation is what an agent set up to check something
-// ("VBUS inrush on hot-plug"): its netlist, the variants it's run in,
-// the part models it includes and, once run, the agent's presentation
-// of the results. Each run of a variant keeps its state, measurements,
-// the plots ngspice wrote (their vectors; the values stay in the run's
-// results file, in its folder under simulations/) and its log.
+// Simulations of a project. A simulation is a test: one question an
+// agent set out to answer ("Does 3V3 survive the radio waking?"), with
+// its targets and the agent's write-up. A test is tried in variations:
+// each a netlist of the circuit as it was then, or an alternative being
+// tried, with a note of what changed; variations are added as the
+// schematic changes, not replaced, so the test keeps its history. Each
+// variation runs in its conditions (corners, temperatures, loads), and
+// each run keeps its state, measurements, the plots ngspice wrote (their
+// vectors; the values stay in the run's results file, in its folder
+// under simulations/) and its log. Part SPICE models live with the parts.
 
 // SpiceModel is a part's SPICE model: a .subckt or .model by name, in
 // SPICE or PSpice dialect.
@@ -40,26 +43,28 @@ type SimModel struct {
 	Name string `json:"name"`
 }
 
-// SimVariant is a run of a simulation with its own parameter values and
-// temperature.
-type SimVariant struct {
+// SimCondition is a condition a variation runs in: its parameter values
+// and temperature ("hot", "10 µF", "corner ss").
+type SimCondition struct {
 	Name   string            `json:"name"`
 	Params map[string]string `json:"params,omitempty"`
 	Temp   *float64          `json:"temp,omitempty"`
 }
 
 // SimPlot is a chart the agent asked for: the analysis's plot (tran1,
-// ac1…), the signals, which variants (none: all), the part of an AC
-// signal (mag or phase), axes and a note.
+// ac1…), the signals, which variations (none: the latest) and conditions
+// (none: all) it overlays, the part of an AC signal (mag or phase), axes
+// and a note.
 type SimPlot struct {
-	Title    string   `json:"title"`
-	Plot     string   `json:"plot"`
-	Signals  []string `json:"signals"`
-	Variants []string `json:"variants,omitempty"`
-	Part     string   `json:"part,omitempty"`
-	XLog     bool     `json:"xLog,omitempty"`
-	YLabel   string   `json:"yLabel,omitempty"`
-	Note     string   `json:"note,omitempty"`
+	Title      string   `json:"title"`
+	Plot       string   `json:"plot"`
+	Signals    []string `json:"signals"`
+	Variations []string `json:"variations,omitempty"`
+	Conditions []string `json:"conditions,omitempty"`
+	Part       string   `json:"part,omitempty"`
+	XLog       bool     `json:"xLog,omitempty"`
+	YLabel     string   `json:"yLabel,omitempty"`
+	Note       string   `json:"note,omitempty"`
 }
 
 // SimCheck is a target a measurement should meet.
@@ -71,19 +76,27 @@ type SimCheck struct {
 	Why     string   `json:"why,omitempty"`
 }
 
-// Presentation is the agent's write-up of a simulation's results: a
-// summary, the charts to show, the targets, its conclusions, and which
-// parts were stand-ins rather than their real models.
-type Presentation struct {
-	Summary     string     `json:"summary"`
-	Plots       []SimPlot  `json:"plots"`
-	Checks      []SimCheck `json:"checks"`
-	Conclusions string     `json:"conclusions,omitempty"`
-	StandIns    []string   `json:"standIns,omitempty"`
-	Updated     string     `json:"updated,omitempty"`
+// VariationNote is what the agent took from one variation's results.
+type VariationNote struct {
+	Variation string `json:"variation"`
+	Text      string `json:"text"`
 }
 
-// Simulation is a project's simulation.
+// Presentation is the agent's write-up of a test's results across its
+// variations: a summary, the charts to show, the targets, a note per
+// variation, its conclusions, and which parts were stand-ins rather than
+// their real models.
+type Presentation struct {
+	Summary     string          `json:"summary"`
+	Plots       []SimPlot       `json:"plots"`
+	Checks      []SimCheck      `json:"checks"`
+	Notes       []VariationNote `json:"notes,omitempty"`
+	Conclusions string          `json:"conclusions,omitempty"`
+	StandIns    []string        `json:"standIns,omitempty"`
+	Updated     string          `json:"updated,omitempty"`
+}
+
+// Simulation is a project's test.
 type Simulation struct {
 	ID           int64         `json:"id"`
 	ProjectID    int64         `json:"projectId"`
@@ -91,13 +104,25 @@ type Simulation struct {
 	Kind         string        `json:"kind,omitempty"`
 	Purpose      string        `json:"purpose,omitempty"`
 	Target       string        `json:"target,omitempty"`
-	Netlist      string        `json:"netlist"`
-	Models       []SimModel    `json:"models"`
-	Variants     []SimVariant  `json:"variants"`
 	Presentation *Presentation `json:"presentation,omitempty"`
 	Source       string        `json:"source"`
 	Created      string        `json:"created"`
 	Updated      string        `json:"updated"`
+}
+
+// Variation is a try of a test: the netlist, what changed from the one
+// before, the part models it includes and the conditions it runs in.
+type Variation struct {
+	ID           int64          `json:"id"`
+	SimulationID int64          `json:"simulationId"`
+	Name         string         `json:"name"`
+	Change       string         `json:"change,omitempty"`
+	Netlist      string         `json:"netlist"`
+	Models       []SimModel     `json:"models"`
+	Conditions   []SimCondition `json:"conditions"`
+	Source       string         `json:"source"`
+	Created      string         `json:"created"`
+	Updated      string         `json:"updated"`
 }
 
 // RunPlot is a plot a run wrote: its id and name, whether it's complex,
@@ -124,22 +149,23 @@ type RunMeasure struct {
 	Error string   `json:"error,omitempty"`
 }
 
-// SimRun is a run of a simulation's variant.
+// SimRun is a run of a variation in one of its conditions.
 type SimRun struct {
-	ID           int64        `json:"id"`
-	SimulationID int64        `json:"simulationId"`
-	Variant      string       `json:"variant"`
-	State        string       `json:"state"`
-	Ngspice      string       `json:"ngspice,omitempty"`
-	DeckSHA      string       `json:"deckSha,omitempty"`
-	Started      string       `json:"started,omitempty"`
-	Finished     string       `json:"finished,omitempty"`
-	TookMS       int64        `json:"tookMs"`
-	Error        string       `json:"error,omitempty"`
-	Problems     []string     `json:"problems"`
-	Measures     []RunMeasure `json:"measures"`
-	Plots        []RunPlot    `json:"plots"`
-	Log          string       `json:"-"`
+	ID          int64        `json:"id"`
+	VariationID int64        `json:"variationId"`
+	Variation   string       `json:"variation"`
+	Condition   string       `json:"condition"`
+	State       string       `json:"state"`
+	Ngspice     string       `json:"ngspice,omitempty"`
+	DeckSHA     string       `json:"deckSha,omitempty"`
+	Started     string       `json:"started,omitempty"`
+	Finished    string       `json:"finished,omitempty"`
+	TookMS      int64        `json:"tookMs"`
+	Error       string       `json:"error,omitempty"`
+	Problems    []string     `json:"problems"`
+	Measures    []RunMeasure `json:"measures"`
+	Plots       []RunPlot    `json:"plots"`
+	Log         string       `json:"-"`
 }
 
 // simulationMigration adds the tables.
@@ -162,19 +188,29 @@ CREATE TABLE simulations (
 	kind TEXT NOT NULL DEFAULT '',
 	purpose TEXT NOT NULL DEFAULT '',
 	target TEXT NOT NULL DEFAULT '',
-	netlist TEXT NOT NULL,
-	models TEXT NOT NULL DEFAULT '[]',
-	variants TEXT NOT NULL DEFAULT '[]',
 	presentation TEXT NOT NULL DEFAULT '',
 	source TEXT NOT NULL DEFAULT 'agent',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	UNIQUE(project_id, name)
 );
-CREATE TABLE simulation_runs (
+CREATE TABLE simulation_variations (
 	id INTEGER PRIMARY KEY,
 	simulation_id INTEGER NOT NULL REFERENCES simulations(id) ON DELETE CASCADE,
-	variant TEXT NOT NULL DEFAULT '',
+	name TEXT NOT NULL COLLATE NOCASE,
+	change TEXT NOT NULL DEFAULT '',
+	netlist TEXT NOT NULL,
+	models TEXT NOT NULL DEFAULT '[]',
+	conditions TEXT NOT NULL DEFAULT '[]',
+	source TEXT NOT NULL DEFAULT 'agent',
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(simulation_id, name)
+);
+CREATE TABLE simulation_runs (
+	id INTEGER PRIMARY KEY,
+	variation_id INTEGER NOT NULL REFERENCES simulation_variations(id) ON DELETE CASCADE,
+	condition TEXT NOT NULL DEFAULT '',
 	state TEXT NOT NULL,
 	ngspice TEXT NOT NULL DEFAULT '',
 	deck_sha TEXT NOT NULL DEFAULT '',
@@ -187,7 +223,8 @@ CREATE TABLE simulation_runs (
 	plots TEXT NOT NULL DEFAULT '[]',
 	log TEXT NOT NULL DEFAULT ''
 );
-CREATE INDEX simulation_runs_sim ON simulation_runs(simulation_id);
+CREATE INDEX simulation_variations_sim ON simulation_variations(simulation_id);
+CREATE INDEX simulation_runs_variation ON simulation_runs(variation_id);
 `
 
 // RunDir is the folder a run's deck, log and results are kept in.
@@ -239,51 +276,37 @@ func (s *Store) SpiceModels(ctx context.Context, partID int64) ([]SpiceModel, er
 	return out, rows.Err()
 }
 
-// SaveSimulation adds a project's simulation or replaces the one of the
-// same name, keeping its presentation and runs; the runs go stale.
+// SaveSimulation adds a project's test or updates the one of the same
+// name (its kind, purpose and target), keeping its variations and
+// presentation.
 func (s *Store) SaveSimulation(ctx context.Context, sim Simulation) (Simulation, error) {
 	sim.Name = strings.TrimSpace(sim.Name)
 	if sim.Name == "" {
-		return sim, errors.New("a simulation needs a name, e.g. \"VBUS inrush\"")
+		return sim, errors.New("a test needs a name, e.g. \"3V3 load step\"")
 	}
 	if sim.Source == "" {
 		sim.Source = SourceAgent
 	}
-	if sim.Models == nil {
-		sim.Models = []SimModel{}
-	}
-	if sim.Variants == nil {
-		sim.Variants = []SimVariant{}
-	}
 	t := now()
-	err := s.tx(ctx, func(tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `INSERT INTO simulations (project_id, name, kind, purpose, target, netlist, models, variants, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)
-			ON CONFLICT(project_id, name) DO UPDATE SET kind = excluded.kind, purpose = excluded.purpose, target = excluded.target, netlist = excluded.netlist,
-			models = excluded.models, variants = excluded.variants, source = excluded.source, updated_at = excluded.updated_at
-			RETURNING id`, sim.ProjectID, sim.Name, sim.Kind, sim.Purpose, sim.Target, sim.Netlist, toJSON(sim.Models), toJSON(sim.Variants), sim.Source, t, t).Scan(&sim.ID); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, `UPDATE simulation_runs SET state = 'stale' WHERE simulation_id = ? AND state IN ('done', 'failed')`, sim.ID)
-		return err
-	})
-	if err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO simulations (project_id, name, kind, purpose, target, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)
+		ON CONFLICT(project_id, name) DO UPDATE SET kind = COALESCE(NULLIF(excluded.kind, ''), kind), purpose = COALESCE(NULLIF(excluded.purpose, ''), purpose),
+		target = COALESCE(NULLIF(excluded.target, ''), target), updated_at = excluded.updated_at`,
+		sim.ProjectID, sim.Name, sim.Kind, sim.Purpose, sim.Target, sim.Source, t, t); err != nil {
 		return sim, err
 	}
 	return s.Simulation(ctx, sim.ProjectID, sim.Name)
 }
 
-// simCols are a simulation's columns.
-const simCols = `id, project_id, name, kind, purpose, target, netlist, models, variants, presentation, source, created_at, updated_at`
+// simCols are a test's columns.
+const simCols = `id, project_id, name, kind, purpose, target, presentation, source, created_at, updated_at`
 
-// scanSimulation reads a simulation row.
+// scanSimulation reads a test row.
 func scanSimulation(sc interface{ Scan(...any) error }) (Simulation, error) {
 	var sim Simulation
-	var models, variants, pres string
-	if err := sc.Scan(&sim.ID, &sim.ProjectID, &sim.Name, &sim.Kind, &sim.Purpose, &sim.Target, &sim.Netlist, &models, &variants, &pres, &sim.Source, &sim.Created, &sim.Updated); err != nil {
+	var pres string
+	if err := sc.Scan(&sim.ID, &sim.ProjectID, &sim.Name, &sim.Kind, &sim.Purpose, &sim.Target, &pres, &sim.Source, &sim.Created, &sim.Updated); err != nil {
 		return sim, err
 	}
-	_ = json.Unmarshal([]byte(models), &sim.Models)
-	_ = json.Unmarshal([]byte(variants), &sim.Variants)
 	if pres != "" {
 		sim.Presentation = &Presentation{}
 		_ = json.Unmarshal([]byte(pres), sim.Presentation)
@@ -291,16 +314,16 @@ func scanSimulation(sc interface{ Scan(...any) error }) (Simulation, error) {
 	return sim, nil
 }
 
-// Simulation finds a project's simulation by name (ignoring case).
+// Simulation finds a project's test by name (ignoring case).
 func (s *Store) Simulation(ctx context.Context, projectID int64, name string) (Simulation, error) {
 	sim, err := scanSimulation(s.db.QueryRowContext(ctx, `SELECT `+simCols+` FROM simulations WHERE project_id = ? AND name = ?`, projectID, strings.TrimSpace(name)))
 	if errors.Is(err, sql.ErrNoRows) {
-		return sim, fmt.Errorf("simulation %q: %w", name, ErrNotFound)
+		return sim, fmt.Errorf("test %q: %w", name, ErrNotFound)
 	}
 	return sim, err
 }
 
-// Simulations lists a project's simulations, newest change first.
+// Simulations lists a project's tests, the latest changed first.
 func (s *Store) Simulations(ctx context.Context, projectID int64) ([]Simulation, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+simCols+` FROM simulations WHERE project_id = ? ORDER BY updated_at DESC, id DESC`, projectID)
 	if err != nil {
@@ -318,32 +341,116 @@ func (s *Store) Simulations(ctx context.Context, projectID int64) ([]Simulation,
 	return out, rows.Err()
 }
 
-// SetPresentation saves the agent's presentation of a simulation.
+// SetPresentation saves the agent's write-up of a test.
 func (s *Store) SetPresentation(ctx context.Context, simID int64, p Presentation) error {
 	p.Updated = now()
 	_, err := s.db.ExecContext(ctx, `UPDATE simulations SET presentation = ?, updated_at = ? WHERE id = ?`, toJSON(p), p.Updated, simID)
 	return err
 }
 
-// DeleteSimulation removes a simulation, its runs and their files.
+// DeleteSimulation removes a test, its variations, runs and their files.
 func (s *Store) DeleteSimulation(ctx context.Context, simID int64) error {
-	runs, err := s.Runs(ctx, simID)
-	if err != nil {
-		return err
-	}
+	ids := s.runIDs(ctx, `SELECT r.id FROM simulation_runs r JOIN simulation_variations v ON v.id = r.variation_id WHERE v.simulation_id = ?`, simID)
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM simulations WHERE id = ?`, simID); err != nil {
 		return err
 	}
-	for _, r := range runs {
-		_ = os.RemoveAll(s.RunDir(r.ID))
-	}
+	s.removeRuns(ids)
 	return nil
 }
 
-// AddRun starts a run of a variant, queued.
-func (s *Store) AddRun(ctx context.Context, simID int64, variant string) (SimRun, error) {
-	r := SimRun{SimulationID: simID, Variant: variant, State: "queued", Problems: []string{}, Measures: []RunMeasure{}, Plots: []RunPlot{}}
-	err := s.db.QueryRowContext(ctx, `INSERT INTO simulation_runs (simulation_id, variant, state) VALUES (?,?,?) RETURNING id`, simID, variant, r.State).Scan(&r.ID)
+// SaveVariation adds a variation to a test, or replaces the one of the
+// same name (a netlist fixed before it's run, say); its runs then go
+// stale. Saving a variation makes the test the latest changed.
+func (s *Store) SaveVariation(ctx context.Context, v Variation) (Variation, error) {
+	v.Name = strings.TrimSpace(v.Name)
+	if v.Name == "" {
+		return v, errors.New("a variation needs a name, e.g. \"Rev A, 22 µF\"")
+	}
+	if v.Source == "" {
+		v.Source = SourceAgent
+	}
+	if v.Models == nil {
+		v.Models = []SimModel{}
+	}
+	if v.Conditions == nil {
+		v.Conditions = []SimCondition{}
+	}
+	t := now()
+	err := s.tx(ctx, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `INSERT INTO simulation_variations (simulation_id, name, change, netlist, models, conditions, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)
+			ON CONFLICT(simulation_id, name) DO UPDATE SET change = excluded.change, netlist = excluded.netlist, models = excluded.models,
+			conditions = excluded.conditions, source = excluded.source, updated_at = excluded.updated_at
+			RETURNING id`, v.SimulationID, v.Name, v.Change, v.Netlist, toJSON(v.Models), toJSON(v.Conditions), v.Source, t, t).Scan(&v.ID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE simulation_runs SET state = 'stale' WHERE variation_id = ? AND state IN ('done', 'failed')`, v.ID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE simulations SET updated_at = ? WHERE id = ?`, t, v.SimulationID)
+		return err
+	})
+	if err != nil {
+		return v, err
+	}
+	return s.Variation(ctx, v.SimulationID, v.Name)
+}
+
+// varCols are a variation's columns.
+const varCols = `id, simulation_id, name, change, netlist, models, conditions, source, created_at, updated_at`
+
+// scanVariation reads a variation row.
+func scanVariation(sc interface{ Scan(...any) error }) (Variation, error) {
+	var v Variation
+	var models, conds string
+	if err := sc.Scan(&v.ID, &v.SimulationID, &v.Name, &v.Change, &v.Netlist, &models, &conds, &v.Source, &v.Created, &v.Updated); err != nil {
+		return v, err
+	}
+	_ = json.Unmarshal([]byte(models), &v.Models)
+	_ = json.Unmarshal([]byte(conds), &v.Conditions)
+	return v, nil
+}
+
+// Variation finds a test's variation by name (ignoring case).
+func (s *Store) Variation(ctx context.Context, simID int64, name string) (Variation, error) {
+	v, err := scanVariation(s.db.QueryRowContext(ctx, `SELECT `+varCols+` FROM simulation_variations WHERE simulation_id = ? AND name = ?`, simID, strings.TrimSpace(name)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return v, fmt.Errorf("variation %q: %w", name, ErrNotFound)
+	}
+	return v, err
+}
+
+// Variations lists a test's variations in the order they were added.
+func (s *Store) Variations(ctx context.Context, simID int64) ([]Variation, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+varCols+` FROM simulation_variations WHERE simulation_id = ? ORDER BY id`, simID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Variation{}
+	for rows.Next() {
+		v, err := scanVariation(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// DeleteVariation removes a variation, its runs and their files.
+func (s *Store) DeleteVariation(ctx context.Context, variationID int64) error {
+	ids := s.runIDs(ctx, `SELECT id FROM simulation_runs WHERE variation_id = ?`, variationID)
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM simulation_variations WHERE id = ?`, variationID); err != nil {
+		return err
+	}
+	s.removeRuns(ids)
+	return nil
+}
+
+// AddRun starts a run of a variation in a condition, queued.
+func (s *Store) AddRun(ctx context.Context, variationID int64, condition string) (SimRun, error) {
+	r := SimRun{VariationID: variationID, Condition: condition, State: "queued", Problems: []string{}, Measures: []RunMeasure{}, Plots: []RunPlot{}}
+	err := s.db.QueryRowContext(ctx, `INSERT INTO simulation_runs (variation_id, condition, state) VALUES (?,?,?) RETURNING id`, variationID, condition, r.State).Scan(&r.ID)
 	return r, err
 }
 
@@ -354,14 +461,17 @@ func (s *Store) SaveRun(ctx context.Context, r SimRun) error {
 	return err
 }
 
-// runCols are a run's columns.
-const runCols = `id, simulation_id, variant, state, ngspice, deck_sha, started_at, finished_at, took_ms, error, problems, measures, plots, log`
+// runCols are a run's columns, with its variation's name.
+const runCols = `r.id, r.variation_id, v.name, r.condition, r.state, r.ngspice, r.deck_sha, r.started_at, r.finished_at, r.took_ms, r.error, r.problems, r.measures, r.plots, r.log`
+
+// runFrom joins a run to its variation.
+const runFrom = ` FROM simulation_runs r JOIN simulation_variations v ON v.id = r.variation_id `
 
 // scanRun reads a run row.
 func scanRun(sc interface{ Scan(...any) error }) (SimRun, error) {
 	var r SimRun
 	var problems, measures, plots string
-	if err := sc.Scan(&r.ID, &r.SimulationID, &r.Variant, &r.State, &r.Ngspice, &r.DeckSHA, &r.Started, &r.Finished, &r.TookMS, &r.Error, &problems, &measures, &plots, &r.Log); err != nil {
+	if err := sc.Scan(&r.ID, &r.VariationID, &r.Variation, &r.Condition, &r.State, &r.Ngspice, &r.DeckSHA, &r.Started, &r.Finished, &r.TookMS, &r.Error, &problems, &measures, &plots, &r.Log); err != nil {
 		return r, err
 	}
 	_ = json.Unmarshal([]byte(problems), &r.Problems)
@@ -370,9 +480,9 @@ func scanRun(sc interface{ Scan(...any) error }) (SimRun, error) {
 	return r, nil
 }
 
-// Runs lists a simulation's runs, newest first.
+// Runs lists a test's runs, of every variation, newest first.
 func (s *Store) Runs(ctx context.Context, simID int64) ([]SimRun, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+runCols+` FROM simulation_runs WHERE simulation_id = ? ORDER BY id DESC`, simID)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+runCols+runFrom+`WHERE v.simulation_id = ? ORDER BY r.id DESC`, simID)
 	if err != nil {
 		return nil, err
 	}
@@ -390,16 +500,16 @@ func (s *Store) Runs(ctx context.Context, simID int64) ([]SimRun, error) {
 
 // Run finds a run by id.
 func (s *Store) Run(ctx context.Context, id int64) (SimRun, error) {
-	r, err := scanRun(s.db.QueryRowContext(ctx, `SELECT `+runCols+` FROM simulation_runs WHERE id = ?`, id))
+	r, err := scanRun(s.db.QueryRowContext(ctx, `SELECT `+runCols+runFrom+`WHERE r.id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, fmt.Errorf("run %d: %w", id, ErrNotFound)
 	}
 	return r, err
 }
 
-// projectRunIDs lists the runs of a project's simulations.
-func (s *Store) projectRunIDs(ctx context.Context, projectID int64) []int64 {
-	rows, err := s.db.QueryContext(ctx, `SELECT r.id FROM simulation_runs r JOIN simulations m ON m.id = r.simulation_id WHERE m.project_id = ?`, projectID)
+// runIDs lists the runs a query selects.
+func (s *Store) runIDs(ctx context.Context, query string, args ...any) []int64 {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil
 	}
@@ -412,4 +522,16 @@ func (s *Store) projectRunIDs(ctx context.Context, projectID int64) []int64 {
 		}
 	}
 	return out
+}
+
+// removeRuns deletes runs' folders.
+func (s *Store) removeRuns(ids []int64) {
+	for _, id := range ids {
+		_ = os.RemoveAll(s.RunDir(id))
+	}
+}
+
+// projectRunIDs lists the runs of a project's tests.
+func (s *Store) projectRunIDs(ctx context.Context, projectID int64) []int64 {
+	return s.runIDs(ctx, `SELECT r.id FROM simulation_runs r JOIN simulation_variations v ON v.id = r.variation_id JOIN simulations m ON m.id = v.simulation_id WHERE m.project_id = ?`, projectID)
 }

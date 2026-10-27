@@ -109,8 +109,10 @@ export const api = {
   simulation: (project: string, name: string) => call<SimulationDetail>('sim.get', { project, name }),
   /** A run's signals of a plot, thinned to points each (AC as dB, or phase). */
   simulationData: (run: number, plot: string, signals: string[], part = '', points = 1500) => call<SimulationData>('sim.data', { run, plot, signals, part, points }),
-  runSimulation: (project: string, name: string, variants: string[] = []) => call<SimRun[]>('sim.run', { project, name, variants }),
+  /** Runs a test's variation (the latest when none is named) in its conditions (all when none are named). */
+  runSimulation: (project: string, name: string, variation = '', conditions: string[] = []) => call<SimRun[]>('sim.run', { project, name, variation, conditions }),
   deleteSimulation: (project: string, name: string) => call<void>('sim.delete', { project, name }),
+  deleteVariation: (project: string, name: string, variation: string) => call<void>('sim.deleteVariation', { project, name, variation }),
   setRail: (r: Partial<Rail> & { projectId: number; name: string }) => call<Rail>('rails.set', r),
   deleteRail: (projectId: number, name: string) => call<void>('rails.delete', { projectId, name }),
   addProjectPart: (project: string, part: string, pp: Partial<ProjectPart>) => call<ProjectPart>('projectParts.add', { project, part, ...pp }),

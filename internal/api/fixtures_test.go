@@ -91,18 +91,24 @@ func TestFrontendFixtures(t *testing.T) {
 	if _, err := c.Lib.AddNote(ctx, library.Note{TargetKind: library.TargetPart, TargetID: "SD1234", Body: "Use the **SD1234** for the 3V3 rail."}, dsID); err != nil {
 		t.Fatal(err)
 	}
-	// A simulation set up and presented, not run: runs depend on the
-	// machine's ngspice, so the frontend's tests give chart data
-	// themselves.
+	// A test with two variations, set up and written up, not run: runs
+	// depend on the machine's ngspice, so the frontend's tests give runs
+	// and chart data themselves.
 	hot, vmin := 85.0, 3.2
-	if _, err := c.SaveSimulation(ctx, "Sensor board", core.SimulationSpec{Name: "3V3 start-up", Kind: "start-up", Purpose: "Does 3V3 come up cleanly from the battery?",
-		Netlist:  "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 10u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n",
-		Variants: []library.SimVariant{{Name: "room"}, {Name: "hot", Temp: &hot}}}, library.SourceAgent); err != nil {
-		t.Fatal(err)
+	startup := core.TestSpec{Name: "3V3 start-up", Kind: "start-up", Purpose: "Does 3V3 come up cleanly from the battery?"}
+	conds := []library.SimCondition{{Name: "room"}, {Name: "hot", Temp: &hot}}
+	for _, v := range []core.VariationSpec{
+		{Name: "Rev A", Change: "first draft: 10 µF", Netlist: "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 10u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n", Conditions: conds},
+		{Name: "Rev B", Change: "C1 up to 22 µF", Netlist: "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 22u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n", Conditions: conds},
+	} {
+		if _, _, err := c.SaveVariation(ctx, "Sensor board", startup, v, library.SourceAgent); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := c.PresentSimulation(ctx, "Sensor board", "3V3 start-up", library.Presentation{Summary: "3V3 settles within **2 ms**.",
-		Plots:  []library.SimPlot{{Title: "Start-up", Plot: "tran1", Signals: []string{"v(out)", "v(vin)"}}},
-		Checks: []library.SimCheck{{Measure: "vfinal", Min: &vmin, Unit: "V", Why: "the sensor's minimum supply"}}, Conclusions: "No change needed."}); err != nil {
+	if _, err := c.PresentSimulation(ctx, "Sensor board", "3V3 start-up", library.Presentation{Summary: "3V3 settles within **2 ms** from Rev B on.",
+		Plots:  []library.SimPlot{{Title: "Start-up", Plot: "tran1", Signals: []string{"v(out)", "v(vin)"}, Variations: []string{"Rev A", "Rev B"}, Conditions: []string{"room"}}},
+		Checks: []library.SimCheck{{Measure: "vfinal", Min: &vmin, Unit: "V", Why: "the sensor's minimum supply"}},
+		Notes:  []library.VariationNote{{Variation: "Rev A", Text: "Sags when the radio wakes."}}, Conclusions: "Keep Rev B."}); err != nil {
 		t.Fatal(err)
 	}
 	var sections []library.Section

@@ -1,10 +1,11 @@
 // What the Simulations tab draws, worked out from the backend's data:
-// which runs and signals each of the agent's charts needs, the chart's
-// scales, ticks and colours, the value under the cursor, and the
-// targets laid out by measurement. Nothing here draws.
+// which runs each of the agent's charts needs (the variations it
+// compares, in its conditions), the chart's scales, ticks, colours and
+// labels, the value under the cursor, and the targets as a matrix of
+// variations against conditions. Nothing here draws.
 
 import { eng } from './format';
-import type { CheckResult, RunState, SimPlot, SimRun, SimulationData } from './types';
+import type { RunState, SimPlot, SimRun, SimulationData, SimulationDetail, VariationDetail } from './types';
 
 /** A chart panel: one of the agent's charts, or its magnitude or phase half for AC. */
 export interface Panel {
@@ -39,10 +40,21 @@ export function hasResults(r: SimRun): boolean {
   return r.state === 'done' || (r.state === 'stale' && r.plots.length > 0);
 }
 
-/** The runs a chart draws: the latest of each variant it names (all when none), with results and the plot. */
-export function runsFor(spec: SimPlot, latest: SimRun[]): SimRun[] {
-  const want = (spec.variants ?? []).map((v) => v.toLowerCase());
-  return latest.filter((r) => hasResults(r) && r.plots.some((p) => p.id === spec.plot) && (want.length === 0 || want.includes(r.variant.toLowerCase())));
+/** The variations a chart compares at first: those the agent named, else the latest. */
+export function defaultVariations(spec: SimPlot, variations: VariationDetail[]): string[] {
+  const names = variations.map((v) => v.variation.name);
+  const asked = (spec.variations ?? []).filter((n) => names.some((x) => x.toLowerCase() === n.toLowerCase()));
+  return asked.length ? asked : names.slice(-1);
+}
+
+/** The runs a chart draws: the latest run of each of its conditions (all when it names none) in each chosen variation, with results and the plot. */
+export function runsFor(spec: SimPlot, variations: VariationDetail[], chosen: string[]): SimRun[] {
+  const want = (spec.conditions ?? []).map((c) => c.toLowerCase());
+  const pick = chosen.map((c) => c.toLowerCase());
+  return variations
+    .filter((v) => pick.includes(v.variation.name.toLowerCase()))
+    .flatMap((v) => v.latest)
+    .filter((r) => hasResults(r) && r.plots.some((p) => p.id === spec.plot) && (want.length === 0 || want.includes(r.condition.toLowerCase())));
 }
 
 /** Categorical colours in fixed order, stepped for light and dark surfaces (validated for colour-vision deficiency). */
@@ -121,16 +133,20 @@ export function scale(domain: [number, number], range: [number, number], log = f
   return (v) => range[0] + ((f(v) - d0) / span) * (range[1] - range[0]);
 }
 
-/** The chart of a panel from its runs' data: a line per signal and variant, a shared x axis (log for frequency, or when asked), one y axis. */
+/** The chart of a panel from its runs' data: a line per signal, variation and condition, a shared x axis (log for frequency, or when asked), one y axis. */
 export function chartModel(panel: Panel, data: SimulationData[], dark: boolean): ChartModel {
   const series: ChartSeries[] = [];
-  const many = data.length > 1;
-  const oneSignal = new Set(data.flatMap((d) => d.series.map((s) => s.name))).size === 1;
+  // Each line is named by what tells it apart: its signal, variation and
+  // condition, leaving out what all the lines share.
+  const signals = new Set(data.flatMap((d) => d.series.map((s) => s.name)));
+  const byVariation = new Set(data.map((d) => d.variation)).size > 1;
+  const byCondition = new Set(data.map((d) => d.condition)).size > 1;
   for (const d of data) {
     for (const s of d.series) {
       const style = seriesStyle(series.length, dark);
-      const label = many ? `${s.name} · ${d.variant}` : s.name;
-      series.push({ key: `${d.run}:${s.name}`, label, short: many && oneSignal ? d.variant : label, ...style, x: s.x, y: s.y });
+      const which = [byVariation ? d.variation : '', byCondition ? d.condition : ''].filter(Boolean);
+      const label = [s.name, ...which].join(' · ');
+      series.push({ key: `${d.run}:${s.name}`, label, short: signals.size === 1 && which.length ? which.join(' · ') : label, ...style, x: s.x, y: s.y });
     }
   }
   const xUnit = data[0]?.xUnit ?? '';
@@ -220,29 +236,49 @@ export function formatValue(v: number | undefined, unit = ''): string {
   return v === undefined || v === null ? '–' : fmt(v, unit);
 }
 
-/** A target with its results across variants. */
-export interface TargetRow {
+/** A target as a matrix: each variation's value and verdict in each condition. */
+export interface TargetMatrix {
   measure: string;
   unit: string;
   range: string;
   why?: string;
-  results: { variant: string; value: string; pass?: boolean }[];
+  rows: { variation: string; change?: string; cells: { condition: string; value: string; pass?: boolean }[] }[];
 }
 
-/** The targets, one row per measurement with each variant's value and verdict. */
-export function targetRows(checks: CheckResult[]): TargetRow[] {
-  const rows = new Map<string, TargetRow>();
-  for (const c of checks) {
-    let r = rows.get(c.measure);
-    if (!r) {
-      const unit = c.unit ?? '';
-      const range = c.min !== undefined && c.max !== undefined ? `${fmt(c.min, unit)} … ${fmt(c.max, unit)}` : c.min !== undefined ? `≥ ${fmt(c.min, unit)}` : c.max !== undefined ? `≤ ${fmt(c.max, unit)}` : 'any';
-      r = { measure: c.measure, unit, range, why: c.why, results: [] };
-      rows.set(c.measure, r);
-    }
-    r.results.push({ variant: c.variant, value: formatValue(c.value, r.unit), pass: c.pass });
-  }
-  return [...rows.values()];
+/** The conditions the variations ran in, in the order they first appear. */
+export function conditionsOf(d: SimulationDetail): string[] {
+  const out: string[] = [];
+  for (const v of d.variations) for (const r of v.latest) if (!out.includes(r.condition)) out.push(r.condition);
+  return out;
+}
+
+/** The targets, one matrix per measurement: a row per variation, in the order they were added, and a cell per condition. */
+export function targetMatrix(d: SimulationDetail): TargetMatrix[] {
+  const checks = d.simulation.presentation?.checks ?? [];
+  const conds = conditionsOf(d);
+  return checks.map((c) => {
+    const unit = c.unit ?? '';
+    const range = c.min !== undefined && c.max !== undefined ? `${fmt(c.min, unit)} … ${fmt(c.max, unit)}` : c.min !== undefined ? `≥ ${fmt(c.min, unit)}` : c.max !== undefined ? `≤ ${fmt(c.max, unit)}` : 'any';
+    return {
+      measure: c.measure,
+      unit,
+      range,
+      why: c.why,
+      rows: d.variations.map((v) => ({
+        variation: v.variation.name,
+        change: v.variation.change,
+        cells: conds.map((cond) => {
+          const r = v.checks.find((x) => x.measure === c.measure && x.condition === cond);
+          return { condition: cond, value: r ? formatValue(r.value, unit) : '', pass: r?.pass };
+        }),
+      })),
+    };
+  });
+}
+
+/** The agent's note on a variation, if it wrote one. */
+export function noteOf(d: SimulationDetail, variation: string): string | undefined {
+  return d.simulation.presentation?.notes?.find((n) => n.variation.toLowerCase() === variation.toLowerCase())?.text;
 }
 
 /** How a run's state is shown: its badge's tone and words. */

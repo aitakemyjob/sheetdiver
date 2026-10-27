@@ -3540,6 +3540,8 @@
     "kind": "start-up",
     "purpose": "Does 3V3 come up cleanly from the battery?",
     "updated": "2026-01-01T00:00:00Z",
+    "variations": 2,
+    "latest": "Rev B",
     "states": {},
     "pass": 0,
     "fail": 0,
@@ -3560,19 +3562,8 @@
     "name": "3V3 start-up",
     "kind": "start-up",
     "purpose": "Does 3V3 come up cleanly from the battery?",
-    "netlist": "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 10u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n",
-    "models": [],
-    "variants": [
-     {
-      "name": "room"
-     },
-     {
-      "name": "hot",
-      "temp": 85
-     }
-    ],
     "presentation": {
-     "summary": "3V3 settles within **2 ms**.",
+     "summary": "3V3 settles within **2 ms** from Rev B on.",
      "plots": [
       {
        "title": "Start-up",
@@ -3580,6 +3571,13 @@
        "signals": [
         "v(out)",
         "v(vin)"
+       ],
+       "variations": [
+        "Rev A",
+        "Rev B"
+       ],
+       "conditions": [
+        "room"
        ]
       }
      ],
@@ -3591,25 +3589,88 @@
        "why": "the sensor's minimum supply"
       }
      ],
-     "conclusions": "No change needed.",
+     "notes": [
+      {
+       "variation": "Rev A",
+       "text": "Sags when the radio wakes."
+      }
+     ],
+     "conclusions": "Keep Rev B.",
      "updated": "2026-01-01T00:00:00Z"
     },
     "source": "agent",
     "created": "2026-01-01T00:00:00Z",
     "updated": "2026-01-01T00:00:00Z"
    },
-   "analyses": [
+   "variations": [
     {
-     "kind": "tran",
-     "line": ".tran 10u 5m"
+     "variation": {
+      "id": 1,
+      "simulationId": 1,
+      "name": "Rev A",
+      "change": "first draft: 10 µF",
+      "netlist": "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 10u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n",
+      "models": [],
+      "conditions": [
+       {
+        "name": "room"
+       },
+       {
+        "name": "hot",
+        "temp": 85
+       }
+      ],
+      "source": "agent",
+      "created": "2026-01-01T00:00:00Z",
+      "updated": "2026-01-01T00:00:00Z"
+     },
+     "analyses": [
+      {
+       "kind": "tran",
+       "line": ".tran 10u 5m"
+      }
+     ],
+     "measures": [
+      "vfinal"
+     ],
+     "latest": [],
+     "checks": []
+    },
+    {
+     "variation": {
+      "id": 2,
+      "simulationId": 1,
+      "name": "Rev B",
+      "change": "C1 up to 22 µF",
+      "netlist": "3V3 start-up\nV1 vin 0 PWL(0 0 1m 12)\nR1 vin out 1\nC1 out 0 22u\n.tran 10u 5m\n.meas tran vfinal FIND v(out) AT=5m\n.end\n",
+      "models": [],
+      "conditions": [
+       {
+        "name": "room"
+       },
+       {
+        "name": "hot",
+        "temp": 85
+       }
+      ],
+      "source": "agent",
+      "created": "2026-01-01T00:00:00Z",
+      "updated": "2026-01-01T00:00:00Z"
+     },
+     "analyses": [
+      {
+       "kind": "tran",
+       "line": ".tran 10u 5m"
+      }
+     ],
+     "measures": [
+      "vfinal"
+     ],
+     "latest": [],
+     "checks": []
     }
    ],
-   "measures": [
-    "vfinal"
-   ],
-   "latest": [],
-   "runs": [],
-   "checks": []
+   "runs": []
   }
  },
  {
