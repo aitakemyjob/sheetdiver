@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -155,8 +156,14 @@ func (s *Store) UpdateProject(ctx context.Context, id int64, name, desc string) 
 
 // DeleteProject removes a project (its parts stay in the library).
 func (s *Store) DeleteProject(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
-	return err
+	runs := s.projectRunIDs(ctx, id)
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id); err != nil {
+		return err
+	}
+	for _, r := range runs {
+		_ = os.RemoveAll(s.RunDir(r))
+	}
+	return nil
 }
 
 // touch bumps a project's modification time.

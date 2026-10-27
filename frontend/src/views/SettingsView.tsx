@@ -3,8 +3,9 @@ import { themes } from '../lib/themes';
 import { Switch } from '../components/ui';
 import { CatalogSettings } from '../components/CatalogPanel';
 import { TranslationSettings } from '../components/TranslationSettings';
+import { NgspiceSettings } from '../components/NgspiceSettings';
 
-/** Settings: appearance, agent access, server and library. */
+/** Settings: appearance, agent access, catalogue, translation, simulation, server and library. */
 export function SettingsView() {
   const s = useStore();
   const st = s.app?.config.settings;
@@ -65,6 +66,7 @@ export function SettingsView() {
         </div>
         <CatalogSettings />
         <TranslationSettings />
+        <NgspiceSettings />
         <div className="card">
           <h3>Server & library</h3>
           {row(

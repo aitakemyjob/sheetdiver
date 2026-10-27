@@ -98,6 +98,7 @@ func New(c *core.Service) *Server {
 	s.registerCalc()
 	s.registerCompare()
 	s.registerDesign()
+	s.registerSimulation()
 	return s
 }
 

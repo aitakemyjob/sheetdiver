@@ -19,6 +19,8 @@ export interface Settings {
   libraryDir: string;
   /** Days before the parts catalogue reminder: 0 = 14, −1 = never. */
   catalogRemindDays?: number;
+  /** The ngspice program simulations run with; empty finds it. */
+  ngspicePath?: string;
 }
 
 export interface Config {
@@ -987,4 +989,159 @@ export interface TranslateStatus {
   models: TranslationModel[];
   progress?: { model: string; done: number; total: number };
   error?: string;
+}
+
+// ---- simulations (internal/core/simulations.go, internal/library/simulations.go)
+
+/** The ngspice simulations run with, or why there's none. */
+export interface NgspiceState {
+  path?: string;
+  version?: string;
+  /** settings, PATH or default. */
+  from?: string;
+  error?: string;
+}
+
+/** A run's state: queued → running → done | failed | cancelled; stale after the simulation changes. */
+export type RunState = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'stale';
+
+export interface SimModel {
+  part: string;
+  name: string;
+}
+
+export interface SimVariant {
+  name: string;
+  params?: Record<string, string>;
+  temp?: number;
+}
+
+/** A chart the agent asked for. */
+export interface SimPlot {
+  title: string;
+  /** The analysis's plot: tran1, ac1, dc1… */
+  plot: string;
+  signals: string[];
+  /** Which variants (none: all). */
+  variants?: string[];
+  /** For AC: mag (dB) or phase; none shows both. */
+  part?: string;
+  xLog?: boolean;
+  yLabel?: string;
+  note?: string;
+}
+
+/** A target a measurement should meet. */
+export interface SimCheck {
+  measure: string;
+  min?: number;
+  max?: number;
+  unit?: string;
+  why?: string;
+}
+
+/** The agent's write-up of a simulation's results. */
+export interface Presentation {
+  summary: string;
+  plots: SimPlot[];
+  checks: SimCheck[];
+  conclusions?: string;
+  standIns?: string[];
+  updated?: string;
+}
+
+export interface Simulation {
+  id: number;
+  projectId: number;
+  name: string;
+  kind?: string;
+  purpose?: string;
+  /** The part it tests on its own; empty for the board. */
+  target?: string;
+  netlist: string;
+  models: SimModel[];
+  variants: SimVariant[];
+  presentation?: Presentation;
+  source: string;
+  created: string;
+  updated: string;
+}
+
+export interface RunPlot {
+  id: string;
+  name: string;
+  complex?: boolean;
+  points: number;
+  vectors: { name: string; kind: string }[];
+}
+
+export interface RunMeasure {
+  name: string;
+  value?: number;
+  at?: number;
+  error?: string;
+}
+
+export interface SimRun {
+  id: number;
+  simulationId: number;
+  variant: string;
+  state: RunState;
+  ngspice?: string;
+  deckSha?: string;
+  started?: string;
+  finished?: string;
+  tookMs: number;
+  error?: string;
+  problems: string[];
+  measures: RunMeasure[];
+  plots: RunPlot[];
+}
+
+/** A target checked against a variant's latest run; pass is absent without a value. */
+export interface CheckResult extends SimCheck {
+  variant: string;
+  value?: number;
+  pass?: boolean;
+}
+
+export interface SimulationDetail {
+  simulation: Simulation;
+  analyses: { kind: string; line: string }[];
+  measures: string[];
+  /** Each variant's latest run. */
+  latest: SimRun[];
+  runs: SimRun[];
+  checks: CheckResult[];
+}
+
+export interface SimulationSummary {
+  name: string;
+  kind?: string;
+  purpose?: string;
+  target?: string;
+  updated: string;
+  /** Each variant's latest state. */
+  states: Record<string, RunState>;
+  pass: number;
+  fail: number;
+  presented: boolean;
+}
+
+/** One line of a chart. */
+export interface SimSeries {
+  name: string;
+  unit: string;
+  x: number[];
+  y: number[];
+}
+
+/** A run's chart data: series against the plot's scale. */
+export interface SimulationData {
+  run: number;
+  variant: string;
+  plot: string;
+  xName: string;
+  xUnit: string;
+  series: SimSeries[];
 }
