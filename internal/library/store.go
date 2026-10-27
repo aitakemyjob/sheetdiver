@@ -373,7 +373,7 @@ ALTER TABLE project_groups ADD COLUMN below TEXT NOT NULL DEFAULT '';
 `, `
 ALTER TABLE project_assignments ADD COLUMN col INTEGER;
 ALTER TABLE project_assignments ADD COLUMN row INTEGER;
-`, simulationMigration}
+`, simulationMigration, variationMigration}
 
 // migrate applies pending schema migrations.
 func (s *Store) migrate(ctx context.Context) error {

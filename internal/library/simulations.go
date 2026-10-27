@@ -168,7 +168,8 @@ type SimRun struct {
 	Log         string       `json:"-"`
 }
 
-// simulationMigration adds the tables.
+// simulationMigration adds the tables, as first released: one netlist
+// per simulation, its runs by variant.
 const simulationMigration = `
 CREATE TABLE spice_models (
 	id INTEGER PRIMARY KEY,
@@ -188,12 +189,39 @@ CREATE TABLE simulations (
 	kind TEXT NOT NULL DEFAULT '',
 	purpose TEXT NOT NULL DEFAULT '',
 	target TEXT NOT NULL DEFAULT '',
+	netlist TEXT NOT NULL,
+	models TEXT NOT NULL DEFAULT '[]',
+	variants TEXT NOT NULL DEFAULT '[]',
 	presentation TEXT NOT NULL DEFAULT '',
 	source TEXT NOT NULL DEFAULT 'agent',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	UNIQUE(project_id, name)
 );
+CREATE TABLE simulation_runs (
+	id INTEGER PRIMARY KEY,
+	simulation_id INTEGER NOT NULL REFERENCES simulations(id) ON DELETE CASCADE,
+	variant TEXT NOT NULL DEFAULT '',
+	state TEXT NOT NULL,
+	ngspice TEXT NOT NULL DEFAULT '',
+	deck_sha TEXT NOT NULL DEFAULT '',
+	started_at TEXT NOT NULL DEFAULT '',
+	finished_at TEXT NOT NULL DEFAULT '',
+	took_ms INTEGER NOT NULL DEFAULT 0,
+	error TEXT NOT NULL DEFAULT '',
+	problems TEXT NOT NULL DEFAULT '[]',
+	measures TEXT NOT NULL DEFAULT '[]',
+	plots TEXT NOT NULL DEFAULT '[]',
+	log TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX simulation_runs_sim ON simulation_runs(simulation_id);
+`
+
+// variationMigration turns each simulation into a test with variations:
+// the netlist, models and variants move to a first variation ("Rev A",
+// the variants becoming its conditions) and the runs move to it, keeping
+// their IDs so their folders still match.
+const variationMigration = `
 CREATE TABLE simulation_variations (
 	id INTEGER PRIMARY KEY,
 	simulation_id INTEGER NOT NULL REFERENCES simulations(id) ON DELETE CASCADE,
@@ -207,7 +235,9 @@ CREATE TABLE simulation_variations (
 	updated_at TEXT NOT NULL,
 	UNIQUE(simulation_id, name)
 );
-CREATE TABLE simulation_runs (
+INSERT INTO simulation_variations (simulation_id, name, change, netlist, models, conditions, source, created_at, updated_at)
+	SELECT id, 'Rev A', 'from before variations', netlist, models, variants, source, created_at, updated_at FROM simulations;
+CREATE TABLE simulation_runs_new (
 	id INTEGER PRIMARY KEY,
 	variation_id INTEGER NOT NULL REFERENCES simulation_variations(id) ON DELETE CASCADE,
 	condition TEXT NOT NULL DEFAULT '',
@@ -223,8 +253,16 @@ CREATE TABLE simulation_runs (
 	plots TEXT NOT NULL DEFAULT '[]',
 	log TEXT NOT NULL DEFAULT ''
 );
+INSERT INTO simulation_runs_new (id, variation_id, condition, state, ngspice, deck_sha, started_at, finished_at, took_ms, error, problems, measures, plots, log)
+	SELECT r.id, v.id, r.variant, r.state, r.ngspice, r.deck_sha, r.started_at, r.finished_at, r.took_ms, r.error, r.problems, r.measures, r.plots, r.log
+	FROM simulation_runs r JOIN simulation_variations v ON v.simulation_id = r.simulation_id;
+DROP TABLE simulation_runs;
+ALTER TABLE simulation_runs_new RENAME TO simulation_runs;
 CREATE INDEX simulation_variations_sim ON simulation_variations(simulation_id);
 CREATE INDEX simulation_runs_variation ON simulation_runs(variation_id);
+ALTER TABLE simulations DROP COLUMN netlist;
+ALTER TABLE simulations DROP COLUMN models;
+ALTER TABLE simulations DROP COLUMN variants;
 `
 
 // RunDir is the folder a run's deck, log and results are kept in.
