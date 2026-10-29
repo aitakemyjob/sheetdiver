@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -381,6 +380,13 @@ func (s *Service) projectFile(ctx context.Context, ref string) (ProjectFile, []r
 	for _, n := range notes {
 		pf.Notes = append(pf.Notes, FileNote{Body: n.Body, Author: n.Author, Created: stamp(n.CreatedAt)})
 	}
+	// The library lists these in the order they were made; the file
+	// keeps a stable order, so exports diff well.
+	sort.SliceStable(pf.Connections, func(i, j int) bool {
+		a, b := pf.Connections[i], pf.Connections[j]
+		return strings.Join([]string{strings.ToUpper(a.Net), a.Entry, a.Block, a.Ref, a.Pin}, "\x00") < strings.Join([]string{strings.ToUpper(b.Net), b.Entry, b.Block, b.Ref, b.Pin}, "\x00")
+	})
+	sort.SliceStable(pf.Assignments, func(i, j int) bool { return pf.Assignments[i].Node < pf.Assignments[j].Node })
 	dirs, err := s.fileTests(ctx, p.ID, &pf)
 	if err != nil {
 		return pf, nil, err
@@ -586,30 +592,30 @@ func hasFiles(dir string) bool {
 	return err == nil && len(ents) > 0
 }
 
-// zipDir adds a folder's files to a zip under prefix.
+// zipDir adds a folder's files to a zip under prefix: the files at its
+// top (a run's deck, log and results), not what's in folders below it.
 func zipDir(zw *zip.Writer, dir, prefix string) error {
-	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		if !d.Type().IsRegular() {
-			return nil // links and devices stay behind
-		}
-		rel, err := filepath.Rel(dir, p)
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(p)
-		if err != nil {
-			return err
-		}
-		w, err := zw.Create(path.Join(prefix, filepath.ToSlash(rel)))
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(data)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
 		return err
-	})
+	}
+	for _, e := range ents {
+		if !e.Type().IsRegular() {
+			continue // folders, links and devices stay behind
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return err
+		}
+		w, err := zw.Create(path.Join(prefix, e.Name()))
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // fileSafe makes a project name usable as a file name.

@@ -84,9 +84,9 @@ func exportFixture(t *testing.T, s *Service) {
 	}
 }
 
-// readProjectFile opens an exported project: project.json and the other
+// unzipProject opens an exported project: project.json and the other
 // files by name.
-func readProjectFile(t *testing.T, data []byte) (ProjectFile, map[string]string) {
+func unzipProject(t *testing.T, data []byte) (ProjectFile, map[string]string) {
 	t.Helper()
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -119,7 +119,7 @@ func TestExportProject(t *testing.T) {
 	if out.Filename != "Driver board.sdproj" {
 		t.Errorf("filename = %q", out.Filename)
 	}
-	pf, files := readProjectFile(t, out.Data)
+	pf, files := unzipProject(t, out.Data)
 	if pf.Format != ProjectFileFormat || pf.Version != ProjectFileVersion || pf.Name != "Driver board" {
 		t.Errorf("header: %+v", pf)
 	}
