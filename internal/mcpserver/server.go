@@ -105,10 +105,14 @@ func New(c *core.Service) *Server {
 // MCP returns the underlying SDK server (used by tests and the stdio mode).
 func (s *Server) MCP() *mcp.Server { return s.srv }
 
-// Handler serves the streamable HTTP transport.
-func (s *Server) Handler() http.Handler {
+// Handler serves the streamable HTTP transport. The SDK refuses requests
+// to a loopback listener under any other host name (DNS rebinding);
+// proxied turns that off for a server behind a reverse proxy, whose names
+// the caller's own host guard has already checked.
+func (s *Server) Handler(proxied bool) http.Handler {
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return s.srv }, &mcp.StreamableHTTPOptions{
-		SessionTimeout: 30 * time.Minute,
+		SessionTimeout:             30 * time.Minute,
+		DisableLocalhostProtection: proxied,
 	})
 }
 

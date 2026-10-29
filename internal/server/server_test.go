@@ -276,6 +276,81 @@ func TestMCPPort(t *testing.T) {
 	}
 }
 
+// TestHosts accepts a reverse proxy's names given in Options.Hosts, in any
+// case and with a port, and still refuses every other host; the UI's API
+// then works from the proxy's origin.
+func TestHosts(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SHEETDIVER_LIBRARY", filepath.Join(dir, "lib"))
+	store, err := config.Open(filepath.Join(dir, "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := core.New(store, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+	ui := fstest.MapFS{"index.html": {Data: []byte("<html>sheetdiver</html>")}}
+	srv := New(svc, api.New(svc), Options{UI: ui, Hosts: []string{"sheets.example.com", " Lab.local "}})
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	for host, want := range map[string]int{
+		"sheets.example.com":      http.StatusOK,
+		"SHEETS.example.com:8443": http.StatusOK,
+		"lab.local":               http.StatusOK,
+		"127.0.0.1:4000":          http.StatusOK,
+		"attacker.example":        http.StatusForbidden,
+		"example.com":             http.StatusForbidden,
+	} {
+		req, _ := http.NewRequest(http.MethodGet, ts.URL+"/healthz", nil)
+		req.Host = host
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("Host %q: %d, want %d", host, resp.StatusCode, want)
+		}
+	}
+	// An API call as the browser makes it through the proxy.
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/invoke", strings.NewReader(`{"method":"app.state"}`))
+	req.Host = "sheets.example.com"
+	req.Header.Set(HeaderName, "1")
+	req.Header.Set("Origin", "https://sheets.example.com")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("API through the proxy: %d", resp.StatusCode)
+	}
+	// MCP too, past the SDK's own loopback check.
+	init := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}`)
+	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/mcp", bytes.NewReader(init))
+	req.Host = "sheets.example.com"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("MCP through the proxy: %d", resp.StatusCode)
+	}
+	// Nothing in the list: loopback only, as before.
+	plain := httptest.NewServer(New(svc, api.New(svc), Options{UI: ui}).Handler())
+	t.Cleanup(plain.Close)
+	req, _ = http.NewRequest(http.MethodGet, plain.URL+"/healthz", nil)
+	req.Host = "sheets.example.com"
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != http.StatusForbidden {
+		t.Errorf("without hosts: %v %v", resp.StatusCode, err)
+	}
+}
+
 // freePort finds a port nothing listens on right now.
 func freePort(t *testing.T) int {
 	t.Helper()

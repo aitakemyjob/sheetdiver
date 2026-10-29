@@ -56,6 +56,8 @@ Usage:
 Flags:
   -port N      MCP/HTTP port (default from settings, %d)
   -mcp-port N  (serve) serve MCP on its own port; the UI port then has no /mcp
+  -host LIST   (serve) host names to accept besides localhost, comma-separated:
+               the public names a reverse proxy in front passes on
   -open        (serve) open the browser automatically (default true)
   -mpn LIST    (import) comma-separated part numbers, overriding detection
   -project N   (bom) project name (default: the file name)
@@ -75,9 +77,9 @@ type app struct {
 }
 
 // bootstrap loads the config, opens the library and wires the service,
-// API and HTTP server. withUI also serves the embedded frontend; mcpPort,
-// when set, serves MCP on that port rather than the UI's.
-func bootstrap(port, mcpPort int, withUI bool) (*app, error) {
+// API and HTTP server with the options given (a zero Port is the one in
+// settings). withUI also serves the embedded frontend.
+func bootstrap(opts server.Options, withUI bool) (*app, error) {
 	cfgPath, err := config.DefaultPath()
 	if err != nil {
 		return nil, err
@@ -90,11 +92,10 @@ func bootstrap(port, mcpPort int, withUI bool) (*app, error) {
 	if err != nil {
 		return nil, err
 	}
-	if port == 0 {
-		port = store.Get().Settings.MCPPort
+	if opts.Port == 0 {
+		opts.Port = store.Get().Settings.MCPPort
 	}
 	a := api.New(svc)
-	opts := server.Options{Port: port, MCPPort: mcpPort}
 	if withUI {
 		ui, err := fs.Sub(assets, "frontend/dist")
 		if err != nil {
@@ -115,6 +116,7 @@ func main() {
 	fl := flag.NewFlagSet("sheetdiver", flag.ExitOnError)
 	port := fl.Int("port", 0, "MCP/HTTP port")
 	mcpPort := fl.Int("mcp-port", 0, "(serve) serve MCP on its own port, leaving the UI port without /mcp")
+	hosts := fl.String("host", "", "(serve) comma-separated host names to accept besides localhost (a reverse proxy's)")
 	open := fl.Bool("open", true, "open the browser (serve)")
 	standalone := fl.Bool("standalone", false, "(mcp) serve stdio directly instead of bridging to the app")
 	mpn := fl.String("mpn", "", "(import) comma-separated part numbers")
@@ -128,7 +130,7 @@ func main() {
 	case "", "gui":
 		err = runGUI(*port)
 	case "serve":
-		err = runServe(*port, *mcpPort, *open)
+		err = runServe(server.Options{Port: *port, MCPPort: *mcpPort, Hosts: splitList(*hosts)}, *open)
 	case "mcp":
 		err = runMCP(*port, *standalone)
 	case "import":
@@ -159,10 +161,10 @@ func main() {
 }
 
 // runServe runs headless, serving the UI and MCP over HTTP (MCP on its
-// own port when mcpPort is set) until interrupted, and optionally opens
-// the browser.
-func runServe(port, mcpPort int, open bool) error {
-	a, err := bootstrap(port, mcpPort, true)
+// own port when opts.MCPPort is set) until interrupted, and optionally
+// opens the browser.
+func runServe(opts server.Options, open bool) error {
+	a, err := bootstrap(opts, true)
 	if err != nil {
 		return err
 	}
@@ -184,13 +186,24 @@ func runServe(port, mcpPort int, open bool) error {
 	return a.server.Shutdown(shutdown)
 }
 
+// splitList splits a comma-separated flag value, dropping blanks.
+func splitList(s string) []string {
+	var out []string
+	for _, v := range strings.Split(s, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // runImport imports datasheets from the command line: PDF paths, folders
 // (recursively), URLs and part numbers, several at a time.
 func runImport(args []string, mpns string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("give one or more PDF paths, folders, URLs or part numbers")
 	}
-	a, err := bootstrap(0, 0, false)
+	a, err := bootstrap(server.Options{}, false)
 	if err != nil {
 		return err
 	}
@@ -248,7 +261,7 @@ func runCatalog(args []string) error {
 	if len(args) == 0 {
 		args = []string{"status"}
 	}
-	a, err := bootstrap(0, 0, false)
+	a, err := bootstrap(server.Options{}, false)
 	if err != nil {
 		return err
 	}
@@ -302,7 +315,7 @@ func runReport(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("give one project name")
 	}
-	a, err := bootstrap(0, 0, false)
+	a, err := bootstrap(server.Options{}, false)
 	if err != nil {
 		return err
 	}
@@ -320,7 +333,7 @@ func runBOM(args []string, project string, fetch bool) error {
 	if len(args) != 1 {
 		return fmt.Errorf("give one BOM file (CSV/TSV)")
 	}
-	a, err := bootstrap(0, 0, false)
+	a, err := bootstrap(server.Options{}, false)
 	if err != nil {
 		return err
 	}

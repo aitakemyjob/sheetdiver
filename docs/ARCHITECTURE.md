@@ -102,8 +102,10 @@ corrections, which are kept and preferred.
   functions with unit tests; the corpus test checks extraction on real
   datasheets that are never committed.
 - **Local and explicit.** The server binds to 127.0.0.1, rejects foreign
-  Host headers and cross-origin calls; network access happens only when you
-  or an agent import from a URL or part number.
+  Host headers (except the names `serve -host` lists for a reverse proxy
+  in front, which then has to bring its own authentication: SheetDiver has
+  none) and cross-origin calls; network access happens only when you or an
+  agent import from a URL or part number.
 
 ## Frontend
 

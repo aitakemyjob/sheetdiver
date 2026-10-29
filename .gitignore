@@ -27,3 +27,7 @@
 
 # a stray install at the root (the app is in frontend/)
 /node_modules/
+
+# a local pm2 app file for running `sheetdiver serve` as a service
+ecosystem.config.js
+ecosystem.config.cjs

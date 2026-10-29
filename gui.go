@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aitakemyjob/sheetdiver/internal/server"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -158,7 +159,7 @@ func instanceID() string {
 // starts the MCP server. A port conflict is shown in the UI rather than
 // preventing startup.
 func runGUI(port int) error {
-	a, err := bootstrap(port, 0, false)
+	a, err := bootstrap(server.Options{Port: port}, false)
 	if err != nil {
 		return err
 	}

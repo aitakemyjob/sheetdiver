@@ -13,6 +13,10 @@ every merged pull request.
   service can give the UI and the agents different ports: the UI port then
   has no `/mcp`, and both ports answer `/healthz` (point the stdio bridge
   at the MCP port: `sheetdiver mcp -port N`).
+- **`sheetdiver serve -host NAME,…`** accepts requests a reverse proxy
+  passes on under its public names, which the server otherwise refuses as
+  foreign hosts; the proxy has to bring the authentication, since
+  SheetDiver has none.
 
 ### Added
 - **Circuit simulation with ngspice (preview).** Agents set up tests
