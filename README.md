@@ -219,6 +219,7 @@ CLI if it's missing.
 make test        # Go (race) + frontend tests
 make dev         # hot-reload development
 make headless    # build/bin/sheetdiver-headless (no webview; `serve`)
+make headless-update  # on a server: pull, build, install ~/.local/bin/sheetdiver-headless, restart its pm2 process
 make corpus      # download the real-datasheet test corpus
 make help        # everything else
 ```

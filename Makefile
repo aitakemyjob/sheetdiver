@@ -14,7 +14,7 @@ ifeq ($(shell uname -s),Linux)
   WAILS_TAGS := -tags webkit2_41
 endif
 
-.PHONY: help tools deps frontend notices test test-go test-frontend test-corpus corpus vet lint vuln build package bridge mcpb headless headless-all serve dev icon release clean
+.PHONY: help tools deps frontend notices test test-go test-frontend test-corpus corpus vet lint vuln build package bridge mcpb headless headless-all headless-update serve dev icon release clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -74,6 +74,9 @@ headless: frontend ## Headless binary for this machine → build/bin/sheetdiver-
 
 headless-all: ## Headless binaries for every OS/arch → dist/
 	scripts/build.sh --headless --package --version $(VERSION)
+
+headless-update: ## Pull, build and install the headless binary over the one a server runs; restart its pm2 process
+	scripts/headless-update.sh
 
 serve: headless ## Run the browser UI against your config
 	./build/bin/sheetdiver-headless serve
