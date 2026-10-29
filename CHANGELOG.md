@@ -8,15 +8,7 @@ every merged pull request.
 
 ## [Unreleased]
 
-### Fixed
-- **Figures inside a page-sized form.** Linear Technology sets each page
-  as one form spanning most of it, and a caption's figure was the whole
-  page, so none of the LTC3536's 16 numbered figures was found; a form
-  spanning most of the page is now a container, not a drawing, judged
-  before the caption's column is cut out of it, and on a two-column page
-  a caption's figure is looked for in its own column. Bode plots count as
-  graphs. The LTC3536 now gives all 16 numbered figures and its four
-  section figures.
+## [0.2.1] - 2026-10-29
 
 ### Added
 - **Export a project** (`sheetdiver project export PROJECT`): a `.sdproj`
@@ -96,6 +88,16 @@ every merged pull request.
   shown in the project's new **Simulations** tab with interactive charts
   (a crosshair reading every line, AC as magnitude and phase on a log
   frequency axis, a table of the values). (#87)
+
+### Fixed
+- **Figures inside a page-sized form.** Linear Technology sets each page
+  as one form spanning most of it, and a caption's figure was the whole
+  page, so none of the LTC3536's 16 numbered figures was found; a form
+  spanning most of the page is now a container, not a drawing, judged
+  before the caption's column is cut out of it, and on a two-column page
+  a caption's figure is looked for in its own column. Bode plots count as
+  graphs. The LTC3536 now gives all 16 numbered figures and its four
+  section figures.
 
 ## [0.2.0] - 2026-10-25
 
@@ -614,7 +616,8 @@ your AI agent over MCP.
 - Releases ship checksums, an SPDX SBOM, signed build provenance, and the
   third-party notices (`sheetdiver licenses`).
 
-[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.1
 [0.2.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.0
 [0.1.1]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.1
 [0.1.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.0
