@@ -159,6 +159,7 @@ Windows choose **More info → Run anyway** in SmartScreen.
 sheetdiver                    launch the desktop app
 sheetdiver serve              headless; open the same UI in your browser
 sheetdiver serve -port 8080 -mcp-port 47480 -open=false   as a service: the UI on one port, MCP on another
+sheetdiver serve … -host sheets.example.com   behind a reverse proxy (which must authenticate: SheetDiver doesn't)
 sheetdiver mcp                stdio MCP bridge to the running app
 sheetdiver-mcp [-port N]      the same as a small console program (Claude Desktop's extension on Windows and Linux)
 sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
@@ -170,6 +171,7 @@ sheetdiver licenses           SheetDiver's licence and the third-party notices
 sheetdiver version
   -port N   MCP/HTTP port (default 47480)   -mpn LIST   (import) set the part numbers
   -mcp-port N  (serve) MCP on its own port; the UI port then has no /mcp
+  -host LIST   (serve) host names to accept besides localhost: a reverse proxy's public names
   -fetch=false  (bom) don't download missing datasheets
 ```
 

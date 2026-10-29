@@ -36,6 +36,9 @@ type Options struct {
 	// on a listener of its own (with /healthz, so the stdio bridge can
 	// find it); the UI port then has no /mcp.
 	MCPPort int
+	// Hosts are the host names accepted besides loopback: the public names
+	// a reverse proxy in front of the server passes on in Host.
+	Hosts []string
 	// UI, when set, serves the frontend and the /api endpoints (browser mode).
 	UI fs.FS
 }
@@ -73,8 +76,9 @@ func (s *Server) split() bool {
 
 // mountMCP routes the MCP endpoint and the health check on a mux.
 func (s *Server) mountMCP(mux *http.ServeMux) {
-	mux.Handle("/mcp", s.mcp.Handler())
-	mux.Handle("/mcp/", s.mcp.Handler())
+	h := s.mcp.Handler(len(s.opts.Hosts) > 0)
+	mux.Handle("/mcp", h)
+	mux.Handle("/mcp/", h)
 	mux.HandleFunc("/healthz", s.healthz)
 }
 
@@ -90,7 +94,7 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) MCPHandler() http.Handler {
 	mux := http.NewServeMux()
 	s.mountMCP(mux)
-	return localOnly(mux)
+	return s.hostGuard(mux)
 }
 
 // Handler returns the routed, loopback-only HTTP handler: the MCP endpoint
@@ -114,7 +118,7 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("/api/translation/", s.guard(s.translationFile))
 		mux.Handle("/", spa(s.opts.UI))
 	}
-	return localOnly(mux)
+	return s.hostGuard(mux)
 }
 
 // AssetHandler serves the binary endpoints (page and figure images,
@@ -131,19 +135,25 @@ func (s *Server) AssetHandler() http.Handler {
 	return mux
 }
 
-// localOnly rejects requests whose Host isn't loopback (DNS rebinding).
-func localOnly(next http.Handler) http.Handler {
+// hostGuard rejects requests whose Host isn't loopback (DNS rebinding) or
+// one of the names in opts.Hosts (a reverse proxy's).
+func (s *Server) hostGuard(next http.Handler) http.Handler {
+	allowed := map[string]bool{"127.0.0.1": true, "localhost": true, "::1": true}
+	for _, h := range s.opts.Hosts {
+		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
+			allowed[h] = true
+		}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
 		if h, _, err := net.SplitHostPort(host); err == nil {
 			host = h
 		}
-		switch strings.Trim(host, "[]") {
-		case "127.0.0.1", "localhost", "::1":
+		if allowed[strings.ToLower(strings.Trim(host, "[]"))] {
 			next.ServeHTTP(w, r)
-		default:
-			http.Error(w, "forbidden host", http.StatusForbidden)
+			return
 		}
+		http.Error(w, "forbidden host", http.StatusForbidden)
 	})
 }
 
