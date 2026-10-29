@@ -443,6 +443,9 @@ func (s *Service) fileTests(ctx context.Context, projectID int64, pf *ProjectFil
 	if err != nil {
 		return nil, err
 	}
+	// By name: the library lists them by when they last changed, which an
+	// import resets.
+	sort.SliceStable(sims, func(i, j int) bool { return strings.ToLower(sims[i].Name) < strings.ToLower(sims[j].Name) })
 	var dirs []runDir
 	for _, sim := range sims {
 		ft := FileTest{Name: sim.Name, Kind: sim.Kind, Purpose: sim.Purpose, Target: sim.Target, Presentation: sim.Presentation, Source: sim.Source, Created: sim.Created, Updated: sim.Updated}
