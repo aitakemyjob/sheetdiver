@@ -153,3 +153,74 @@ func TestDrawingPins(t *testing.T) {
 		t.Errorf("diode pins = %q, want %q", got, want)
 	}
 }
+
+func TestProsePinsPerPackage(t *testing.T) {
+	// The LTC3536's Pin Functions: a heading per pin with the DFN and MSOP
+	// numbers slash-separated, the package list on its own line under the
+	// heading, two columns sharing baselines, one pin on two MSOP pins and
+	// the exposed pad named as such.
+	s := newSynth(3).header("LTC3536").
+		bold(0, 46, 84, 18, "Description").
+		text(0, 46, 108, 10, "The LTC3536 is a 1A buck-boost converter that regulates from inputs above, below or equal to the output.").
+		text(0, 46, 122, 10, "The device operates from 1.8V to 5.5V and is available in DFN and MSOP packages.").
+		bold(1, 46, 84, 18, "Pin Functions").
+		text(1, 46, 98, 8, "(DFN/MSOP)").
+		text(1, 46, 108, 10, "RT (Pin 1/Pin 1): Oscillator Frequency Programming VOUT (Pin 6/Pin 7): Output Voltage. This pin is the power").
+		text(1, 46, 122, 10, "Input. Connect a resistor from RT to GND to program the output for the regulator.").
+		text(1, 315, 184, 10, "VIN (Pin 7/Pins 8, 9): Power Input for the Converter. A low").
+		text(1, 46, 224, 10, "SGND (Pin 2/Pin 2): Ground Connection for the LTC3536. placed as close to this pin as possible.").
+		text(1, 46, 300, 10, "MODE/SYNC (Pin 3/Pin 3): Pulse Width Modulation/Burst").
+		text(1, 45, 528, 10, "switches A and B. Connect one side of the buck-boost PGND (Exposed Pad Pin 11/Pin 5, Exposed Pad Pin 13):").
+		text(1, 46, 560, 10, "Power Ground. The exposed pad must be soldered to the PCB.").
+		bold(2, 46, 84, 18, "Block Diagram").
+		drawing(2, 60, 100, 500, 600)
+	r := Analyze(s.doc, "ltc3536.pdf")
+	var got []string
+	for _, p := range r.Pins {
+		got = append(got, p.Package+":"+p.Number+" "+p.Name)
+	}
+	want := []string{"DFN:1 RT", "DFN:2 SGND", "DFN:3 MODE/SYNC", "DFN:6 VOUT", "DFN:7 VIN", "DFN:11 PGND", "MSOP:1 RT", "MSOP:2 SGND", "MSOP:3 MODE/SYNC", "MSOP:5 PGND", "MSOP:7 VOUT", "MSOP:8 VIN", "MSOP:9 VIN", "MSOP:13 PGND"}
+	if !slices.Equal(got, want) {
+		t.Errorf("pins = %q\nwant   %q", got, want)
+	}
+	for _, p := range r.Pins {
+		switch p.Name {
+		case "RT":
+			if p.Description != "Oscillator Frequency Programming" {
+				t.Errorf("RT's description stops at the next heading: %q", p.Description)
+			}
+		case "VOUT":
+			if !strings.HasPrefix(p.Description, "Output Voltage.") {
+				t.Errorf("VOUT's description: %q", p.Description)
+			}
+		case "PGND":
+			if p.Description != "Exposed pad." && p.Number != "5" || p.Number == "5" && p.Description != "" {
+				t.Errorf("PGND %s/%s: %q", p.Package, p.Number, p.Description)
+			}
+		}
+	}
+	// A drawing's note about the pad is no heading: it has no colon.
+	s = newSynth(2).header("LTC3536").
+		bold(0, 46, 84, 18, "Description").
+		text(0, 46, 108, 10, "The LTC3536 is a 1A buck-boost converter that regulates from inputs above, below or equal to the output.").
+		bold(1, 46, 84, 18, "Pin Configuration").
+		text(1, 100, 300, 8, "EXPOSED PAD (PIN 11) IS PGND, MUST BE SOLDERED TO PCB").
+		text(1, 100, 320, 8, "EXPOSED PAD (PIN 13) IS PGND MUST BE SOLDERED TO PCB")
+	if pins := Analyze(s.doc, "x.pdf").Pins; len(pins) != 0 {
+		t.Errorf("pins from a drawing's note: %+v", pins)
+	}
+	// One package, no list: no package label, as before.
+	s = newSynth(2).header("TP9999").
+		bold(0, 46, 84, 18, "Description").
+		text(0, 46, 108, 10, "The TP9999 is a single-cell lithium-ion battery charger in an SOP8 package.").
+		bold(1, 46, 84, 18, "Pin Functions").
+		text(1, 46, 108, 10, "TEMP(PIN1): Battery temperature detection input").
+		text(1, 46, 122, 10, "V CC (PIN4): Supply")
+	got = nil
+	for _, p := range Analyze(s.doc, "x.pdf").Pins {
+		got = append(got, p.Package+":"+p.Number+" "+p.Name)
+	}
+	if want := []string{":1 TEMP", ":4 VCC"}; !slices.Equal(got, want) {
+		t.Errorf("single package pins = %q, want %q", got, want)
+	}
+}

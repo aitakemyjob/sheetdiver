@@ -1,6 +1,7 @@
 package extract
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"regexp"
@@ -1589,34 +1590,96 @@ func pinNumbers(cell string) []string {
 	return slices.Compact(out)
 }
 
-// prosePin matches a pin described in prose, one heading per pin:
-// "TEMP(PIN1): Battery temperature detection input" or "V CC (PIN4): …".
-var prosePin = regexp.MustCompile(`^([A-Z][A-Za-z0-9_/ ]{0,14}?)\s*[(（]\s*(?i:pin)\s*(\d{1,3})\s*[)）]\s*[:：]?\s*(.*)$`)
+// prosePin matches a pin described in prose, a heading per pin, wherever
+// it stands in a line (two columns can share a baseline): "TEMP(PIN1):
+// Battery temperature detection input", "V CC (PIN4): …", or Linear's
+// "VIN (Pin 7/Pins 8, 9): Power Input" and "PGND (Exposed Pad Pin 11/Pin
+// 5, Exposed Pad Pin 13):", one slash-separated part per package. The
+// colon is what makes it a heading: a drawing's "EXPOSED PAD (PIN 11) IS
+// PGND" is none.
+var prosePin = regexp.MustCompile(`(?:^|\s)([A-Z]{1,4} [A-Z]{1,4}|[A-Z][A-Za-z0-9_/]{0,11})\s*[(（]\s*(` + prosePinPart + `(?:\s*/\s*` + prosePinPart + `)*)\s*[)）]\s*[:：]\s*`)
+
+// prosePinPart is one package's numbers in a prose pin heading: "Pin 7",
+// "Pins 8, 9", "Exposed Pad Pin 11", "Pin 5, Exposed Pad Pin 13".
+const prosePinPart = `(?i:exposed\s+pad\s+)?(?i:pins?)\s*\d{1,3}(?:\s*,\s*(?i:exposed\s+pad\s+)?(?i:pins?\s*)?\d{1,3})*`
+
+// prosePinPackages is the package list a prose pin section gives its
+// slash-separated numbers in: "(DFN/MSOP)" under "Pin Functions", or in
+// the heading itself.
+var prosePinPackages = regexp.MustCompile(`^(?:(?i:pin (?:functions?|descriptions?))\s*)?\(([A-Z0-9][A-Za-z0-9 .-]{0,15}(?:/[A-Z0-9][A-Za-z0-9 .-]{0,15})+)\)$`)
 
 // ProsePins reads pins described in prose under a pin heading (common in
-// Chinese datasheets), one "NAME(PINn): function" line per pin.
+// Chinese datasheets, and Linear's), a "NAME (Pin n): function" heading
+// per pin. A heading with numbers for several packages ("Pin 7/Pins 8, 9")
+// gives each package its pins, named by the section's package list and
+// sorted by package and number; an exposed pad is described as one.
 func ProsePins(lines [][]Line, secs []Section, lay Layout) []Pin {
 	var out []Pin
+	var packages []string
 	seen := map[string]bool{}
+	pkgOrder := map[string]int{}
 	for pi, ls := range lines {
 		for _, l := range ls {
-			m := prosePin.FindStringSubmatch(strings.TrimSpace(l.Text))
-			if m == nil {
+			text := strings.TrimSpace(l.Text)
+			ms := prosePin.FindAllStringSubmatchIndex(text, -1)
+			if ms == nil && !prosePinPackages.MatchString(text) {
 				continue
 			}
 			if s := SectionAt(secs, lay, pi, l.Box); s == nil || s.Kind != KindPins {
 				continue
 			}
-			name := strings.ReplaceAll(m[1], " ", "")
-			if seen[m[2]] {
+			if m := prosePinPackages.FindStringSubmatch(text); m != nil {
+				packages = strings.Split(m[1], "/")
 				continue
 			}
-			seen[m[2]] = true
-			out = append(out, Pin{Number: m[2], Name: name, Description: strings.TrimSpace(m[3]), Page: pi})
+			for i, m := range ms {
+				name := strings.ReplaceAll(text[m[2]:m[3]], " ", "")
+				end := len(text)
+				if i+1 < len(ms) {
+					end = ms[i+1][0]
+				}
+				desc := strings.TrimSpace(text[m[1]:end])
+				parts := strings.Split(text[m[4]:m[5]], "/")
+				for j, part := range parts {
+					pkg := ""
+					if len(parts) > 1 {
+						pkg = fmt.Sprintf("package %d", j+1)
+						if j < len(packages) {
+							pkg = strings.TrimSpace(packages[j])
+						}
+					}
+					if _, ok := pkgOrder[pkg]; !ok {
+						pkgOrder[pkg] = len(pkgOrder)
+					}
+					// "Pin 5, Exposed Pad Pin 13": each number says for
+					// itself whether it is the pad.
+					for _, seg := range strings.Split(part, ",") {
+						for _, n := range digitsRe.FindAllString(seg, -1) {
+							if seen[pkg+"#"+n] {
+								continue
+							}
+							seen[pkg+"#"+n] = true
+							d := desc
+							if strings.Contains(strings.ToLower(seg), "exposed pad") {
+								d = strings.TrimSpace("Exposed pad. " + d)
+							}
+							out = append(out, Pin{Package: pkg, Number: n, Name: name, Description: d, Page: pi})
+						}
+					}
+				}
+			}
 		}
 	}
 	if len(out) < 2 {
 		return nil
 	}
+	slices.SortStableFunc(out, func(a, b Pin) int {
+		if c := cmp.Compare(pkgOrder[a.Package], pkgOrder[b.Package]); c != 0 {
+			return c
+		}
+		na, _ := strconv.Atoi(a.Number)
+		nb, _ := strconv.Atoi(b.Number)
+		return cmp.Compare(na, nb)
+	})
 	return out
 }

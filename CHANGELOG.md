@@ -9,6 +9,14 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **Pins from Linear Technology's prose pin functions.** A heading per pin
+  with the numbers of several packages slash-separated ("VIN (Pin 7/Pins
+  8, 9)", "PGND (Exposed Pad Pin 11/Pin 5, Exposed Pad Pin 13)") now gives
+  each package its pins, named from the "(DFN/MSOP)" list under the
+  heading, with the exposed pad described as one; headings are read
+  wherever they stand in a line, since two columns share baselines. The
+  LTC3536 joins the corpus (24 pins in two packages, ten order codes, its
+  electrical values); what it still misses is #103.
 - **`sheetdiver serve -mcp-port N`** serves MCP on a port of its own, so a
   service can give the UI and the agents different ports: the UI port then
   has no `/mcp`, and both ports answer `/healthz` (point the stdio bridge
