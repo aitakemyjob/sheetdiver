@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,7 +113,8 @@ func (s *Service) ImportProject(ctx context.Context, req ProjectImportRequest) (
 		return out, err
 	}
 	out.Project = p.Name
-	if err := s.buildProject(ctx, p, pf, parts, runFiles, &out); err != nil {
+	im := &projectImport{s: s, ctx: ctx, p: p, parts: parts, runFiles: runFiles, out: &out, entries: map[string]int64{}, blocks: map[string]int64{}}
+	if err := im.build(pf); err != nil {
 		_ = s.Lib.DeleteProject(context.WithoutCancel(ctx), p.ID)
 		return ProjectImportResult{}, fmt.Errorf("importing %s: %w", pf.Name, err)
 	}
@@ -195,91 +197,118 @@ func readZipFile(f *zip.File, max int64) ([]byte, error) {
 }
 
 // importParts finds or fetches each part, returning the library part for
-// each of the file's part numbers. A project names exact parts, so only
-// an exact match counts (the part number or one of its orderable codes):
-// a family or prefix match could be another value of a capacitor series.
+// each of the file's part numbers (in capitals). A project names exact
+// parts, so only an exact match counts (the part number or one of its
+// orderable codes): a family or prefix match could be another value of a
+// capacitor series.
 func (s *Service) importParts(ctx context.Context, fps []FilePart, fetch bool, out *ProjectImportResult) (map[string]library.Part, error) {
+	// What the library has already.
+	had := make([]bool, len(fps))
+	for i, fp := range fps {
+		ok, err := s.partFromLibrary(ctx, fp)
+		if err != nil {
+			return nil, fmt.Errorf("adding %s: %w", fp.MPN, err)
+		}
+		had[i] = ok
+	}
+	// The rest downloaded, four at a time.
+	fetchErr := make([]error, len(fps))
+	if fetch {
+		parallel(len(fps), 4, func(i int) {
+			if !had[i] {
+				fetchErr[i] = s.fetchPart(ctx, fps[i])
+			}
+		})
+	}
+	// What became of each.
 	parts := map[string]library.Part{}
-	var missing []FilePart
-	had := map[string]bool{}
-	for _, fp := range fps {
-		if _, ok := s.exactPart(ctx, fp.MPN); ok {
-			had[strings.ToUpper(fp.MPN)] = true
-			continue
+	for i, fp := range fps {
+		row, part, err := s.partOutcome(ctx, fp, had[i], fetch, fetchErr[i])
+		if err != nil {
+			return nil, err
 		}
-		// The library has its datasheet under other part numbers (a
-		// series' datasheet): the part joins it, nothing to download.
-		if fp.Datasheet != nil && fp.Datasheet.SHA256 != "" {
-			if d, ok, err := s.Lib.DatasheetBySHA(ctx, fp.Datasheet.SHA256); err == nil && ok {
-				if err := s.attachPart(ctx, fp, d); err != nil {
-					return nil, fmt.Errorf("adding %s: %w", fp.MPN, err)
-				}
-				had[strings.ToUpper(fp.MPN)] = true
-				continue
-			}
-		}
-		missing = append(missing, fp)
-	}
-	fetchErr := map[string]string{}
-	if fetch && len(missing) > 0 {
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, 4)
-		for _, fp := range missing {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				if err := s.fetchPart(ctx, fp); err != nil {
-					mu.Lock()
-					fetchErr[strings.ToUpper(fp.MPN)] = err.Error()
-					mu.Unlock()
-				}
-			}()
-		}
-		wg.Wait()
-	}
-	for _, fp := range fps {
-		row := ProjectImportPart{MPN: fp.MPN}
-		res, ok := s.exactPart(ctx, fp.MPN)
-		switch {
-		case ok && res.Part.DatasheetID != 0:
-			row.Status = PartImported
-			if had[strings.ToUpper(fp.MPN)] {
-				row.Status = PartInLibrary
-				if fp.Datasheet != nil {
-					if d, err := s.Lib.Datasheet(ctx, res.Part.DatasheetID); err == nil && d.SHA256 != fp.Datasheet.SHA256 {
-						row.Status = PartOtherVersion
-						row.Note = "the library has " + firstNonEmpty(d.Meta["revision"], "another revision") + "; the project was made with " + firstNonEmpty(fp.Datasheet.Revision, fp.Datasheet.Filename, "another one")
-					}
-				}
-			}
-		case ok:
-			row.Status = PartNoDatasheet
-		default:
-			// Keep the BOM complete: a part without a datasheet.
-			p, err := s.Lib.AddPart(ctx, library.Part{MPN: fp.MPN, Manufacturer: fp.Manufacturer, Description: fp.Description, Category: fp.Category, Package: fp.Package})
-			if err != nil {
-				return nil, fmt.Errorf("adding %s: %w", fp.MPN, err)
-			}
-			res = library.Resolution{Part: p, Via: "mpn"}
-			row.Status = PartNoDatasheet
-			switch {
-			case fetchErr[strings.ToUpper(fp.MPN)] != "":
-				row.Note = fetchErr[strings.ToUpper(fp.MPN)]
-			case !fetch:
-				row.Note = "not in the library (fetching was off)"
-			}
-		}
-		if !strings.EqualFold(res.Part.MPN, fp.MPN) {
-			row.Part = res.Part.MPN
-		}
-		parts[strings.ToUpper(fp.MPN)] = res.Part
+		parts[strings.ToUpper(fp.MPN)] = part
 		out.Parts = append(out.Parts, row)
 		out.Counts[row.Status]++
 	}
 	return parts, nil
+}
+
+// partFromLibrary reports whether the library has a part: by its exact
+// number, or by its datasheet under other part numbers (a series'
+// datasheet), which the part then joins with nothing to download.
+func (s *Service) partFromLibrary(ctx context.Context, fp FilePart) (bool, error) {
+	if _, ok := s.exactPart(ctx, fp.MPN); ok {
+		return true, nil
+	}
+	if fp.Datasheet == nil || fp.Datasheet.SHA256 == "" {
+		return false, nil
+	}
+	d, ok, err := s.Lib.DatasheetBySHA(ctx, fp.Datasheet.SHA256)
+	if err != nil || !ok {
+		return false, err
+	}
+	return true, s.attachPart(ctx, fp, d)
+}
+
+// partOutcome says what became of a part, adding it without a datasheet
+// when it couldn't be had, so the BOM stays complete.
+func (s *Service) partOutcome(ctx context.Context, fp FilePart, had, fetch bool, fetchErr error) (ProjectImportPart, library.Part, error) {
+	row := ProjectImportPart{MPN: fp.MPN}
+	res, ok := s.exactPart(ctx, fp.MPN)
+	switch {
+	case !ok:
+		p, err := s.Lib.AddPart(ctx, library.Part{MPN: fp.MPN, Manufacturer: fp.Manufacturer, Description: fp.Description, Category: fp.Category, Package: fp.Package})
+		if err != nil {
+			return row, p, fmt.Errorf("adding %s: %w", fp.MPN, err)
+		}
+		res.Part, row.Status = p, PartNoDatasheet
+		switch {
+		case fetchErr != nil:
+			row.Note = fetchErr.Error()
+		case !fetch:
+			row.Note = "not in the library (fetching was off)"
+		}
+	case res.Part.DatasheetID == 0:
+		row.Status = PartNoDatasheet
+	case !had:
+		row.Status = PartImported
+	default:
+		row.Status, row.Note = s.datasheetVersion(ctx, fp, res.Part)
+	}
+	if !strings.EqualFold(res.Part.MPN, fp.MPN) {
+		row.Part = res.Part.MPN
+	}
+	return row, res.Part, nil
+}
+
+// datasheetVersion compares the library's datasheet of a part with the
+// one the project was made with.
+func (s *Service) datasheetVersion(ctx context.Context, fp FilePart, part library.Part) (string, string) {
+	if fp.Datasheet == nil {
+		return PartInLibrary, ""
+	}
+	d, err := s.Lib.Datasheet(ctx, part.DatasheetID)
+	if err != nil || d.SHA256 == fp.Datasheet.SHA256 {
+		return PartInLibrary, ""
+	}
+	return PartOtherVersion, "the library has " + firstNonEmpty(d.Meta["revision"], "another revision") + "; the project was made with " + firstNonEmpty(fp.Datasheet.Revision, fp.Datasheet.Filename, "another one")
+}
+
+// parallel runs f(0)…f(n-1), at most limit at a time.
+func parallel(n, limit int, f func(i int)) {
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, limit)
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			f(i)
+		}()
+	}
+	wg.Wait()
 }
 
 // exactPart finds the part a part number names exactly: the part itself
@@ -348,192 +377,251 @@ func (s *Service) freeProjectName(ctx context.Context, name string) (string, err
 	return "", fmt.Errorf("no free name for %s", name)
 }
 
-// buildProject makes everything in a project file in a new project.
-func (s *Service) buildProject(ctx context.Context, p library.Project, pf ProjectFile, parts map[string]library.Part, runFiles map[string]*zip.File, out *ProjectImportResult) error {
-	note := func(format string, args ...any) { out.Notes = append(out.Notes, fmt.Sprintf(format, args...)) }
+// projectImport makes the things in a project file in a new project,
+// a step per kind, keeping what later steps refer to.
+type projectImport struct {
+	s        *Service
+	ctx      context.Context
+	p        library.Project
+	parts    map[string]library.Part // the file's part numbers, in capitals
+	entries  map[string]int64        // BOM entries by key
+	blocks   map[string]int64        // blocks by name, in capitals
+	runFiles map[string]*zip.File
+	out      *ProjectImportResult
+}
+
+// build runs the steps in order: what a step refers to is made before it.
+func (im *projectImport) build(pf ProjectFile) error {
+	for _, step := range []func(ProjectFile) error{im.rails, im.bom, im.nets, im.blockList, im.connections, im.groups, im.diagram, im.calculations, im.notes, im.models, im.tests} {
+		if err := step(pf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// note records what didn't come across as it was.
+func (im *projectImport) note(format string, args ...any) {
+	im.out.Notes = append(im.out.Notes, fmt.Sprintf(format, args...))
+}
+
+// part is the library part for one of the file's part numbers: as the
+// parts step found it, else as the library resolves it.
+func (im *projectImport) part(mpn string) (library.Part, bool) {
+	if p, ok := im.parts[strings.ToUpper(mpn)]; ok {
+		return p, true
+	}
+	res, err := im.s.Lib.Resolve(im.ctx, mpn)
+	return res.Part, err == nil
+}
+
+// node is the library's node for a file node, or "".
+func (im *projectImport) node(n string) string { return libraryNode(n, im.entries, im.blocks) }
+
+// rails makes the supply rails.
+func (im *projectImport) rails(pf ProjectFile) error {
 	for _, r := range pf.Rails {
-		if _, err := s.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: r.Name, VNom: r.VNom, VMin: r.VMin, VMax: r.VMax, Source: r.Source, CurrentLimit: r.CurrentLimit, OtherTyp: r.OtherTyp, OtherMax: r.OtherMax, Notes: r.Notes}); err != nil {
+		if _, err := im.s.Lib.SetRail(im.ctx, library.Rail{ProjectID: im.p.ID, Name: r.Name, VNom: r.VNom, VMin: r.VMin, VMax: r.VMax, Source: r.Source, CurrentLimit: r.CurrentLimit, OtherTyp: r.OtherTyp, OtherMax: r.OtherMax, Notes: r.Notes}); err != nil {
 			return fmt.Errorf("rail %s: %w", r.Name, err)
 		}
 	}
-	entries := map[string]int64{}
+	return nil
+}
+
+// bom makes the BOM entries, keeping each one's ID by its key.
+func (im *projectImport) bom(pf ProjectFile) error {
 	for _, e := range pf.Entries {
-		part, ok := parts[strings.ToUpper(e.Part)]
+		part, ok := im.part(e.Part)
 		if !ok {
-			// A part the file's list missed: resolve it as it is.
-			res, err := s.Lib.Resolve(ctx, e.Part)
-			if err != nil {
-				note("BOM entry %s: no part %s", e.Key, e.Part)
-				continue
-			}
-			part = res.Part
+			im.note("BOM entry %s: no part %s", e.Key, e.Part)
+			continue
 		}
-		pp, err := s.Lib.AddProjectPart(ctx, library.ProjectPart{ProjectID: p.ID, PartID: part.ID, Designator: e.Designator, Qty: e.Qty, Role: e.Role, SupplyRail: e.SupplyRail, OutputRail: e.OutputRail, ITyp: e.ITyp, IMax: e.IMax, Variant: e.Variant, Notes: e.Notes})
+		pp, err := im.s.Lib.AddProjectPart(im.ctx, library.ProjectPart{ProjectID: im.p.ID, PartID: part.ID, Designator: e.Designator, Qty: e.Qty, Role: e.Role, SupplyRail: e.SupplyRail, OutputRail: e.OutputRail, ITyp: e.ITyp, IMax: e.IMax, Variant: e.Variant, Notes: e.Notes})
 		if err != nil {
 			return fmt.Errorf("BOM entry %s: %w", e.Key, err)
 		}
-		entries[e.Key] = pp.ID
+		im.entries[e.Key] = pp.ID
 	}
+	return nil
+}
+
+// nets makes the nets.
+func (im *projectImport) nets(pf ProjectFile) error {
 	for _, n := range pf.Nets {
-		if _, err := s.Lib.SetNet(ctx, library.Net{ProjectID: p.ID, Name: n.Name, Kind: firstNonEmpty(n.Kind, "signal"), Bus: n.Bus, Voltage: n.Voltage, Notes: n.Notes, Source: firstNonEmpty(n.Source, library.SourceUser)}); err != nil {
+		if _, err := im.s.Lib.SetNet(im.ctx, library.Net{ProjectID: im.p.ID, Name: n.Name, Kind: n.Kind, Bus: n.Bus, Voltage: n.Voltage, Notes: n.Notes, Source: n.Source}); err != nil {
 			return fmt.Errorf("net %s: %w", n.Name, err)
 		}
 	}
-	blocks := map[string]int64{}
+	return nil
+}
+
+// blockList makes the blocks, keeping each one's ID by its name.
+func (im *projectImport) blockList(pf ProjectFile) error {
 	for _, b := range pf.Blocks {
-		nb, err := s.Lib.SetBlock(ctx, library.Block{ProjectID: p.ID, Name: b.Name, Kind: b.Kind, Value: b.Value, Notes: b.Notes, Source: firstNonEmpty(b.Source, library.SourceUser)})
+		nb, err := im.s.Lib.SetBlock(im.ctx, library.Block{ProjectID: im.p.ID, Name: b.Name, Kind: b.Kind, Value: b.Value, Notes: b.Notes, Source: b.Source})
 		if err != nil {
 			return fmt.Errorf("block %s: %w", b.Name, err)
 		}
-		blocks[strings.ToUpper(b.Name)] = nb.ID
+		im.blocks[strings.ToUpper(b.Name)] = nb.ID
 	}
+	return nil
+}
+
+// connections puts the pins of entries and blocks on their nets.
+func (im *projectImport) connections(pf ProjectFile) error {
 	for _, c := range pf.Connections {
-		lc := library.Connection{Net: c.Net, Ref: c.Ref, Pin: c.Pin, Notes: c.Notes, Source: firstNonEmpty(c.Source, library.SourceUser)}
-		switch {
-		case c.Entry != "":
-			lc.EntryID = entries[c.Entry]
-		case c.Block != "":
-			lc.BlockID = blocks[strings.ToUpper(c.Block)]
-		}
+		lc := library.Connection{Net: c.Net, EntryID: im.entries[c.Entry], BlockID: im.blocks[strings.ToUpper(c.Block)], Ref: c.Ref, Pin: c.Pin, Notes: c.Notes, Source: c.Source}
 		if lc.EntryID == 0 && lc.BlockID == 0 {
-			note("connection %s%s.%s on %s: no such part or block", c.Entry, c.Block, c.Pin, c.Net)
+			im.note("connection %s%s.%s on %s: no such part or block", c.Entry, c.Block, c.Pin, c.Net)
 			continue
 		}
-		if _, err := s.Lib.Connect(ctx, p.ID, lc); err != nil {
+		if _, err := im.s.Lib.Connect(im.ctx, im.p.ID, lc); err != nil {
 			return fmt.Errorf("connection %s%s.%s: %w", c.Entry, c.Block, c.Pin, err)
 		}
 	}
+	return nil
+}
+
+// groups makes the functional groups.
+func (im *projectImport) groups(pf ProjectFile) error {
 	for _, g := range pf.Groups {
-		if _, err := s.Lib.SetGroup(ctx, library.Group{ProjectID: p.ID, Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Source: firstNonEmpty(g.Source, library.SourceUser)}); err != nil {
+		if _, err := im.s.Lib.SetGroup(im.ctx, library.Group{ProjectID: im.p.ID, Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Source: g.Source}); err != nil {
 			return fmt.Errorf("group %s: %w", g.Name, err)
 		}
 	}
-	node := func(n string) string { return libraryNode(n, entries, blocks) }
+	return nil
+}
+
+// diagram places the parts and blocks: their groups and what they
+// support, and where they were dragged.
+func (im *projectImport) diagram(pf ProjectFile) error {
 	for _, a := range pf.Assignments {
-		n := node(a.Node)
+		n := im.node(a.Node)
 		if n == "" {
-			note("assignment of %s: no such part or block", a.Node)
+			im.note("assignment of %s: no such part or block", a.Node)
 			continue
 		}
-		if err := s.Lib.Assign(ctx, p.ID, library.Assignment{Node: n, Group: a.Group, Supports: node(a.Supports), Cluster: a.Cluster, Column: a.Column, Row: a.Row, Source: firstNonEmpty(a.Source, library.SourceUser)}); err != nil {
+		if err := im.s.Lib.Assign(im.ctx, im.p.ID, library.Assignment{Node: n, Group: a.Group, Supports: im.node(a.Supports), Cluster: a.Cluster, Column: a.Column, Row: a.Row, Source: a.Source}); err != nil {
 			return fmt.Errorf("assignment of %s: %w", a.Node, err)
 		}
 	}
 	for _, pos := range pf.Positions {
-		if n := node(pos.Node); n != "" {
-			if err := s.Lib.SetPosition(ctx, p.ID, library.Position{Node: n, X: pos.X, Y: pos.Y}); err != nil {
+		if n := im.node(pos.Node); n != "" {
+			if err := im.s.Lib.SetPosition(im.ctx, im.p.ID, library.Position{Node: n, X: pos.X, Y: pos.Y}); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+// calculations saves the calculator runs, with their parts.
+func (im *projectImport) calculations(pf ProjectFile) error {
 	for _, c := range pf.Calculations {
-		lc := library.Calculation{ProjectID: p.ID, Kind: c.Kind, Title: c.Title, Inputs: c.Inputs, Outputs: c.Outputs}
+		lc := library.Calculation{ProjectID: im.p.ID, Kind: c.Kind, Title: c.Title, Inputs: c.Inputs, Outputs: c.Outputs}
 		if c.Part != "" {
-			if part, ok := parts[strings.ToUpper(c.Part)]; ok {
+			if part, ok := im.part(c.Part); ok {
 				lc.PartID = part.ID
-			} else if res, err := s.Lib.Resolve(ctx, c.Part); err == nil {
-				lc.PartID = res.Part.ID
 			}
 		}
-		if _, err := s.Lib.SaveCalculation(ctx, lc); err != nil {
+		if _, err := im.s.Lib.SaveCalculation(im.ctx, lc); err != nil {
 			return fmt.Errorf("calculation %s: %w", c.Title, err)
 		}
 	}
+	return nil
+}
+
+// notes adds the project's notes.
+func (im *projectImport) notes(pf ProjectFile) error {
 	for _, n := range pf.Notes {
-		if _, err := s.Lib.AddNote(ctx, library.Note{TargetKind: library.TargetProject, TargetID: p.Name, Body: n.Body, Author: firstNonEmpty(n.Author, library.SourceUser)}, 0); err != nil {
+		if _, err := im.s.Lib.AddNote(im.ctx, library.Note{TargetKind: library.TargetProject, TargetID: im.p.Name, Body: n.Body, Author: n.Author}, 0); err != nil {
 			return err
 		}
 	}
-	if err := s.importModels(ctx, pf.Models, parts, note); err != nil {
-		return err
-	}
-	return s.importTests(ctx, p.ID, pf.Tests, runFiles, out)
+	return nil
 }
 
-// importModels adds the parts' SPICE models the library doesn't have; a
-// model it has in another version stays as the library has it.
-func (s *Service) importModels(ctx context.Context, models []FileModel, parts map[string]library.Part, note func(string, ...any)) error {
-	for _, m := range models {
-		part, ok := parts[strings.ToUpper(m.Part)]
+// models adds the parts' SPICE models the library doesn't have; a model
+// it has in another version stays as the library has it.
+func (im *projectImport) models(pf ProjectFile) error {
+	for _, m := range pf.Models {
+		part, ok := im.part(m.Part)
 		if !ok {
-			res, err := s.Lib.Resolve(ctx, m.Part)
-			if err != nil {
-				note("model %s: no part %s", m.Name, m.Part)
-				continue
-			}
-			part = res.Part
+			im.note("model %s: no part %s", m.Name, m.Part)
+			continue
 		}
-		have, err := s.Lib.SpiceModels(ctx, part.ID)
+		have, err := im.s.Lib.SpiceModels(im.ctx, part.ID)
 		if err != nil {
 			return err
 		}
-		kept := false
-		for _, h := range have {
-			if strings.EqualFold(h.Name, m.Name) {
-				kept = true
-				if strings.TrimSpace(h.Text) != strings.TrimSpace(m.Text) {
-					note("model %s of %s: the library's version was kept; the project's differs", m.Name, part.MPN)
-				}
+		if i := slices.IndexFunc(have, func(h library.SpiceModel) bool { return strings.EqualFold(h.Name, m.Name) }); i >= 0 {
+			if strings.TrimSpace(have[i].Text) != strings.TrimSpace(m.Text) {
+				im.note("model %s of %s: the library's version was kept; the project's differs", m.Name, part.MPN)
 			}
-		}
-		if kept {
 			continue
 		}
-		if _, err := s.Lib.SetSpiceModel(ctx, library.SpiceModel{PartID: part.ID, Name: m.Name, Dialect: m.Dialect, Text: m.Text, Notes: m.Notes, Source: firstNonEmpty(m.Source, library.SourceAgent)}); err != nil {
+		if _, err := im.s.Lib.SetSpiceModel(im.ctx, library.SpiceModel{PartID: part.ID, Name: m.Name, Dialect: m.Dialect, Text: m.Text, Notes: m.Notes, Source: m.Source}); err != nil {
 			return fmt.Errorf("model %s: %w", m.Name, err)
 		}
 	}
 	return nil
 }
 
-// importTests makes the tests, their variations and their runs, with the
-// runs' files in their new folders.
-func (s *Service) importTests(ctx context.Context, projectID int64, tests []FileTest, runFiles map[string]*zip.File, out *ProjectImportResult) error {
-	for _, t := range tests {
-		sim, err := s.Lib.SaveSimulation(ctx, library.Simulation{ProjectID: projectID, Name: t.Name, Kind: t.Kind, Purpose: t.Purpose, Target: t.Target, Source: firstNonEmpty(t.Source, library.SourceAgent)})
+// tests makes the tests, their variations and their runs.
+func (im *projectImport) tests(pf ProjectFile) error {
+	for _, t := range pf.Tests {
+		sim, err := im.s.Lib.SaveSimulation(im.ctx, library.Simulation{ProjectID: im.p.ID, Name: t.Name, Kind: t.Kind, Purpose: t.Purpose, Target: t.Target, Source: t.Source})
 		if err != nil {
 			return fmt.Errorf("test %s: %w", t.Name, err)
 		}
-		out.Tests++
+		im.out.Tests++
 		for _, v := range t.Variations {
-			lv, err := s.Lib.SaveVariation(ctx, library.Variation{SimulationID: sim.ID, Name: v.Name, Change: v.Change, Netlist: v.Netlist, Models: v.Models, Conditions: v.Conditions, Source: firstNonEmpty(v.Source, library.SourceAgent)})
+			lv, err := im.s.Lib.SaveVariation(im.ctx, library.Variation{SimulationID: sim.ID, Name: v.Name, Change: v.Change, Netlist: v.Netlist, Models: v.Models, Conditions: v.Conditions, Source: v.Source})
 			if err != nil {
 				return fmt.Errorf("test %s, variation %s: %w", t.Name, v.Name, err)
 			}
 			for _, r := range v.Runs {
-				run, err := s.Lib.AddRun(ctx, lv.ID, r.Condition)
-				if err != nil {
-					return err
+				if err := im.run(lv.ID, r); err != nil {
+					return fmt.Errorf("test %s, variation %s: %w", t.Name, v.Name, err)
 				}
-				run.State, run.Ngspice, run.DeckSHA, run.Started, run.Finished, run.TookMS = r.State, r.Ngspice, r.DeckSHA, r.Started, r.Finished, r.TookMS
-				run.Error, run.Problems, run.Measures, run.Plots, run.Log = r.Error, r.Problems, r.Measures, r.Plots, r.Log
-				if run.Problems == nil {
-					run.Problems = []string{}
-				}
-				// A run that was under way when exported isn't any more.
-				if run.State == "queued" || run.State == "running" {
-					run.State, run.Error = "cancelled", "exported while it ran"
-				}
-				if err := s.Lib.SaveRun(ctx, run); err != nil {
-					return err
-				}
-				if r.Files != "" {
-					if !runFolderRe.MatchString(r.Files) {
-						return fmt.Errorf("test %s: bad run folder %q", t.Name, r.Files)
-					}
-					if err := unpackRun(runFiles, r.Files, s.Lib.RunDir(run.ID)); err != nil {
-						return fmt.Errorf("test %s, run files: %w", t.Name, err)
-					}
-				}
-				out.Runs++
 			}
 		}
 		if t.Presentation != nil {
-			if err := s.Lib.SetPresentation(ctx, sim.ID, *t.Presentation); err != nil {
+			if err := im.s.Lib.SetPresentation(im.ctx, sim.ID, *t.Presentation); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+// run makes a run as it was, with its files in its new folder. A run
+// under way when exported comes in cancelled.
+func (im *projectImport) run(variationID int64, r FileRun) error {
+	if r.Files != "" && !runFolderRe.MatchString(r.Files) {
+		return fmt.Errorf("bad run folder %q", r.Files)
+	}
+	run, err := im.s.Lib.AddRun(im.ctx, variationID, r.Condition)
+	if err != nil {
+		return err
+	}
+	run.State, run.Ngspice, run.DeckSHA, run.Started, run.Finished, run.TookMS = r.State, r.Ngspice, r.DeckSHA, r.Started, r.Finished, r.TookMS
+	run.Error, run.Problems, run.Measures, run.Plots, run.Log = r.Error, r.Problems, r.Measures, r.Plots, r.Log
+	if run.Problems == nil {
+		run.Problems = []string{}
+	}
+	if run.State == "queued" || run.State == "running" {
+		run.State, run.Error = "cancelled", "exported while it ran"
+	}
+	if err := im.s.Lib.SaveRun(im.ctx, run); err != nil {
+		return err
+	}
+	if r.Files != "" {
+		if err := unpackRun(im.runFiles, r.Files, im.s.Lib.RunDir(run.ID)); err != nil {
+			return fmt.Errorf("run files: %w", err)
+		}
+	}
+	im.out.Runs++
 	return nil
 }
 
