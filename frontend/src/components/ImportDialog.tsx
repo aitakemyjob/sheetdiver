@@ -1,13 +1,13 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Database, FileSpreadsheet, FileUp, FolderOpen, Hash, Link2 } from 'lucide-react';
-import { api } from '../lib/api';
+import { Database, FileSpreadsheet, FileUp, FolderOpen, FolderKanban, Hash, Link2 } from 'lucide-react';
+import { api, importProjectFile } from '../lib/api';
 import { categories } from '../lib/format';
 import { useStore } from '../lib/store';
-import type { BOMResult } from '../lib/types';
+import type { BOMResult, ProjectImportResult } from '../lib/types';
 import { Modal, Switch } from './ui';
 import { CatalogSearch, libraryTone } from './CatalogPanel';
 
-type Mode = 'files' | 'catalog' | 'folder' | 'mpns' | 'urls' | 'bom';
+type Mode = 'files' | 'catalog' | 'folder' | 'mpns' | 'urls' | 'bom' | 'project';
 
 /** Splits pasted text into entries (one per line, or separated by commas/spaces). */
 export function splitList(text: string): string[] {
@@ -16,7 +16,8 @@ export function splitList(text: string): string[] {
 
 /**
  * Import datasheets: PDFs (drop or pick, many at once), a folder, a list of
- * part numbers or URLs, or a BOM that becomes a project.
+ * part numbers or URLs, a BOM that becomes a project, or a project
+ * exported from SheetDiver (.sdproj) with the datasheets it needs.
  */
 export function ImportDialog() {
   const s = useStore();
@@ -28,9 +29,10 @@ export function ImportDialog() {
     ['mpns', 'Part numbers', <Hash size={13} key="m" />],
     ['urls', 'URLs', <Link2 size={13} key="u" />],
     ['bom', 'BOM', <FileSpreadsheet size={13} key="b" />],
+    ['project', 'Project', <FolderKanban size={13} key="p" />],
   ];
   return (
-    <Modal title="Import datasheets" icon={<FileUp size={16} style={{ color: 'var(--accent)' }} />} onClose={() => s.setImportOpen(false)} wide={mode === 'bom' || mode === 'catalog'}>
+    <Modal title="Import datasheets" icon={<FileUp size={16} style={{ color: 'var(--accent)' }} />} onClose={() => s.setImportOpen(false)} wide={mode === 'bom' || mode === 'catalog' || mode === 'project'}>
       <div className="seg" role="tablist">
         {modes.map(([m, label, icon]) => (
           <button key={m} role="tab" aria-selected={mode === m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>
@@ -44,6 +46,7 @@ export function ImportDialog() {
       {mode === 'mpns' && <ListMode kind="mpns" />}
       {mode === 'urls' && <ListMode kind="urls" />}
       {mode === 'bom' && <BOMMode />}
+      {mode === 'project' && <ProjectMode />}
     </Modal>
   );
 }
@@ -344,6 +347,142 @@ function BOMMode() {
         <div className="grow" />
         <button className="btn primary" disabled={!text.trim() || busy} onClick={run}>
           {busy ? 'Importing…' : 'Import BOM'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The badge tone of a project import's part outcome. */
+const partTone: Record<string, string> = { 'in library': 'ok', imported: 'accent', 'other datasheet': 'warn', 'no datasheet': 'warn' };
+
+/** Import a project exported from SheetDiver (.sdproj). */
+function ProjectMode() {
+  const s = useStore();
+  const input = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File>();
+  const [name, setName] = useState('');
+  const [fetchMissing, setFetchMissing] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<ProjectImportResult>();
+  const run = async () => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      setRes(await importProjectFile(file, { name: name.trim() || undefined, fetch: fetchMissing }));
+      s.refreshLibrary();
+    } catch (e) {
+      s.toast({ kind: 'err', title: 'Could not import the project', body: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (res) {
+    return (
+      <div className="col">
+        <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+          <b>Project {res.project}</b>
+          <span className="badge ok">{res.counts['in library'] ?? 0} in library</span>
+          <span className="badge accent">{res.counts['imported'] ?? 0} imported</span>
+          {(res.counts['other datasheet'] ?? 0) > 0 && <span className="badge warn">{res.counts['other datasheet']} with another datasheet</span>}
+          {(res.counts['no datasheet'] ?? 0) > 0 && <span className="badge warn">{res.counts['no datasheet']} without datasheet</span>}
+          <span className="faint">
+            {res.tests} test{res.tests === 1 ? '' : 's'}, {res.runs} run{res.runs === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div style={{ maxHeight: 340, overflow: 'auto' }}>
+          <table className="dtable">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Library part</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {res.parts.map((p) => (
+                <tr key={p.mpn}>
+                  <td className="mono">{p.mpn}</td>
+                  <td className="mono">{p.part ?? ''}</td>
+                  <td title={p.note}>
+                    <span className={`badge ${partTone[p.status] ?? ''}`}>{p.status}</span>
+                    {p.note && <div className="faint ellipsis" style={{ maxWidth: 420, fontSize: 11 }}>{p.note}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {res.notes && res.notes.length > 0 && (
+          <ul className="faint" style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
+            {res.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        )}
+        <div className="row">
+          <button className="btn" onClick={() => setRes(undefined)}>
+            Import another
+          </button>
+          <div className="grow" />
+          <button
+            className="btn primary"
+            onClick={() => {
+              s.setImportOpen(false);
+              s.open({ kind: 'project', title: res.project, params: { project: res.project } });
+            }}
+          >
+            Open project
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="col">
+      <div className="faint">
+        A project exported from SheetDiver (Export on a project, a .sdproj file): its BOM, rails, connections, groups, calculations, notes and tests with their runs. Each part is found in the library by its
+        exact part number; the datasheets it lacks are fetched from where the project&apos;s came from, else by part number. Parts that can&apos;t be fetched still join, marked “no datasheet”.
+      </div>
+      <div
+        className="dropzone"
+        style={{ padding: 16 }}
+        onClick={() => input.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const f = e.dataTransfer.files[0];
+          if (f) setFile(f);
+        }}
+      >
+        <FolderKanban size={22} />
+        <div style={{ marginTop: 6 }}>{file ? <b>{file.name}</b> : 'Drop a .sdproj file here, or click to choose'}</div>
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept=".sdproj,application/zip"
+        hidden
+        aria-label="Project file"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) setFile(f);
+          e.target.value = '';
+        }}
+      />
+      <div className="row">
+        <div className="field grow">
+          <label>Project name</label>
+          <input className="input" placeholder="default: the exported project's (a name that's taken gets “(2)”)" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <label className="row" style={{ gap: 8, alignSelf: 'flex-end', paddingBottom: 6 }}>
+          <Switch on={fetchMissing} onChange={setFetchMissing} label="Fetch missing datasheets" /> Fetch missing datasheets
+        </label>
+      </div>
+      <div className="row">
+        <div className="grow" />
+        <button className="btn primary" disabled={!file || busy} onClick={run}>
+          {busy ? 'Importing…' : 'Import project'}
         </button>
       </div>
     </div>

@@ -115,6 +115,8 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("/api/figure.png", s.guard(s.figureImage))
 		mux.HandleFunc("/api/table.png", s.guard(s.tableImage))
 		mux.HandleFunc("/api/datasheet.pdf", s.guard(s.datasheetPDF))
+		mux.HandleFunc("/api/project.sdproj", s.guard(s.projectFile))
+		mux.HandleFunc("/api/project-import", s.guard(s.projectImport))
 		mux.HandleFunc("/api/translation/", s.guard(s.translationFile))
 		mux.Handle("/", spa(s.opts.UI))
 	}
@@ -132,6 +134,8 @@ func (s *Server) AssetHandler() http.Handler {
 	mux.HandleFunc("/api/figure.png", s.figureImage)
 	mux.HandleFunc("/api/table.png", s.tableImage)
 	mux.HandleFunc("/api/datasheet.pdf", s.datasheetPDF)
+	mux.HandleFunc("/api/project.sdproj", s.projectFile)
+	mux.HandleFunc("/api/project-import", s.projectImport)
 	return mux
 }
 
@@ -268,6 +272,53 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		req.MPNs = strings.FieldsFunc(m, func(r rune) bool { return r == ',' || r == ' ' })
 	}
 	res, err := s.core.Import(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"result": res})
+}
+
+// projectFile handles GET /api/project.sdproj?project=NAME: the project
+// exported, as a download.
+func (s *Server) projectFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET only", http.StatusMethodNotAllowed)
+		return
+	}
+	res, err := s.core.ExportProject(r.Context(), r.URL.Query().Get("project"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", res.Filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(res.Data)
+}
+
+// maxProjectUpload bounds a project file sent to /api/project-import.
+const maxProjectUpload = 2 << 30
+
+// projectImport handles POST /api/project-import: a project file body,
+// with the project's name (name) and whether to fetch missing datasheets
+// (fetch=1) in the query.
+func (s *Server) projectImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(r.Body, maxProjectUpload+1))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if len(data) > maxProjectUpload {
+		writeJSON(w, http.StatusOK, map[string]string{"error": "the project file is too large"})
+		return
+	}
+	q := r.URL.Query()
+	res, err := s.core.ImportProject(r.Context(), core.ProjectImportRequest{Data: data, Filename: q.Get("filename"), Name: q.Get("name"), Fetch: q.Get("fetch") == "1"})
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"error": err.Error()})
 		return

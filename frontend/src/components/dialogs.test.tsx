@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../lib/store';
 import { fakeBackend, recorded, type FakeBackend } from '../test/backend';
 import type { Datasheet } from '../lib/types';
@@ -13,6 +13,9 @@ let b: FakeBackend;
 beforeEach(() => {
   b = fakeBackend();
   useStore.setState({ importOpen: true, connectOpen: true, queueOpen: true });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 /** Switches the import dialog to a mode. */
@@ -46,6 +49,59 @@ describe('ImportDialog', () => {
     fireEvent.change(screen.getByPlaceholderText(/Reference,Value,MPN/), { target: { value: 'Reference,Value,MPN,Qty\nU1,,SD1234,1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Import BOM' }));
     await waitFor(() => expect(b.callsTo('bom.import')[0]).toMatchObject({ text: 'Reference,Value,MPN,Qty\nU1,,SD1234,1', fetch: true }));
+  });
+
+  it('imports a project file and reports each part', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          result: {
+            project: 'Driver board (2)',
+            parts: [
+              { mpn: 'SD1234', status: 'in library' },
+              { mpn: 'CL21A106KAYNNNE', status: 'imported' },
+              { mpn: 'QQ9999', status: 'no datasheet', note: 'no datasheet for QQ9999 at the usual manufacturer URLs' },
+            ],
+            counts: { 'in library': 1, imported: 1, 'no datasheet': 1 },
+            notes: ["model SD1234 of SD1234: the library's version was kept; the project's differs"],
+            tests: 2,
+            runs: 5,
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<ImportDialog />);
+    mode('Project');
+    expect(screen.getByRole('button', { name: 'Import project' })).toBeDisabled();
+    const file = new File([new Uint8Array([80, 75, 3, 4])], 'Driver board.sdproj', { type: 'application/zip' });
+    fireEvent.change(screen.getByLabelText('Project file'), { target: { files: [file] } });
+    expect(screen.getByText('Driver board.sdproj')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/exported project's/), { target: { value: 'Driver rev B' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Import project' }));
+    expect(await screen.findByText('Project Driver board (2)')).toBeInTheDocument();
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/project-import?');
+    expect(new URLSearchParams(url.split('?')[1]).get('name')).toBe('Driver rev B');
+    expect(new URLSearchParams(url.split('?')[1]).get('fetch')).toBe('1');
+    expect(init.body).toBe(file);
+    expect((init.headers as Record<string, string>)['X-SheetDiver']).toBe('1');
+    expect(screen.getByText('2 tests, 5 runs')).toBeInTheDocument();
+    expect(screen.getByText(/at the usual manufacturer URLs/)).toBeInTheDocument();
+    expect(screen.getByText(/library's version was kept/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open project' }));
+    expect(useStore.getState().importOpen).toBe(false);
+  });
+
+  it('says why a project file was refused', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'not a project file (.sdproj): zip: not a valid zip file' }))));
+    render(<ImportDialog />);
+    mode('Project');
+    fireEvent.click(screen.getByRole('switch', { name: 'Fetch missing datasheets' }));
+    fireEvent.change(screen.getByLabelText('Project file'), { target: { files: [new File(['x'], 'notes.txt')] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Import project' }));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)?.title).toBe('Could not import the project'));
+    expect(useStore.getState().toasts.at(-1)?.body).toContain('not a project file');
   });
 
   it('imports a folder', async () => {

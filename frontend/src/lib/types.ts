@@ -740,6 +740,25 @@ export interface BOMResult {
   counts: Record<string, number>;
 }
 
+/** What happened to one part of an imported project. */
+export interface ProjectImportPart {
+  mpn: string;
+  /** The library part it became, when its name differs. */
+  part?: string;
+  status: 'in library' | 'other datasheet' | 'imported' | 'no datasheet';
+  note?: string;
+}
+
+/** The result of importing a project file (.sdproj). */
+export interface ProjectImportResult {
+  project: string;
+  parts: ProjectImportPart[];
+  counts: Record<string, number>;
+  notes?: string[];
+  tests: number;
+  runs: number;
+}
+
 export interface Activity {
   id: number;
   time: string;

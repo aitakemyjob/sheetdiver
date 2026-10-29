@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -269,6 +270,39 @@ func (s *Service) ExportProject(ctx context.Context, ref string) (ExportedProjec
 		return ExportedProject{}, err
 	}
 	return ExportedProject{Filename: fileSafe(pf.Name) + ProjectFileExt, Data: buf.Bytes()}, nil
+}
+
+// ExportProjectTo writes a project file to a path: a folder takes the
+// project's file name, a file must be a .sdproj that doesn't exist yet
+// (nothing is overwritten). It returns where it was written.
+func (s *Service) ExportProjectTo(ctx context.Context, ref, dest string) (string, int, error) {
+	res, err := s.ExportProject(ctx, ref)
+	if err != nil {
+		return "", 0, err
+	}
+	dest = expandHome(strings.TrimSpace(dest))
+	if dest == "" {
+		return "", 0, errors.New("give a path to write the project file to")
+	}
+	if st, err := os.Stat(dest); err == nil && st.IsDir() {
+		dest = filepath.Join(dest, res.Filename)
+	}
+	if !strings.EqualFold(filepath.Ext(dest), ProjectFileExt) {
+		return "", 0, fmt.Errorf("a project file's name ends in %s", ProjectFileExt)
+	}
+	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) //nolint:gosec // a file to hand on, readable like the app's other exports
+	if errors.Is(err, fs.ErrExist) {
+		return "", 0, fmt.Errorf("%s exists: give another name (nothing is overwritten)", dest)
+	}
+	if err != nil {
+		return "", 0, err
+	}
+	if _, err := f.Write(res.Data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(dest)
+		return "", 0, err
+	}
+	return dest, len(res.Data), f.Close()
 }
 
 // runDir is a run's folder on disk and where it goes in the zip.

@@ -17,6 +17,7 @@ import (
 	"github.com/aitakemyjob/sheetdiver/internal/api"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
+	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
 )
 
@@ -360,4 +361,51 @@ func freePort(t *testing.T) int {
 	}
 	defer ln.Close()
 	return ln.Addr().(*net.TCPAddr).Port
+}
+
+// TestProjectFileEndpoints exports a project as a download and imports it
+// back as an upload, both behind the API's guard.
+func TestProjectFileEndpoints(t *testing.T) {
+	ts, srv := setup(t)
+	ctx := context.Background()
+	p, err := srv.core.Lib.CreateProject(ctx, "Board", "a test board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := 3.3
+	if _, err := srv.core.Lib.SetRail(ctx, library.Rail{ProjectID: p.ID, Name: "3V3", VNom: &v}); err != nil {
+		t.Fatal(err)
+	}
+	if resp, _ := do(t, http.MethodGet, ts.URL+"/api/project.sdproj?project=Board", nil, false); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("export without the header: %d", resp.StatusCode)
+	}
+	resp, data := do(t, http.MethodGet, ts.URL+"/api/project.sdproj?project=Board", nil, true)
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "application/zip" || !strings.Contains(resp.Header.Get("Content-Disposition"), `filename="Board.sdproj"`) {
+		t.Fatalf("export: %d %v", resp.StatusCode, resp.Header)
+	}
+	if resp, _ := do(t, http.MethodGet, ts.URL+"/api/project.sdproj?project=Nope", nil, true); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("a missing project: %d", resp.StatusCode)
+	}
+	if resp, _ := do(t, http.MethodPost, ts.URL+"/api/project-import?name=Copy", data, false); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("import without the header: %d", resp.StatusCode)
+	}
+	_, body := do(t, http.MethodPost, ts.URL+"/api/project-import?name=Copy&fetch=0", data, true)
+	var out struct {
+		Result core.ProjectImportResult `json:"result"`
+		Error  string                   `json:"error"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil || out.Error != "" || out.Result.Project != "Copy" {
+		t.Fatalf("import: %s", body)
+	}
+	cp, err := srv.core.Lib.Project(ctx, "Copy")
+	if err != nil || cp.Description != "a test board" {
+		t.Errorf("the imported project: %+v %v", cp, err)
+	}
+	if rails, _ := srv.core.Lib.Rails(ctx, cp.ID); len(rails) != 1 || rails[0].Name != "3V3" {
+		t.Errorf("rails: %+v", rails)
+	}
+	_, body = do(t, http.MethodPost, ts.URL+"/api/project-import", []byte("not a zip"), true)
+	if !strings.Contains(string(body), "not a project file") {
+		t.Errorf("a bad file: %s", body)
+	}
 }

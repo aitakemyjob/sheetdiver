@@ -1,12 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBackend, type FakeBackend } from '../test/backend';
+import { useStore } from '../lib/store';
 import { currentHint, currentTitle, loadText, parseLoad, ProjectView } from './ProjectView';
 import type { ProjectPart } from '../lib/types';
 
 let b: FakeBackend;
 beforeEach(() => {
   b = fakeBackend();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('ProjectView', () => {
@@ -21,6 +25,29 @@ describe('ProjectView', () => {
     expect(await screen.findByRole('heading', { name: /^Sensor board/ })).toBeInTheDocument();
     for (const t of ['TPX5430', 'SD1235', 'VIN', '3V3', 'ADC divider']) expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     expect(screen.getByText(/Checks against the datasheets/i)).toBeInTheDocument();
+  });
+
+  it('exports the project through the save dialog on the desktop', async () => {
+    const app = useStore.getState().app!;
+    useStore.setState({ app: { ...app, canSaveFile: true } });
+    b.on('project.save', () => ({ path: '/home/me/Sensor board.sdproj' }));
+    render(<ProjectView params={{ project: 'Sensor board' }} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Export/ }));
+    await waitFor(() => expect(b.callsTo('project.save')).toEqual([{ project: 'Sensor board' }]));
+    await waitFor(() => expect(useStore.getState().toasts.at(-1)).toMatchObject({ title: 'Project exported', body: '/home/me/Sensor board.sdproj' }));
+  });
+
+  it('downloads the project in the browser', async () => {
+    const app = useStore.getState().app!;
+    useStore.setState({ app: { ...app, canSaveFile: false } });
+    const clicked: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this.getAttribute('href')!, this.download);
+    });
+    render(<ProjectView params={{ project: 'Sensor board' }} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Export/ }));
+    await waitFor(() => expect(clicked).toEqual(['/api/project.sdproj?project=Sensor+board&sd=1', 'Sensor board.sdproj']));
+    expect(b.callsTo('project.save')).toHaveLength(0);
   });
 
   it('adds a rail', async () => {

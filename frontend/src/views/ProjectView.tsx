@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Calculator, FileText, Plus, Trash2, Zap } from 'lucide-react';
-import { api } from '../lib/api';
+import { Calculator, Download, FileText, Plus, Trash2, Zap } from 'lucide-react';
+import { api, exportProject } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
 import { useStore } from '../lib/store';
 import { StatusBadge } from '../components/PartStatus';
@@ -57,6 +57,20 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
           <span className="grow" />
           <button className="btn sm" title="Design-review report (Markdown): findings, rails, parts, calculations" onClick={() => setReport(true)}>
             <FileText size={13} /> Report
+          </button>
+          <button
+            className="btn sm"
+            title="Export this project to a .sdproj file: its BOM, rails, connections, groups, calculations, notes, tests with their runs, and which datasheets it needs. Import it with Import → Project."
+            onClick={async () => {
+              try {
+                const where = await exportProject(d.project.name, !!s.app?.canSaveFile);
+                if (where) s.toast({ kind: 'ok', title: 'Project exported', body: where });
+              } catch (e) {
+                s.toast({ kind: 'err', title: 'Could not export the project', body: (e as Error).message });
+              }
+            }}
+          >
+            <Download size={13} /> Export
           </button>
           <button
             className="btn sm danger"

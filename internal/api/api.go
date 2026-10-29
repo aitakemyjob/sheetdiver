@@ -176,6 +176,21 @@ func (a *API) registerApp() {
 		p, err := a.SaveFile(in.Name, data)
 		return map[string]string{"path": p}, err
 	})
+	// project.save exports a project through the desktop app's save
+	// dialog; the browser downloads /api/project.sdproj instead.
+	a.methods["project.save"] = method(func(ctx context.Context, in struct {
+		Project string `json:"project"`
+	}) (any, error) {
+		if a.SaveFile == nil {
+			return nil, fmt.Errorf("saving files needs the desktop app; the browser downloads them instead")
+		}
+		res, err := a.core.ExportProject(ctx, in.Project)
+		if err != nil {
+			return nil, err
+		}
+		p, err := a.SaveFile(res.Filename, res.Data)
+		return map[string]string{"path": p}, err
+	})
 }
 
 // registerLibrary adds datasheet, part and extracted-content methods.
