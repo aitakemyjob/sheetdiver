@@ -155,6 +155,7 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	lay := NewLayout(doc, r.Lines)
 	r.Sections = Sections(doc, r.Lines, r.BodySize, lay)
 	r.Figures = Figures(doc, r.Lines, r.Sections, lay)
+	r.Figures = append(r.Figures, TitledFigures(doc, r.Lines, r.Sections, lay, r.Figures)...)
 	r.Figures = append(r.Figures, SectionFigures(doc, r.Lines, r.Sections, lay, r.Figures)...)
 	r.Title, r.Description = titleAndDescription(doc, r.Lines)
 	r.Category = Category(r.Title, r.Description, first(r.PageText))

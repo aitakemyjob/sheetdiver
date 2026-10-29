@@ -19,6 +19,14 @@ every merged pull request.
   section figures.
 
 ### Added
+- **Graphs with a title and no figure number.** Linear Technology's
+  Typical Performance Characteristics are a grid of plots with a bold title
+  of one or two lines over each and no "Figure n"; every plot of the
+  section with a title right above it is now a figure named by the title,
+  a graph with its axes read from a "y vs x" title, or a waveform for a
+  scope shot. Plots stacked so close that they merge are split at the
+  titles between them. The LTC3536's 24 performance graphs: all found,
+  44 figures in all.
 - **Pins from Linear Technology's prose pin functions.** A heading per pin
   with the numbers of several packages slash-separated ("VIN (Pin 7/Pins
   8, 9)", "PGND (Exposed Pad Pin 11/Pin 5, Exposed Pad Pin 13)") now gives
