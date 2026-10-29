@@ -49,6 +49,7 @@ Usage:
   sheetdiver bom FILE [-project NAME]  build a project from a CSV/KiCad BOM, fetching missing datasheets
   sheetdiver report PROJECT     print a project's design review (Markdown)
   sheetdiver project export PROJECT [-o FILE]  save a project, its tests and the datasheets it needs to a .sdproj file
+  sheetdiver project import FILE [-name N] [-fetch=false]  make the project in a .sdproj file, importing the datasheets it needs
   sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
   sheetdiver licenses             print SheetDiver's licence and third-party notices
@@ -331,13 +332,15 @@ func runReport(args []string) error {
 	return nil
 }
 
-// runProject runs the project subcommands: export.
+// runProject runs the project subcommands: export and import.
 func runProject(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("give a project command: export")
+		return fmt.Errorf("give a project command: export or import")
 	}
 	fs := flag.NewFlagSet("project "+args[0], flag.ContinueOnError)
 	out := fs.String("o", "", "(export) the file to write (default: the project's name, .sdproj, here)")
+	name := fs.String("name", "", "(import) the project's name here (default: the file's)")
+	fetch := fs.Bool("fetch", true, "(import) download the datasheets of parts the library doesn't have")
 	pos, err := parseInterleaved(fs, args[1:])
 	if err != nil {
 		return err
@@ -362,8 +365,36 @@ func runProject(args []string) error {
 		}
 		fmt.Printf("exported %s to %s (%d KB)\n", pos[0], path, (len(res.Data)+1023)/1024)
 		return nil
+	case "import":
+		if len(pos) != 1 {
+			return fmt.Errorf("give one project file (%s)", core.ProjectFileExt)
+		}
+		a, err := bootstrap(server.Options{}, false)
+		if err != nil {
+			return err
+		}
+		defer a.core.Close()
+		res, err := a.core.ImportProject(context.Background(), core.ProjectImportRequest{Path: pos[0], Name: *name, Fetch: *fetch})
+		if err != nil {
+			return err
+		}
+		for _, p := range res.Parts {
+			line := fmt.Sprintf("  %-16s %-24s", p.Status, p.MPN)
+			if p.Part != "" {
+				line += " → " + p.Part
+			}
+			if p.Note != "" {
+				line += "  (" + p.Note + ")"
+			}
+			fmt.Println(line)
+		}
+		for _, n := range res.Notes {
+			fmt.Println("  note: " + n)
+		}
+		fmt.Printf("imported %s: %d parts, %d tests, %d runs\n", res.Project, len(res.Parts), res.Tests, res.Runs)
+		return nil
 	}
-	return fmt.Errorf("unknown project command %q (export)", args[0])
+	return fmt.Errorf("unknown project command %q (export, import)", args[0])
 }
 
 // parseInterleaved parses flags given before, between or after the
