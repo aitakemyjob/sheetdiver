@@ -13,6 +13,10 @@ every merged pull request.
   service can give the UI and the agents different ports: the UI port then
   has no `/mcp`, and both ports answer `/healthz` (point the stdio bridge
   at the MCP port: `sheetdiver mcp -port N`).
+- **`scripts/headless-update.sh`** (`make headless-update`) updates a
+  server from source: pulls the checked-out branch, builds the frontend and
+  the headless binary, swaps it in (`~/.local/bin/sheetdiver-headless`, or
+  `--dest`) and restarts the pm2 process that runs it (`--pm2 NAME`).
 - **`sheetdiver serve -host NAME,…`** accepts requests a reverse proxy
   passes on under its public names, which the server otherwise refuses as
   foreign hosts; the proxy has to bring the authentication, since
