@@ -32,6 +32,10 @@ const HeaderName = "X-SheetDiver"
 
 type Options struct {
 	Port int
+	// MCPPort, when set and different from Port, serves the MCP endpoint
+	// on a listener of its own (with /healthz, so the stdio bridge can
+	// find it); the UI port then has no /mcp.
+	MCPPort int
 	// UI, when set, serves the frontend and the /api endpoints (browser mode).
 	UI fs.FS
 }
@@ -43,6 +47,10 @@ type Server struct {
 	opts Options
 	http *http.Server
 	ln   net.Listener
+	// mcpHTTP and mcpLn serve MCP on its own port when opts.MCPPort asks
+	// for one.
+	mcpHTTP *http.Server
+	mcpLn   net.Listener
 	// stopStreams cancels the base context of every request, ending
 	// long-lived streams (agent MCP sessions, the UI event stream).
 	stopStreams context.CancelFunc
@@ -58,16 +66,43 @@ func New(c *core.Service, a *api.API, opts Options) *Server {
 	return &Server{core: c, api: a, mcp: mcpserver.New(c), opts: opts}
 }
 
-// Handler returns the routed, loopback-only HTTP handler.
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
+// split reports whether MCP is served on a port of its own.
+func (s *Server) split() bool {
+	return s.opts.MCPPort != 0 && s.opts.MCPPort != s.opts.Port
+}
+
+// mountMCP routes the MCP endpoint and the health check on a mux.
+func (s *Server) mountMCP(mux *http.ServeMux) {
 	mux.Handle("/mcp", s.mcp.Handler())
 	mux.Handle("/mcp/", s.mcp.Handler())
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "app": "sheetdiver", "version": s.core.Version})
-	})
+	mux.HandleFunc("/healthz", s.healthz)
+}
+
+// healthz answers the health check clients and the stdio bridge probe.
+func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "app": "sheetdiver", "version": s.core.Version})
+}
+
+// MCPHandler returns the loopback-only handler of the MCP port when MCP
+// has one of its own: the MCP endpoint and the health check, nothing else.
+func (s *Server) MCPHandler() http.Handler {
+	mux := http.NewServeMux()
+	s.mountMCP(mux)
+	return localOnly(mux)
+}
+
+// Handler returns the routed, loopback-only HTTP handler: the MCP endpoint
+// (unless it has a port of its own), the health check and, in browser
+// mode, the UI and its API.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	if s.split() {
+		mux.HandleFunc("/healthz", s.healthz)
+	} else {
+		s.mountMCP(mux)
+	}
 	if s.opts.UI != nil {
 		mux.HandleFunc("/api/invoke", s.guard(s.invoke))
 		mux.HandleFunc("/api/events", s.guard(s.events))
@@ -340,39 +375,76 @@ func spa(ui fs.FS) http.Handler {
 	})
 }
 
-// Start binds 127.0.0.1:port and serves in the background.
+// Start binds 127.0.0.1:port (and 127.0.0.1:mcpPort when MCP has a port
+// of its own) and serves in the background.
 func (s *Server) Start() error {
-	addr := fmt.Sprintf("127.0.0.1:%d", s.opts.Port)
-	ln, err := net.Listen("tcp", addr)
+	ln, err := s.listen(s.opts.Port)
 	if err != nil {
-		s.core.SetMCPStatus(core.MCPStatus{Error: fmt.Sprintf("cannot listen on %s: %v", addr, err)})
 		return err
 	}
 	s.ln = ln
+	if s.split() {
+		mcpLn, err := s.listen(s.opts.MCPPort)
+		if err != nil {
+			_ = ln.Close()
+			s.ln = nil
+			return err
+		}
+		s.mcpLn = mcpLn
+	}
 	base, stop := context.WithCancel(context.Background())
 	s.stopStreams = stop
-	s.http = &http.Server{
-		Handler:           s.Handler(),
+	s.http = s.serve(ln, s.Handler(), base)
+	if s.mcpLn != nil {
+		s.mcpHTTP = s.serve(s.mcpLn, s.MCPHandler(), base)
+	}
+	s.core.SetMCPStatus(core.MCPStatus{Running: true, URL: s.MCPURL() + "/mcp"})
+	return nil
+}
+
+// listen binds a loopback port, reporting a failure as the MCP status.
+func (s *Server) listen(port int) (net.Listener, error) {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		s.core.SetMCPStatus(core.MCPStatus{Error: fmt.Sprintf("cannot listen on %s: %v", addr, err)})
+		return nil, err
+	}
+	return ln, nil
+}
+
+// serve runs a handler on a listener in the background; every request's
+// context descends from base, so cancelling it ends the streams.
+func (s *Server) serve(ln net.Listener, h http.Handler, base context.Context) *http.Server {
+	srv := &http.Server{
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return base },
 	}
-	url := "http://" + ln.Addr().String()
-	s.core.SetMCPStatus(core.MCPStatus{Running: true, URL: url + "/mcp"})
 	go func() {
-		if err := s.http.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("http server stopped", "err", err)
 			s.core.SetMCPStatus(core.MCPStatus{Error: err.Error()})
 		}
 	}()
-	return nil
+	return srv
 }
 
-// URL is the base URL once started.
+// URL is the base URL of the UI port once started.
 func (s *Server) URL() string {
 	if s.ln == nil {
 		return ""
 	}
 	return "http://" + s.ln.Addr().String()
+}
+
+// MCPURL is the base URL the MCP endpoint is served under once started:
+// the MCP port's when it has one, else the UI port's.
+func (s *Server) MCPURL() string {
+	if s.mcpLn != nil {
+		return "http://" + s.mcpLn.Addr().String()
+	}
+	return s.URL()
 }
 
 // Shutdown stops the server and marks MCP as stopped. Streaming requests
@@ -389,9 +461,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		ctx, cancel = context.WithTimeout(ctx, shutdownGrace)
 		defer cancel()
 	}
-	if err := s.http.Shutdown(ctx); err != nil {
-		_ = s.http.Close()
-		return err
+	var errs []error
+	for _, srv := range []*http.Server{s.http, s.mcpHTTP} {
+		if srv == nil {
+			continue
+		}
+		if err := srv.Shutdown(ctx); err != nil {
+			_ = srv.Close()
+			errs = append(errs, err)
+		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

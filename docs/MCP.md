@@ -1,7 +1,8 @@
 # MCP tool reference
 
 SheetDiver serves the [Model Context Protocol](https://modelcontextprotocol.io)
-at `http://127.0.0.1:47480/mcp` (streamable HTTP), and over stdio through
+at `http://127.0.0.1:47480/mcp` (streamable HTTP; `sheetdiver serve
+-mcp-port N` moves it to a port of its own), and over stdio through
 `sheetdiver mcp` (or `sheetdiver-mcp`, installed beside the app on Windows
 and Linux, which Claude Desktop's extension carries; each stdio session is
 logged to `mcp.log` in the user's cache folder,

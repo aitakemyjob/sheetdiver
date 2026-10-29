@@ -55,12 +55,15 @@ Usage:
 
 Flags:
   -port N      MCP/HTTP port (default from settings, %d)
+  -mcp-port N  (serve) serve MCP on its own port; the UI port then has no /mcp
   -open        (serve) open the browser automatically (default true)
   -mpn LIST    (import) comma-separated part numbers, overriding detection
   -project N   (bom) project name (default: the file name)
   -fetch=false (bom) don't download missing datasheets
 
-The MCP endpoint is http://127.0.0.1:<port>/mcp (streamable HTTP).
+The MCP endpoint is http://127.0.0.1:<port>/mcp (streamable HTTP), or
+http://127.0.0.1:<mcp-port>/mcp with -mcp-port (point the stdio bridge at
+that port: sheetdiver mcp -port <mcp-port>).
 The library lives in %s (set SHEETDIVER_LIBRARY or Settings to move it).
 `
 
@@ -72,8 +75,9 @@ type app struct {
 }
 
 // bootstrap loads the config, opens the library and wires the service,
-// API and HTTP server. withUI also serves the embedded frontend.
-func bootstrap(port int, withUI bool) (*app, error) {
+// API and HTTP server. withUI also serves the embedded frontend; mcpPort,
+// when set, serves MCP on that port rather than the UI's.
+func bootstrap(port, mcpPort int, withUI bool) (*app, error) {
 	cfgPath, err := config.DefaultPath()
 	if err != nil {
 		return nil, err
@@ -90,7 +94,7 @@ func bootstrap(port int, withUI bool) (*app, error) {
 		port = store.Get().Settings.MCPPort
 	}
 	a := api.New(svc)
-	opts := server.Options{Port: port}
+	opts := server.Options{Port: port, MCPPort: mcpPort}
 	if withUI {
 		ui, err := fs.Sub(assets, "frontend/dist")
 		if err != nil {
@@ -110,6 +114,7 @@ func main() {
 	}
 	fl := flag.NewFlagSet("sheetdiver", flag.ExitOnError)
 	port := fl.Int("port", 0, "MCP/HTTP port")
+	mcpPort := fl.Int("mcp-port", 0, "(serve) serve MCP on its own port, leaving the UI port without /mcp")
 	open := fl.Bool("open", true, "open the browser (serve)")
 	standalone := fl.Bool("standalone", false, "(mcp) serve stdio directly instead of bridging to the app")
 	mpn := fl.String("mpn", "", "(import) comma-separated part numbers")
@@ -123,7 +128,7 @@ func main() {
 	case "", "gui":
 		err = runGUI(*port)
 	case "serve":
-		err = runServe(*port, *open)
+		err = runServe(*port, *mcpPort, *open)
 	case "mcp":
 		err = runMCP(*port, *standalone)
 	case "import":
@@ -153,10 +158,11 @@ func main() {
 	}
 }
 
-// runServe runs headless, serving the UI and MCP over HTTP until
-// interrupted, and optionally opens the browser.
-func runServe(port int, open bool) error {
-	a, err := bootstrap(port, true)
+// runServe runs headless, serving the UI and MCP over HTTP (MCP on its
+// own port when mcpPort is set) until interrupted, and optionally opens
+// the browser.
+func runServe(port, mcpPort int, open bool) error {
+	a, err := bootstrap(port, mcpPort, true)
 	if err != nil {
 		return err
 	}
@@ -166,7 +172,7 @@ func runServe(port int, open bool) error {
 	}
 	go a.core.ReextractOutdated(context.Background()) //nolint:errcheck // progress and failures show in the import queue
 	url := a.server.URL()
-	fmt.Printf("SheetDiver %s\n  UI:      %s\n  MCP:     %s/mcp\n  Library: %s\n", version, url, url, a.core.Config.LibraryDir())
+	fmt.Printf("SheetDiver %s\n  UI:      %s\n  MCP:     %s/mcp\n  Library: %s\n", version, url, a.server.MCPURL(), a.core.Config.LibraryDir())
 	if open {
 		openBrowser(url)
 	}
@@ -184,7 +190,7 @@ func runImport(args []string, mpns string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("give one or more PDF paths, folders, URLs or part numbers")
 	}
-	a, err := bootstrap(0, false)
+	a, err := bootstrap(0, 0, false)
 	if err != nil {
 		return err
 	}
@@ -242,7 +248,7 @@ func runCatalog(args []string) error {
 	if len(args) == 0 {
 		args = []string{"status"}
 	}
-	a, err := bootstrap(0, false)
+	a, err := bootstrap(0, 0, false)
 	if err != nil {
 		return err
 	}
@@ -296,7 +302,7 @@ func runReport(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("give one project name")
 	}
-	a, err := bootstrap(0, false)
+	a, err := bootstrap(0, 0, false)
 	if err != nil {
 		return err
 	}
@@ -314,7 +320,7 @@ func runBOM(args []string, project string, fetch bool) error {
 	if len(args) != 1 {
 		return fmt.Errorf("give one BOM file (CSV/TSV)")
 	}
-	a, err := bootstrap(0, false)
+	a, err := bootstrap(0, 0, false)
 	if err != nil {
 		return err
 	}

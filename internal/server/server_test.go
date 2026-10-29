@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image/png"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -207,4 +208,81 @@ func TestTranslationMethods(t *testing.T) {
 	if out := call("translate.remove", `{"from":"zh","to":"en"}`); !strings.Contains(out, `"installed":false`) {
 		t.Errorf("remove: %s", out)
 	}
+}
+
+// TestMCPPort gives MCP a port of its own: the UI port keeps the health
+// check and loses /mcp, the MCP port serves /mcp and the health check and
+// nothing else, and the status points at the MCP port.
+func TestMCPPort(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SHEETDIVER_LIBRARY", filepath.Join(dir, "lib"))
+	store, err := config.Open(filepath.Join(dir, "c.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := core.New(store, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+	ui := fstest.MapFS{"index.html": {Data: []byte("<html>sheetdiver</html>")}}
+	srv := New(svc, api.New(svc), Options{Port: 0, MCPPort: freePort(t), UI: ui})
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+	if srv.MCPURL() == srv.URL() {
+		t.Fatalf("MCP shares the UI port %s", srv.URL())
+	}
+	if st := svc.MCPStatus(); st.URL != srv.MCPURL()+"/mcp" {
+		t.Errorf("status URL = %q, want %q", st.URL, srv.MCPURL()+"/mcp")
+	}
+	// On the UI port, /mcp is just another page of the app.
+	for _, tc := range []struct {
+		url  string
+		want int
+		body string
+	}{
+		{srv.URL() + "/healthz", http.StatusOK, `"status":"ok"`},
+		{srv.URL() + "/", http.StatusOK, "<html>"},
+		{srv.URL() + "/mcp", http.StatusOK, "<html>"},
+		{srv.MCPURL() + "/healthz", http.StatusOK, `"status":"ok"`},
+		{srv.MCPURL() + "/", http.StatusNotFound, ""},
+	} {
+		resp, body := do(t, http.MethodGet, tc.url, nil, false)
+		if resp.StatusCode != tc.want || !strings.Contains(string(body), tc.body) {
+			t.Errorf("GET %s = %d %q, want %d with %q", tc.url, resp.StatusCode, body, tc.want, tc.body)
+		}
+	}
+	// The MCP endpoint answers on the MCP port (an initialize, as a client
+	// sends it).
+	init := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}`)
+	req, _ := http.NewRequest(http.MethodPost, srv.MCPURL()+"/mcp", bytes.NewReader(init))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("initialize on the MCP port = %d", resp.StatusCode)
+	}
+	if err := srv.Shutdown(context.Background()); err != nil {
+		t.Errorf("shutdown: %v", err)
+	}
+	if _, err := http.Get(srv.MCPURL() + "/healthz"); err == nil {
+		t.Error("the MCP port is still open after shutdown")
+	}
+}
+
+// freePort finds a port nothing listens on right now.
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }
