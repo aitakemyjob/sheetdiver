@@ -8,6 +8,16 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Fixed
+- **Figures inside a page-sized form.** Linear Technology sets each page
+  as one form spanning most of it, and a caption's figure was the whole
+  page, so none of the LTC3536's 16 numbered figures was found; a form
+  spanning most of the page is now a container, not a drawing, judged
+  before the caption's column is cut out of it, and on a two-column page
+  a caption's figure is looked for in its own column. Bode plots count as
+  graphs. The LTC3536 now gives all 16 numbered figures and its four
+  section figures.
+
 ### Added
 - **Pins from Linear Technology's prose pin functions.** A heading per pin
   with the numbers of several packages slash-separated ("VIN (Pin 7/Pins

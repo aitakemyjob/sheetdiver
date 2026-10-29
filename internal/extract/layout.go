@@ -55,6 +55,23 @@ func (lay Layout) column(page int, b pdf.Rect) int {
 	return 0
 }
 
+// columnBounds is the horizontal extent of the column a box is in on a
+// two-column page, or zero bounds when the page is set in one column or
+// the box spans both.
+func (lay Layout) columnBounds(page int, b pdf.Rect) [2]float64 {
+	if page < 0 || page >= len(lay) || !lay[page].twoCol {
+		return [2]float64{}
+	}
+	mid := lay[page].mid
+	switch {
+	case b.X1 < mid+4:
+		return [2]float64{0, mid}
+	case b.X0 > mid-4:
+		return [2]float64{mid, 2 * mid}
+	}
+	return [2]float64{}
+}
+
 // Key orders positions: page, then column, then height on the page.
 func (lay Layout) Key(page int, b pdf.Rect) float64 {
 	return float64(page)*1e6 + float64(lay.column(page, b))*1e4 + b.Y0
