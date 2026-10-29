@@ -57,7 +57,7 @@ func Figures(doc *pdf.Document, lines [][]Line, secs []Section, lay Layout) []Fi
 	for pi, p := range doc.Pages {
 		caps := captions(lines[pi])
 		for ci, c := range caps {
-			x0, x1 := captionColumn(caps, ci, p.Width)
+			x0, x1 := captionColumn(caps, ci, p.Width, lay.columnBounds(pi, c.line.Box))
 			clusters := clusterGraphics(p, x0, x1)
 			cd := cand{cap: c, gapA: math.Inf(1), gapB: math.Inf(1), clusters: clusters, col: [2]float64{x0, x1}}
 			for i := range clusters {
@@ -158,11 +158,15 @@ func captionLimits(caps []caption, c pdf.Rect, col [2]float64) (float64, float64
 }
 
 // captionColumn returns the horizontal extent a caption's figure can
-// occupy: the page, narrowed halfway towards any caption beside it (figures
-// laid out side by side, two or three to a row).
-func captionColumn(caps []caption, i int, pageW float64) (float64, float64) {
+// occupy: the page (or the caption's column of a two-column page, col),
+// narrowed halfway towards any caption beside it (figures laid out side
+// by side, two or three to a row).
+func captionColumn(caps []caption, i int, pageW float64, col [2]float64) (float64, float64) {
 	c := caps[i].line.Box
-	x0, x1 := 0.0, pageW
+	x0, x1 := col[0], col[1]
+	if x1 <= x0 {
+		x0, x1 = 0, pageW
+	}
 	for j, o := range caps {
 		ob := o.line.Box
 		if j == i || math.Abs(centerY(ob)-centerY(c)) > 60 || (ob.X0 < c.X1 && c.X0 < ob.X1) {
@@ -236,7 +240,15 @@ func clusterGraphics(p pdf.Page, colX0, colX1 float64) []pdf.Rect {
 		if b.W() < 1.5 || b.H() < 1.5 {
 			continue
 		}
-		if b.W() > p.Width*0.9 && b.H() > p.Height*0.8 {
+		// Page-sized graphics are backgrounds, judged on the page before
+		// the column clip; a form spanning most of the page holds the
+		// page's content (Linear sets each page as one form): a container,
+		// not a drawing.
+		onPage := pdf.Rect{X0: math.Max(g.Box.X0, 0), Y0: math.Max(g.Box.Y0, 0), X1: math.Min(g.Box.X1, p.Width), Y1: math.Min(g.Box.Y1, p.Height)}
+		if onPage.W() > p.Width*0.9 && onPage.H() > p.Height*0.8 {
+			continue
+		}
+		if g.Kind == "form" && onPage.W() > p.Width*0.75 && onPage.H() > p.Height*0.75 {
 			continue
 		}
 		if inMargin(b, p.Height) {
@@ -332,7 +344,7 @@ var figureKinds = []struct {
 }{
 	{regexp.MustCompile(`(?i)block diagram`), FigBlock},
 	{regexp.MustCompile(`(?i)\btiming\b|timing diagram|waveforms? definition`), FigTiming},
-	{regexp.MustCompile(`(?i)\bvs\.?\b|\bversus\b|efficiency|regulation|derating|\bsoa\b|safe operating area`), FigGraph},
+	{regexp.MustCompile(`(?i)\bvs\.?\b|\bversus\b|efficiency|regulation|derating|\bsoa\b|safe operating area|bode plot|\bplot\b`), FigGraph},
 	{regexp.MustCompile(`(?i)typical application|application (circuit|schematic|diagram)|reference design|schematic|simplified|circuit|evaluation module|connection diagram`), FigSchematic},
 	{regexp.MustCompile(`(?i)pin ?out|pin (configuration|assignment|diagram)|top view|bottom view|ball map`), FigPinout},
 	{regexp.MustCompile(`(?i)layout|pcb|board`), FigLayout},

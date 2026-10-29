@@ -771,7 +771,13 @@
         "regularTables": [
           "1",
           "2"
-        ]
+        ],
+        "minFigures": 20,
+        "figures": {
+          "4": "schematic",
+          "5": "graph",
+          "16": "schematic"
+        }
       }
     }
   ]
