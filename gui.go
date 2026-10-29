@@ -158,7 +158,7 @@ func instanceID() string {
 // starts the MCP server. A port conflict is shown in the UI rather than
 // preventing startup.
 func runGUI(port int) error {
-	a, err := bootstrap(port, false)
+	a, err := bootstrap(port, 0, false)
 	if err != nil {
 		return err
 	}

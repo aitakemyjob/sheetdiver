@@ -9,6 +9,12 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **`sheetdiver serve -mcp-port N`** serves MCP on a port of its own, so a
+  service can give the UI and the agents different ports: the UI port then
+  has no `/mcp`, and both ports answer `/healthz` (point the stdio bridge
+  at the MCP port: `sheetdiver mcp -port N`).
+
+### Added
 - **Circuit simulation with ngspice (preview).** Agents set up tests
   of a project — any number, each one question they judge worth checking
   (inrush, start-up, load steps, loop gain, corners, one part on a test
