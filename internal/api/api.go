@@ -58,6 +58,7 @@ func New(c *core.Service) *API {
 	a.registerApp()
 	a.registerLibrary()
 	a.registerProjects()
+	a.registerSimulations()
 	return a
 }
 
@@ -598,5 +599,62 @@ func (a *API) registerProjects() {
 		err := c.Lib.DeleteCalculation(ctx, in.ID)
 		c.ProjectChanged("", "calculation")
 		return nil, err
+	})
+}
+
+// simReq names a project's simulation.
+type simReq struct {
+	Project string `json:"project"`
+	Name    string `json:"name"`
+}
+
+// NgspiceState is the ngspice simulations run with, or why there's none.
+type NgspiceState struct {
+	Path    string `json:"path,omitempty"`
+	Version string `json:"version,omitempty"`
+	From    string `json:"from,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// registerSimulations adds the simulation methods: ngspice's state, a
+// project's tests, one with its variations and runs, a run's chart data,
+// and running a variation again or deleting a test or a variation from
+// the app.
+func (a *API) registerSimulations() {
+	c := a.core
+	a.methods["sim.ngspice"] = method(func(ctx context.Context, _ struct{}) (any, error) {
+		inst, err := c.Ngspice(ctx)
+		st := NgspiceState{Path: inst.Path, Version: inst.Version, From: inst.From}
+		if err != nil {
+			st.Error = err.Error()
+		}
+		return st, nil
+	})
+	a.methods["sim.list"] = method(func(ctx context.Context, in simReq) (any, error) { return c.Simulations(ctx, in.Project) })
+	a.methods["sim.get"] = method(func(ctx context.Context, in simReq) (any, error) { return c.SimulationDetail(ctx, in.Project, in.Name) })
+	a.methods["sim.data"] = method(func(ctx context.Context, in struct {
+		Run     int64    `json:"run"`
+		Plot    string   `json:"plot"`
+		Signals []string `json:"signals"`
+		Part    string   `json:"part"`
+		Points  int      `json:"points"`
+	}) (any, error) {
+		return c.SimulationData(ctx, in.Run, in.Plot, in.Signals, in.Part, in.Points)
+	})
+	a.methods["sim.run"] = method(func(ctx context.Context, in struct {
+		simReq
+		Variation  string   `json:"variation"`
+		Conditions []string `json:"conditions"`
+	}) (any, error) {
+		return c.RunVariation(ctx, in.Project, in.Name, in.Variation, in.Conditions)
+	})
+	a.methods["sim.delete"] = method(func(ctx context.Context, in simReq) (any, error) {
+		return nil, c.DeleteSimulation(ctx, in.Project, in.Name)
+	})
+	a.methods["sim.deleteVariation"] = method(func(ctx context.Context, in struct {
+		simReq
+		Variation string `json:"variation"`
+	}) (any, error) {
+		return nil, c.DeleteVariation(ctx, in.Project, in.Name, in.Variation)
 	})
 }

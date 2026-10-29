@@ -70,8 +70,9 @@ Your agent simulates the board, and the results stay with the project.
 
 - **Agent-run simulations:** the agent decides what's worth checking
   (inrush on hot-plug, a power-mux switchover, start-up, ripple) and runs
-  as many configurations as it needs with a bundled ngspice: sanitized
+  as many configurations as it needs with your own ngspice: sanitized
   netlists, each run in its own directory with a time limit.
+  *Shipped as a preview.*
 - **Saved per project:** every run keeps its netlist, models, raw data
   and measurements, and is marked stale when the board changes, so a
   result can always be reproduced or rerun.

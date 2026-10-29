@@ -8,6 +8,7 @@ import type {
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
   ConnectionsChange,
+  NgspiceState, SimulationSummary, SimulationDetail, SimulationData, SimRun,
 } from './types';
 
 /** Calls a backend method. */
@@ -102,6 +103,16 @@ export const api = {
   deleteProject: (id: number) => call<void>('projects.delete', { id }),
   setActiveProject: (name: string) => call<void>('projects.setActive', { name }),
   project: (project: string) => call<ProjectDetail>('project.detail', { project }),
+  /** The ngspice simulations run with (Settings, the PATH or its usual place). */
+  ngspice: () => call<NgspiceState>('sim.ngspice'),
+  simulations: (project: string) => call<SimulationSummary[]>('sim.list', { project }),
+  simulation: (project: string, name: string) => call<SimulationDetail>('sim.get', { project, name }),
+  /** A run's signals of a plot, thinned to points each (AC as dB, or phase). */
+  simulationData: (run: number, plot: string, signals: string[], part = '', points = 1500) => call<SimulationData>('sim.data', { run, plot, signals, part, points }),
+  /** Runs a test's variation (the latest when none is named) in its conditions (all when none are named). */
+  runSimulation: (project: string, name: string, variation = '', conditions: string[] = []) => call<SimRun[]>('sim.run', { project, name, variation, conditions }),
+  deleteSimulation: (project: string, name: string) => call<void>('sim.delete', { project, name }),
+  deleteVariation: (project: string, name: string, variation: string) => call<void>('sim.deleteVariation', { project, name, variation }),
   setRail: (r: Partial<Rail> & { projectId: number; name: string }) => call<Rail>('rails.set', r),
   deleteRail: (projectId: number, name: string) => call<void>('rails.delete', { projectId, name }),
   addProjectPart: (project: string, part: string, pp: Partial<ProjectPart>) => call<ProjectPart>('projectParts.add', { project, part, ...pp }),

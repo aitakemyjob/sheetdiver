@@ -13,14 +13,15 @@ import { Checks } from '../components/Checks';
 import { BlockDiagram } from './project/BlockDiagram';
 import { ConnectionTable } from './project/ConnectionTable';
 import { PinTables } from './project/PinTables';
+import { Simulations } from './project/Simulations';
 
 /** The project view's tabs. */
-type ProjectTab = 'overview' | 'diagram' | 'pins' | 'connections';
+type ProjectTab = 'overview' | 'diagram' | 'pins' | 'connections' | 'simulations';
 
 /**
  * A project: rails with budgets, BOM, checks, calculations and notes on
- * the overview; the block diagram, pin tables and connection table on
- * their tabs.
+ * the overview; the block diagram, pin tables, connection table and
+ * simulations on their tabs.
  */
 export function ProjectView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
@@ -101,6 +102,7 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
               ['diagram', 'Block diagram'],
               ['pins', 'Pins', d.connections.pinouts?.length],
               ['connections', 'Connections', d.connections.connections.length],
+              ['simulations', 'Simulations'],
             ] as [ProjectTab, string, number?][]
           ).map(([k, label, n]) => (
             <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
@@ -118,6 +120,11 @@ export function ProjectView({ params }: { params: Record<string, unknown> }) {
       {tab === 'pins' && (
         <div className="scroll pad col" style={{ flex: 1 }}>
           <PinTables d={d} highlight={highlight} />
+        </div>
+      )}
+      {tab === 'simulations' && (
+        <div className="scroll pad col" style={{ flex: 1 }}>
+          <Simulations project={d.project.name} highlight={highlight} />
         </div>
       )}
       {tab === 'connections' && (

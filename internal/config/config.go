@@ -34,6 +34,9 @@ type Settings struct {
 	// before the UI suggests refreshing it: 0 means the default (14), -1
 	// never.
 	CatalogRemindDays int `json:"catalogRemindDays"`
+	// NgspicePath is the ngspice program simulations run with; empty
+	// finds it on the PATH or where its installers put it.
+	NgspicePath string `json:"ngspicePath"`
 }
 
 // DefaultCatalogRemindDays is the default catalogue refresh reminder.

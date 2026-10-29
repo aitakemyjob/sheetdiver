@@ -19,6 +19,8 @@ export interface Settings {
   libraryDir: string;
   /** Days before the parts catalogue reminder: 0 = 14, −1 = never. */
   catalogRemindDays?: number;
+  /** The ngspice program simulations run with; empty finds it. */
+  ngspicePath?: string;
 }
 
 export interface Config {
@@ -987,4 +989,190 @@ export interface TranslateStatus {
   models: TranslationModel[];
   progress?: { model: string; done: number; total: number };
   error?: string;
+}
+
+// ---- simulations (internal/core/simulations.go, internal/library/simulations.go)
+
+/** The ngspice simulations run with, or why there's none. */
+export interface NgspiceState {
+  path?: string;
+  version?: string;
+  /** settings, PATH or default. */
+  from?: string;
+  error?: string;
+}
+
+/** A run's state: queued → running → done | failed | cancelled; stale after the simulation changes. */
+export type RunState = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'stale';
+
+export interface SimModel {
+  part: string;
+  name: string;
+}
+
+/** A condition a variation runs in: parameter values and temperature (a corner, a load). */
+export interface SimCondition {
+  name: string;
+  params?: Record<string, string>;
+  temp?: number;
+}
+
+/** A chart the agent asked for. */
+export interface SimPlot {
+  title: string;
+  /** The analysis's plot: tran1, ac1, dc1… */
+  plot: string;
+  signals: string[];
+  /** Which variations it compares (none: the latest). */
+  variations?: string[];
+  /** Which conditions (none: all). */
+  conditions?: string[];
+  /** For AC: mag (dB) or phase; none shows both. */
+  part?: string;
+  xLog?: boolean;
+  yLabel?: string;
+  note?: string;
+}
+
+/** A target a measurement should meet. */
+export interface SimCheck {
+  measure: string;
+  min?: number;
+  max?: number;
+  unit?: string;
+  why?: string;
+}
+
+/** The agent's write-up of a test across its variations. */
+export interface Presentation {
+  summary: string;
+  plots: SimPlot[];
+  checks: SimCheck[];
+  /** What the agent took from each variation. */
+  notes?: { variation: string; text: string }[];
+  conclusions?: string;
+  standIns?: string[];
+  updated?: string;
+}
+
+/** A test: one question, tried in variations. */
+export interface Simulation {
+  id: number;
+  projectId: number;
+  name: string;
+  kind?: string;
+  purpose?: string;
+  /** The part it tests on its own; empty for the board. */
+  target?: string;
+  presentation?: Presentation;
+  source: string;
+  created: string;
+  updated: string;
+}
+
+/** A try of a test: the circuit then, or an alternative, with what changed. */
+export interface Variation {
+  id: number;
+  simulationId: number;
+  name: string;
+  change?: string;
+  netlist: string;
+  models: SimModel[];
+  conditions: SimCondition[];
+  source: string;
+  created: string;
+  updated: string;
+}
+
+export interface RunPlot {
+  id: string;
+  name: string;
+  complex?: boolean;
+  points: number;
+  vectors: { name: string; kind: string }[];
+}
+
+export interface RunMeasure {
+  name: string;
+  value?: number;
+  at?: number;
+  error?: string;
+}
+
+/** A run of a variation in one condition. */
+export interface SimRun {
+  id: number;
+  variationId: number;
+  variation: string;
+  condition: string;
+  state: RunState;
+  ngspice?: string;
+  deckSha?: string;
+  started?: string;
+  finished?: string;
+  tookMs: number;
+  error?: string;
+  problems: string[];
+  measures: RunMeasure[];
+  plots: RunPlot[];
+}
+
+/** A target checked against a variation's latest run in a condition; pass is absent without a value. */
+export interface CheckResult extends SimCheck {
+  variation: string;
+  condition: string;
+  value?: number;
+  pass?: boolean;
+}
+
+/** A variation with its analyses, each condition's latest run and its targets. */
+export interface VariationDetail {
+  variation: Variation;
+  analyses: { kind: string; line: string }[];
+  measures: string[];
+  latest: SimRun[];
+  checks: CheckResult[];
+}
+
+/** A test with its variations, in the order they were added. */
+export interface SimulationDetail {
+  simulation: Simulation;
+  variations: VariationDetail[];
+  runs: SimRun[];
+}
+
+/** A test in a project's list. */
+export interface SimulationSummary {
+  name: string;
+  kind?: string;
+  purpose?: string;
+  target?: string;
+  updated: string;
+  variations: number;
+  /** The latest variation's name. */
+  latest?: string;
+  /** The latest variation's state by condition. */
+  states: Record<string, RunState>;
+  pass: number;
+  fail: number;
+  presented: boolean;
+}
+
+/** One line of a chart. */
+export interface SimSeries {
+  name: string;
+  unit: string;
+  x: number[];
+  y: number[];
+}
+
+/** A run's chart data: series against the plot's scale. */
+export interface SimulationData {
+  run: number;
+  variation: string;
+  condition: string;
+  plot: string;
+  xName: string;
+  xUnit: string;
+  series: SimSeries[];
 }

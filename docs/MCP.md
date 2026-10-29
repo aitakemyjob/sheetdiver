@@ -53,7 +53,7 @@ Conventions:
 | `get_tables` | Detected tables, or one table as an image with its cells. Tables flagged IRREGULAR (matrices, grouped rows, multi-row headers) have unreliable cells; read the image. |
 | `get_pins` | The pin table. |
 | `get_registers` | Recorded registers and the register-map sections to read from. |
-| `show` | Put something on the user's screen while discussing it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry; `tab` `diagram`, `pins` or `connections` opens its block diagram, pin tables or connection table, highlighting a net, part or block), search results, parts compared side by side (`compare`: parts, keys, a note per part, the recommended one), catalogue candidates (`catalog`: LCSC codes or a search, the recommended one) or a filled-in calculator (`calc`). `explain` adds the agent's reasoning in markdown beside the view; links like `[p3](#page/TPS63900/3)`, `#figure/PART/5`, `#part/PART`, `#section/PART/Title` and `#project/Name` open what they name. |
+| `show` | Put something on the user's screen while discussing it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry; `tab` `diagram`, `pins`, `connections` or `simulations` opens its block diagram, pin tables, connection table or simulations, highlighting a net, part, block or simulation), search results, parts compared side by side (`compare`: parts, keys, a note per part, the recommended one), catalogue candidates (`catalog`: LCSC codes or a search, the recommended one) or a filled-in calculator (`calc`). `explain` adds the agent's reasoning in markdown beside the view; links like `[p3](#page/TPS63900/3)`, `#figure/PART/5`, `#part/PART`, `#section/PART/Title` and `#project/Name` open what they name. |
 | `show_walkthrough` | Walk the user through something step by step: each step shows something as `show` does, with a title and an explanation; the user clicks through them. |
 
 ## Recording what the agent learns
@@ -100,6 +100,40 @@ Conventions:
 |---|---|
 | `list_calculators` | Calculators, their inputs, and the canonical parameter keys. |
 | `calculate` | Run `buck`, `boost`, `ldo`, `gate_drive`, `gate_divider` or `divider`. With `part`, inputs are filled from the datasheet (switching frequency, reference voltage, current limit, minimum on/off time, gate charge, …); with `project`, from the part's rails. The result lists every filled value with its page, outputs with formulas, checks against device limits, and suggestions. `save` stores it in the project. |
+
+## Simulation
+
+The agent decides what's worth simulating and writes the netlists;
+SheetDiver checks them, runs them with the user's ngspice (Settings →
+Simulation: a path, or the one on the PATH or in its usual install place),
+keeps the results with the project, and shows the agent's write-up in the
+project's **Simulations** tab.
+
+A project has any number of **tests**, each one question ("Does 3V3
+survive the radio waking?"). A test is tried in **variations**: the circuit
+as the schematic is at the time, or an alternative, each with a note of
+what changed. Variations are added, not replaced, so a test keeps its
+history as the design moves, and its targets read as a matrix of
+variations against conditions. Each variation runs in its **conditions**
+(parameter values or temperatures: corners, loads). Netlists may not have
+`.control` blocks, `.include`, file paths or parameters naming files:
+SheetDiver adds the control block that runs the analyses, and includes the
+part models recorded in the library. Each run gets its own folder, a time
+limit and a cap on its results' size.
+
+| Tool | What it does |
+|---|---|
+| `ngspice_status` | The ngspice simulations run with (where it was found, its version), or how to install it. |
+| `record_spice_model` | Save a part's SPICE model (a `.subckt` or `.model`, `spice` or `pspice` dialect; PSpice models run in ngspice's PSpice compatibility mode) so variations can include it as `models: [{part, name}]`. The text must define the name. |
+| `get_spice_models` | A part's SPICE models with their text. |
+| `simulate` | Add a variation to a test and run it: `test` (a new name starts it, with its `kind`, `purpose` and `target`, a part tested on its own or the board), `variation` and `change` (what's different from the one before), the `netlist` with its analyses (`.tran .ac .dc .op .noise .tf .pz .sens .disto`) and `.meas` measurements, `models`, and `conditions` (`{name, params, temp}`). A new variation name keeps the earlier variations; the same name replaces that one and marks its runs stale. Returns each run's state, measurements and the plots it wrote (`tran1`, `ac1`…, with their signals). `run: false` only saves it. |
+| `run_simulation` | Run a test's variation again (the latest by default), in all its conditions or those named. |
+| `present_simulation` | The agent's write-up of a test, shown in the app: `summary`, `plots` (`{title, plot, signals, variations (default the latest; several compare them), conditions, part: mag or phase for AC, xLog, yLabel, note}`, overlaid), `checks` (targets `{measure, min, max, unit, why}`, pass or fail for every variation in every condition), `notes` per variation, `conclusions`, `stand_ins`. Checked against what the variations' runs wrote. |
+| `list_simulations` | A project's tests: kind, purpose, how many variations, the latest one's state per condition and its targets passed and failed, whether written up. |
+| `get_simulation` | A test with every variation in order: what changed, its netlist, conditions and models, each condition's latest run (state, measurements, plots, ngspice's errors and warnings), the targets across variations and conditions, and the write-up. |
+| `get_simulation_data` | A run's signals as values, thinned to a few points keeping peaks and edges (AC as dB or phase), to read numbers off a result. |
+| `delete_variation` | Delete one variation of a test with its runs; the test and its other variations stay. |
+| `delete_simulation` | Delete a test with all its variations, runs and results. |
 
 ## Canonical parameter keys
 
