@@ -48,6 +48,7 @@ Usage:
   sheetdiver import FILE|DIR|URL|MPN…  import datasheets, several at a time (part numbers are looked up)
   sheetdiver bom FILE [-project NAME]  build a project from a CSV/KiCad BOM, fetching missing datasheets
   sheetdiver report PROJECT     print a project's design review (Markdown)
+  sheetdiver project export PROJECT [-o FILE]  save a project, its tests and the datasheets it needs to a .sdproj file
   sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
   sheetdiver inspect FILE         show what extraction finds in a PDF (nothing is stored)
   sheetdiver licenses             print SheetDiver's licence and third-party notices
@@ -143,6 +144,8 @@ func main() {
 		fmt.Print(licenseText, "\n", noticesText)
 	case "report":
 		err = runReport(fl.Args())
+	case "project":
+		err = runProject(fl.Args())
 	case "inspect":
 		err = runInspect(fl.Args())
 	case "version", "--version":
@@ -326,6 +329,58 @@ func runReport(args []string) error {
 	}
 	fmt.Print(md)
 	return nil
+}
+
+// runProject runs the project subcommands: export.
+func runProject(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("give a project command: export")
+	}
+	fs := flag.NewFlagSet("project "+args[0], flag.ContinueOnError)
+	out := fs.String("o", "", "(export) the file to write (default: the project's name, .sdproj, here)")
+	pos, err := parseInterleaved(fs, args[1:])
+	if err != nil {
+		return err
+	}
+	switch args[0] {
+	case "export":
+		if len(pos) != 1 {
+			return fmt.Errorf("give one project name")
+		}
+		a, err := bootstrap(server.Options{}, false)
+		if err != nil {
+			return err
+		}
+		defer a.core.Close()
+		res, err := a.core.ExportProject(context.Background(), pos[0])
+		if err != nil {
+			return err
+		}
+		path := firstNonEmptyStr(*out, res.Filename)
+		if err := os.WriteFile(path, res.Data, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("exported %s to %s (%d KB)\n", pos[0], path, (len(res.Data)+1023)/1024)
+		return nil
+	}
+	return fmt.Errorf("unknown project command %q (export)", args[0])
+}
+
+// parseInterleaved parses flags given before, between or after the
+// positional arguments, which it returns.
+func parseInterleaved(fs *flag.FlagSet, args []string) ([]string, error) {
+	var pos []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		args = fs.Args()
+		if len(args) == 0 {
+			return pos, nil
+		}
+		pos = append(pos, args[0])
+		args = args[1:]
+	}
 }
 
 // runBOM builds a project from a BOM file.
