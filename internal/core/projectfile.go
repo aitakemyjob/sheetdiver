@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -282,130 +283,138 @@ func (s *Service) projectFile(ctx context.Context, ref string) (ProjectFile, []r
 	if err != nil {
 		return ProjectFile{}, nil, err
 	}
+	// Everything the project holds, read first.
+	entries, err1 := s.Lib.ProjectParts(ctx, p.ID)
+	rails, err2 := s.Lib.Rails(ctx, p.ID)
+	nets, err3 := s.Lib.Nets(ctx, p.ID)
+	blocks, err4 := s.Lib.Blocks(ctx, p.ID)
+	conns, err5 := s.Lib.Connections(ctx, p.ID)
+	groups, err6 := s.Lib.Groups(ctx, p.ID)
+	assigns, err7 := s.Lib.Assignments(ctx, p.ID)
+	layout, err8 := s.Lib.Layout(ctx, p.ID)
+	calcs, err9 := s.Lib.Calculations(ctx, p.ID)
+	notes, err10 := s.Lib.Notes(ctx, library.TargetProject, p.Name)
+	if err := errors.Join(err1, err2, err3, err4, err5, err6, err7, err8, err9, err10); err != nil {
+		return ProjectFile{}, nil, err
+	}
+	// Entries and blocks by key and name, never by library ID.
+	keys := entryKeys(entries)
+	blockNames := map[int64]string{}
+	for _, b := range blocks {
+		blockNames[b.ID] = b.Name
+	}
+	node := func(n string) string { return fileNode(n, keys, blockNames) }
+
 	pf := ProjectFile{
 		Format: ProjectFileFormat, Version: ProjectFileVersion, App: s.Version,
 		Exported: time.Now().UTC().Format(time.RFC3339),
 		Name:     p.Name, Description: p.Description,
+		Parts: []FilePart{}, Models: []FileModel{},
+		Rails: mapList(rails, func(r library.Rail) FileRail {
+			return FileRail{Name: r.Name, VNom: r.VNom, VMin: r.VMin, VMax: r.VMax, Source: r.Source, CurrentLimit: r.CurrentLimit, OtherTyp: r.OtherTyp, OtherMax: r.OtherMax, Notes: r.Notes}
+		}),
+		Entries: mapList(entries, func(e library.ProjectPart) FileEntry {
+			return FileEntry{Key: keys[e.ID], Part: e.MPN, Designator: e.Designator, Qty: e.Qty, Role: e.Role, SupplyRail: e.SupplyRail, OutputRail: e.OutputRail, ITyp: e.ITyp, IMax: e.IMax, Variant: e.Variant, Notes: e.Notes}
+		}),
+		Nets: mapList(nets, func(n library.Net) FileNet {
+			return FileNet{Name: n.Name, Kind: n.Kind, Bus: n.Bus, Voltage: n.Voltage, Notes: n.Notes, Source: n.Source}
+		}),
+		Blocks: mapList(blocks, func(b library.Block) FileBlock {
+			return FileBlock{Name: b.Name, Kind: b.Kind, Value: b.Value, Notes: b.Notes, Source: b.Source}
+		}),
+		Connections: mapList(conns, func(c library.Connection) FileConnection {
+			return FileConnection{Net: c.Net, Entry: keys[c.EntryID], Block: blockNames[c.BlockID], Ref: c.Ref, Pin: c.Pin, Notes: c.Notes, Source: c.Source}
+		}),
+		Groups: mapList(groups, func(g library.Group) FileGroup {
+			return FileGroup{Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Source: g.Source}
+		}),
+		// A node naming something no longer there is left out.
+		Assignments: mapList(assigns, func(a library.Assignment) FileAssignment {
+			return FileAssignment{Node: node(a.Node), Group: a.Group, Supports: node(a.Supports), Cluster: a.Cluster, Column: a.Column, Row: a.Row, Source: a.Source}
+		}, func(a FileAssignment) bool { return a.Node != "" }),
+		Positions: mapList(layout, func(pos library.Position) library.Position {
+			return library.Position{Node: node(pos.Node), X: pos.X, Y: pos.Y}
+		}, func(pos library.Position) bool { return pos.Node != "" }),
+		Calculations: mapList(calcs, func(c library.Calculation) FileCalculation {
+			return FileCalculation{Kind: c.Kind, Title: c.Title, Part: s.partMPN(ctx, c.PartID), Inputs: c.Inputs, Outputs: c.Outputs, Created: stamp(c.CreatedAt)}
+		}),
+		Notes: mapList(notes, func(n library.Note) FileNote {
+			return FileNote{Body: n.Body, Author: n.Author, Created: stamp(n.CreatedAt)}
+		}),
 	}
-	entries, err := s.Lib.ProjectParts(ctx, p.ID)
+	// The library lists these in the order they were made; the file keeps
+	// a stable order, so exports diff well.
+	sort.SliceStable(pf.Connections, func(i, j int) bool { return connKey(pf.Connections[i]) < connKey(pf.Connections[j]) })
+	sort.SliceStable(pf.Assignments, func(i, j int) bool { return pf.Assignments[i].Node < pf.Assignments[j].Node })
+
+	tests, dirs, err := s.fileTests(ctx, p.ID)
 	if err != nil {
-		return pf, nil, err
+		return ProjectFile{}, nil, err
 	}
-	keys := entryKeys(entries)
-	// The BOM's parts, each once, with their datasheets and models.
-	partIDs := map[int64]bool{}
+	pf.Tests = tests
+	// The parts: the BOM's, then those whose models the tests include
+	// though they aren't on the BOM (a MOSFET on a test bench).
+	seen := map[int64]bool{}
 	for _, e := range entries {
-		if err := s.addFilePart(ctx, &pf, partIDs, e.PartID); err != nil {
-			return pf, nil, err
+		if err := s.addFilePart(ctx, &pf, seen, e.PartID); err != nil {
+			return ProjectFile{}, nil, err
 		}
 	}
-	rails, err := s.Lib.Rails(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, r := range rails {
-		pf.Rails = append(pf.Rails, FileRail{Name: r.Name, VNom: r.VNom, VMin: r.VMin, VMax: r.VMax, Source: r.Source, CurrentLimit: r.CurrentLimit, OtherTyp: r.OtherTyp, OtherMax: r.OtherMax, Notes: r.Notes})
-	}
-	for _, e := range entries {
-		pf.Entries = append(pf.Entries, FileEntry{Key: keys[e.ID], Part: e.MPN, Designator: e.Designator, Qty: e.Qty, Role: e.Role, SupplyRail: e.SupplyRail, OutputRail: e.OutputRail, ITyp: e.ITyp, IMax: e.IMax, Variant: e.Variant, Notes: e.Notes})
-	}
-	nets, err := s.Lib.Nets(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, n := range nets {
-		pf.Nets = append(pf.Nets, FileNet{Name: n.Name, Kind: n.Kind, Bus: n.Bus, Voltage: n.Voltage, Notes: n.Notes, Source: n.Source})
-	}
-	blocks, err := s.Lib.Blocks(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	blockNames := map[int64]string{}
-	for _, b := range blocks {
-		blockNames[b.ID] = b.Name
-		pf.Blocks = append(pf.Blocks, FileBlock{Name: b.Name, Kind: b.Kind, Value: b.Value, Notes: b.Notes, Source: b.Source})
-	}
-	conns, err := s.Lib.Connections(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, c := range conns {
-		pf.Connections = append(pf.Connections, FileConnection{Net: c.Net, Entry: keys[c.EntryID], Block: blockNames[c.BlockID], Ref: c.Ref, Pin: c.Pin, Notes: c.Notes, Source: c.Source})
-	}
-	groups, err := s.Lib.Groups(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, g := range groups {
-		pf.Groups = append(pf.Groups, FileGroup{Name: g.Name, Description: g.Description, Notes: g.Notes, Below: g.Below, Source: g.Source})
-	}
-	node := func(n string) string { return fileNode(n, keys, blockNames) }
-	assigns, err := s.Lib.Assignments(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, a := range assigns {
-		n := node(a.Node)
-		if n == "" {
-			continue
-		}
-		pf.Assignments = append(pf.Assignments, FileAssignment{Node: n, Group: a.Group, Supports: node(a.Supports), Cluster: a.Cluster, Column: a.Column, Row: a.Row, Source: a.Source})
-	}
-	layout, err := s.Lib.Layout(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, pos := range layout {
-		if n := node(pos.Node); n != "" {
-			pf.Positions = append(pf.Positions, library.Position{Node: n, X: pos.X, Y: pos.Y})
-		}
-	}
-	calcs, err := s.Lib.Calculations(ctx, p.ID)
-	if err != nil {
-		return pf, nil, err
-	}
-	for _, c := range calcs {
-		fc := FileCalculation{Kind: c.Kind, Title: c.Title, Inputs: c.Inputs, Outputs: c.Outputs, Created: stamp(c.CreatedAt)}
-		if c.PartID != 0 {
-			if part, err := s.Lib.PartByID(ctx, c.PartID); err == nil {
-				fc.Part = part.MPN
+	for _, ref := range modelParts(tests) {
+		if res, err := s.Lib.Resolve(ctx, ref); err == nil {
+			if err := s.addFilePart(ctx, &pf, seen, res.Part.ID); err != nil {
+				return ProjectFile{}, nil, err
 			}
 		}
-		pf.Calculations = append(pf.Calculations, fc)
 	}
-	notes, err := s.Lib.Notes(ctx, library.TargetProject, p.Name)
+	return pf, dirs, nil
+}
+
+// mapList converts a list, keeping only what every keep accepts. The
+// result is never nil, so an empty list is [] in the JSON.
+func mapList[T, U any](in []T, f func(T) U, keep ...func(U) bool) []U {
+	out := make([]U, 0, len(in))
+next:
+	for _, v := range in {
+		u := f(v)
+		for _, k := range keep {
+			if !k(u) {
+				continue next
+			}
+		}
+		out = append(out, u)
+	}
+	return out
+}
+
+// connKey orders connections: by net, then entry, block, designator, pin.
+func connKey(c FileConnection) string {
+	return strings.Join([]string{strings.ToUpper(c.Net), c.Entry, c.Block, c.Ref, c.Pin}, "\x00")
+}
+
+// partMPN is a part's number, or "" for none.
+func (s *Service) partMPN(ctx context.Context, id int64) string {
+	if id == 0 {
+		return ""
+	}
+	part, err := s.Lib.PartByID(ctx, id)
 	if err != nil {
-		return pf, nil, err
+		return ""
 	}
-	for _, n := range notes {
-		pf.Notes = append(pf.Notes, FileNote{Body: n.Body, Author: n.Author, Created: stamp(n.CreatedAt)})
-	}
-	// The library lists these in the order they were made; the file
-	// keeps a stable order, so exports diff well.
-	sort.SliceStable(pf.Connections, func(i, j int) bool {
-		a, b := pf.Connections[i], pf.Connections[j]
-		return strings.Join([]string{strings.ToUpper(a.Net), a.Entry, a.Block, a.Ref, a.Pin}, "\x00") < strings.Join([]string{strings.ToUpper(b.Net), b.Entry, b.Block, b.Ref, b.Pin}, "\x00")
-	})
-	sort.SliceStable(pf.Assignments, func(i, j int) bool { return pf.Assignments[i].Node < pf.Assignments[j].Node })
-	dirs, err := s.fileTests(ctx, p.ID, &pf)
-	if err != nil {
-		return pf, nil, err
-	}
-	// The parts whose models the tests include, though not on the BOM (a
-	// MOSFET on a test bench).
-	for _, t := range pf.Tests {
+	return part.MPN
+}
+
+// modelParts lists the parts whose models the tests include.
+func modelParts(tests []FileTest) []string {
+	var out []string
+	for _, t := range tests {
 		for _, v := range t.Variations {
 			for _, m := range v.Models {
-				if res, err := s.Lib.Resolve(ctx, m.Part); err == nil {
-					if err := s.addFilePart(ctx, &pf, partIDs, res.Part.ID); err != nil {
-						return pf, nil, err
-					}
-				}
+				out = append(out, m.Part)
 			}
 		}
 	}
-	pf.ensureLists()
-	return pf, dirs, nil
+	return out
 }
 
 // addFilePart adds a library part to the file once, with its datasheet
@@ -419,6 +428,10 @@ func (s *Service) addFilePart(ctx context.Context, pf *ProjectFile, seen map[int
 	if err != nil {
 		return err
 	}
+	models, err := s.Lib.SpiceModels(ctx, part.ID)
+	if err != nil {
+		return err
+	}
 	fp := FilePart{MPN: part.MPN, Manufacturer: part.Manufacturer, Description: part.Description, Category: part.Category, Package: part.Package}
 	if part.DatasheetID != 0 {
 		if d, err := s.Lib.Datasheet(ctx, part.DatasheetID); err == nil {
@@ -426,103 +439,50 @@ func (s *Service) addFilePart(ctx context.Context, pf *ProjectFile, seen map[int
 		}
 	}
 	pf.Parts = append(pf.Parts, fp)
-	models, err := s.Lib.SpiceModels(ctx, part.ID)
-	if err != nil {
-		return err
-	}
-	for _, m := range models {
-		pf.Models = append(pf.Models, FileModel{Part: part.MPN, Name: m.Name, Dialect: m.Dialect, Text: m.Text, Notes: m.Notes, Source: m.Source})
-	}
+	pf.Models = append(pf.Models, mapList(models, func(m library.SpiceModel) FileModel {
+		return FileModel{Part: part.MPN, Name: m.Name, Dialect: m.Dialect, Text: m.Text, Notes: m.Notes, Source: m.Source}
+	})...)
 	return nil
 }
 
-// fileTests adds a project's simulations, variations and runs, and lists
-// the runs' folders.
-func (s *Service) fileTests(ctx context.Context, projectID int64, pf *ProjectFile) ([]runDir, error) {
+// fileTests describes a project's tests, by name, with their variations
+// and runs, and lists the runs' folders.
+func (s *Service) fileTests(ctx context.Context, projectID int64) ([]FileTest, []runDir, error) {
 	sims, err := s.Lib.Simulations(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// By name: the library lists them by when they last changed, which an
 	// import resets.
 	sort.SliceStable(sims, func(i, j int) bool { return strings.ToLower(sims[i].Name) < strings.ToLower(sims[j].Name) })
+	tests := make([]FileTest, 0, len(sims))
 	var dirs []runDir
 	for _, sim := range sims {
-		ft := FileTest{Name: sim.Name, Kind: sim.Kind, Purpose: sim.Purpose, Target: sim.Target, Presentation: sim.Presentation, Source: sim.Source, Created: sim.Created, Updated: sim.Updated}
-		vars, err := s.Lib.Variations(ctx, sim.ID)
-		if err != nil {
-			return nil, err
-		}
-		runs, err := s.Lib.Runs(ctx, sim.ID)
-		if err != nil {
-			return nil, err
+		vars, err1 := s.Lib.Variations(ctx, sim.ID)
+		runs, err2 := s.Lib.Runs(ctx, sim.ID)
+		if err := errors.Join(err1, err2); err != nil {
+			return nil, nil, err
 		}
 		// Runs come newest first; the file keeps them in the order run.
 		sort.Slice(runs, func(i, j int) bool { return runs[i].ID < runs[j].ID })
-		for _, v := range vars {
-			fv := FileVariation{Name: v.Name, Change: v.Change, Netlist: v.Netlist, Models: v.Models, Conditions: v.Conditions, Source: v.Source, Created: v.Created, Updated: v.Updated, Runs: []FileRun{}}
-			for _, r := range runs {
-				if r.VariationID != v.ID {
-					continue
-				}
-				fr := FileRun{Condition: r.Condition, State: r.State, Ngspice: r.Ngspice, DeckSHA: r.DeckSHA, Started: r.Started, Finished: r.Finished, TookMS: r.TookMS, Error: r.Error, Problems: r.Problems, Measures: r.Measures, Plots: r.Plots, Log: r.Log}
-				if dir := s.Lib.RunDir(r.ID); hasFiles(dir) {
-					fr.Files = "runs/" + strconv.Itoa(len(dirs)+1)
-					dirs = append(dirs, runDir{dir: dir, files: fr.Files})
-				}
-				fv.Runs = append(fv.Runs, fr)
+		byVariation := map[int64][]FileRun{}
+		for _, r := range runs {
+			fr := FileRun{Condition: r.Condition, State: r.State, Ngspice: r.Ngspice, DeckSHA: r.DeckSHA, Started: r.Started, Finished: r.Finished, TookMS: r.TookMS, Error: r.Error, Problems: r.Problems, Measures: r.Measures, Plots: r.Plots, Log: r.Log}
+			if dir := s.Lib.RunDir(r.ID); hasFiles(dir) {
+				fr.Files = "runs/" + strconv.Itoa(len(dirs)+1)
+				dirs = append(dirs, runDir{dir: dir, files: fr.Files})
 			}
-			ft.Variations = append(ft.Variations, fv)
+			byVariation[r.VariationID] = append(byVariation[r.VariationID], fr)
 		}
-		if ft.Variations == nil {
-			ft.Variations = []FileVariation{}
-		}
-		pf.Tests = append(pf.Tests, ft)
+		tests = append(tests, FileTest{
+			Name: sim.Name, Kind: sim.Kind, Purpose: sim.Purpose, Target: sim.Target, Presentation: sim.Presentation, Source: sim.Source, Created: sim.Created, Updated: sim.Updated,
+			Variations: mapList(vars, func(v library.Variation) FileVariation {
+				return FileVariation{Name: v.Name, Change: v.Change, Netlist: v.Netlist, Models: v.Models, Conditions: v.Conditions, Source: v.Source, Created: v.Created, Updated: v.Updated,
+					Runs: append([]FileRun{}, byVariation[v.ID]...)}
+			}),
+		})
 	}
-	return dirs, nil
-}
-
-// ensureLists makes empty lists [] rather than null in the JSON.
-func (pf *ProjectFile) ensureLists() {
-	if pf.Parts == nil {
-		pf.Parts = []FilePart{}
-	}
-	if pf.Rails == nil {
-		pf.Rails = []FileRail{}
-	}
-	if pf.Entries == nil {
-		pf.Entries = []FileEntry{}
-	}
-	if pf.Nets == nil {
-		pf.Nets = []FileNet{}
-	}
-	if pf.Blocks == nil {
-		pf.Blocks = []FileBlock{}
-	}
-	if pf.Connections == nil {
-		pf.Connections = []FileConnection{}
-	}
-	if pf.Groups == nil {
-		pf.Groups = []FileGroup{}
-	}
-	if pf.Assignments == nil {
-		pf.Assignments = []FileAssignment{}
-	}
-	if pf.Positions == nil {
-		pf.Positions = []library.Position{}
-	}
-	if pf.Calculations == nil {
-		pf.Calculations = []FileCalculation{}
-	}
-	if pf.Notes == nil {
-		pf.Notes = []FileNote{}
-	}
-	if pf.Models == nil {
-		pf.Models = []FileModel{}
-	}
-	if pf.Tests == nil {
-		pf.Tests = []FileTest{}
-	}
+	return tests, dirs, nil
 }
 
 // entryKeys names each BOM entry for the file: its designators when no
