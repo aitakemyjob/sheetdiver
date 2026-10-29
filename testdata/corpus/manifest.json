@@ -673,6 +673,106 @@
           "Drain"
         ]
       }
+    },
+    {
+      "file": "ltc3536.pdf",
+      "url": "https://www.analog.com/media/en/technical-documentation/data-sheets/3536fa.pdf",
+      "sha256": "bc10e15de2164ee282937a8a536b8bb609670efa1e6613d86bfef9ccb579763b",
+      "why": "Linear Technology house style: two columns sharing baselines, pin functions as prose headings with DFN and MSOP numbers slash-separated (\"VIN (Pin 7/Pins 8, 9)\", an exposed pad named in the heading), the package list on its own line, 24 performance graphs with titles but no figure numbers, 16 numbered figures in Applications Information, the revision only in the footer (3536fa) and a Revision History table, order codes with #PBF/#TRPBF suffixes, an electrical table with several current limits (input, peak, Burst Mode peak, reverse) and a frequency accuracy row that is the switching frequency.",
+      "expect": {
+        "manufacturer": "Analog Devices",
+        "category": "buck-boost",
+        "partNumbers": [
+          "LTC3536"
+        ],
+        "variants": {
+          "LTC3536EDD#PBF": "LTC3536",
+          "LTC3536IMSE#TRPBF": "LTC3536"
+        },
+        "minVariants": 10,
+        "minSections": 16,
+        "sectionKinds": [
+          "abs_max",
+          "pins",
+          "electrical",
+          "typical_characteristics",
+          "block_diagram",
+          "application",
+          "revision_history"
+        ],
+        "pins": 24,
+        "pinNames": [
+          "RT",
+          "SGND",
+          "MODE/SYNC",
+          "SW1",
+          "SW2",
+          "VOUT",
+          "VIN",
+          "SHDN",
+          "FB",
+          "VC",
+          "PGND"
+        ],
+        "pinPackages": [
+          "DFN",
+          "MSOP"
+        ],
+        "keys": [
+          "vout",
+          "uvlo",
+          "vref",
+          "iq",
+          "ilim_in",
+          "ilim",
+          "rdson",
+          "tss",
+          "dmax",
+          "iout"
+        ],
+        "values": {
+          "vref": {
+            "min": 0.594,
+            "typ": 0.6,
+            "max": 0.606,
+            "unit": "V"
+          },
+          "iq": {
+            "typ": 32,
+            "max": 42,
+            "unit": "µA"
+          },
+          "ilim": {
+            "typ": 3.4,
+            "max": 4,
+            "unit": "A"
+          },
+          "ilim_in": {
+            "min": 2,
+            "typ": 2.5,
+            "unit": "A"
+          },
+          "uvlo": {
+            "min": 1.6,
+            "typ": 1.67,
+            "unit": "V"
+          },
+          "tss": {
+            "min": 0.6,
+            "typ": 0.9,
+            "max": 1.2,
+            "unit": "ms"
+          },
+          "rdson": {
+            "typ": 0.11,
+            "unit": "Ω"
+          }
+        },
+        "regularTables": [
+          "1",
+          "2"
+        ]
+      }
     }
   ]
 }
