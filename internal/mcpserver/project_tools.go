@@ -2,7 +2,9 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -23,6 +25,19 @@ type createProjectArgs struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Activate    bool   `json:"activate,omitempty" jsonschema:"make it the default project"`
+}
+
+type exportProjectArgs struct {
+	Project string `json:"project" jsonschema:"the project to export, by name"`
+	Path    string `json:"path" jsonschema:"a folder (the file takes the project's name) or a .sdproj file to create; nothing is overwritten"`
+}
+
+type importProjectArgs struct {
+	Path       string `json:"path,omitempty" jsonschema:"a local project file (.sdproj)"`
+	DataBase64 string `json:"data_base64,omitempty" jsonschema:"or the project file's bytes, base64"`
+	Name       string `json:"name,omitempty" jsonschema:"the project's name here (default: the exported project's; a taken name gets (2))"`
+	Fetch      *bool  `json:"fetch,omitempty" jsonschema:"download the datasheets of parts the library doesn't have (default true)"`
+	Show       bool   `json:"show,omitempty"`
 }
 
 type deleteProjectArgs struct {
@@ -654,6 +669,60 @@ func (s *Server) registerDesign() {
 				c.Show(core.Focus{Kind: "part", Part: res.Part.MPN, Tab: "alternatives"})
 			}
 			return text(altText(res)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "export_project", Description: "Save a project to a project file (.sdproj) to hand to someone or move to another SheetDiver: its rails, BOM, nets, blocks, connections, groups, diagram positions, calculations, notes, SPICE models and tests with their runs and results, and for each part where its datasheet comes from (no PDFs). `path` is a folder (the file takes the project's name) or a .sdproj file that doesn't exist yet; nothing is overwritten. import_project reads it back.", Annotations: writes("Export project", false)},
+		write, func(a exportProjectArgs) string { return "export project " + a.Project }, func(ctx context.Context, a exportProjectArgs) (result, error) {
+			p, n, err := c.ExportProjectTo(ctx, a.Project, a.Path)
+			if err != nil {
+				return result{}, err
+			}
+			return text(fmt.Sprintf("exported %s to %s (%d KB)", a.Project, p, (n+1023)/1024)), nil
+		})
+
+	addTool(s, &mcp.Tool{Name: "import_project", Description: "Make the project in a project file (.sdproj, from export_project or the app's Export) in this library. Each part is found by its exact part number, or joins a datasheet the library already has, or has its datasheet downloaded (from where the project's came from, else by part number; fetch=false to skip); parts that can't be had join as 'no datasheet'. Then the project is made with everything in it, tests and runs included; a taken name gets \" (2)\". Reports per part: in library, imported, other datasheet (another revision), no datasheet.", Annotations: &mcp.ToolAnnotations{Title: "Import project", DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(true)}},
+		write, func(a importProjectArgs) string { return "import project " + firstNonEmpty(a.Path, a.Name, "(data)") }, func(ctx context.Context, a importProjectArgs) (result, error) {
+			fetch := a.Fetch == nil || *a.Fetch
+			if fetch {
+				if err := c.AgentImport(); err != nil {
+					return result{}, err
+				}
+			}
+			req := core.ProjectImportRequest{Path: a.Path, Name: a.Name, Fetch: fetch}
+			if a.DataBase64 != "" {
+				data, err := base64.StdEncoding.DecodeString(a.DataBase64)
+				if err != nil {
+					return result{}, fmt.Errorf("data_base64: %w", err)
+				}
+				req.Data = data
+			}
+			if len(req.Data) == 0 && req.Path == "" {
+				return result{}, errors.New("give the project file's path or its data_base64")
+			}
+			res, err := c.ImportProject(ctx, req)
+			if err != nil {
+				return result{}, err
+			}
+			if a.Show {
+				c.Show(core.Focus{Kind: "project", Project: res.Project})
+			}
+			var b strings.Builder
+			fmt.Fprintf(&b, "project %s: %d parts (%d in library, %d imported, %d other datasheet, %d without datasheet), %d tests, %d runs\n", res.Project, len(res.Parts),
+				res.Counts[core.PartInLibrary], res.Counts[core.PartImported], res.Counts[core.PartOtherVersion], res.Counts[core.PartNoDatasheet], res.Tests, res.Runs)
+			for _, p := range res.Parts {
+				fmt.Fprintf(&b, "%s [%s]", p.MPN, p.Status)
+				if p.Part != "" {
+					fmt.Fprintf(&b, " as %s", p.Part)
+				}
+				if p.Note != "" {
+					fmt.Fprintf(&b, " — %s", p.Note)
+				}
+				b.WriteString("\n")
+			}
+			for _, n := range res.Notes {
+				fmt.Fprintf(&b, "note: %s\n", n)
+			}
+			return text(b.String()), nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "export_project_report", Description: "A project as a Markdown design-review document: findings (errors and warnings), rails with load and capacity, parts with status and key parameters, saved calculations and notes. Hand it to the user or summarize it.", Annotations: readOnly("Project report")},

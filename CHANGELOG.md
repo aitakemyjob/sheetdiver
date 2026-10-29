@@ -43,6 +43,13 @@ every merged pull request.
   kept as the library has them. A file that holds anything but the
   project and its runs' files, or comes from a newer SheetDiver, is
   refused, and an import that fails leaves nothing behind. (#115)
+- **Export and import projects in the app and over MCP.** A project's
+  **Export** button saves its `.sdproj` (through the save dialog in the
+  desktop app, as a download in the browser); **Import → Project** takes
+  one, with a name and whether to fetch missing datasheets, and shows
+  what happened to each part. Agents have `export_project` (to a folder or
+  a new `.sdproj` file; nothing is overwritten) and `import_project` (a
+  path or the file's bytes). (#115)
 - **Graphs with a title and no figure number.** Linear Technology's
   Typical Performance Characteristics are a grid of plots with a bold title
   of one or two lines over each and no "Figure n"; every plot of the

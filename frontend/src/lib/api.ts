@@ -5,7 +5,7 @@ import type { Snapshot } from './diagram/snapshot';
 import type {
   AppState, Calculation, CalcField, CalcResponse, Datasheet, Figure, Hit, ImportResult, Note, Page, Parameter, PartDetail, Part,
   Pin, Project, ProjectDetail, ProjectPart, Rail, Recommendation, Register, Section, Settings, Table, Variant, Activity, Rect,
-  CategoryInfo, CompareFilter, CompareResult, BOMResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
+  CategoryInfo, CompareFilter, CompareResult, BOMResult, ProjectImportResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
   ConnectionsChange,
   NgspiceState, SimulationSummary, SimulationDetail, SimulationData, SimRun,
@@ -54,6 +54,7 @@ export const api = {
   applyUpdate: (id: number) => call<ImportResult>('datasheet.applyUpdate', { id }),
   checkAllUpdates: () => call<UpdateCheck[]>('datasheets.checkUpdates'),
   saveFile: (name: string, data: string) => call<{ path: string }>('file.save', { name, data }),
+  saveProject: (project: string) => call<{ path: string }>('project.save', { project }),
   mcpExtension: () => call<{ name: string; data: string }>('mcp.extension'),
   deletePreview: (part: string) => call<DeletePlan>('delete.preview', { part }),
   deleteApply: (part: string, keepInProjects: boolean) => call<DeleteResult>('delete.apply', { part, keepInProjects }),
@@ -169,6 +170,35 @@ export async function uploadPDF(file: File, opts: { mpns?: string; manufacturer?
   if (opts.category) q.set('category', opts.category);
   const res = await fetch(`/api/upload?${q}`, { method: 'POST', body: file, headers: { 'X-SheetDiver': '1', 'Content-Type': 'application/pdf' } });
   const body = (await res.json()) as { result?: ImportResult; error?: string };
+  if (body.error) throw new Error(body.error);
+  return body.result!;
+}
+
+/** The URL a project's export (.sdproj) downloads from. */
+export function projectFileURL(project: string): string {
+  return `/api/project.sdproj?${new URLSearchParams({ project, sd: '1' })}`;
+}
+
+/**
+ * Exports a project: through the desktop app's save dialog (returns the
+ * path, or '' if cancelled), else as a browser download (returns the file
+ * name).
+ */
+export async function exportProject(project: string, desktop: boolean): Promise<string> {
+  if (desktop) return (await api.saveProject(project)).path;
+  const a = document.createElement('a');
+  a.href = projectFileURL(project);
+  a.download = `${project}.sdproj`;
+  a.click();
+  return a.download;
+}
+
+/** Imports a project file (.sdproj), fetching missing datasheets when asked. */
+export async function importProjectFile(file: File, opts: { name?: string; fetch: boolean }): Promise<ProjectImportResult> {
+  const q = new URLSearchParams({ filename: file.name, fetch: opts.fetch ? '1' : '0' });
+  if (opts.name) q.set('name', opts.name);
+  const res = await fetch(`/api/project-import?${q}`, { method: 'POST', body: file, headers: { 'X-SheetDiver': '1', 'Content-Type': 'application/zip' } });
+  const body = (await res.json()) as { result?: ProjectImportResult; error?: string };
   if (body.error) throw new Error(body.error);
   return body.result!;
 }
