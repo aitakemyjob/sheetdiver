@@ -19,6 +19,15 @@ every merged pull request.
   section figures.
 
 ### Added
+- **Export a project** (`sheetdiver project export PROJECT`): a `.sdproj`
+  file (a zip) with the project's rails, BOM, nets, blocks, connections,
+  groups, diagram positions, calculations, notes, the SPICE models its
+  parts and tests use, and every test with its variations and runs (their
+  results too, so the charts show without running again). Each part comes
+  with its datasheet's hash, revision and source URL, for an import to
+  check the library and fetch what's missing; no PDFs are carried.
+  Entries are named by designator and blocks by name, never by library
+  ID. Importing is next. (#115)
 - **Graphs with a title and no figure number.** Linear Technology's
   Typical Performance Characteristics are a grid of plots with a bold title
   of one or two lines over each and no "Figure n"; every plot of the
@@ -47,8 +56,6 @@ every merged pull request.
   passes on under its public names, which the server otherwise refuses as
   foreign hosts; the proxy has to bring the authentication, since
   SheetDiver has none.
-
-### Added
 - **Circuit simulation with ngspice (preview).** Agents set up tests
   of a project — any number, each one question they judge worth checking
   (inrush, start-up, load steps, loop gain, corners, one part on a test
