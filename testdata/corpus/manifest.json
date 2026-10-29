@@ -772,7 +772,7 @@
           "1",
           "2"
         ],
-        "minFigures": 20,
+        "minFigures": 44,
         "figures": {
           "4": "schematic",
           "5": "graph",
