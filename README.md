@@ -166,6 +166,7 @@ sheetdiver import FILE|DIR|URL|MPN…   import datasheets (several at a time)
 sheetdiver bom FILE [-project N]  build a project from a CSV/KiCad BOM
 sheetdiver report PROJECT         print a project's design review (Markdown)
 sheetdiver project export PROJECT [-o FILE]   save a project, its tests and which datasheets it needs (.sdproj)
+sheetdiver project import FILE [-name N]      make that project here, fetching the datasheets the library lacks
 sheetdiver catalog download|status|search WORDS…  the JLCPCB parts catalogue
 sheetdiver inspect FILE       show what extraction finds in a PDF (nothing is stored)
 sheetdiver licenses           SheetDiver's licence and the third-party notices

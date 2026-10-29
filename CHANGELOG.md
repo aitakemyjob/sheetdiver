@@ -27,7 +27,22 @@ every merged pull request.
   with its datasheet's hash, revision and source URL, for an import to
   check the library and fetch what's missing; no PDFs are carried.
   Entries are named by designator and blocks by name, never by library
-  ID. Importing is next. (#115)
+  ID. (#115)
+- **Import a project** (`sheetdiver project import FILE`): each part is
+  found in the library by its exact part number or orderable code (never
+  a family or prefix match, which could be another value of a capacitor
+  series), or joins a datasheet the library already has with the same
+  hash, or has its datasheet downloaded from where the project's came
+  from, else by part number. A datasheet that doesn't print the part
+  number (a series, a JLCPCB copy) gets the part attached as the project
+  knew it. A part that can't be had joins as "no datasheet", so the BOM
+  stays complete. Then the project is made with everything in it, its
+  tests' runs with their results; a name that's taken gets " (2)". The
+  report says per part whether it was in the library, imported, there in
+  another revision, or without a datasheet, and which SPICE models were
+  kept as the library has them. A file that holds anything but the
+  project and its runs' files, or comes from a newer SheetDiver, is
+  refused, and an import that fails leaves nothing behind. (#115)
 - **Graphs with a title and no figure number.** Linear Technology's
   Typical Performance Characteristics are a grid of plots with a bold title
   of one or two lines over each and no "Figure n"; every plot of the
