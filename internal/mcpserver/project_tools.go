@@ -54,7 +54,7 @@ type connectionsArgs struct {
 	Positions []core.PositionChange `json:"positions,omitempty" jsonschema:"pixel positions, as the app saves where a part is dragged; to place a part yourself, give it a column and row in assign instead"`
 	// ResetLayout forgets saved positions.
 	ResetLayout bool `json:"reset_layout,omitempty" jsonschema:"go back to the automatic layout"`
-	Show        bool `json:"show,omitempty" jsonschema:"also open the project's block diagram in SheetDiver"`
+	Show        bool `json:"show,omitempty" jsonschema:"also open the project's block diagram in SheetDiver; waits a moment for it to be drawn and says if a part couldn't be"`
 }
 
 type blockArgs struct {
@@ -271,6 +271,9 @@ func (s *Server) registerProjects() {
 			if a.Show {
 				waitForDrawing(ctx, c, d.Project.Name, func() { c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"}) })
 			}
+			if drawn, ok := c.DrawnLayout(d.Project.Name); ok && drawn.Error != "" {
+				return result{}, errors.New(strings.TrimSpace(layoutFailedText(drawn.Error)))
+			}
 			snap, err := c.DiagramSnapshot(ctx, d.Project.Name, a.Group)
 			if err != nil {
 				return result{}, err
@@ -320,8 +323,13 @@ func (s *Server) registerProjects() {
 			if err != nil {
 				return result{}, err
 			}
+			var trouble string
 			if a.Show {
-				c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"})
+				// Drawn again after the change: say if that failed.
+				waitForDrawing(ctx, c, d.Project.Name, func() { c.Show(core.Focus{Kind: "project", Project: d.Project.Name, Tab: "diagram"}) })
+				if drawn, ok := c.DrawnLayout(d.Project.Name); ok {
+					trouble = drawnTrouble(drawn)
+				}
 			}
 			var b strings.Builder
 			if len(problems) > 0 {
@@ -339,6 +347,7 @@ func (s *Server) registerProjects() {
 				b.WriteString("\n")
 			}
 			b.WriteString(connectionsText(d))
+			b.WriteString(trouble)
 			return text(b.String()), nil
 		})
 
@@ -1413,6 +1422,9 @@ func placementText(c core.Connections, drawn core.Drawn, ok bool) string {
 	}
 	var b strings.Builder
 	b.WriteString("\n## Placement\n")
+	if ok && drawn.Error != "" {
+		return b.String() + layoutFailedText(drawn.Error)
+	}
 	if !ok {
 		b.WriteString("not drawn since the last change: open the project's Block diagram in SheetDiver (set_connections with show: true), then get_connections again to see where each part went\n")
 	} else {
@@ -1488,7 +1500,8 @@ func layoutProblemsText(problems []core.LayoutProblem, group string) string {
 	b.WriteString("\n## Layout problems\n")
 	n := 0
 	for _, p := range problems {
-		if group != "" && !strings.EqualFold(p.Group, group) {
+		// A part left off is reported whatever group is asked about.
+		if group != "" && !strings.EqualFold(p.Group, group) && p.Check != core.CheckNotDrawn {
 			continue
 		}
 		n++
@@ -1503,6 +1516,31 @@ func layoutProblemsText(problems []core.LayoutProblem, group string) string {
 		b.WriteString("Move a part with assign's column and row, or put it in another subgroup or group; get_diagram_image shows the drawing.\n")
 	}
 	return b.String()
+}
+
+// layoutFailedText says the app couldn't lay out the block diagram at
+// all, and why.
+func layoutFailedText(err string) string {
+	return "the app couldn't lay out the block diagram, so nothing is drawn: " + err + "\nThis is a bug in SheetDiver's layout, not in the connection table; the connections and checks above still hold. Tell the user, with the project's connection table, so it can be reported.\n"
+}
+
+// drawnTrouble is what went wrong drawing a project's block diagram, as
+// last reported: that it couldn't be laid out, or the parts left off;
+// "" when nothing did.
+func drawnTrouble(drawn core.Drawn) string {
+	if drawn.Error != "" {
+		return "\n## Block diagram\n" + layoutFailedText(drawn.Error)
+	}
+	var b strings.Builder
+	for _, p := range drawn.Problems {
+		if p.Check == core.CheckNotDrawn {
+			b.WriteString(p.Text + "\n")
+		}
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return "\n## Block diagram\n" + b.String() + "The rest of the diagram is drawn. This is a bug in SheetDiver's layout; tell the user, with the project's connection table, so it can be reported.\n"
 }
 
 // drawingWait is how long get_diagram_image's show waits for the app to

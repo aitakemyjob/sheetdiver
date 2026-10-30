@@ -12,6 +12,15 @@ every merged pull request.
 - The block diagram no longer fails with "Cannot read properties of
   undefined (reading 'pins')" when a BOM entry with several designators
   (`Q1,Q4`) is drawn as transistors (#107).
+- When the block diagram can't be laid out, the rest of the board is still
+  drawn: the parts the layout trips on (with the passives drawn by them)
+  are left off, and a message above the diagram names each with the error.
+  When nothing can be drawn, the message names the parts that fail even
+  on their own. The agent sees both:
+  `get_connections` reports the failure (instead of "not drawn since the
+  last change") or the part left off, `get_diagram_image` says why there's
+  no picture, and `set_connections` with `show` waits for the drawing and
+  says what went wrong (#134).
 
 ## [0.2.1] - 2026-10-29
 
