@@ -428,5 +428,11 @@ describe('designators', () => {
     expect(designators('R1,R2')).toEqual(['R1,R2', 'R1', 'R2']);
     expect(designators('U1 U2')).toEqual(['U1 U2', 'U1', 'U2']);
     expect(designators('U3')).toEqual(['U3']);
+    // Ranges, as set_connections takes them (#133).
+    expect(designators('C40-C42, C60')).toEqual(['C40-C42, C60', 'C40', 'C41', 'C42', 'C60']);
+    expect(designators('C1 – C2')).toEqual(['C1 – C2', 'C1', 'C2']);
+    expect(designators('C1–3')).toEqual(['C1–3', 'C1', 'C2', 'C3']);
+    expect(designators('R5-C7')).toEqual(['R5-C7']);
+    expect(designators('D3-D1')).toEqual(['D3-D1']);
   });
 });
