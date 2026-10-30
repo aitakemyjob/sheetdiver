@@ -858,3 +858,108 @@ func TestPassivesSupportLoadSwitchesAndEFuses(t *testing.T) {
 		t.Errorf("C5 drawn by %q, R24 by %q", titles[drawnBy["C5"]], titles[drawnBy["R24"]])
 	}
 }
+
+func TestRefusedSupportKeepsTheRestOfTheAssignment(t *testing.T) {
+	// R22 on VBUS and the mux's OV1 divider, put in "Power Mux" in the
+	// same change as a support that's refused (#82): the group, subgroup
+	// and cell are saved and win over the group of the part it's drawn by;
+	// the support it had before stays.
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "mux", ""); err != nil {
+		t.Fatal(err)
+	}
+	str := func(v string) *string { return &v }
+	ch := ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "J1 USB-C", Kind: "connector"}, {Name: "U3 Mux", Kind: "ic"}, {Name: "R22", Kind: "resistor", Value: "100k"}, {Name: "R23", Kind: "resistor", Value: "10k"}},
+		Connect: []ConnectChange{{Net: "VBUS", Part: "J1 USB-C", Pin: "VBUS"}, {Net: "VBUS", Part: "U3 Mux", Pin: "IN1"}, {Net: "VBUS", Part: "R22", Pin: "1"}, {Net: "OV1", Part: "R22", Pin: "2"}, {Net: "OV1", Part: "U3 Mux", Pin: "OV1"}, {Net: "OV1", Part: "R23", Pin: "1"}, {Net: "GND", Part: "R23", Pin: "2"}},
+		Groups:  []GroupChange{{Name: "USB Input"}, {Name: "Power Mux"}},
+		Assign:  []AssignChange{{Part: "J1 USB-C", Group: str("USB Input")}, {Part: "U3 Mux", Group: str("Power Mux")}, {Part: "R22", Supports: str("U3 Mux")}},
+	}
+	if problems, err := s.ChangeConnections(ctx, "mux", ch, library.SourceUser); err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	col := 1
+	problems, err := s.ChangeConnections(ctx, "mux", ConnectionsChange{Assign: []AssignChange{{Part: "R22", Supports: str("R23"), Group: str("USB Input"), Cluster: str("OV divider"), Column: &col}}}, library.SourceUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(problems) != 1 || !strings.Contains(problems[0], "not another passive") {
+		t.Errorf("problems = %q", problems)
+	}
+	d, err := s.ProjectDetail(ctx, "mux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row AssignmentRow
+	for _, r := range d.Connections.Assignments {
+		if r.Endpoint == "R22" {
+			row = r
+		}
+	}
+	if row.Group != "USB Input" || row.Cluster != "OV divider" || row.Column == nil || *row.Column != 1 || row.SupportsEndpoint != "U3 Mux" {
+		t.Errorf("R22's assignment = %+v", row)
+	}
+	for _, p := range d.Connections.Diagram.Passives {
+		if p.Label == "R22" && p.Group != "USB Input" {
+			t.Errorf("R22 drawn in %q, want its own group", p.Group)
+		}
+	}
+	// A support cleared on purpose is cleared.
+	if _, err := s.ChangeConnections(ctx, "mux", ConnectionsChange{Assign: []AssignChange{{Part: "R22", Supports: str("")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "mux")
+	for _, r := range d.Connections.Assignments {
+		if r.Endpoint == "R22" && (r.SupportsEndpoint != "" || r.Group != "USB Input") {
+			t.Errorf("after clearing the support: %+v", r)
+		}
+	}
+}
+
+func TestAPassiveInAGroupWithNoParts(t *testing.T) {
+	// C5 put in "Power Mux" while U3, the mux it decouples, is in no
+	// group, on a board with another group (#82): Power Mux has no frame,
+	// so C5 is drawn with U3 rather than in no frame at all.
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "mux", ""); err != nil {
+		t.Fatal(err)
+	}
+	str := func(v string) *string { return &v }
+	problems, err := s.ChangeConnections(ctx, "mux", ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "U3 Mux", Kind: "ic"}, {Name: "U5 Buck", Kind: "ic"}, {Name: "C5", Kind: "capacitor", Value: "10µF"}},
+		Connect: []ConnectChange{{Net: "VIN_VXX", Part: "U3 Mux", Pin: "OUT"}, {Net: "VIN_VXX", Part: "U5 Buck", Pin: "VIN"}, {Net: "VIN_VXX", Part: "C5"}},
+		Groups:  []GroupChange{{Name: "Power Mux"}, {Name: "Regulator"}},
+		Assign:  []AssignChange{{Part: "U5 Buck", Group: str("Regulator")}, {Part: "C5", Supports: str("U3 Mux"), Group: str("Power Mux")}},
+	}, library.SourceUser)
+	if err != nil || len(problems) > 0 {
+		t.Fatal(err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "mux")
+	var c5 DiagramPassive
+	for _, p := range d.Connections.Diagram.Passives {
+		if p.Label == "C5" {
+			c5 = p
+		}
+	}
+	u3 := drawn{t, d.Connections.Diagram}.part("U3")
+	if c5.Part != u3.ID || c5.Group != u3.Group {
+		t.Errorf("C5 = %+v, want drawn by U3 in its group %q", c5, u3.Group)
+	}
+	// The assignment itself is kept: once U3 joins Power Mux, C5 is drawn there.
+	for _, a := range d.Connections.Assignments {
+		if a.Endpoint == "C5" && a.Group != "Power Mux" {
+			t.Errorf("C5's assignment = %+v", a)
+		}
+	}
+	if _, err := s.ChangeConnections(ctx, "mux", ConnectionsChange{Assign: []AssignChange{{Part: "U3 Mux", Group: str("Power Mux")}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.ProjectDetail(ctx, "mux")
+	for _, p := range d.Connections.Diagram.Passives {
+		if p.Label == "C5" && p.Group != "Power Mux" {
+			t.Errorf("with U3 in Power Mux, C5 is in %q", p.Group)
+		}
+	}
+}

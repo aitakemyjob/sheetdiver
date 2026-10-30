@@ -610,30 +610,14 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		if ac.Row != nil {
 			a.Row = ac.Row
 		}
+		// A support that's refused keeps the one it had; the rest of the
+		// change (its group, subgroup, cell) is still saved (#82).
 		if ac.Supports != nil {
-			a.Supports = ""
-			if name := strings.TrimSpace(*ac.Supports); name != "" {
-				to, ok := nodeOfName(parts, blocks, name)
-				if !ok {
-					problems = append(problems, fmt.Sprintf("%s supports %s: %v", ac.Part, name, errEndpoint))
-					continue
-				}
-				// The passive is the one that supports: "C5 supports U3".
-				if !passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
-					problems = append(problems, fmt.Sprintf("%s supports %s: the other way round? A passive supports the part it serves: part %s, supports %s", ac.Part, name, name, ac.Part))
-					continue
-				}
-				if passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
-					problems = append(problems, fmt.Sprintf("%s supports %s: a passive supports the IC or connector it serves, not another passive", ac.Part, name))
-					continue
-				}
-				// Said, but not seen: the part isn't on the passive's nets. It's
-				// still drawn by it when a net reaches it through a passive or
-				// is a rail it's the source of; the agent is told either way.
-				mine, theirs := netsOf(node), netsOf(to)
-				if len(mine) > 0 && !slices.ContainsFunc(mine, func(n string) bool { return containsFold(theirs, n) }) {
-					problems = append(problems, fmt.Sprintf("%s supports %s, which isn't on %s's nets (%s): drawn by it only if a net reaches it through a passive or is a rail it's the source of", ac.Part, name, ac.Part, strings.Join(mine, ", ")))
-				}
+			to, problem := supportOf(parts, blocks, node, ac.Part, strings.TrimSpace(*ac.Supports), netsOf)
+			if problem != "" {
+				problems = append(problems, problem)
+			}
+			if to != "" || strings.TrimSpace(*ac.Supports) == "" {
 				a.Supports = to
 			}
 		}
@@ -645,6 +629,35 @@ func (s *Service) assign(ctx context.Context, projectID int64, parts []library.P
 		existing = append(existing, a)
 	}
 	return problems, nil
+}
+
+// supportOf resolves what a part is said to support ("C5 supports U3"):
+// the node it names, or "" with the reason it's refused. A support said
+// but not seen (the part isn't on the passive's nets) is applied, with a
+// note.
+func supportOf(parts []library.ProjectPart, blocks []library.Block, node, part, name string, netsOf func(string) []string) (string, string) {
+	if name == "" {
+		return "", ""
+	}
+	to, ok := nodeOfName(parts, blocks, name)
+	if !ok {
+		return "", fmt.Sprintf("%s supports %s: %v", part, name, errEndpoint)
+	}
+	// The passive is the one that supports: "C5 supports U3".
+	if !passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
+		return "", fmt.Sprintf("%s supports %s: the other way round? A passive supports the part it serves: part %s, supports %s", part, name, name, part)
+	}
+	if passiveNode(parts, blocks, node) && passiveNode(parts, blocks, to) {
+		return "", fmt.Sprintf("%s supports %s: a passive supports the IC or connector it serves, not another passive", part, name)
+	}
+	// Said, but not seen: still drawn by it when a net reaches it through
+	// a passive or is a rail it's the source of; the agent is told either
+	// way.
+	mine, theirs := netsOf(node), netsOf(to)
+	if len(mine) > 0 && !slices.ContainsFunc(mine, func(n string) bool { return containsFold(theirs, n) }) {
+		return to, fmt.Sprintf("%s supports %s, which isn't on %s's nets (%s): drawn by it only if a net reaches it through a passive or is a rail it's the source of", part, name, part, strings.Join(mine, ", "))
+	}
+	return to, ""
 }
 
 // plainRails is the rails without their status.

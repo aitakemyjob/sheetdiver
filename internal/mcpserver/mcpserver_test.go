@@ -590,3 +590,21 @@ func TestConnectionsTools(t *testing.T) {
 		t.Error("a project has no registers tab")
 	}
 }
+
+func TestAssignAPassiveToAGroupWithNoParts(t *testing.T) {
+	h := newHarness(t)
+	h.must("create_project", map[string]any{"name": "mux", "activate": true}, "created project")
+	// C5 put in Power Mux, which has no parts; it's drawn with U3 and the
+	// reply says why (#82).
+	h.must("set_connections", map[string]any{
+		"blocks":  []map[string]any{{"name": "U3 Mux", "kind": "ic"}, {"name": "U5", "kind": "ic"}, {"name": "C5", "kind": "capacitor", "value": "10µF"}},
+		"connect": []map[string]any{{"net": "VIN_VXX", "part": "U3 Mux", "pin": "OUT"}, {"net": "VIN_VXX", "part": "U5", "pin": "VIN"}, {"net": "VIN_VXX", "part": "C5"}},
+		"groups":  []map[string]any{{"name": "Power Mux"}},
+		"assign":  []map[string]any{{"part": "C5", "supports": "U3 Mux", "group": "Power Mux"}},
+	}, "C5: group Power Mux, but drawn in none with U3 Mux, as Power Mux has no parts to frame it: put U3 Mux in Power Mux too, or leave the group unset; supports U3 Mux; hangs by U3 Mux")
+	// With U3 in the group, it's drawn there and nothing more is said.
+	out := h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "U3 Mux", "group": "Power Mux"}, {"part": "C5", "group": "Power Mux"}}}, "C5: group Power Mux; supports U3 Mux; hangs by U3 Mux")
+	if strings.Contains(out, "but drawn") {
+		t.Errorf("C5 with U3 in its group:\n%s", out)
+	}
+}

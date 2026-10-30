@@ -1193,8 +1193,12 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 		return DiagramPin{}, false
 	}
 	groupOf := map[string]string{}
+	framed := map[string]bool{} // groups with a part in them: those drawn as frames
 	for _, p := range parts {
 		groupOf[p.ID] = p.Group
+		if p.Group != "" {
+			framed[strings.ToLower(p.Group)] = true
+		}
 	}
 	out := []DiagramPassive{}
 	var pending []DiagramPassive // on no part's net: chains, or not drawn
@@ -1239,8 +1243,14 @@ func (b *diagramBuilder) mount(parts []DiagramPart, nets []DiagramNet) []Diagram
 			continue
 		}
 		n := pickWire(wires, serves, b.passiveGroup(id))
-		// In its own group when it has one, else its wire's.
-		p.Group = firstNonEmpty(b.assignment(id).Group, n.Group)
+		// In its own group when it has one, else its wire's. A group with
+		// no parts has no frame to draw it in (C5 in Power Mux, hanging off
+		// U3 in none): it goes with the part it hangs by, and the
+		// assignment's reply says why (#82).
+		p.Group = n.Group
+		if own := b.assignment(id).Group; own != "" && framed[strings.ToLower(own)] {
+			p.Group = own
+		}
 		// By the part it serves when that part is on the net, reaches it
 		// through a series passive (the output capacitor after the
 		// inductor), or is the rail's source.
