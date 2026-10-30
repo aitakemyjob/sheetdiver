@@ -8,6 +8,11 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Fixed
+- The block diagram no longer fails with "Cannot read properties of
+  undefined (reading 'pins')" when a BOM entry with several designators
+  (`Q1,Q4`) is drawn as transistors (#107).
+
 ## [0.2.1] - 2026-10-29
 
 ### Added

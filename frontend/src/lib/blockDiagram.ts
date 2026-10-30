@@ -328,6 +328,19 @@ export function tiedTo(b: Box, p: PlacedPin): PlacedPin | undefined {
 const longest = (ps: DiagramPin[]) => Math.max(0, ...ps.map((p) => p.name.length)) * PIN_CHAR;
 
 /**
+ * The node a port is on: its id up to the last "/", since a node's own id
+ * may have one (a designator of an entry with several, "part:3/Q4").
+ */
+export function portOwner(port: string): string {
+  return port.slice(0, port.lastIndexOf('/'));
+}
+
+/** The index of a port among its node's pins: its id after the last "/". */
+export function portIndex(port: string): number {
+  return Number(port.slice(port.lastIndexOf('/') + 1));
+}
+
+/**
  * The bands a body keeps for its top and bottom pins' names (written
  * down the body): the left and right pins start below the top band and
  * end above the bottom one.
@@ -633,7 +646,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   // its other end shown (ground, or the net's name).
   // The boxes (and subgroups) with a pin on a net: a net with only
   // passives on it reaches no part.
-  const boxesOn = (net: string) => new Set(endsOf(net).filter((e) => !e.passive || e.unit).map((e) => e.id.split('/')[0]));
+  const boxesOn = (net: string) => new Set(endsOf(net).filter((e) => !e.passive || e.unit).map((e) => portOwner(e.id)));
   for (const q of d.passives) {
     if (built.below.some((u) => u.passive === q)) continue;
     const id = `q:${q.id}`;
@@ -726,7 +739,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
   // Each net as the wiring rules see it (lib/diagram/wiring.ts): its ends
   // with what they are, the node they're on, and what they're placed by.
   const netEnd = (e: PortEnd): NetEnd => {
-    const owner = e.id.split('/')[0];
+    const owner = portOwner(e.id);
     const q = passiveOf(e);
     const u = unitOf(e);
     const by = q ? `b:${q.passive.part}` : u?.part ? `b:${u.part}` : undefined;
@@ -766,7 +779,7 @@ function graph(d: Diagram, boxes: Box[], units: Unit[] = []): Built {
     const nets = q?.passive.nets ?? units.find((u) => u.id === c.id)?.ports.map((port) => port.net) ?? [];
     for (const net of nets) {
       const e = endsOf(net).find((x) => !x.passive);
-      if (e) return [boxIndex.get(e.id.split('/')[0]) ?? 0, portOf.get(e.id)?.y ?? 0];
+      if (e) return [boxIndex.get(portOwner(e.id)) ?? 0, portOf.get(e.id)?.y ?? 0];
     }
     return [Infinity, 0];
   };
@@ -817,8 +830,7 @@ async function layoutOne(d: Diagram, opts: LayoutOptions, subgroups = true): Pro
   // interactive layering, and cycle breaking so a column before what
   // drives it can be kept.
   // A place on the far side of a part a node is wired to isn't kept.
-  const owner = (port: string) => port.slice(0, port.lastIndexOf('/'));
-  const links = (first.root.edges ?? []).map((e): [string, string] => [owner(e.sources[0]), owner(e.targets[0])]);
+  const links = (first.root.edges ?? []).map((e): [string, string] => [portOwner(e.sources[0]), portOwner(e.targets[0])]);
   const at = wants.size ? keepSides(placed, hints(placed, wants, hint), links, wants) : new Map(placed.map((p) => [p.id, hint.get(p.id) ?? { x: p.x, y: p.y }]));
   for (const n of again.root.children ?? []) {
     const p = at.get(n.id);
@@ -924,7 +936,7 @@ function drawing(built: Built, r: ElkNode): BlockDrawing {
   }
   // Stubs: straight out of their pin, named at the end.
   for (const st of built.stubs) {
-    const [boxId, idx] = [st.port.split('/')[0], Number(st.port.split('/')[1])];
+    const [boxId, idx] = [portOwner(st.port), portIndex(st.port)];
     const p = built.boxes.get(boxId)!.pins[idx];
     if (st.side === 'top') {
       // Up from a supply pin, its name above.

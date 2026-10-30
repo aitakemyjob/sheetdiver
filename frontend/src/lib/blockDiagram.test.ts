@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
 import { lint } from './diagram/lint';
-import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
+import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, portIndex, portOwner, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
@@ -746,5 +746,46 @@ describe('a passive on a wire between two parts', () => {
     // After U1, in U2's layer or the one before it.
     expect(caps.x).toBeGreaterThan(u1.x + u1.w);
     expect(caps.x).toBeLessThan(u2.x + u2.w);
+  });
+});
+
+describe('a BOM entry with two designators drawn as transistors (#107)', () => {
+  // Q1 and Q4 of one entry "Q1,Q4": each designator is its own part,
+  // "part:1/Q1", so a port's node is its id up to the last "/".
+  const fet = (ref: string): Diagram['parts'][number] => ({
+    id: `part:1/${ref}`,
+    title: `${ref} SD7002`,
+    mpn: 'SD7002',
+    kind: 'mosfet-n',
+    shape: 'mosfet-n',
+    column: 0,
+    pins: [
+      { name: 'G', number: '1', net: `G${ref}`, side: 'left', role: 'other', connected: true, terminal: 'gate' },
+      { name: 'D', number: '3', net: `OUT${ref}`, side: 'top', role: 'other', connected: true, terminal: 'drain' },
+      { name: 'S', number: '2', net: 'GND', side: 'bottom', role: 'other', connected: true, terminal: 'source', ground: true },
+    ],
+  });
+  const net = (name: string, ref: string): Diagram['nets'][number] => ({ name, kind: 'signal', parts: [`part:1/${ref}`], wire: 'out' });
+  const d: Diagram = {
+    parts: [fet('Q1'), fet('Q4')],
+    passives: [],
+    nets: [net('GQ1', 'Q1'), net('OUTQ1', 'Q1'), net('GQ4', 'Q4'), net('OUTQ4', 'Q4')],
+    groups: [],
+    links: [],
+    subgroups: [],
+  };
+
+  it('draws both, each pin wired or grounded', async () => {
+    const drawn = await layoutBlockDiagram(d);
+    expect(drawn.boxes.map((b) => b.part.title).sort()).toEqual(['Q1 SD7002', 'Q4 SD7002']);
+    for (const b of drawn.boxes) expect(b.pins).toHaveLength(3);
+    expect(drawn.grounds).toHaveLength(2);
+    for (const n of ['GQ1', 'OUTQ1', 'GQ4', 'OUTQ4']) expect(drawn.wires.some((w) => w.net === n), n).toBe(true);
+  });
+
+  it("finds a port's node and index past the slash in its id", () => {
+    expect(portOwner('b:part:1/Q4/2')).toBe('b:part:1/Q4');
+    expect(portIndex('b:part:1/Q4/2')).toBe(2);
+    expect(portOwner('b:part:7/0')).toBe('b:part:7');
   });
 });
