@@ -44,6 +44,38 @@ describe('project block diagram, pins and connections', () => {
     expect(svg.querySelector('[data-net="VIN"]')).not.toHaveAttribute('data-hl');
   });
 
+  // Sensor board with parts the backend sent without their pins: laying them out throws.
+  const withBroken = (...ids: string[]) => {
+    const d = structuredClone(sensor());
+    for (const id of ids) d.connections.diagram.parts.push({ id, title: `${id} BROKEN`, kind: 'ic', shape: 'ic', column: 0 } as never);
+    b.on('project.detail', () => d);
+  };
+
+  it('draws the rest of a diagram one part breaks, says which, and tells the agent', async () => {
+    withBroken('part:99');
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
+    const svg = await screen.findByRole('img', { name: 'Block diagram of Sensor board' });
+    expect(svg.querySelector('[data-part="U1 TPX5430"]')).not.toBeNull();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveAttribute('data-skipped', 'part:99');
+    expect(alert).toHaveTextContent("part:99 BROKEN couldn't be drawn and is left off");
+    await waitFor(() => expect(b.callsTo('diagram.drawn')).toHaveLength(1));
+    const report = b.callsTo('diagram.drawn')[0] as { problems: { check: string; text: string }[]; error?: string };
+    expect(report.error).toBeUndefined();
+    expect(report.problems[0]).toMatchObject({ check: 'not drawn', text: expect.stringContaining('part:99 BROKEN') });
+  });
+
+  it("says why a diagram couldn't be laid out at all, and tells the agent", async () => {
+    // Every part breaks it: nothing can be drawn.
+    const d = structuredClone(sensor());
+    d.connections.diagram.parts = d.connections.diagram.parts.map((p) => ({ ...p, pins: undefined }) as never);
+    b.on('project.detail', () => d);
+    render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
+    expect(await screen.findByText(/The block diagram couldn't be laid out: .*U1 TPX5430.*even drawn alone.*Your agent sees this in get_connections/)).toBeInTheDocument();
+    await waitFor(() => expect(b.callsTo('diagram.drawn')).toHaveLength(1));
+    expect(b.callsTo('diagram.drawn')[0]).toMatchObject({ project: 'Sensor board', cells: [], error: expect.stringContaining('even drawn alone') });
+  });
+
   it("marks a net's wires and the parts on it when its name is clicked, and lets go", async () => {
     render(<ProjectView params={{ project: 'Sensor board', tab: 'diagram' }} />);
     const svg = await screen.findByRole('img', { name: 'Block diagram of Sensor board' });

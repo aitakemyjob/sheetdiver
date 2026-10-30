@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { recorded } from '../test/backend';
 import type { Diagram, ProjectDetail } from './types';
 import { lint } from './diagram/lint';
+import { drawnReport } from './diagram/report';
+import { LayoutError } from './diagram/salvage';
 import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, portIndex, portOwner, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
@@ -787,5 +789,38 @@ describe('a BOM entry with two designators drawn as transistors (#107)', () => {
     expect(portOwner('b:part:1/Q4/2')).toBe('b:part:1/Q4');
     expect(portIndex('b:part:1/Q4/2')).toBe(2);
     expect(portOwner('b:part:7/0')).toBe('b:part:7');
+  });
+});
+
+describe('a diagram that fails to lay out', () => {
+  const ok = circuit('MCU board');
+  // A part the backend sent without its pins: laying it out throws.
+  const broken = (id: string, title: string) => ({ id, title, kind: 'ic', shape: 'ic', column: 0 }) as unknown as Diagram['parts'][number];
+
+  it('draws the rest and says which part it left off, and why', async () => {
+    const d: Diagram = { ...ok, parts: [...ok.parts, broken('part:99', 'U99 BROKEN')], nets: [...ok.nets, { name: 'X', kind: 'signal', parts: ['part:99'], wire: 'out' }] };
+    const drawn = await layoutBlockDiagram(d);
+    expect(drawn.skipped).toHaveLength(1);
+    expect(drawn.skipped?.[0]).toMatchObject({ node: 'part:99', title: 'U99 BROKEN' });
+    expect(drawn.skipped?.[0].error).toMatch(/undefined/);
+    expect(drawn.boxes).toHaveLength(ok.parts.length);
+    expect(drawnReport('MCU board', drawn).problems[0]).toEqual({ check: 'not drawn', text: expect.stringContaining("U99 BROKEN couldn't be drawn and is left off: ") });
+  });
+
+  it('leaves off every part that breaks it, as when one kind of part is drawn wrong', async () => {
+    const d: Diagram = { ...ok, parts: [...ok.parts, broken('part:98', 'U98 BROKEN'), broken('part:99', 'U99 BROKEN')] };
+    const drawn = await layoutBlockDiagram(d);
+    expect(drawn.skipped?.map((x) => x.title)).toEqual(['U98 BROKEN', 'U99 BROKEN']);
+    expect(drawn.boxes).toHaveLength(ok.parts.length);
+  });
+
+  it('throws a LayoutError when every part breaks it', async () => {
+    const d: Diagram = { ...ok, parts: [broken('part:98', 'U98 BROKEN'), broken('part:99', 'U99 BROKEN')], passives: [], subgroups: [] };
+    await expect(layoutBlockDiagram(d)).rejects.toThrow(LayoutError);
+    await expect(layoutBlockDiagram(d)).rejects.toThrow(/U98 BROKEN, U99 BROKEN each fail even drawn alone/);
+  });
+
+  it('draws a diagram that lays out without trying anything', async () => {
+    expect((await layoutBlockDiagram(ok)).skipped).toBeUndefined();
   });
 });

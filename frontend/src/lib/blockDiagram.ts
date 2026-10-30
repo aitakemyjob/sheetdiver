@@ -34,6 +34,7 @@ import { hang, type FarEnd } from './diagram/hanging';
 import { cells as cellsOf, hints, keepSides, type Placed, type Want } from './diagram/cells';
 import { placeFrames } from './diagram/placement';
 import { wire, type NetContext, type NetEnd } from './diagram/wiring';
+import { errorText, salvage, type SkippedNode } from './diagram/salvage';
 import { threeTerminal } from './symbols';
 import type { Diagram, DiagramGroup, DiagramPart, DiagramPassive, DiagramPin, DiagramSubgroup } from './types';
 
@@ -162,6 +163,8 @@ export interface BlockDrawing {
   clusters: Cluster[];
   /** Where each part and passive is in its group's grid of parts, as drawn. */
   cells: DrawnCell[];
+  /** Parts left off because laying them out failed (lib/diagram/salvage.ts). */
+  skipped?: SkippedNode[];
   width: number;
   height: number;
 }
@@ -173,9 +176,22 @@ function elk(): Promise<ELK> {
   return engine;
 }
 
-/** Lays out a block diagram: whole, or a group at a time. */
-export function layoutBlockDiagram(d: Diagram, opts: LayoutOptions = {}): Promise<BlockDrawing> {
-  return d.groups?.length ? layoutGroups(d, opts) : layoutOne(d, opts);
+/**
+ * Lays out a block diagram: whole, or a group at a time. When that fails,
+ * what can be laid out without the parts the layout trips on is drawn,
+ * those parts in `skipped` (lib/diagram/salvage.ts); when nothing can, it
+ * throws a LayoutError.
+ */
+export async function layoutBlockDiagram(d: Diagram, opts: LayoutOptions = {}): Promise<BlockDrawing> {
+  const layout = (x: Diagram) => (x.groups?.length ? layoutGroups(x, opts) : layoutOne(x, opts));
+  let error: string;
+  try {
+    return await layout(d);
+  } catch (e) {
+    error = errorText(e);
+  }
+  const { drawing, skipped } = await salvage(d, error, layout);
+  return { ...drawing, skipped };
 }
 
 // ── groups ────────────────────────────────────────────────────────────

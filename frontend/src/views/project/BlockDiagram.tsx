@@ -8,7 +8,8 @@ import { useStore } from '../../lib/store';
 import type { ProjectDetail } from '../../lib/types';
 import { Empty, ErrorBox } from '../../components/ui';
 import { change, marked } from './connections';
-import { drawnReport } from '../../lib/diagram/report';
+import { drawnReport, failedReport } from '../../lib/diagram/report';
+import { skippedText } from '../../lib/diagram/salvage';
 import { selectNet, toggleNet } from '../../lib/diagram/selection';
 import { answerSnapshots, canvasRasterize, documentResolve, SnapshotResponder, standaloneSVG } from '../../lib/diagram/snapshot';
 import { getTransport } from '../../lib/transport';
@@ -189,6 +190,8 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
         if (!live) return;
         const message = e instanceof Error ? e.message : String(e);
         setProblem(message);
+        // For the agent: get_connections and get_diagram_image say why.
+        api.reportDrawn(failedReport(d.project.name, message)).catch(() => {});
         api.uiContext({ view: 'project/diagram', project: d.project.name, problem: `the block diagram failed to lay out: ${message}` }).catch(() => {});
       });
     return () => {
@@ -264,7 +267,12 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
       </Empty>
     );
   }
-  if (problem) return <ErrorBox error={`The block diagram couldn't be laid out: ${problem}. Please report this with the connection table (Connections tab).`} />;
+  if (problem)
+    return (
+      <ErrorBox
+        error={`The block diagram couldn't be laid out: ${problem}. Your agent sees this in get_connections; please report it with the connection table (Connections tab).`}
+      />
+    );
   if (!drawing) return null;
   // Screen to drawing coordinates, through the zoom and pan.
   const at = (e: PointerEvent) => {
@@ -356,6 +364,11 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
           <Download size={13} /> SVG
         </button>
       </div>
+      {drawing.skipped?.map((x) => (
+        <div key={x.node} className="error-box" role="alert" style={{ margin: 0 }} data-skipped={x.node}>
+          {skippedText(x)}. The rest of the board is drawn; please report this with the connection table (Connections tab).
+        </div>
+      ))}
       <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
         <svg
           ref={svg}

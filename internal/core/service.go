@@ -274,11 +274,17 @@ type LayoutProblem struct {
 	Text  string `json:"text"`
 }
 
-// Drawn is the app's report of a project's block diagram as drawn.
+// CheckNotDrawn is the layout problem of a part the app left off the
+// diagram because laying it out failed; the rest is drawn.
+const CheckNotDrawn = "not drawn"
+
+// Drawn is the app's report of a project's block diagram as drawn, or
+// (Error set) why it couldn't be drawn at all.
 type Drawn struct {
 	Project  string          `json:"project"`
 	Cells    []DrawnCell     `json:"cells"`
 	Problems []LayoutProblem `json:"problems"`
+	Error    string          `json:"error,omitempty"`
 	At       time.Time       `json:"at"`
 }
 

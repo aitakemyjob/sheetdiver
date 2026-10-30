@@ -548,6 +548,40 @@ func TestConnectionsTools(t *testing.T) {
 	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "column": -1}}}, "R9: group Load (its part's); supports")
 	h.must("get_connections", map[string]any{}, "not drawn since the last change")
 
+	// The app couldn't lay the diagram out: the agent hears why.
+	failed := core.Drawn{Project: "board", Error: "Cannot read properties of undefined (reading 'pins')"}
+	h.core.SetDrawn(failed)
+	h.must("get_connections", map[string]any{}, "## Placement\nthe app couldn't lay out the block diagram, so nothing is drawn: Cannot read properties of undefined (reading 'pins')\n")
+	if out, _, isErr := h.call("get_diagram_image", map[string]any{}); !isErr || !strings.Contains(out, "couldn't lay out the block diagram") {
+		t.Errorf("a picture of a diagram that failed: %s", out)
+	}
+	// It drew all but one part: that part is the first layout problem,
+	// whichever group is asked about.
+	notDrawn := core.LayoutProblem{Check: core.CheckNotDrawn, Text: "Q4 DMG2305UX couldn't be drawn and is left off: boom"}
+	h.core.SetDrawn(core.Drawn{Project: "board", Cells: drawn.Cells, Problems: []core.LayoutProblem{notDrawn}})
+	h.must("get_connections", map[string]any{}, "## Layout problems\nQ4 DMG2305UX couldn't be drawn and is left off: boom (not drawn)\n")
+	if got := layoutProblemsText([]core.LayoutProblem{notDrawn}, "Load"); !strings.Contains(got, "Q4 DMG2305UX") {
+		t.Errorf("a part left off, asked about one group:\n%s", got)
+	}
+	// set_connections with show waits for the drawing and says what went wrong.
+	events, stop = h.core.Bus.Subscribe()
+	defer stop()
+	go func() {
+		for ev := range events {
+			if ev.Type == core.EvFocus {
+				h.core.SetDrawn(core.Drawn{Project: "board", Cells: drawn.Cells, Problems: []core.LayoutProblem{notDrawn}})
+			}
+		}
+	}()
+	h.must("set_connections", map[string]any{"assign": []map[string]any{{"part": "R9", "column": 2}}, "show": true}, "## Block diagram\nQ4 DMG2305UX couldn't be drawn and is left off: boom\nThe rest of the diagram is drawn.")
+	stop()
+	if got := drawnTrouble(failed); !strings.Contains(got, "## Block diagram\nthe app couldn't lay out") {
+		t.Errorf("a failed drawing: %q", got)
+	}
+	if got := drawnTrouble(drawn); got != "" {
+		t.Errorf("a drawing with only layout checks: %q", got)
+	}
+
 	f := h.shown("show", map[string]any{"kind": "project", "project": "board", "tab": "diagram", "highlight": "I2C1"})
 	if f.Tab != "diagram" || f.Highlight != "I2C1" {
 		t.Errorf("show = %+v", f)
