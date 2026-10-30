@@ -376,3 +376,64 @@ func TestFollowsADownloadByAnotherProcess(t *testing.T) {
 		t.Errorf("after the app downloaded it again: %+v %v", items, err)
 	}
 }
+
+func TestSameSubcategoryInTwoCategories(t *testing.T) {
+	// JLCPCB has "MOSFETs" under Transistors/Thyristors and under
+	// Triode/MOS Tube/Transistor (#19): a search and a parameter summary
+	// for one category's MOSFETs leave the other's out.
+	ctx := context.Background()
+	rows := append(append([][]any(nil), testutil.JLCRows...),
+		[]any{88001, 1, "Triode/MOS Tube/Transistor", "MOSFETs", "SI2302CDS", "SOT-23", "Vishay", "expand", 0, "20V 2.6A N-Channel", "", 105, "1-:0.05", `{"Drain to Source Voltage":"20V"}`})
+	db, err := testutil.JLCDatabase(t.TempDir(), sourceFormat, rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := serve(t, &publisher{files: splitZip(t, db, 600), modified: func(string) string { return published }})
+	if err := c.Download(ctx, func(Progress) {}); err != nil {
+		t.Fatal(err)
+	}
+	mpns := func(q Query) []string {
+		items, err := c.Search(ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, it := range items {
+			out = append(out, it.Category+" › "+it.MPN)
+		}
+		return out
+	}
+	if got := mpns(Query{Subcategory: "MOSFETs"}); len(got) != 3 {
+		t.Errorf("all MOSFETs: %q", got)
+	}
+	if got := mpns(Query{Category: "Triode/MOS Tube/Transistor", Subcategory: "MOSFETs"}); len(got) != 1 || got[0] != "Triode/MOS Tube/Transistor › SI2302CDS" {
+		t.Errorf("one category's MOSFETs: %q", got)
+	}
+	if got := mpns(Query{Category: "Transistors/Thyristors", Subcategory: "MOSFETs"}); len(got) != 2 || strings.Contains(strings.Join(got, ","), "SI2302") {
+		t.Errorf("the other category's MOSFETs: %q", got)
+	}
+	// The parameters are that category's parts' only.
+	ps, err := c.Params(ctx, Query{Category: "Triode/MOS Tube/Transistor", Subcategory: "MOSFETs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		if p.Key == "Drain to Source Voltage" && (p.Count != 1 || p.Min != 20 || p.Max != 20) {
+			t.Errorf("parameters of one category's MOSFETs: %+v", p)
+		}
+	}
+	// Categories lists them apart.
+	cats, err := c.Categories(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, x := range cats {
+		if x.Subcategory == "MOSFETs" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("categories list MOSFETs %d times, want 2", n)
+	}
+}

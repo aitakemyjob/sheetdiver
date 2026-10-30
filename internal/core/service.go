@@ -210,9 +210,10 @@ type Focus struct {
 	Parts []string          `json:"parts,omitempty"`
 	Keys  []string          `json:"keys,omitempty"`
 	Notes map[string]string `json:"notes,omitempty"`
-	// LCSC lists catalogue parts to show; Subcategory and Filters narrow a
-	// catalogue search.
+	// LCSC lists catalogue parts to show; Category, Subcategory and
+	// Filters narrow a catalogue search.
 	LCSC        []string             `json:"lcsc,omitempty"`
+	Category    string               `json:"category,omitempty"`
 	Subcategory string               `json:"subcategory,omitempty"`
 	Filters     []catalog.AttrFilter `json:"filters,omitempty"`
 	// Highlight marks one thing in the view: the recommended part, an

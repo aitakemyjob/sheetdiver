@@ -787,6 +787,7 @@ export interface Focus {
   notes?: Record<string, string>;
   /** catalog: candidates by LCSC code, or a search. */
   lcsc?: string[];
+  category?: string;
   subcategory?: string;
   filters?: CatalogFilter[];
   /** What to mark: the recommended part, an LCSC code, a rail or a BOM entry. */

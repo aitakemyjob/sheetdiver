@@ -108,6 +108,40 @@ describe('CatalogView', () => {
     render(<CatalogView params={{}} />);
     expect((await screen.findAllByText(/Download/)).length).toBeGreaterThan(0);
   });
+
+  it('picks a subcategory by its category: two MOSFETs are two choices', async () => {
+    useStore.setState({ catalog: { ...(recorded('catalog.status') as object), installed: true } as never });
+    b.on('catalog.categories', () => [
+      { category: 'Transistors/Thyristors', subcategory: 'MOSFETs', parts: 15198, inStock: 15198 },
+      { category: 'Triode/MOS Tube/Transistor', subcategory: 'MOSFETs', parts: 105, inStock: 105 },
+    ]);
+    b.on('catalog.search', () => []);
+    b.on('catalog.params', () => []);
+    render(<CatalogView params={{ query: '' }} />);
+    for (const name of ['Transistors/Thyristors', 'Triode/MOS Tube/Transistor']) fireEvent.click(await screen.findByText(name));
+    const [first, second] = await screen.findAllByRole('button', { name: /MOSFETs/ });
+    fireEvent.click(second);
+    await waitFor(() => expect(b.callsTo('catalog.search').at(-1)).toMatchObject({ category: 'Triode/MOS Tube/Transistor', subcategory: 'MOSFETs' }));
+    expect(b.callsTo('catalog.params').at(-1)).toMatchObject({ category: 'Triode/MOS Tube/Transistor', subcategory: 'MOSFETs' });
+    // Only the one clicked is on.
+    expect(second).toHaveAttribute('aria-pressed', 'true');
+    expect(first).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText(/Triode\/MOS Tube\/Transistor › MOSFETs/)).toBeInTheDocument();
+    // The other is its own choice.
+    fireEvent.click(first);
+    await waitFor(() => expect(b.callsTo('catalog.search').at(-1)).toMatchObject({ category: 'Transistors/Thyristors', subcategory: 'MOSFETs' }));
+    expect(second).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it("matches the agent's subcategory by name when it gives no category", async () => {
+    useStore.setState({ catalog: { ...(recorded('catalog.status') as object), installed: true } as never });
+    b.on('catalog.categories', () => [{ category: 'Power Management (PMIC)', subcategory: 'DC-DC Converters', parts: 2, inStock: 1 }]);
+    b.on('catalog.search', () => []);
+    b.on('catalog.params', () => []);
+    render(<CatalogView params={{ subcategory: 'DC-DC Converters', nonce: 1 }} />);
+    await waitFor(() => expect(b.callsTo('catalog.search').at(-1)).toMatchObject({ subcategory: 'DC-DC Converters' }));
+    expect((b.callsTo('catalog.search').at(-1) as { category?: string }).category).toBeUndefined();
+  });
 });
 
 describe('Welcome', () => {

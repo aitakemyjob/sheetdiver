@@ -302,6 +302,11 @@ func TestCatalogueTools(t *testing.T) {
 	db, err := testutil.JLCDatabase(t.TempDir(), "source-db-v2", [][]any{
 		{1, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7001DBVR", "SOT-23-6", "Zed Semi", "base", 0, "2A 4.5V~28V Buck", pdfSrv.URL + "/zx7001.pdf", 1200, "1-:0.31", `{"Output Current":"2A"}`},
 		{2, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX9000", "SOT-23-6", "Zed Semi", "expand", 0, "1A 5V~12V Buck", "", 0, "", `{"Output Current":"1A"}`},
+		// One subcategory name in two categories (#19).
+		{4, 1, "Transistors/Thyristors", "MOSFETs", "ZQ3400", "SOT-23", "Zed Semi", "base", 0, "30V 5.7A N-Channel", "", 900, "1-:0.09", `{"Drain to Source Voltage":"30V"}`},
+		{5, 1, "Transistors/Thyristors", "MOSFETs", "ZQ3401", "SOT-23", "Zed Semi", "base", 0, "30V 4A P-Channel", "", 700, "1-:0.08", `{"Drain to Source Voltage":"30V"}`},
+		{6, 1, "Triode/MOS Tube/Transistor", "MOSFETs", "ZQ2302", "SOT-23", "Zed Semi", "expand", 0, "20V 2.6A N-Channel", "", 100, "1-:0.05", `{"Drain to Source Voltage":"20V"}`},
+		{7, 1, "Triode/MOS Tube/Transistor", "MOSFETs", "ZQ2301", "SOT-23", "Zed Semi", "expand", 0, "20V 2A P-Channel", "", 50, "1-:0.05", `{"Drain to Source Voltage":"20V"}`},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +333,14 @@ func TestCatalogueTools(t *testing.T) {
 	if out := h.must("search_catalog", map[string]any{"query": "buck"}); !strings.Contains(out, "ZX9000") {
 		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
 	}
-	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)")
+	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)", "Transistors/Thyristors › MOSFETs: 2 (2)", "Triode/MOS Tube/Transistor › MOSFETs: 2 (2)")
+	// Each category's MOSFETs, searched and summarized on their own; the
+	// summaries are cached per category, not per subcategory name.
+	if out := h.must("search_catalog", map[string]any{"category": "Triode/MOS Tube/Transistor", "subcategory": "MOSFETs"}, "ZQ2302"); strings.Contains(out, "ZQ3400") {
+		t.Errorf("another category's MOSFETs: %s", out)
+	}
+	h.must("catalog_parameters", map[string]any{"category": "Transistors/Thyristors", "subcategory": "MOSFETs"}, "Drain to Source Voltage [number, V] 2 parts, 30 V")
+	h.must("catalog_parameters", map[string]any{"category": "Triode/MOS Tube/Transistor", "subcategory": "MOSFETs"}, "parameters of Triode/MOS Tube/Transistor › MOSFETs", "Drain to Source Voltage [number, V] 2 parts, 20 V")
 	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A; common: ")
 	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": "=", "value": "1A"}}}, "ZX9000"); strings.Contains(out, "ZX7001DBVR") {
 		t.Errorf("output current = 1 A: %s", out)

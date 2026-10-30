@@ -175,8 +175,12 @@ type Query struct {
 	Text string `json:"text"`
 	// InStock keeps parts JLCPCB has in stock; Basic keeps its basic and
 	// preferred libraries (no extended-part fee).
-	InStock     bool   `json:"inStock,omitempty"`
-	Basic       bool   `json:"basic,omitempty"`
+	InStock bool `json:"inStock,omitempty"`
+	Basic   bool `json:"basic,omitempty"`
+	// Category narrows Subcategory to one category: JLCPCB has
+	// subcategories of the same name in several ("MOSFETs" under
+	// Transistors/Thyristors and under Triode/MOS Tube/Transistor).
+	Category    string `json:"category,omitempty"`
 	Subcategory string `json:"subcategory,omitempty"`
 	// Attrs filter on the parts' attributes (see Params for which a
 	// category has); they need a Subcategory or search words.
@@ -328,6 +332,10 @@ func (q Query) where() (string, []any) {
 	}
 	if q.Basic {
 		where = append(where, "(library_type = 'base' OR preferred <> 0)")
+	}
+	if q.Category != "" {
+		where = append(where, "category = ?")
+		args = append(args, q.Category)
 	}
 	if q.Subcategory != "" {
 		where = append(where, "subcategory = ?")
