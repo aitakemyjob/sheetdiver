@@ -66,6 +66,12 @@ func TestSymbolKind(t *testing.T) {
 		{"N-channel MOSFET", ""}: "mosfet-n", {"P-Channel MOSFET", ""}: "mosfet-p", {"NPN transistor", ""}: "npn", {"PNP", ""}: "pnp", {"Power inductor", ""}: "inductor", {"Ferrite bead", ""}: "ferrite",
 		{"Crystal", ""}: "crystal", {"Tactile switch", ""}: "switch", {"Resettable fuse", ""}: "fuse", {"Coin cell holder", ""}: "battery", {"Buzzer", ""}: "other", {"Pin header", ""}: "connector",
 		{"MCU / SoC", ""}: "ic", {"Buck-boost", ""}: "ic", {"Battery protection", ""}: "ic", {"Charger", ""}: "ic", {"LED driver", ""}: "ic", {"Switching regulator", ""}: "ic",
+		// Power-path ICs named after a passive's word are ICs (#77): the
+		// extractor's load-switch and efuse, and the like.
+		{"load-switch", ""}: "ic", {"efuse", ""}: "ic", {"eFuse", ""}: "ic", {"E-Fuse", ""}: "ic", {"Hot-swap controller", ""}: "ic", {"Ideal diode", ""}: "ic",
+		{"Power mux", ""}: "ic", {"Analog switch", ""}: "ic", {"USB switch", ""}: "ic", {"Multiplexer", ""}: "ic",
+		// The passives those rules must not catch.
+		{"Fuse", ""}: "fuse", {"Polyfuse", ""}: "fuse", {"PPTC", ""}: "fuse", {"Slide switch", ""}: "switch", {"Switch", ""}: "switch", {"TVS diode", ""}: "tvs",
 	} {
 		if got := symbolKind(in[0], in[1] == "block"); got != want {
 			t.Errorf("symbolKind(%q, %v) = %s, want %s", in[0], in[1] == "block", got, want)

@@ -25,6 +25,13 @@ every merged pull request.
   not across its drain or collector wire, and pins the pin table spells out
   ("Gate", "Drain") are labelled with their letter (G, D) so they don't
   crowd the symbol; the full name is the tooltip.
+- **Passives support load switches and eFuses.** A part categorized
+  `load-switch` (power muxes, ideal diodes) or `efuse` (hot-swap) was
+  drawn as a two-terminal switch or fuse, so a capacitor or resistor
+  couldn't be said to support it ("not another passive") and was hung
+  by a guessed IC instead. Power-path, analog-switch and multiplexer
+  categories are now ICs, and the fuse symbol matches the word fuse
+  only. (#77)
 
 ## [0.2.1] - 2026-10-29
 

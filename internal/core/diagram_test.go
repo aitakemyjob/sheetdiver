@@ -793,3 +793,68 @@ func TestAssignmentsSaidButNotSeenAreReported(t *testing.T) {
 		}
 	}
 }
+
+func TestPassivesSupportLoadSwitchesAndEFuses(t *testing.T) {
+	// A TPS2121-like power mux and a TPS259531-like eFuse, as the extractor
+	// categorizes them (load-switch, efuse): a capacitor and a resistor on
+	// their nets support them, and are drawn by them (#77).
+	s := newService(t)
+	ctx := context.Background()
+	for _, mini := range [][2]string{{"SD2121", "Power Mux"}, {"SD2595", "eFuse"}} {
+		if _, err := s.Import(ctx, ImportRequest{Data: testutil.Mini(mini[0], mini[1]), Filename: strings.ToLower(mini[0]) + ".pdf"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for mpn, want := range map[string]string{"SD2121": "load-switch", "SD2595": "efuse"} {
+		if p := mustPart(t, s, mpn); p.Category != want {
+			t.Fatalf("%s category %q, want %q", mpn, p.Category, want)
+		}
+	}
+	if _, err := s.Lib.CreateProject(ctx, "mux", ""); err != nil {
+		t.Fatal(err)
+	}
+	for des, mpn := range map[string]string{"U3": "SD2121", "U6": "SD2595"} {
+		if _, err := s.AddToProject(ctx, "mux", mpn, library.ProjectPart{Designator: des}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	str := func(v string) *string { return &v }
+	ch := ConnectionsChange{
+		Blocks: []BlockChange{{Name: "U5", Kind: "ic"}, {Name: "C5", Kind: "capacitor", Value: "10µF"}, {Name: "R24", Kind: "resistor", Value: "100k"}},
+		Connect: []ConnectChange{
+			{Net: "VIN_VXX", Part: "U3", Pin: "1"}, {Net: "VIN_VXX", Part: "U5", Pin: "1"}, {Net: "VIN_VXX", Part: "C5"},
+			{Net: "ILIM", Part: "U6", Pin: "1"}, {Net: "ILIM", Part: "R24"},
+		},
+		Groups: []GroupChange{{Name: "Power Mux"}},
+		Assign: []AssignChange{{Part: "C5", Supports: str("U3"), Group: str("Power Mux")}, {Part: "R24", Supports: str("U6")}},
+	}
+	problems, err := s.ChangeConnections(ctx, "mux", ch, library.SourceUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range problems {
+		if strings.Contains(p, "not another passive") {
+			t.Errorf("support refused: %s", p)
+		}
+	}
+	d, err := s.ProjectDetail(ctx, "mux")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawnBy := map[string]string{}
+	for _, p := range d.Connections.Diagram.Passives {
+		drawnBy[p.Label] = p.Part
+	}
+	titles := map[string]string{}
+	for _, p := range d.Connections.Diagram.Parts {
+		titles[p.ID] = p.Title
+		if strings.HasPrefix(p.Title, "U3 ") || strings.HasPrefix(p.Title, "U6 ") {
+			if p.Shape != "ic" {
+				t.Errorf("%s drawn as %s", p.Title, p.Shape)
+			}
+		}
+	}
+	if titles[drawnBy["C5"]] != "U3 SD2121" || titles[drawnBy["R24"]] != "U6 SD2595" {
+		t.Errorf("C5 drawn by %q, R24 by %q", titles[drawnBy["C5"]], titles[drawnBy["R24"]])
+	}
+}
