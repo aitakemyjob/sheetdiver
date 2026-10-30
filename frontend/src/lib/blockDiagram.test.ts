@@ -4,7 +4,7 @@ import type { Diagram, ProjectDetail } from './types';
 import { lint } from './diagram/lint';
 import { drawnReport } from './diagram/report';
 import { LayoutError } from './diagram/salvage';
-import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, portIndex, portOwner, tiedTo, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
+import { GRID, labelRect, layoutBlockDiagram, overlaps, PIN_LEN, portIndex, portOwner, tiedTo, titleAt, type BlockDrawing, type Box, type PlacedPin, type Pt, type Rect } from './blockDiagram';
 
 /** A test circuit's diagram, as the backend built it (internal/testutil/circuits.go). */
 const circuit = (name: string): Diagram => (recorded('project.detail', { project: name }) as ProjectDetail).connections.diagram;
@@ -265,6 +265,14 @@ describe.each(circuits)('the block diagram of %s', (name) => {
       for (const p of b.pins.filter((x) => x.dim)) expect(['power', 'ground', 'pad'], `${b.part.title} ${p.name}`).toContain(p.role);
     // Nothing else changes about what's drawn.
     expect(compact.passives.length).toBe(d.passives.length);
+  });
+
+  it("writes no part's title over a wire", () => {
+    const over: string[] = [];
+    for (const b of d.boxes)
+      for (const s of segments(d))
+        if (overlaps(titleAt(b).rect, { x: s.x1, y: s.y1, w: s.x2 - s.x1, h: s.y2 - s.y1 })) over.push(`${b.part.title} over ${s.net}`);
+    expect(over).toEqual([]);
   });
 
   it('passes no wire through a box', () => {

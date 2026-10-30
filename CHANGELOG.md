@@ -21,6 +21,10 @@ every merged pull request.
   last change") or the part left off, `get_diagram_image` says why there's
   no picture, and `set_connections` with `show` waits for the drawing and
   says what went wrong (#134).
+- A transistor's name on the block diagram is written beside its symbol,
+  not across its drain or collector wire, and pins the pin table spells out
+  ("Gate", "Drain") are labelled with their letter (G, D) so they don't
+  crowd the symbol; the full name is the tooltip.
 
 ## [0.2.1] - 2026-10-29
 

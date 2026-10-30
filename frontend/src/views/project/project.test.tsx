@@ -5,7 +5,7 @@ import type { ProjectDetail } from '../../lib/types';
 import { fakeBackend, recorded, type FakeBackend } from '../../test/backend';
 import { ProjectView } from '../ProjectView';
 import { darkTheme, palette, swatch } from '../../lib/diagramPalette';
-import { fitView, zoomAbout } from './BlockDiagram';
+import { fitView, terminalLabel, zoomAbout } from './BlockDiagram';
 import { connectionsCSV } from './ConnectionTable';
 import { designators } from './connections';
 import { pinoutsCSV } from './PinTables';
@@ -22,6 +22,15 @@ describe('the view', () => {
     // The drawing point under (100, 50) stays there.
     expect((100 - v.x) / v.k).toBe(100);
     expect(zoomAbout({ k: 4, x: 0, y: 0 }, 2, 0, 0).k).toBe(4); // at most 400%
+  });
+
+  it("labels a transistor's pins with their letter when the pin table spells them out", () => {
+    expect(terminalLabel('Gate', 'gate')).toBe('G');
+    expect(terminalLabel('Drain', 'drain')).toBe('D');
+    expect(terminalLabel('Emitter', 'emitter')).toBe('E');
+    expect(terminalLabel('G', 'gate')).toBe('G');
+    expect(terminalLabel('S2', 'source')).toBe('S2');
+    expect(terminalLabel('Thermal', undefined)).toBe('Thermal');
   });
 
   it('fits a drawing, never above 100%', () => {

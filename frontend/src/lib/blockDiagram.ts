@@ -50,6 +50,8 @@ const GROUND = 16; // a ground symbol's height, with its stub
 const SLOT = 90; // a bottom pin with a passive hanging under it
 const CHAR = 7.5; // a label's width per character
 const PIN_CHAR = 6.6; // a pin name's width per character (11px)
+const TITLE_CHAR = 8.6; // a title's width per character (14px, bold)
+const TITLE_X = 36; // a transistor's title, from its left: right of its drain or collector lead
 
 /** The nearest grid line. */
 export const snap = (v: number) => Math.round(v / GRID) * GRID;
@@ -357,6 +359,21 @@ export function portIndex(port: string): number {
 }
 
 /**
+ * Where a box's title is written, and the room it takes: centred above
+ * the box; a transistor's beside its symbol, right of the drain or
+ * collector lead, which leaves through the middle of its top.
+ */
+export function titleAt(b: Box): { x: number; y: number; anchor: 'start' | 'middle'; rect: Rect } {
+  const w = b.part.title.length * TITLE_CHAR;
+  if (threeTerminal(b.part.shape)) {
+    const y = b.y + b.h / 2 + 5;
+    return { x: b.x + TITLE_X, y, anchor: 'start', rect: { x: b.x + TITLE_X, y: y - 12, w, h: 15 } };
+  }
+  const x = b.x + b.w / 2;
+  return { x, y: b.y - 12, anchor: 'middle', rect: { x: x - w / 2, y: b.y - 24, w, h: 15 } };
+}
+
+/**
  * The bands a body keeps for its top and bottom pins' names (written
  * down the body): the left and right pins start below the top band and
  * end above the bottom one.
@@ -378,8 +395,10 @@ export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
     const pins: PlacedPin[] = visiblePins(part, opts).map((p) => ({ ...p, x: 0, y: 0, dim: !p.connected || undefined }));
     const tr = threeTerminal(part.shape);
     if (tr) {
-      // A transistor is its symbol, the pin ends on the symbol's border.
-      return { part, pins, body: { x: 0, y: 0, w: tr.w, h: tr.h }, x: 0, y: 0, w: tr.w, h: tr.h };
+      // A transistor is its symbol, the pin ends on the symbol's border;
+      // its title goes beside it (titleAt), so the node takes it in.
+      const w = Math.max(tr.w, up(TITLE_X + part.title.length * TITLE_CHAR + 4));
+      return { part, pins, body: { x: 0, y: 0, w: tr.w, h: tr.h }, x: 0, y: 0, w, h: tr.h };
     }
     const on = (side: DiagramPin['side']) => pins.filter((p) => p.side === side);
     const bottomW = on('bottom').reduce((n, p) => n + bottomSlot(d, part, p), 0);
@@ -402,7 +421,7 @@ export function measure(d: Diagram, opts: LayoutOptions = {}): Box[] {
 export function pinsAt(b: Box, d?: Diagram): void {
   const tr = threeTerminal(b.part.shape);
   if (tr) {
-    b.body = { x: b.x, y: b.y, w: b.w, h: b.h };
+    b.body = { x: b.x, y: b.y, w: tr.w, h: tr.h };
     for (const p of b.pins) {
       const t = tr.terminals[p.terminal ?? ''] ?? { x: 0, y: b.h / 2 };
       Object.assign(p, { x: b.x + t.x, y: b.y + t.y });

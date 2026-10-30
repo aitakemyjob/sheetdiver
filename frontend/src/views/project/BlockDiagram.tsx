@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Download, Eye, EyeOff, LayoutGrid, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { api, saveText } from '../../lib/api';
-import { layoutBlockDiagram, snap, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
+import { layoutBlockDiagram, snap, titleAt, type BlockDrawing, type Box, type PlacedPassive, type PlacedPin, type Pt, type Rect } from '../../lib/blockDiagram';
 import { threeTerminal, twoTerminal, twoTerminalLeads, twoTerminalTransform } from '../../lib/symbols';
 import { palette, swatch } from '../../lib/diagramPalette';
 import { useStore } from '../../lib/store';
@@ -124,8 +124,19 @@ function PassiveSymbol({ p, color, text, wide }: { p: PlacedPassive; color: stri
 }
 
 /**
- * A transistor's standard symbol in its box, its pins named at their
- * terminals (the pin table's names: G, D, S or B, C, E).
+ * What a transistor's pin is labelled with at its terminal: the pin
+ * table's name when it's short (G, D, S or B, C, E, Q1), else the
+ * terminal's standard letter ("Gate" is G), which fits beside the symbol;
+ * the full name is its tooltip.
+ */
+export function terminalLabel(name: string, terminal?: string): string {
+  if (name.length <= 2 || !terminal) return name;
+  return terminal[0].toUpperCase();
+}
+
+/**
+ * A transistor's standard symbol in its box, its pins labelled at their
+ * terminals (terminalLabel).
  */
 function TransistorSymbol({ b, color, text, wide }: { b: Box; color: string; text: string; wide: boolean }) {
   const sym = threeTerminal(b.part.shape)!;
@@ -140,7 +151,8 @@ function TransistorSymbol({ b, color, text, wide }: { b: Box; color: string; tex
         const pos = t.x === 0 ? { x: 4, y: t.y - 6, anchor: 'start' as const } : t.y === 0 ? { x: t.x + 5, y: 12, anchor: 'start' as const } : { x: t.x + 5, y: t.y - 6, anchor: 'start' as const };
         return (
           <text key={i} data-pin={p.name} x={pos.x} y={pos.y} textAnchor={pos.anchor} fontSize={9} fill={text}>
-            {p.name}
+            <title>{p.name}</title>
+            {terminalLabel(p.name, p.terminal)}
           </text>
         );
       })}
@@ -443,9 +455,14 @@ export function BlockDiagram({ d, highlight, onChange }: { d: ProjectDetail; hig
                   style={{ cursor: drag?.id === b.part.id ? 'grabbing' : 'grab', ...fade(sel?.parts.has(b.part.id)) }}
                 >
                   {sel?.parts.has(b.part.id) && <Halo r={b.body} data-picked />}
-                  <text x={b.x + b.w / 2} y={b.y - 12} textAnchor="middle" fontSize={14} fontWeight={600} fill={c.text}>
-                    {b.part.title}
-                  </text>
+                  {(() => {
+                    const t = titleAt(b);
+                    return (
+                      <text x={t.x} y={t.y} textAnchor={t.anchor} fontSize={14} fontWeight={600} fill={c.text}>
+                        {b.part.title}
+                      </text>
+                    );
+                  })()}
                   {threeTerminal(b.part.shape) ? (
                     <TransistorSymbol b={b} color={on ? 'var(--accent)' : c.stroke} text={c.text} wide={on} />
                   ) : (
