@@ -63,6 +63,10 @@ every merged pull request.
   badge only when it's time to refresh), the category chip is capped,
   Import shows its count, and Clear stays beside "Filter on a parameter".
   (#20)
+- `set_connections` finds one designator of a BOM entry written as a
+  range: `C42` of "C40-C45, C60-C72" (also with spaces round the dash)
+  no longer fails with "not in the BOM or the blocks", so a drawing
+  block can be swapped for the BOM part in one call (#133).
 
 ## [0.2.1] - 2026-10-29
 
