@@ -42,6 +42,12 @@ every merged pull request.
   another, was drawn in no frame, or not at all on a board with groups;
   it's now drawn with the part it hangs by, and the reply says so and
   how to put it in its group. (#82)
+- **Both paths through series passives are on a link.** Two boxes joined
+  twice through series resistors (USB-C CC1 through R6 and CC2 through
+  R3) showed only the first path in the block diagram's links: the second
+  was dropped because the pair already had a link. It now joins that
+  link, with its nets, and a link through series passives is labelled
+  with the nets' bus when they're on one (`J1 — J2: USB_CC`). (#85)
 
 ## [0.2.1] - 2026-10-29
 

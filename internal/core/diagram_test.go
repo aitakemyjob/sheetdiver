@@ -963,3 +963,54 @@ func TestAPassiveInAGroupWithNoParts(t *testing.T) {
 		}
 	}
 }
+
+func TestSeriesLinksMergeBothPaths(t *testing.T) {
+	// The USB-C CC lines: J1.CC1 → R6 → J2.3 and J1.CC2 → R3 → J2.2, two
+	// identical paths through series resistors (#85). Both nets are on the
+	// one J1 — J2 link; on buses, the link is labelled with the buses.
+	build := func(buses bool) []string {
+		s := newService(t)
+		ctx := context.Background()
+		if _, err := s.Lib.CreateProject(ctx, "cc", ""); err != nil {
+			t.Fatal(err)
+		}
+		bus := func(b string) *string {
+			if !buses {
+				b = ""
+			}
+			return &b
+		}
+		ch := ConnectionsChange{
+			Blocks: []BlockChange{{Name: "J1", Kind: "connector"}, {Name: "J2", Kind: "connector"}, {Name: "R6", Kind: "resistor", Value: "5.1k"}, {Name: "R3", Kind: "resistor", Value: "5.1k"}},
+			Nets:   []NetChange{{Name: "USB_CC1", Bus: bus("USB_CC")}, {Name: "USB_CC2", Bus: bus("USB_CC")}, {Name: "VBUS_CC1", Bus: bus("CC_SENSE")}, {Name: "VBUS_CC2", Bus: bus("CC_SENSE")}},
+			Connect: []ConnectChange{
+				{Net: "USB_CC1", Part: "J1", Pin: "CC1"}, {Net: "USB_CC1", Part: "R6", Pin: "2"}, {Net: "VBUS_CC1", Part: "R6", Pin: "1"}, {Net: "VBUS_CC1", Part: "J2", Pin: "3"},
+				{Net: "USB_CC2", Part: "J1", Pin: "CC2"}, {Net: "USB_CC2", Part: "R3", Pin: "2"}, {Net: "VBUS_CC2", Part: "R3", Pin: "1"}, {Net: "VBUS_CC2", Part: "J2", Pin: "2"},
+			},
+		}
+		if problems, err := s.ChangeConnections(ctx, "cc", ch, library.SourceUser); err != nil || len(problems) > 0 {
+			t.Fatal(err, problems)
+		}
+		d, err := s.ProjectDetail(ctx, "cc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		titles := map[string]string{}
+		for _, p := range d.Connections.Diagram.Parts {
+			titles[p.ID] = p.Title
+		}
+		var out []string
+		for _, l := range d.Connections.Diagram.Links {
+			nets := append([]string(nil), l.Nets...)
+			slices.Sort(nets)
+			out = append(out, titles[l.From]+"—"+titles[l.To]+" "+l.Label+" "+strings.Join(nets, ","))
+		}
+		return out
+	}
+	if got := build(false); len(got) != 1 || !strings.Contains(got[0], "USB_CC1,USB_CC2,VBUS_CC1,VBUS_CC2") {
+		t.Errorf("without buses: %q, want one link with both paths' nets", got)
+	}
+	if got := build(true); len(got) != 1 || !strings.Contains(got[0], " USB_CC ") && !strings.Contains(got[0], " CC_SENSE ") || strings.Contains(got[0], "USB_CC1 ") {
+		t.Errorf("on buses: %q, want one link labelled with a bus", got)
+	}
+}
