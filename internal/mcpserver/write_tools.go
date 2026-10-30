@@ -113,9 +113,10 @@ type pinInput struct {
 }
 
 type recordPinsArgs struct {
-	Part    string     `json:"part"`
-	Package string     `json:"package,omitempty" jsonschema:"package these pins are for (replaces that package's pins)"`
-	Pins    []pinInput `json:"pins"`
+	Part     string     `json:"part"`
+	Package  string     `json:"package,omitempty" jsonschema:"package these pins are for (replaces that package's pins, and those recorded without a package)"`
+	AllParts bool       `json:"all_parts,omitempty" jsonschema:"record the table for every part of the datasheet, when it covers several with the same pinout; by default it's for this part alone"`
+	Pins     []pinInput `json:"pins"`
 }
 
 type fieldInput struct {
@@ -449,9 +450,9 @@ func (s *Server) registerWrite() {
 			return text("recorded\n" + figureDetail(f)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "record_pins", Description: "Record a part's pin table (replacing auto-extracted pins, or one package's pins).", Annotations: writes("Record pins", true)},
+	addTool(s, &mcp.Tool{Name: "record_pins", Description: "Record a part's pin table (replacing auto-extracted pins, or one package's pins). When the part's datasheet covers other parts too (a 2-pin and a 3-pin header), the table is that part's alone, so the others keep theirs; all_parts records it for all of them.", Annotations: writes("Record pins", true)},
 		write, func(a recordPinsArgs) string { return fmt.Sprintf("record %d pins for %s", len(a.Pins), a.Part) }, func(ctx context.Context, a recordPinsArgs) (result, error) {
-			_, d, err := c.DatasheetOf(ctx, a.Part)
+			r, d, err := c.DatasheetOf(ctx, a.Part)
 			if err != nil {
 				return result{}, err
 			}
@@ -459,11 +460,21 @@ func (s *Server) registerWrite() {
 			for i, p := range a.Pins {
 				pins[i] = library.Pin{Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page - 1}
 			}
-			if err := c.RecordPins(ctx, d.ID, a.Package, pins, library.SourceAgent); err != nil {
+			// One part's table, when the datasheet has others.
+			part := ""
+			others, _ := c.Lib.PartsOfDatasheet(ctx, d.ID)
+			if !a.AllParts && len(others) > 1 {
+				part = r.Part.MPN
+			}
+			if err := c.RecordPartPins(ctx, d.ID, part, a.Package, pins, library.SourceAgent); err != nil {
 				return result{}, err
 			}
 			c.Changed("pins", d.ID)
-			return text(fmt.Sprintf("recorded %d pins", len(pins))), nil
+			msg := fmt.Sprintf("recorded %d pins", len(pins))
+			if part != "" {
+				msg += fmt.Sprintf(" for %s alone (its datasheet covers %d parts; the others keep their pins, all_parts: true records them for every one)", part, len(others))
+			}
+			return text(msg), nil
 		})
 
 	addTool(s, &mcp.Tool{Name: "record_registers", Description: "Record registers read from a register map (name, address, width, reset, access, description, bit fields). Replaces registers with the same name.", Annotations: writes("Record registers", true)},

@@ -52,7 +52,7 @@ Conventions:
 | `list_figures` | Figures with number, page, kind (`graph`, `schematic`, `waveform`, `block_diagram`, `pinout`, `timing`, `layout`, `package`), caption, axes and recorded description. |
 | `get_figure` | A figure as an image, with what is known about it and the text inside it. |
 | `get_tables` | Detected tables, or one table as an image with its cells. Tables flagged IRREGULAR (matrices, grouped rows, multi-row headers) have unreliable cells; read the image. |
-| `get_pins` | The pin table. |
+| `get_pins` | The pin table: the part's own, when its datasheet covers other parts with a table recorded for each, else the datasheet's. |
 | `get_registers` | Recorded registers and the register-map sections to read from. |
 | `show` | Put something on the user's screen while discussing it: a part, a page (optionally highlighting a region), a figure, a section, a project (highlighting a rail or BOM entry; `tab` `diagram`, `pins`, `connections` or `simulations` opens its block diagram, pin tables, connection table or simulations, highlighting a net, part, block or simulation), search results, parts compared side by side (`compare`: parts, keys, a note per part, the recommended one), catalogue candidates (`catalog`: LCSC codes or a search, the recommended one) or a filled-in calculator (`calc`). `explain` adds the agent's reasoning in markdown beside the view; links like `[p3](#page/TPS63900/3)`, `#figure/PART/5`, `#part/PART`, `#section/PART/Title` and `#project/Name` open what they name. |
 | `show_walkthrough` | Walk the user through something step by step: each step shows something as `show` does, with a title and an explanation; the user clicks through them. |
@@ -76,7 +76,7 @@ Conventions:
 | `record_parameters` | Add or update parameters with key, section and page; `replace_auto` drops automatic rows for the same key; `delete` removes wrong rows. |
 | `describe_figure` | Record what a figure shows: kind, title, axes with ranges, conditions, description, curves. |
 | `record_table` | Save a clean transcription of a table read from its image (header with units, one row per entry; matrices flattened to one row per combination). Replaces the automatic cells, makes them searchable, survives re-extraction. Can also add a table the extractor missed (page + region). |
-| `record_pins` | Replace the pin table (or one package's pins). |
+| `record_pins` | Replace the pin table (or one package's pins; a package's table also replaces one recorded without a package). When the part's datasheet covers other parts (a 2-pin and a 3-pin header), the table is that part's alone and the others keep theirs; `all_parts: true` records it for all of them. |
 | `record_registers` | Add registers with address, width, reset, access and bit fields. |
 | `record_recommendations` | Recommended components: role, value, part number, manufacturer, conditions, page. Regular "recommended inductors/capacitors" tables are turned into recommendations automatically. |
 | `add_note` | A markdown note on a part, figure, parameter, datasheet or project. |

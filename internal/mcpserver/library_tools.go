@@ -458,11 +458,11 @@ func (s *Server) registerLibrary() {
 
 	addTool(s, &mcp.Tool{Name: "get_pins", Description: "A part's pin table (number, name, type, description, package). If empty or wrong, read get_section with section=pins and record_pins.", Annotations: readOnly("Get pins")},
 		read, func(a pinsArgs) string { return "pins " + a.Part }, func(ctx context.Context, a pinsArgs) (result, error) {
-			r, d, err := c.DatasheetOf(ctx, a.Part)
+			r, _, err := c.DatasheetOf(ctx, a.Part)
 			if err != nil {
 				return result{}, err
 			}
-			pins, err := c.Lib.Pins(ctx, d.ID, a.Package)
+			pins, err := c.PartPins(ctx, r.Part, a.Package)
 			if err != nil {
 				return result{}, err
 			}
@@ -470,6 +470,9 @@ func (s *Server) registerLibrary() {
 				return text(fmt.Sprintf("no pins recorded for %s; read get_section(section=pins) and record them with record_pins", r.Part.MPN)), nil
 			}
 			var b strings.Builder
+			if pins[0].Part != "" {
+				fmt.Fprintf(&b, "recorded for %s alone (its datasheet covers other parts too)\n", pins[0].Part)
+			}
 			for _, p := range pins {
 				pkg := ""
 				if p.Package != "" {

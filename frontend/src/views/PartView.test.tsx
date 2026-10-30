@@ -91,6 +91,16 @@ describe('PartView', () => {
     expect(await screen.findByRole('table')).toBeInTheDocument();
   });
 
+  it("asks for the part's own pins, not every part's of its datasheet", async () => {
+    await part('SD1234', { tab: 'pins' });
+    await screen.findByRole('table');
+    const [req] = b.callsTo('pins.list') as { id: number; part?: number }[];
+    const detail = b.callsTo('part.detail').length;
+    expect(detail).toBeGreaterThan(0);
+    expect(req.part).toBeGreaterThan(0);
+    expect(req.id).toBeGreaterThan(0);
+  });
+
   it('shows a part from another datasheet', async () => {
     await part('TPX5430');
     expect(screen.getAllByText(/TPX5430/).length).toBeGreaterThan(0);

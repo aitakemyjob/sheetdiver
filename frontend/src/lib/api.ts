@@ -88,7 +88,8 @@ export const api = {
   addFigure: (f: Partial<Figure>) => call<Figure>('figure.add', f),
   tables: (datasheetId: number) => call<Table[]>('tables.list', { id: datasheetId }),
   recordTable: (id: number, u: { title?: string; description?: string; header?: string[]; rows?: string[][] }) => call<Table>('table.record', { id, ...u }),
-  pins: (datasheetId: number) => call<Pin[]>('pins.list', { id: datasheetId }),
+  /** A datasheet's pins, or (part given) one part's of them: those recorded for it, else those for every part. */
+  pins: (datasheetId: number, part?: number) => call<Pin[]>('pins.list', { id: datasheetId, ...(part ? { part } : {}) }),
   registers: (datasheetId: number) => call<Register[]>('registers.list', { id: datasheetId }),
   recommendations: (datasheetId: number, mpn?: string) => call<Recommendation[]>('recommendations.list', { datasheetId, mpn }),
   deleteRecommendation: (id: number) => call<void>('recommendations.delete', { id }),

@@ -194,6 +194,8 @@ export interface Parameter {
 
 export interface Pin {
   id: number;
+  /** The part it's recorded for, when the datasheet covers several with different pinouts. */
+  part?: string;
   package?: string;
   number: string;
   name: string;

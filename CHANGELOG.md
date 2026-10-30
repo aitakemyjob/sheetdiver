@@ -71,6 +71,14 @@ every merged pull request.
   range: `C42` of "C40-C45, C60-C72" (also with spaces round the dash)
   no longer fails with "not in the BOM or the blocks", so a drawing
   block can be swapped for the BOM part in one call (#133).
+- Parts that share a datasheet no longer share one pin table. `record_pins`
+  for a part whose datasheet covers others (a 2-pin and a 3-pin header
+  from one catalogue PDF) records it for that part alone; the others keep
+  their pins, and their connections stay where they were. `all_parts`
+  records one table for all of them. Recording a package's table now
+  replaces one recorded without a package, instead of adding to it, so no
+  pin numbers appear twice. The Pins tab and the connection table's pin
+  picker show the part's own table (#130).
 
 ## [0.2.1] - 2026-10-29
 

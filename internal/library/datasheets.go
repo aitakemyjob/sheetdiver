@@ -390,8 +390,8 @@ func insertParam(ctx context.Context, tx *sql.Tx, p Parameter) (int64, error) {
 
 // insertPin stores a pin.
 func insertPin(ctx context.Context, tx *sql.Tx, p Pin) (int64, error) {
-	res, err := tx.ExecContext(ctx, `INSERT INTO pins (datasheet_id, package, number, name, type, description, page, source) VALUES (?,?,?,?,?,?,?,?)`,
-		p.DatasheetID, p.Package, p.Number, p.Name, p.Type, p.Description, p.Page, p.Source)
+	res, err := tx.ExecContext(ctx, `INSERT INTO pins (datasheet_id, part, package, number, name, type, description, page, source) VALUES (?,?,?,?,?,?,?,?,?)`,
+		p.DatasheetID, p.Part, p.Package, p.Number, p.Name, p.Type, p.Description, p.Page, p.Source)
 	if err != nil {
 		return 0, err
 	}

@@ -186,8 +186,11 @@ type Parameter struct {
 
 // Pin is one pin of a package.
 type Pin struct {
-	ID          int64  `json:"id"`
-	DatasheetID int64  `json:"datasheetId"`
+	ID          int64 `json:"id"`
+	DatasheetID int64 `json:"datasheetId"`
+	// Part is the part number the pin is recorded for, when the datasheet
+	// covers several parts with different pinouts; "" for every part.
+	Part        string `json:"part,omitempty"`
 	Package     string `json:"package,omitempty"`
 	Number      string `json:"number"`
 	Name        string `json:"name"`

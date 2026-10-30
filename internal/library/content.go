@@ -548,7 +548,7 @@ func (s *Store) DeleteParameters(ctx context.Context, dsID int64, ids []int64) e
 
 // Pins lists a datasheet's pins, optionally for one package.
 func (s *Store) Pins(ctx context.Context, dsID int64, pkg string) ([]Pin, error) {
-	q := `SELECT id, package, number, name, type, description, page, source FROM pins WHERE datasheet_id = ?`
+	q := `SELECT id, part, package, number, name, type, description, page, source FROM pins WHERE datasheet_id = ?`
 	args := []any{dsID}
 	if pkg != "" {
 		q += ` AND package LIKE ?`
@@ -562,7 +562,7 @@ func (s *Store) Pins(ctx context.Context, dsID int64, pkg string) ([]Pin, error)
 	out := []Pin{}
 	for rows.Next() {
 		p := Pin{DatasheetID: dsID}
-		if err := rows.Scan(&p.ID, &p.Package, &p.Number, &p.Name, &p.Type, &p.Description, &p.Page, &p.Source); err != nil {
+		if err := rows.Scan(&p.ID, &p.Part, &p.Package, &p.Number, &p.Name, &p.Type, &p.Description, &p.Page, &p.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -571,14 +571,26 @@ func (s *Store) Pins(ctx context.Context, dsID int64, pkg string) ([]Pin, error)
 }
 
 // RecordPins replaces a datasheet's pins for a package (all automatic
-// pins when the package is new) with the given list.
+// pins when the package is new) with the given list, for every part of
+// the datasheet.
 func (s *Store) RecordPins(ctx context.Context, dsID int64, pkg string, pins []Pin, source string) error {
+	return s.RecordPartPins(ctx, dsID, "", pkg, pins, source)
+}
+
+// RecordPartPins replaces the pins recorded for one part of a datasheet
+// ("" for all of them) in a package with the given list. A package's
+// table also replaces the table recorded without a package for the same
+// part, so the two are never mixed; recording for every part also
+// replaces the automatic pins.
+func (s *Store) RecordPartPins(ctx context.Context, dsID int64, part, pkg string, pins []Pin, source string) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM pins WHERE datasheet_id = ? AND (package = ? OR source = 'auto')`, dsID, pkg); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM pins WHERE datasheet_id = ? AND (
+			(part = ? COLLATE NOCASE AND (package = ? OR (? <> '' AND package = '' AND source <> 'auto')))
+			OR (? = '' AND source = 'auto'))`, dsID, part, pkg, pkg, part); err != nil {
 			return err
 		}
 		for _, p := range pins {
-			p.DatasheetID, p.Package, p.Source = dsID, pkg, source
+			p.DatasheetID, p.Part, p.Package, p.Source = dsID, part, pkg, source
 			if _, err := insertPin(ctx, tx, p); err != nil {
 				return err
 			}
