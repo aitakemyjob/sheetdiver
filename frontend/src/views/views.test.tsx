@@ -144,6 +144,43 @@ describe('CatalogView', () => {
   });
 });
 
+describe('CatalogView toolbar', () => {
+  const install = (patch: Record<string, unknown>) => useStore.setState({ catalog: { ...(recorded('catalog.status') as object), installed: true, ...patch } as never });
+  beforeEach(() => {
+    b.on('catalog.categories', () => [{ category: 'Resistors', subcategory: 'Chip Resistor - Surface Mount', parts: 2, inStock: 2 }]);
+    b.on('catalog.params', () => [{ key: 'Resistance', kind: 'number', count: 2, unit: 'Ω', min: 1000, max: 10000 }]);
+    b.on('catalog.search', () => []);
+  });
+
+  it('keeps to one line: an icon Refresh, the age only when stale, a short Import', async () => {
+    install({ stale: false, ageDays: 4, published: '2026-10-25T00:00:00Z' });
+    render(<CatalogView params={{ subcategory: 'Chip Resistor - Surface Mount', nonce: 1 }} />);
+    const refresh = await screen.findByRole('button', { name: 'Refresh the catalogue' });
+    expect(refresh).toHaveTextContent('');
+    expect(refresh.getAttribute('title')).toMatch(/published 4 days ago/);
+    expect(screen.queryByText(/days old/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Import$/ })).toBeDisabled();
+    expect(screen.getByText('Basic')).toBeInTheDocument();
+    // The chip is capped, its full name in the title.
+    const chip = screen.getByTitle(/Chip Resistor - Surface Mount: click to clear/);
+    expect(chip).toHaveClass('catalog-chip');
+  });
+
+  it('says the age when it is time to refresh', async () => {
+    install({ stale: true, ageDays: 31, published: '2026-09-28T00:00:00Z' });
+    render(<CatalogView params={{ subcategory: 'Chip Resistor - Surface Mount', nonce: 1 }} />);
+    expect(await screen.findByText('31 days old')).toBeInTheDocument();
+  });
+
+  it('keeps Clear beside the add-filter button', async () => {
+    install({ stale: false, ageDays: 4, published: '2026-10-25T00:00:00Z' });
+    render(<CatalogView params={{ subcategory: 'Chip Resistor - Surface Mount', filters: [{ key: 'Resistance', op: '>=', input: '4.7k' }], nonce: 1 }} />);
+    const clear = await screen.findByRole('button', { name: 'Clear' });
+    const add = screen.getByRole('button', { name: /Filter on a parameter|Reading parameters/ });
+    expect(clear.parentElement).toBe(add.closest('.catalog-filter-actions'));
+  });
+});
+
 describe('Welcome', () => {
   it('opens the import dialog', () => {
     render(<Welcome />);

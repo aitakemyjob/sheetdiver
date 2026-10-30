@@ -56,6 +56,13 @@ every merged pull request.
   now selects and searches by category and subcategory, and
   `search_catalog`, `catalog_parameters` and `show` take a `category` to
   say which one. (#19)
+- **The catalogue toolbar fits on one line** down to a 1280 px window
+  with the library open, where Refresh and Import wrapped to a second
+  line and the filters' Clear onto a third. The search box gives way
+  first, Refresh is an icon (the catalogue's age in its tooltip, and as a
+  badge only when it's time to refresh), the category chip is capped,
+  Import shows its count, and Clear stays beside "Filter on a parameter".
+  (#20)
 
 ## [0.2.1] - 2026-10-29
 

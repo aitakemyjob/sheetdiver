@@ -139,6 +139,7 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; min-height: 
 .col { display: flex; flex-direction: column; gap: 8px; }
 .grow { flex: 1; min-width: 0; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nowrap { white-space: nowrap; flex: none; }
 .sep { width: 1px; align-self: stretch; background: var(--border); margin: 6px 2px; }
 .add { color: var(--ok); }
 .del { color: var(--err); }
@@ -501,6 +502,11 @@ html { font-size: var(--ui-font-size, 13px); }
 .ab-btn.dot { position: relative; }
 .ab-btn.dot::after { content: ''; position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
 .catalog-filters { gap: 8px; border-top: 0; padding-top: 0; }
+/* The catalogue toolbar stays on one line down to a 1280 px window with
+   the library open: the search box gives way, the category chip is capped. */
+.catalog-toolbar { flex-wrap: wrap; }
+.catalog-search { flex: 1 1 140px; min-width: 140px; max-width: 340px; }
+.catalog-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 170px; flex: none; }
 .filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); font-size: 12px; }
 .filter-chip .input { height: 24px; font-size: 12px; }
 .filter-chip .select { width: auto; min-width: 54px; }
