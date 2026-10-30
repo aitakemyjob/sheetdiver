@@ -167,6 +167,10 @@ var symbolKinds = []struct {
 	re   *regexp.Regexp
 	kind string
 }{
+	// Power-path and signal ICs whose names hold a passive's word: a load
+	// switch isn't a switch, an eFuse isn't a fuse, an ideal diode isn't a
+	// diode (#77).
+	{regexp.MustCompile(`(?i)load[- ]?switch|\be-?fuses?\b|hot[- ]?swap|ideal[- ]?diode|power[- ]?(mux|multiplexer|path)|analog[- ]?switch|usb[- ]?switch|\bmux\b|multiplexer`), "ic"},
 	{regexp.MustCompile(`(?i)\btvs\b|\besd\b|transient`), "tvs"},
 	// An IC named after what it drives or protects (LED driver, battery protection).
 	{regexp.MustCompile(`(?i)driver|protection|charger|management|monitor|gauge|controller|regulator|converter|supervisor|sensor|amplifier|\bmcu\b|\bsoc\b`), "ic"},
@@ -183,7 +187,7 @@ var symbolKinds = []struct {
 	{regexp.MustCompile(`(?i)resistor|potentiometer|thermistor|\bntc\b|\bptc\b`), "resistor"},
 	{regexp.MustCompile(`(?i)ferrite|bead`), "ferrite"},
 	{regexp.MustCompile(`(?i)inductor|choke|coil`), "inductor"},
-	{regexp.MustCompile(`(?i)fuse|polyfuse`), "fuse"},
+	{regexp.MustCompile(`(?i)\b(poly)?fuses?\b|\bpptc\b`), "fuse"},
 	{regexp.MustCompile(`(?i)crystal|resonator|oscillator`), "crystal"},
 	{regexp.MustCompile(`(?i)battery|\bcell\b|coin`), "battery"},
 	{regexp.MustCompile(`(?i)switch|button|relay`), "switch"},
