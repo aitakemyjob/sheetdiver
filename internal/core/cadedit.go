@@ -207,12 +207,21 @@ func (s *Service) EditModel3D(ctx context.Context, ref, pkg string, shapes []cad
 		if it.State == "" {
 			it.State = string(cadlib.Auto)
 		}
+		// The footprint's notes stay (where its pads came from); the
+		// model's follow them, in place of an earlier model's.
 		if notes != "" {
-			it.Notes = notes
+			kept := it.Notes
+			if i := strings.Index(kept, model3DNotes); i == 0 || i > 0 && kept[i-1] == '\n' {
+				kept = kept[:i]
+			}
+			it.Notes = strings.TrimSpace(strings.TrimSpace(kept) + "\n" + model3DNotes + notes)
 		}
 		return nil, nil
 	})
 }
+
+// model3DNotes starts a 3D model's notes, on a line after its footprint's.
+const model3DNotes = "3D model: "
 
 // ResetModel3D drops a 3D model's edit: it's built from the package again.
 func (s *Service) ResetModel3D(ctx context.Context, ref, pkg string) (PartCad, error) {

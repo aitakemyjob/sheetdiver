@@ -71,12 +71,18 @@ func TestEditSymbolFootprintAnd3D(t *testing.T) {
 		}
 	}
 	shapes = append(shapes, cad.Shape3D{Kind: cad.Shape3DCylinder, Part: cad.PartMark, X: 0, Y: 0, R: 0.3, Min: cad.V3{0, 0, 3}, Max: cad.V3{0, 0, 3.05}})
-	pc, _, err = s.EditModel3D(ctx, p.MPN, "", shapes, "")
-	if err != nil {
-		t.Fatal(err)
+	before := fv.Notes
+	for _, n := range []string{"body 3 mm", "body 3 mm, with a dot"} {
+		if pc, _, err = s.EditModel3D(ctx, p.MPN, "", shapes, n); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if fv := pc.Packages[0].Footprint; !fv.Model3DEdited || len(fv.Shapes) != len(shapes) {
 		t.Fatalf("3D edit %+v", fv.Shapes)
+	}
+	// The footprint's notes stay; the model's latest follow them.
+	if got, want := pc.Packages[0].Footprint.Notes, strings.TrimSpace(before+"\n3D model: body 3 mm, with a dot"); got != want {
+		t.Errorf("notes %q, want %q", got, want)
 	}
 
 	// The user edits the footprint in KiCad: the 3D edit stays.
