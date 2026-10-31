@@ -217,3 +217,24 @@ func TestSolids(t *testing.T) {
 		t.Errorf("bounds %v %v", lo, hi)
 	}
 }
+
+func TestDraw3DNoLeadTerminals(t *testing.T) {
+	d := func(n float64) Dim { return Dim{Nom: n} }
+	p := Package{Family: "dfn", Pins: 8, Pitch: 0.5, BodyLength: d(2), BodyWidth: d(2), Height: d(0.75),
+		LeadLength: d(0.3), LeadWidth: d(0.25), ExposedPad: &Size{W: 0.8, H: 1.2}}
+	ss, _ := MakeSolids(p)
+	shapes := Draw3D(ss).Items
+	// The body is near black, terminals and the pin 1 mark light.
+	light := func(c string) bool { return len(c) == 7 && c[1] >= '6' }
+	last := -1
+	for i, s := range shapes {
+		if !light(s.Color) {
+			last = i
+		}
+	}
+	// The four terminals down the side the view sees show their ends over
+	// the body, and the mark its top: nothing of them inside the body.
+	if over := len(shapes) - 1 - last; over != 5 {
+		t.Errorf("%d light faces over the body, want 5", over)
+	}
+}

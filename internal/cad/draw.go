@@ -272,9 +272,71 @@ func dimension(d *Drawing, f Footprint) {
 type face struct {
 	pts   []Pt
 	depth float64
-	// solid is its solid's depth, which orders it first.
+	// rank puts it under (-1) or over (1) the body before anything else,
+	// then solid is its solid's depth.
+	rank  int
 	solid float64
 	color string
+}
+
+// onBody is -1 when a solid sits under a body (out past a face of it the
+// viewer doesn't see), 1 when over it (out past one they see), 0 when it
+// touches no body.
+func onBody(s Solid, bodies []Solid, seen func(V3) bool) int {
+	lo, hi := Bounds([]Solid{s})
+	rank := 0
+	for _, b := range bodies {
+		blo, bhi := Bounds([]Solid{b})
+		if !overlaps(lo, hi, blo, bhi, 0.05) {
+			continue
+		}
+		for _, f := range b.Faces {
+			nv, o := newell(b.Verts, f), b.Verts[f[0]]
+			out := false
+			for _, v := range s.Verts {
+				if dot3(nv, V3{v[0] - o[0], v[1] - o[1], v[2] - o[2]}) > 1e-6 {
+					out = true
+					break
+				}
+			}
+			if !out {
+				continue
+			}
+			if seen(nv) {
+				return 1
+			}
+			rank = -1
+		}
+	}
+	return rank
+}
+
+// overlaps reports whether two boxes meet, within tol.
+func overlaps(lo, hi, blo, bhi V3, tol float64) bool {
+	for k := 0; k < 3; k++ {
+		if lo[k] > bhi[k]+tol || blo[k] > hi[k]+tol {
+			return false
+		}
+	}
+	return true
+}
+
+// insideAny reports whether a point is inside one of the (convex) bodies.
+func insideAny(p V3, bodies []Solid) bool {
+	for _, b := range bodies {
+		in := true
+		for _, f := range b.Faces {
+			nv, o := newell(b.Verts, f), b.Verts[f[0]]
+			if dot3(nv, V3{p[0] - o[0], p[1] - o[1], p[2] - o[2]}) > -1e-6 {
+				in = false
+				break
+			}
+		}
+		if in {
+			return true
+		}
+	}
+	return false
 }
 
 // Draw3D draws solids as an isometric view from above the front right,
@@ -290,6 +352,15 @@ func Draw3D(ss []Solid) Drawing {
 		depth := y1*cb - v[2]*sb
 		return Pt{x1, -up}, depth
 	}
+	seen := func(nv V3) bool {
+		return (nv[0]*sa+nv[1]*ca)*cb-nv[2]*sb < -1e-9
+	}
+	var bodies []Solid
+	for _, s := range ss {
+		if s.Part == PartBody {
+			bodies = append(bodies, s)
+		}
+	}
 	var faces []face
 	for _, s := range ss {
 		rgb := s.RGB()
@@ -301,12 +372,13 @@ func Draw3D(ss []Solid) Drawing {
 			_, dp := project(v)
 			solidDepth += dp / float64(len(s.Verts))
 		}
-		// Marks on the body go on top of it, the pad under it first.
-		switch s.Part {
-		case PartMark:
-			solidDepth -= 1e3
-		case PartPad:
-			solidDepth += 1e3
+		// A lead, pad or mark goes over the body it sits on when it
+		// sticks out of a face of it the viewer sees, under it otherwise:
+		// by their middles alone, a no-lead part's terminals down its far
+		// end go under the body they show on.
+		rank := 0
+		if s.Part != PartBody {
+			rank = onBody(s, bodies, seen)
 		}
 		for _, f := range s.Faces {
 			nv := newell(s.Verts, f)
@@ -315,19 +387,31 @@ func Draw3D(ss []Solid) Drawing {
 				continue
 			}
 			var fc face
+			var mid V3
 			for _, i := range f {
 				p, dp := project(s.Verts[i])
 				fc.pts = append(fc.pts, p)
 				fc.depth += dp
+				for k := range mid {
+					mid[k] += s.Verts[i][k] / float64(len(f))
+				}
+			}
+			// A terminal's faces inside the body are hidden by it.
+			if rank != 0 && insideAny(mid, bodies) {
+				continue
 			}
 			fc.depth /= float64(len(f))
 			fc.solid = solidDepth
+			fc.rank = rank
 			k := 0.5 + 0.5*math.Max(0, dot3(nv, light))
 			fc.color = fmt.Sprintf("#%02x%02x%02x", int(255*rgb[0]*k), int(255*rgb[1]*k), int(255*rgb[2]*k))
 			faces = append(faces, fc)
 		}
 	}
 	sort.SliceStable(faces, func(i, j int) bool {
+		if faces[i].rank != faces[j].rank {
+			return faces[i].rank < faces[j].rank
+		}
 		if faces[i].solid != faces[j].solid {
 			return faces[i].solid > faces[j].solid
 		}

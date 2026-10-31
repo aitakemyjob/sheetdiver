@@ -31,7 +31,7 @@ func (s Solid) RGB() [3]float64 {
 	case PartLead, PartPad:
 		return [3]float64{0.82, 0.82, 0.84}
 	case PartMark:
-		return [3]float64{0.55, 0.55, 0.55}
+		return [3]float64{0.95, 0.95, 0.95}
 	}
 	switch s.Color {
 	case "tan":
