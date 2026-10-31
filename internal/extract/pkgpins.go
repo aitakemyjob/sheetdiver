@@ -92,7 +92,9 @@ func packageColumnPage(rows []Row, graphics []pdf.Graphic, page int) []Pin {
 				best, bd = &cols[i], d
 			}
 		}
-		if best == nil || best.role == "package" && bd > 8 || bd > 90 {
+		// Under the package heads, only a package column will do: a
+		// number whose column has no head isn't the name's.
+		if best == nil || best.role == "package" && bd > 8 || bd > 90 || cx < nameX-25 && best.role != "package" {
 			return nil
 		}
 		return best
@@ -234,7 +236,7 @@ func dataColumns(rows []Row, bottom, right float64, heads []pkgColumn) []pkgColu
 		cols[len(cols)-1].x /= float64(n)
 	}
 	for _, h := range heads {
-		best, bd := -1, 12.0
+		best, bd := -1, 25.0
 		for i := range cols {
 			if d := math.Abs(cols[i].x - h.x); d < bd {
 				best, bd = i, d

@@ -242,6 +242,33 @@ func Packages(doc *pdf.Document, secs []Section) []Package {
 	return mergePackages(out)
 }
 
+// textSpans are a row's spans less the sideways ones.
+func textSpans(r Row) []pdf.Span {
+	out := make([]pdf.Span, 0, len(r.Spans))
+	for _, s := range r.Spans {
+		if !s.Vertical {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// textBox is the box round a row's spans less the sideways ones.
+func textBox(r Row) pdf.Rect {
+	var box pdf.Rect
+	for i, s := range textSpans(r) {
+		if i == 0 {
+			box = s.Box
+		} else {
+			box = box.Union(s.Box)
+		}
+	}
+	if box.Empty() {
+		return r.Box
+	}
+	return box
+}
+
 // firstNonBlank is the first non-blank string.
 func firstNonBlank(ss ...string) string {
 	for _, s := range ss {
@@ -351,10 +378,19 @@ func readDims(rows []Row, header int, cols []limitColumn, symX float64) ([]dimRo
 		}
 		// A row's parts set a little off its line (ST's "-" for no value,
 		// a symbol beside values with a footnote) come as rows of their
-		// own overlapping it: they're the same row.
-		for k+1 < len(rows) && rows[k+1].Box.Y0 < r.Box.Y1-1 {
+		// own overlapping it: they're the same row. A sideways label of
+		// the drawing (a tall vertical span) isn't a row's part and
+		// mustn't drag the rows under it in: the row's own bottom, less
+		// such spans, is the limit.
+		r = Row{Y: r.Y, Box: textBox(r), Spans: textSpans(r)}
+		bottom := r.Box.Y1
+		for k+1 < len(rows) && rows[k+1].Box.Y0 < bottom-1 {
 			k++
-			r = Row{Y: r.Y, Box: r.Box.Union(rows[k].Box), Spans: append(append([]pdf.Span(nil), r.Spans...), rows[k].Spans...)}
+			next := textSpans(rows[k])
+			if len(next) == 0 {
+				continue
+			}
+			r = Row{Y: r.Y, Box: r.Box.Union(textBox(rows[k])), Spans: append(append([]pdf.Span(nil), r.Spans...), next...)}
 		}
 		sort.SliceStable(r.Spans, func(a, b int) bool { return r.Spans[a].Box.X0 < r.Spans[b].Box.X0 })
 		var label []string

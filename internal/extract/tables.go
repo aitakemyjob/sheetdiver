@@ -672,8 +672,10 @@ func isMark(t string) bool {
 	return len([]rune(t)) == 1 && strings.ContainsAny(t, "abcdefghijklmnopqrstuvwxyz*†")
 }
 
-// typeKeyRe is a pin table's key to its type letters.
-var typeKeyRe = regexp.MustCompile(`(?i)\b[A-Z]{1,2}\s*:\s*(power|input|output|ground)\b[^;]*;`)
+// typeKeyRe is a pin table's key to its type letters, starting its row
+// after its footnote mark, if any (a description's "EN: input; …" in a
+// cell doesn't).
+var typeKeyRe = regexp.MustCompile(`(?i)^\s*(?:\(?[a-z\d*]\)?\s+)?[A-Z]{1,2}\s*:\s*(power|input|output|ground)\b[^;]*;`)
 
 // noteMarked reports whether a row starts as a note does: a superscript
 // mark (a letter, digit or star, smaller and raised) before its text.
@@ -1557,18 +1559,13 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 			if !rows[j].pin || strings.TrimSpace(rows[j].cells[k]) != "" || padRe.MatchString(role(rows[j].cells, "name")) {
 				continue
 			}
-			// The number sits between the names, read with the lower: look
-			// below first.
-			best := -1
-			for _, below := range []bool{true, false} {
-				dist := 25.0
-				for i, o := range rows {
-					if i != j && o.pin && hasAlnum(o.cells[k]) && (o.y > rows[j].y) == below && math.Abs(o.y-rows[j].y) < dist {
-						best, dist = i, math.Abs(o.y-rows[j].y)
-					}
-				}
-				if best >= 0 {
-					break
+			// The number sits between the names, read with the lower: the
+			// numbered row is below. One above is a pin whose name wrapped
+			// onto this line, which stays its own.
+			best, dist := -1, 25.0
+			for i, o := range rows {
+				if i != j && o.pin && hasAlnum(o.cells[k]) && o.y > rows[j].y && o.y-rows[j].y < dist {
+					best, dist = i, o.y-rows[j].y
 				}
 			}
 			if best < 0 {

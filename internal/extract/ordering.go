@@ -1,9 +1,7 @@
 package extract
 
 import (
-	"maps"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -147,7 +145,14 @@ func (o Ordering) prefixFits(mpn string, f *OrderingField) bool {
 			break
 		}
 		code := mpn[g.At : g.At+g.Len]
-		if !slices.ContainsFunc(slices.Collect(maps.Keys(g.Codes)), func(c string) bool { return strings.EqualFold(c, code) }) {
+		known := false
+		for c := range g.Codes {
+			if strings.EqualFold(c, code) {
+				known = true
+				break
+			}
+		}
+		if !known {
 			return false
 		}
 	}
