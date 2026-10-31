@@ -28,7 +28,7 @@ export function CadLibrarySettings() {
     <div className="card">
       <h3>CAD library</h3>
       <div className="muted" style={{ fontSize: 12 }}>
-        SheetDiver keeps a symbol, footprint and 3D model for your parts here, drawn from their datasheets by SheetDiver and your agents. Edit them in KiCad as you like: your edits are read back and kept.
+        SheetDiver keeps a symbol, footprint and 3D model for your parts here, drawn from their datasheets by SheetDiver and your agents. Edit them in KiCad, Altium or Eagle as you like: your edits are read back, kept, and carried into the other tools' libraries.
       </div>
       <div className="row" style={{ padding: '10px 0' }}>
         <div className="grow" style={{ fontWeight: 600 }}>Folder</div>
@@ -78,7 +78,7 @@ export function CadLibrarySettings() {
       )}
       {l && keeps(l, 'altium') && (
         <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          Altium libraries: <code>{l.name}.SchLib</code> and <code>{l.name}.PcbLib</code> in <code>{l.altium}</code> (each symbol linked to its footprint; 3D models are in the KiCad folder as STEP).
+          Altium libraries: <code>{l.name}.SchLib</code> and <code>{l.name}.PcbLib</code> in <code>{l.altium}</code>, each symbol linked to its footprint, each footprint's 3D model embedded.
         </div>
       )}
       {report && (

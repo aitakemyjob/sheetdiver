@@ -145,7 +145,7 @@ symbol, footprint and 3D model, in a folder (Settings → CAD library) in
 the formats they choose: **KiCad** (`<name>.kicad_sym`, `<name>.pretty`,
 `<name>.3dshapes` STEP models), **Eagle / Fusion** (`<name>.lbr`) and
 **Altium** (`<name>.SchLib` and `<name>.PcbLib`, each symbol linked to its
-footprint). Edits are read back from the KiCad library.
+footprint and each footprint's 3D model embedded).
 
 SheetDiver draws what it can on its own: a symbol from every pin table
 (supplies on top, grounds along the bottom, outputs on the right), and a
@@ -156,12 +156,14 @@ the package outline's dimension table and the recommended land pattern
 (`draw_footprint`), and a symbol laid out the way an engineer reads it
 (`draw_symbol`), checking each with `get_cad_image`.
 
-The user edits symbols and footprints in KiCad. Every sync reads the
-library back first: a symbol or footprint whose content differs from what
-SheetDiver last wrote (formatting aside, so KiCad re-saving it isn't an
-edit) is kept as the user left it, read back into the app and the Eagle
-library, and isn't redrawn until reset. A 3D model file the user replaced
-is left alone. Each symbol and footprint has a state: `auto`
+The user edits symbols and footprints in KiCad, Altium or Eagle. Every
+sync reads each library back first: a symbol or footprint whose content
+differs from what SheetDiver last wrote there (formatting, ids and order
+aside, so a tool saving the library again isn't an edit) is kept as the
+user left it in that tool's library, read back into the app, written to
+the other tools' libraries from what it reads as, and isn't redrawn until
+reset. The newest edit wins. A 3D model file the user replaced in the
+KiCad library is left alone and embedded in the Altium one. Each symbol and footprint has a state: `auto`
 (SheetDiver's), `drawn` (an agent's) or `edited` (the user's).
 
 | Tool | What it does |

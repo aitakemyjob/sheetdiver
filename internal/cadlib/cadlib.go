@@ -87,13 +87,12 @@ type Item struct {
 // adopt takes the user's edit in a format: kept as raw, the model read
 // back from it.
 func (it *Item) adopt(format, raw, fingerprint string) {
-	if it.Raw == nil {
-		it.Raw = map[string]string{}
-	}
+	// The newest edit wins: what was kept from another tool goes, and
+	// that tool's file is rewritten from this one.
+	it.Raw = map[string]string{format: raw}
 	if it.Written == nil {
 		it.Written = map[string]string{}
 	}
-	it.Raw[format] = raw
 	it.Written[format] = fingerprint
 	it.State = Edited
 	it.Changed = true
@@ -143,6 +142,31 @@ type Format interface {
 type Reader interface {
 	// Read adopts what the user changed since the last write.
 	Read(l *Library) ([]string, error)
+}
+
+// Decoder is a format that can turn what it kept of an edit back into
+// the model.
+type Decoder interface {
+	// Decode is the symbol or footprint (by kind) a raw edit holds.
+	Decode(kind, raw string) (*cad.Symbol, *cad.Footprint, error)
+}
+
+// Decode is the symbol or footprint the user's kept edit holds, from
+// whichever tool they made it in.
+func Decode(kind string, raw map[string]string) (*cad.Symbol, *cad.Footprint) {
+	names := make([]string, 0, len(raw))
+	for n := range raw {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		if d, ok := formats[n].(Decoder); ok {
+			if s, f, err := d.Decode(kind, raw[n]); err == nil {
+				return s, f
+			}
+		}
+	}
+	return nil, nil
 }
 
 // formats are the known formats by name.

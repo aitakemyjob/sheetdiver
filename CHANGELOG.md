@@ -14,7 +14,7 @@ every merged pull request.
   you choose (Settings → CAD library), as KiCad libraries (`.kicad_sym`,
   `.pretty`, STEP models) and, if you like, an Eagle / Fusion library
   (`.lbr`) and Altium libraries (`.SchLib`, `.PcbLib`, each symbol linked
-  to its footprint). Each part's **CAD**
+  to its footprint and each footprint's 3D model embedded). Each part's **CAD**
   tab shows them per package, with where each came from:
   - **SheetDiver** draws a symbol from every pin table (supplies on top,
     grounds below, outputs on the right) and a footprint and 3D model for
@@ -27,10 +27,11 @@ every merged pull request.
     the way an engineer reads it (`draw_symbol`), and looks at both
     (`get_cad_image`, with the pitch, row span and pad size dimensioned)
     to compare with the drawing.
-  - **You** edit anything in KiCad. Every sync reads the library back first:
-    a symbol or footprint you changed (not merely re-saved) is kept as you
-    left it, shown in the app, carried into the Eagle library, and never
-    redrawn until you reset it; a 3D model you replaced is left alone.
+  - **You** edit anything in KiCad, Altium or Eagle. Every sync reads the
+    libraries back first: a symbol or footprint you changed (not merely
+    saved again) is kept as you left it in that tool's library, shown in
+    the app, carried into the other tools' libraries, and never redrawn
+    until you reset it; a 3D model you replaced is left alone.
   - **Through-hole and custom packages.** DIP, pin headers and SIP,
     TO-92 and TO-220 style inline packages, radial and axial parts, with
     holes sized from the lead (IPC-2222), square pin 1 pads and 3D leads

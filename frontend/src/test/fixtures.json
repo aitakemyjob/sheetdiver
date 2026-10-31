@@ -23112,12 +23112,12 @@
      {
       "name": "altium",
       "label": "Altium",
-      "readsEdits": false
+      "readsEdits": true
      },
      {
       "name": "eagle",
       "label": "Eagle / Fusion",
-      "readsEdits": false
+      "readsEdits": true
      },
      {
       "name": "kicad",
@@ -23171,12 +23171,12 @@
      {
       "name": "altium",
       "label": "Altium",
-      "readsEdits": false
+      "readsEdits": true
      },
      {
       "name": "eagle",
       "label": "Eagle / Fusion",
-      "readsEdits": false
+      "readsEdits": true
      },
      {
       "name": "kicad",
@@ -23208,12 +23208,12 @@
     {
      "name": "altium",
      "label": "Altium",
-     "readsEdits": false
+     "readsEdits": true
     },
     {
      "name": "eagle",
      "label": "Eagle / Fusion",
-     "readsEdits": false
+     "readsEdits": true
     },
     {
      "name": "kicad",

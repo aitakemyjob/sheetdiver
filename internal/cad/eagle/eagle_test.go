@@ -72,3 +72,50 @@ func TestLibrary(t *testing.T) {
 		t.Error("paste windows on a small exposed pad")
 	}
 }
+
+// What's written reads back the same, and an element edited in the file
+// reads as the edit while the rest stay as they were.
+func TestReadBack(t *testing.T) {
+	p := testPart(t)
+	lib := Library("SheetDiver", []Part{p})
+	r, err := ReadLibrary(lib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, ok := r.Packages["DFN-8_2X2"]
+	if !ok || len(pkg.Footprint.Pads) != len(p.Footprint.Pads) || !strings.HasPrefix(pkg.Raw, "<package") {
+		t.Fatalf("package read back: %+v", r.Packages)
+	}
+	sym, ok := r.Symbols["TLV757P"]
+	if !ok || sym.Package != "DFN-8_2X2" || sym.Symbol.Reference != "U" || len(sym.Symbol.Pins) != 9 {
+		t.Fatalf("symbol read back: %+v", r.Symbols)
+	}
+	nums := map[string]string{}
+	for _, pin := range sym.Symbol.Pins {
+		nums[pin.Number] = pin.Name
+	}
+	if nums["2"] != "GND" || nums["8"] != "GND" || nums["7"] != "PG" {
+		t.Errorf("pins by number: %v", nums)
+	}
+	// Written again from what was read, raw, it's the same file.
+	again := Library("SheetDiver", []Part{{Symbol: sym.Symbol, Footprint: pkg.Footprint, RawPackage: pkg.Raw, RawSymbol: sym.RawSymbol, RawDevice: sym.RawDevice}})
+	r2, err := ReadLibrary(again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cad.FootprintPrint(r2.Packages["DFN-8_2X2"].Footprint) != cad.FootprintPrint(pkg.Footprint) || cad.SymbolPrint(r2.Symbols["TLV757P"].Symbol) != cad.SymbolPrint(sym.Symbol) {
+		t.Error("rewriting what was read changed it")
+	}
+	// An edit: pad 1 wider.
+	before := `<smd name="1" x="-0.975" y="0.75" dx="0.75"`
+	if !strings.Contains(string(lib), before) {
+		t.Fatal("no pad 1 to edit")
+	}
+	r3, err := ReadLibrary([]byte(strings.Replace(string(lib), before, `<smd name="1" x="-0.975" y="0.75" dx="0.95"`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cad.FootprintPrint(r3.Packages["DFN-8_2X2"].Footprint) == cad.FootprintPrint(pkg.Footprint) {
+		t.Error("an edited pad kept the fingerprint")
+	}
+}

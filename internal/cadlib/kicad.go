@@ -229,3 +229,18 @@ SheetDiver reads your changes back and keeps them. 3D models are in
 	}
 	return p.Dir, nil
 }
+
+// Decode is the symbol or footprint a KiCad edit holds.
+func (kicadFormat) Decode(kind, raw string) (*cad.Symbol, *cad.Footprint, error) {
+	nd, err := kicad.Parse(raw)
+	if err != nil {
+		return nil, nil, err
+	}
+	if kind == "symbol" {
+		s := kicad.ReadSymbol(nd)
+		return &s, nil, nil
+	}
+	f := kicad.ReadFootprint(nd)
+	f.From = "your edit in KiCad"
+	return nil, &f, nil
+}

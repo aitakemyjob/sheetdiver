@@ -238,6 +238,9 @@ func describe(p Package, from string) string {
 	return b.String()
 }
 
+// Courtyard is the courtyard a footprint's pads and body need.
+func Courtyard(pads []Pad, body Rect) Rect { return courtyard(pads, body) }
+
 // courtyard is the pads and body grown by the IPC nominal excess
 // (0.25 mm), on a 0.05 mm grid.
 func courtyard(pads []Pad, body Rect) Rect {

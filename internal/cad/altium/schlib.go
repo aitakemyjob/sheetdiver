@@ -17,10 +17,13 @@ import (
 // Altium pin's location is its body end, its electrical end one pin
 // length further in its direction.
 
-// Symbol is a schematic symbol and the footprint it's drawn on.
+// Symbol is a schematic symbol and the footprint it's drawn on, or the
+// symbol as the user saved it in Altium (Raw: its storage's streams by
+// path), written back as it is.
 type Symbol struct {
 	Symbol    cad.Symbol
 	Footprint string
+	Raw       map[string][]byte
 }
 
 // sch is a length in mm as schematic units (10 mil), with the remainder
@@ -182,6 +185,12 @@ func SchLib(name string, symbols []Symbol) ([]byte, error) {
 	}
 	for _, s := range symbols {
 		st := root.Storage(sectionKey(s.Symbol.Name))
+		if s.Raw != nil {
+			for _, path := range sortedPaths(s.Raw) {
+				st.add(path, s.Raw[path])
+			}
+			continue
+		}
 		st.Stream("Data", symbolData(s, uniqueID(name, s.Symbol.Name)))
 	}
 	var stor rec

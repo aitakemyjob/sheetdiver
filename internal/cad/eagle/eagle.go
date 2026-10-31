@@ -19,6 +19,10 @@ import (
 type Part struct {
 	Symbol    cad.Symbol
 	Footprint cad.Footprint
+	// RawPackage, RawSymbol and RawDevice are the package, symbol and
+	// device set as the user saved them in Eagle or Fusion, written back
+	// as they are.
+	RawPackage, RawSymbol, RawDevice string
 }
 
 // Eagle's layers used here.
@@ -139,15 +143,27 @@ func Library(name string, parts []Part) []byte {
 	for _, p := range parts {
 		if fp := Name(p.Footprint.Name); !done[fp] {
 			done[fp] = true
+			if p.RawPackage != "" {
+				b.WriteString("   " + p.RawPackage + "\n")
+				continue
+			}
 			writePackage(&b, p.Footprint)
 		}
 	}
 	b.WriteString("  </packages>\n  <symbols>\n")
 	for _, p := range parts {
+		if p.RawSymbol != "" {
+			b.WriteString("   " + p.RawSymbol + "\n")
+			continue
+		}
 		writeSymbol(&b, p.Symbol)
 	}
 	b.WriteString("  </symbols>\n  <devicesets>\n")
 	for _, p := range parts {
+		if p.RawDevice != "" {
+			b.WriteString("   " + p.RawDevice + "\n")
+			continue
+		}
 		writeDevice(&b, p)
 	}
 	b.WriteString("  </devicesets>\n </library>\n</drawing>\n</eagle>\n")

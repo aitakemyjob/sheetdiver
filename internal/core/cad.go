@@ -263,11 +263,10 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			sv.State, sv.Source, sv.Notes, sv.Updated = st.State, st.Source, st.Notes, st.Updated
 			meta.spec, meta.notes, meta.source = st.Spec, st.Notes, st.Source
 		}
-		if raw, ok := sym.Raw["kicad"]; ok && sym.State == cadlib.Edited {
-			if nd, err := kicad.Parse(raw); err == nil {
-				got := kicad.ReadSymbol(nd)
+		if sym.State == cadlib.Edited {
+			if got, _ := cadlib.Decode(library.CadSymbol, sym.Raw); got != nil {
 				got.Name = symName
-				sym.Symbol = &got
+				sym.Symbol = got
 			}
 		}
 		if sym.Symbol == nil && len(infos) > 0 {
@@ -326,11 +325,10 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			fpi.Name = kicad.SafeName(p.MPN)
 		}
 		fv.Name = fpi.Name
-		if raw, ok := fpi.Raw["kicad"]; ok && fpi.State == cadlib.Edited {
-			if nd, err := kicad.Parse(raw); err == nil {
-				got := kicad.ReadFootprint(nd)
-				got.Name, got.From = fpi.Name, "your edit in KiCad"
-				fpi.Footprint = &got
+		if fpi.State == cadlib.Edited {
+			if _, got := cadlib.Decode(library.CadFootprint, fpi.Raw); got != nil {
+				got.Name = fpi.Name
+				fpi.Footprint = got
 			}
 		}
 		if pkgSpec != nil {
@@ -563,7 +561,7 @@ func (s *Service) ResetCad(ctx context.Context, ref, pkg, kind string) (PartCad,
 	st := cadlib.State(it.State)
 	to := st.Reset(len(it.Spec) > 0 && st == cadlib.Edited)
 	if st == cadlib.Edited {
-		delete(it.Raw, "kicad")
+		it.Raw = nil
 		delete(it.Written, "kicad.step.user")
 	}
 	if to == cadlib.Auto {

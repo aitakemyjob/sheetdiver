@@ -193,7 +193,7 @@ func (s *Server) registerCad() {
 			return text("reset.\n" + cadText(pc)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "sync_cad_library", Description: "Bring the user's CAD library up to date: read back what they changed in their CAD tool (kept from then on), then write every part's symbol, footprint and 3D model in each format they keep (Settings: KiCad, Eagle/Fusion). Says where the library is and how to add it to the tool.", Annotations: writes("Sync CAD library", true)},
+	addTool(s, &mcp.Tool{Name: "sync_cad_library", Description: "Bring the user's CAD library up to date: read back what they changed in their CAD tools (KiCad, Altium, Eagle: kept from then on, and carried into the others), then write every part's symbol, footprint and 3D model in each format they keep (Settings → CAD library). Says where the library is and how to add it to the tool.", Annotations: writes("Sync CAD library", true)},
 		write, func(struct{}) string { return "sync cad library" }, func(ctx context.Context, _ struct{}) (result, error) {
 			rep, err := c.SyncCad(ctx)
 			if err != nil {

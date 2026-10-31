@@ -1,6 +1,7 @@
 package altium
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,9 +42,19 @@ func testLibrary(t *testing.T) ([]cad.Footprint, []Symbol) {
 			t.Fatal(err)
 		}
 		s.Value, s.Description = n, "test part"
-		syms = append(syms, Symbol{s, "SOT-23-6_" + n})
+		syms = append(syms, Symbol{Symbol: s, Footprint: "SOT-23-6_" + n})
 	}
 	return fps, syms
+}
+
+// embed gives each footprint its 3D model.
+func embed(t *testing.T, fps []cad.Footprint) []Footprint {
+	t.Helper()
+	var out []Footprint
+	for _, f := range fps {
+		out = append(out, Footprint{Footprint: f, Height: 1.75, Step: []byte("ISO-10303-21;\nmodel of " + f.Name + "\nEND-ISO-10303-21;\n")})
+	}
+	return out
 }
 
 // python runs a script with its arguments if python3 and the modules it
@@ -71,7 +82,7 @@ func write(t *testing.T) (pcb, sch string) {
 	t.Helper()
 	fps, syms := testLibrary(t)
 	dir := t.TempDir()
-	pb, err := PcbLib("SheetDiver", fps, map[string]float64{"SOIC-8_TEST": 1.75})
+	pb, err := PcbLib("SheetDiver", embed(t, fps))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,10 +143,100 @@ print([(x.Name, len(x.Records)) for x in p.Parts])
 	for _, want := range []string{
 		"TPS563200 U? TPS563200 [('1', 'GND', 'Power', 0, -20), ('2', 'SW', 'Output', 20, 0), ('3', 'VIN', 'Power', 0, 20), ('4', 'VFB', 'Input', -20, 10)",
 		"INA219_SOIC_WITH_A_LONG_NAME_X_Y_Z U?",
-		"('SOIC-8_TEST', 22), ('QFN-16_WITH_A_VERY_LONG_NAME_INDEED_X', 45), ('DIP-8_TEST', 28), ('CONN', 20)",
+		"('SOIC-8_TEST', 23), ('QFN-16_WITH_A_VERY_LONG_NAME_INDEED_X', 46), ('DIP-8_TEST', 29), ('CONN', 21)",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("pyaltiumlib read no %q in:\n%s", want, out)
+		}
+	}
+}
+
+// What's written reads back: the pads, lines, pins and footprint links,
+// and each footprint's embedded model.
+func TestReadBack(t *testing.T) {
+	fps, syms := testLibrary(t)
+	pb, err := PcbLib("SheetDiver", embed(t, fps))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadPcbLib(pb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(fps) {
+		t.Fatalf("%d footprints read back", len(got))
+	}
+	byName := map[string]ReadFootprint{}
+	for _, g := range got {
+		byName[g.Footprint.Name] = g
+	}
+	for _, f := range fps {
+		g, ok := byName[f.Name]
+		if !ok {
+			t.Fatalf("%s wasn't read back", f.Name)
+		}
+		terminals := func(pads []cad.Pad) (n int) {
+			for _, p := range pads {
+				if p.Kind != cad.PadPaste {
+					n++
+				}
+			}
+			return
+		}
+		if terminals(g.Footprint.Pads) != terminals(f.Pads) || g.Footprint.Mount != f.Mount || g.Height != 1.75 {
+			t.Errorf("%s read back: %d pads, %s, height %v", f.Name, len(g.Footprint.Pads), g.Footprint.Mount, g.Height)
+		}
+		if !bytes.Contains(g.Model, []byte("model of "+f.Name)) || len(g.Raw.Models) != 1 || g.Raw.Streams["Data"] == nil {
+			t.Errorf("%s: model %q, raw %d models", f.Name, g.Model, len(g.Raw.Models))
+		}
+		p1 := g.Footprint.Pads[0]
+		if p1.Number != f.Pads[0].Number || p1.X != f.Pads[0].X || p1.Y != f.Pads[0].Y || p1.W != f.Pads[0].W {
+			t.Errorf("%s pad %+v, wrote %+v", f.Name, p1, f.Pads[0])
+		}
+	}
+	if q := byName["QFN-16_WITH_A_VERY_LONG_NAME_INDEED_X"].Footprint; len(q.Pads) != 25 || !q.Pads[16].NoPaste {
+		t.Errorf("QFN: %d pads, exposed pad %+v", len(q.Pads), q.Pads[16])
+	}
+	// Written again as read, it reads the same.
+	var again []Footprint
+	for _, g := range got {
+		r := g.Raw
+		again = append(again, Footprint{Footprint: g.Footprint, Raw: &r})
+	}
+	pb2, err := PcbLib("SheetDiver", again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got2, err := ReadPcbLib(pb2)
+	if err != nil || len(got2) != len(got) {
+		t.Fatal(err)
+	}
+	for i := range got {
+		if cad.FootprintPrint(got[i].Footprint) != cad.FootprintPrint(got2[i].Footprint) || !bytes.Equal(got[i].Model, got2[i].Model) {
+			t.Errorf("%s changed on rewriting", got[i].Footprint.Name)
+		}
+	}
+
+	sb, err := SchLib("SheetDiver", syms)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, err := ReadSchLib(sb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rs) != 2 {
+		t.Fatalf("%d symbols", len(rs))
+	}
+	for i, r := range rs {
+		w := syms[i]
+		if r.Symbol.Name != w.Symbol.Name || r.Footprint != w.Footprint || r.Symbol.Reference != "U" || r.Symbol.Value != w.Symbol.Value || r.Symbol.Body != w.Symbol.Body {
+			t.Errorf("symbol read back %+v", r.Symbol)
+		}
+		for j, p := range r.Symbol.Pins {
+			if q := w.Symbol.Pins[j]; p.Number != q.Number || p.X != q.X || p.Y != q.Y || p.Side != q.Side || p.Type != q.Type {
+				t.Errorf("pin %+v, wrote %+v", p, q)
+			}
 		}
 	}
 }

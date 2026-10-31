@@ -2,10 +2,12 @@ package altium
 
 import (
 	"bytes"
+	"compress/zlib"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf16"
@@ -308,8 +310,124 @@ func mils(mm float64) string {
 // header is a storage's Header stream: its record count.
 func header(n int) []byte { return binary.LittleEndian.AppendUint32(nil, u32(n)) }
 
-// PcbLib writes footprints, with their heights, as a PCB library.
-func PcbLib(name string, fps []cad.Footprint, heights map[string]float64) ([]byte, error) {
+// Footprint is a footprint to write: drawn, or as the user left it in
+// Altium (Raw), with its height and 3D model.
+type Footprint struct {
+	Footprint cad.Footprint
+	Height    float64
+	// Step is its 3D model, embedded in the library.
+	Step []byte
+	// Raw is the footprint as the user saved it, written back as it is.
+	Raw *Raw
+}
+
+// Raw is a footprint or symbol as Altium saved it: its storage's streams
+// by path ("Data", "UniqueIDPrimitiveInformation/Data"), and the
+// embedded models its 3D bodies use.
+type Raw struct {
+	Streams map[string][]byte `json:"streams"`
+	Models  []Model           `json:"models,omitempty"`
+}
+
+// Model is an embedded 3D model: its parameters and its compressed STEP.
+type Model struct {
+	ID     string `json:"id"`
+	Params string `json:"params"`
+	Data   []byte `json:"data"`
+}
+
+// stepChecksum is Altium's checksum of a model's STEP text: each byte
+// weighted by its position (the first by one), summed modulo 2³².
+func stepChecksum(b []byte) uint32 {
+	var sum uint32
+	for i, c := range b {
+		w := uint32(1)
+		if i > 0 {
+			w = u32(i)
+		}
+		sum += uint32(c) * w
+	}
+	return sum
+}
+
+// modelID is a footprint's model's id, a braced GUID.
+func modelID(name string) string {
+	g := guid(name, "model")
+	return fmt.Sprintf("{%X-%X-%X-%X-%X}", g[0:4], g[4:6], g[6:8], g[8:10], g[10:16])
+}
+
+// compress zlib-compresses a model.
+func compress(b []byte) []byte {
+	var out bytes.Buffer
+	w := zlib.NewWriter(&out)
+	_, _ = w.Write(b)
+	_ = w.Close()
+	return out.Bytes()
+}
+
+// body writes the 3D body that places an embedded model on a footprint:
+// on Mechanical 1, over the footprint's body, as tall as the model.
+func (r *rec) body(f cad.Footprint, height float64, id string, step []byte) {
+	r.u8(12)
+	r.block(func(b *rec) {
+		b.common(57)
+		b.u32(0)
+		b.u8(0)
+		kv := []string{"V7_LAYER", "MECHANICAL1", "NAME", "", "KIND", "0", "SUBPOLYINDEX", "-1", "UNIONINDEX", "0", "ARCRESOLUTION", "0.5mil",
+			"ISSHAPEBASED", "FALSE", "CAVITYHEIGHT", "0mil", "STANDOFFHEIGHT", "0mil", "OVERALLHEIGHT", mils(height), "BODYPROJECTION", "0",
+			"ARCRESOLUTION", "0.5mil", "BODYCOLOR3D", "14737632", "BODYOPACITY3D", "1.000", "IDENTIFIER", "", "TEXTURE", "",
+			"TEXTURECENTERX", "0mil", "TEXTURECENTERY", "0mil", "TEXTURESIZEX", "0mil", "TEXTURESIZEY", "0mil",
+			"TEXTUREROTATION", " 0.00000000000000E+0000", "MODELID", id, "MODEL.CHECKSUM", strconv.FormatUint(uint64(stepChecksum(step)), 10),
+			"MODEL.EMBED", "TRUE", "MODEL.NAME", f.Name + ".step", "MODEL.2D.X", "0mil", "MODEL.2D.Y", "0mil", "MODEL.2D.ROTATION", "0.000",
+			"MODEL.3D.ROTX", "0.000", "MODEL.3D.ROTY", "0.000", "MODEL.3D.ROTZ", "0.000", "MODEL.3D.DZ", "0mil", "MODEL.MODELTYPE", "1"}
+		// Altium writes this list without a leading separator.
+		b.block(func(c *rec) {
+			c.Write(latin1(strings.TrimPrefix(paramText(kv...), "|")))
+			c.u8(0)
+		})
+		// Its outline: the body's rectangle, y up, in Altium's units.
+		o := f.Body
+		pts := [][2]float64{{o.X0, -o.Y1}, {o.X1, -o.Y1}, {o.X1, -o.Y0}, {o.X0, -o.Y0}}
+		b.u32(4)
+		for _, p := range pts {
+			b.f64(float64(units(p[0])))
+			b.f64(float64(units(p[1])))
+		}
+	})
+}
+
+// sortedPaths are a storage's stream paths in order, so a library is
+// written the same way each time.
+func sortedPaths(m map[string][]byte) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// add puts a stream at a path below a storage, making storages on the way.
+func (s *Storage) add(path string, data []byte) {
+	parts := strings.Split(path, "/")
+	st := s
+	for _, dir := range parts[:len(parts)-1] {
+		var next *Storage
+		for _, c := range st.storages {
+			if c.name == dir {
+				next = c
+			}
+		}
+		if next == nil {
+			next = st.Storage(dir)
+		}
+		st = next
+	}
+	st.Stream(parts[len(parts)-1], data)
+}
+
+// PcbLib writes footprints as a PCB library, their 3D models embedded.
+func PcbLib(name string, fps []Footprint) ([]byte, error) {
 	root := NewStorage()
 	var h rec
 	const version = "PCB 6.0 Binary Library File"
@@ -324,14 +442,36 @@ func PcbLib(name string, fps []cad.Footprint, heights map[string]float64) ([]byt
 	var keys rec
 	nkeys := 0
 	for _, f := range fps {
-		if sectionKey(f.Name) != f.Name {
-			keys.stringBlock(f.Name)
-			keys.stringBlock(sectionKey(f.Name))
+		if sectionKey(f.Footprint.Name) != f.Footprint.Name {
+			keys.stringBlock(f.Footprint.Name)
+			keys.stringBlock(sectionKey(f.Footprint.Name))
 			nkeys++
 		}
 	}
 	if nkeys > 0 {
 		root.Stream("SectionKeys", append(header(nkeys), keys.Bytes()...))
+	}
+
+	// The models: the user's, as they saved them, and SheetDiver's.
+	var models []Model
+	seen := map[string]bool{}
+	for _, f := range fps {
+		switch {
+		case f.Raw != nil:
+			for _, m := range f.Raw.Models {
+				if !seen[m.ID] {
+					seen[m.ID] = true
+					models = append(models, m)
+				}
+			}
+		case len(f.Step) > 0:
+			mid := modelID(f.Footprint.Name)
+			if !seen[mid] {
+				seen[mid] = true
+				models = append(models, Model{ID: mid, Data: compress(f.Step), Params: fmt.Sprintf("EMBED=TRUE|MODELSOURCE=Undefined|ID=%s|ROTX=0.000|ROTY=0.000|ROTZ=0.000|DZ=0|CHECKSUM=%d|NAME=%s.step",
+					mid, int32(stepChecksum(f.Step)), f.Footprint.Name)}) //nolint:gosec // Altium stores the checksum's bits as a signed number
+			}
+		}
 	}
 
 	lib := root.Storage("Library")
@@ -341,19 +481,26 @@ func PcbLib(name string, fps []cad.Footprint, heights map[string]float64) ([]byt
 	data.u32(u32(len(fps)))
 	var toc strings.Builder
 	for _, f := range fps {
-		data.stringBlock(f.Name)
+		data.stringBlock(f.Footprint.Name)
 		pads := 0
-		for _, p := range f.Pads {
+		for _, p := range f.Footprint.Pads {
 			if p.Terminal() {
 				pads++
 			}
 		}
-		fmt.Fprintf(&toc, "Name=%s|Pad Count=%d|Height=%s|Description=%s\r\n", f.Name, pads, mils(heights[f.Name]), strings.ReplaceAll(f.Description, "|", "/"))
+		fmt.Fprintf(&toc, "Name=%s|Pad Count=%d|Height=%s|Description=%s\r\n", f.Footprint.Name, pads, mils(f.Height), strings.ReplaceAll(f.Footprint.Description, "|", "/"))
 	}
 	lib.Stream("Data", data.Bytes())
-	models := lib.Storage("Models")
-	models.Stream("Header", header(0))
-	models.Stream("Data", nil)
+	ms := lib.Storage("Models")
+	ms.Stream("Header", header(len(models)))
+	var md rec
+	for i, m := range models {
+		t := append(latin1(m.Params), 0)
+		md.u32(u32(len(t)))
+		md.Write(t)
+		ms.Stream(strconv.Itoa(i), m.Data)
+	}
+	ms.Stream("Data", md.Bytes())
 	lkm := lib.Storage("LayerKindMapping")
 	lkm.Stream("Header", header(1))
 	var l rec
@@ -385,11 +532,23 @@ func PcbLib(name string, fps []cad.Footprint, heights map[string]float64) ([]byt
 	}
 
 	for _, f := range fps {
-		st := root.Storage(sectionKey(f.Name))
-		d, n := footprintData(f)
+		st := root.Storage(sectionKey(f.Footprint.Name))
+		if f.Raw != nil {
+			for _, path := range sortedPaths(f.Raw.Streams) {
+				st.add(path, f.Raw.Streams[path])
+			}
+			continue
+		}
+		d, n := footprintData(f.Footprint)
+		if len(f.Step) > 0 {
+			var b rec
+			b.body(f.Footprint, f.Height, modelID(f.Footprint.Name), f.Step)
+			d = append(d, b.Bytes()...)
+			n++
+		}
 		st.Stream("Header", header(n))
 		var params rec
-		params.params("PATTERN", f.Name, "HEIGHT", mils(heights[f.Name]), "DESCRIPTION", f.Description, "ITEMGUID", "", "REVISIONGUID", "")
+		params.params("PATTERN", f.Footprint.Name, "HEIGHT", mils(f.Height), "DESCRIPTION", f.Footprint.Description, "ITEMGUID", "", "REVISIONGUID", "")
 		st.Stream("Parameters", params.Bytes())
 		var ws rec
 		ws.params()
