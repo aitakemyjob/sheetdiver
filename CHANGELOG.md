@@ -80,6 +80,13 @@ every merged pull request.
   pin numbers appear twice. The Pins tab and the connection table's pin
   picker show the part's own table (#130).
 
+### Changed
+- Dependencies: Wails 2.17.0 (and its CLI in the build scripts),
+  go-pdfium 1.21.4, modernc.org/sqlite 1.61.0; lucide-react 1.61.0,
+  zustand 5.0.16, Vite 8.3.5; for development, ESLint 10 with
+  @eslint/js 10 and typescript-eslint 8.72.0; the Scorecard workflow's
+  upload-sarif action 4.39.1.
+
 ## [0.2.1] - 2026-10-29
 
 ### Added

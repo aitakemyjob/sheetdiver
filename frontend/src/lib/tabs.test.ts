@@ -9,8 +9,8 @@ describe('tabs', () => {
   });
 
   it('keeps one page tab per datasheet and moves it to the new page', () => {
-    let { tabs, active } = openTab([], { kind: 'page', title: 'p1', params: { ds: 3, page: 0 } });
-    ({ tabs, active } = openTab(tabs, { kind: 'page', title: 'p7', params: { ds: 3, page: 6 } }));
+    const first = openTab([], { kind: 'page', title: 'p1', params: { ds: 3, page: 0 } });
+    const { tabs, active } = openTab(first.tabs, { kind: 'page', title: 'p7', params: { ds: 3, page: 6 } });
     expect(tabs).toHaveLength(1);
     expect(active).toBe(tabKey('page', { ds: 3 }));
     expect(tabs[0].params.page).toBe(6);
