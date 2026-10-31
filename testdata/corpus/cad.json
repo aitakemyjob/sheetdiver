@@ -1,0 +1,2662 @@
+{
+  "about": "Footprints and symbols checked against reference libraries (Espressif's, KiCad's), which are CC-BY-SA and so downloaded (scripts/corpus.sh, into the corpus folder's cad/), never committed. A footprint comes from a corpus datasheet the way the app builds it, or from a drawing an agent recorded (drawn); pad centres agree within tolerance mm (sizes too when sizes is set). A symbol's pins come from the datasheet's pin table; numbers agree, names when they share a part (aliases for the rest; missing lists the reference's pins the datasheet doesn't have).",
+  "files": [
+    {
+      "file": "espressif-ESP32-S3-WROOM-1.kicad_mod",
+      "url": "https://raw.githubusercontent.com/espressif/kicad-libraries/dd76561812ab300351234ba6e0ec1295641796f0/footprints/Espressif.pretty/ESP32-S3-WROOM-1.kicad_mod",
+      "sha256": "a99796419aec905e6b0a12ddf266a63d546754070c587acf10585d70a161dddc"
+    },
+    {
+      "file": "espressif-ESP32-WROOM-32E.kicad_mod",
+      "url": "https://raw.githubusercontent.com/espressif/kicad-libraries/dd76561812ab300351234ba6e0ec1295641796f0/footprints/Espressif.pretty/ESP32-WROOM-32E.kicad_mod",
+      "sha256": "c0258936cf1b0f2df18b8c84d9b29699ef38f88f37de0d0a00b2a07c7089aaca"
+    },
+    {
+      "file": "espressif-ESP32-C3-MINI-1.kicad_mod",
+      "url": "https://raw.githubusercontent.com/espressif/kicad-libraries/dd76561812ab300351234ba6e0ec1295641796f0/footprints/Espressif.pretty/ESP32-C3-MINI-1.kicad_mod",
+      "sha256": "f1899b54ab6c007d50e76334f3fb8f340a827bc1d26f1ba24003333c214a7626"
+    },
+    {
+      "file": "espressif-ESP32-C6-MINI-1.kicad_mod",
+      "url": "https://raw.githubusercontent.com/espressif/kicad-libraries/dd76561812ab300351234ba6e0ec1295641796f0/footprints/Espressif.pretty/ESP32-C6-MINI-1.kicad_mod",
+      "sha256": "adbc103699e2b80dcbe9d583f379f12a85198d56bd4ff1e182d7e4965522e138"
+    },
+    {
+      "file": "espressif-Espressif.kicad_sym",
+      "url": "https://raw.githubusercontent.com/espressif/kicad-libraries/dd76561812ab300351234ba6e0ec1295641796f0/symbols/Espressif.kicad_sym",
+      "sha256": "5e9785368a1cccbd904f8ceeab1c9165a8ef82ab00c99bf21275dc91749356cc"
+    },
+    {
+      "file": "kicad-LQFP-48_7x7mm_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_QFP.pretty/LQFP-48_7x7mm_P0.5mm.kicad_mod",
+      "sha256": "1ccc5ad4d95398a4c6eb4b4cd1c429865368d06b8373613c6fcb332b53106ee0"
+    },
+    {
+      "file": "kicad-LQFP-64_10x10mm_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_QFP.pretty/LQFP-64_10x10mm_P0.5mm.kicad_mod",
+      "sha256": "f5a3abeefd7fdfa39fb685c0d80538f6fed111d00da42bf82decb0b6d2293101"
+    },
+    {
+      "file": "kicad-LQFP-100_14x14mm_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_QFP.pretty/LQFP-100_14x14mm_P0.5mm.kicad_mod",
+      "sha256": "73315ab374a9fa62af09d4d5e23fe734dff8f77decfd3d9d7d0e7679dbcfc002"
+    },
+    {
+      "file": "kicad-QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_DFN_QFN.pretty/QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm.kicad_mod",
+      "sha256": "904b97fb05f376e895082f23beda39d35f0a6b7e86b3fc1203f33ec7c35b0859"
+    },
+    {
+      "file": "kicad-UFBGA-100_7x7mm_Layout12x12_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_BGA.pretty/UFBGA-100_7x7mm_Layout12x12_P0.5mm.kicad_mod",
+      "sha256": "bb0153769de26841ef7d9d8633fcd55f5f7cfa68a03933e32e90664b6f519ac2"
+    },
+    {
+      "file": "kicad-UFBGA-64_5x5mm_Layout8x8_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_BGA.pretty/UFBGA-64_5x5mm_Layout8x8_P0.5mm.kicad_mod",
+      "sha256": "78ffff9d4e19688ab64b7af8ae7448b29a3ca19c77b98c045f9b88048e311607"
+    },
+    {
+      "file": "kicad-ST_WLCSP-56_3.38x3.38mm_Layout14x8_P0.4mm_Stagger.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_CSP.pretty/ST_WLCSP-56_3.38x3.38mm_Layout14x8_P0.4mm_Stagger.kicad_mod",
+      "sha256": "a73de0a0083268f000c84a109d316617fa7509e2916449f849c7067fd6ef79fe"
+    },
+    {
+      "file": "kicad-ST_WLCSP-72_3.38x3.38mm_Layout16x9_P0.35mm_Stagger.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_CSP.pretty/ST_WLCSP-72_3.38x3.38mm_Layout16x9_P0.35mm_Stagger.kicad_mod",
+      "sha256": "5bf038e8a71583637f08538189dec3b7de58d663d7b59fe264eac26798e0a710"
+    },
+    {
+      "file": "kicad-STM32U545CETx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545CETx.kicad_sym",
+      "sha256": "19e34733442cafa4641c3808e40043e636ba963328c0afb194a41ba0c0fdafff"
+    },
+    {
+      "file": "kicad-STM32U545CETxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545CETxQ.kicad_sym",
+      "sha256": "16288e3b274c8e10236eb1b110cf23a4e10e71d455992c8b7858b16872feb889"
+    },
+    {
+      "file": "kicad-STM32U545CEUx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545CEUx.kicad_sym",
+      "sha256": "e03e9112abb9e2824a53ca4c78497dde9acd6472b8a0969cc1a3064464901cda"
+    },
+    {
+      "file": "kicad-STM32U545CEUxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545CEUxQ.kicad_sym",
+      "sha256": "2567f676b8dcb3df8eaa1cd257f4db10c09648e10524ad6e0961a2653affb6e2"
+    },
+    {
+      "file": "kicad-STM32U545JEYxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545JEYxQ.kicad_sym",
+      "sha256": "bb2d8a059843f1d68788dcd7f51c5cdfd38ed2b0bf9ddd5527db0f623aaa2f4c"
+    },
+    {
+      "file": "kicad-STM32U545NEYxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545NEYxQ.kicad_sym",
+      "sha256": "0f9ca74ec2ed3c706d80836b521e38bb14cfca28303359e8ebfb18b28be76b7e"
+    },
+    {
+      "file": "kicad-STM32U545REIx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545REIx.kicad_sym",
+      "sha256": "1cc919f6b900582184a678a335dadba54a020c20eab2f42778855d5ef266c6fc"
+    },
+    {
+      "file": "kicad-STM32U545REIxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545REIxQ.kicad_sym",
+      "sha256": "10ba28a2828f834d1fdea87fad89ff9a6135ca5df99cd0146de5cd48ae106c11"
+    },
+    {
+      "file": "kicad-STM32U545RETx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545RETx.kicad_sym",
+      "sha256": "808779c703a3f0f18d6088fdcd61011c1c3c76831420a2cf594a1f4051ad0895"
+    },
+    {
+      "file": "kicad-STM32U545RETxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545RETxQ.kicad_sym",
+      "sha256": "16d332d60e1f02d708872bd349ea469e8b44744ebec1ae8310b2ad7a09887cd5"
+    },
+    {
+      "file": "kicad-STM32U545VEIx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545VEIx.kicad_sym",
+      "sha256": "fdf68771a67fcad3a3735d4dd8666f77f3d1d9bd93eb5ea59c0c0e7c9e8e8188"
+    },
+    {
+      "file": "kicad-STM32U545VEIxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545VEIxQ.kicad_sym",
+      "sha256": "13fab6b725c352c83cd60c861891037331b04440001ce55eb884201da172c2c9"
+    },
+    {
+      "file": "kicad-STM32U545VETx.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545VETx.kicad_sym",
+      "sha256": "e367815b7ed81e7a07447f73bc6072bb59eeacfe87f52f52a3d7bcd078c20289"
+    },
+    {
+      "file": "kicad-STM32U545VETxQ.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/MCU_ST_STM32U5.kicad_symdir/STM32U545VETxQ.kicad_sym",
+      "sha256": "4ebe4921fd0b9aaa08e80b5870ce3a8537b6827ad171f0115502fd6c110e5e21"
+    },
+    {
+      "file": "kicad-R_0402_1005Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Resistor_SMD.pretty/R_0402_1005Metric.kicad_mod",
+      "sha256": "e05c7605248c220836f642ed1f526133edf0374acdfd5bb2631e58b4e377acfb"
+    },
+    {
+      "file": "kicad-C_0402_1005Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Capacitor_SMD.pretty/C_0402_1005Metric.kicad_mod",
+      "sha256": "0403382fc4583ed510b461b1fa4a36dfaec6f4c0d9b1a67e6b0027837a54e1b5"
+    },
+    {
+      "file": "kicad-L_0402_1005Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Inductor_SMD.pretty/L_0402_1005Metric.kicad_mod",
+      "sha256": "0fd28849d100c9fd10ae1cabe3edfce6bfca0a8260939a010ade5303cc6f3a1f"
+    },
+    {
+      "file": "kicad-R_0603_1608Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod",
+      "sha256": "7190ac4a00125b807e54129ef0d87d87f2a658eeb74d025a7028203419b09f23"
+    },
+    {
+      "file": "kicad-C_0603_1608Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Capacitor_SMD.pretty/C_0603_1608Metric.kicad_mod",
+      "sha256": "fe0dbfefbb181a0466f93a8de52d84ba7b00fcd9acdbb69575f4128a0af4e405"
+    },
+    {
+      "file": "kicad-L_0603_1608Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Inductor_SMD.pretty/L_0603_1608Metric.kicad_mod",
+      "sha256": "a2a9c562208496756e22f3ab19e0bd6db2341d14da92e7c767d5eafd1bb45d38"
+    },
+    {
+      "file": "kicad-R_0805_2012Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Resistor_SMD.pretty/R_0805_2012Metric.kicad_mod",
+      "sha256": "f050b6a50cc7e6f86291fb7aa8f87b0d02255e21cfbddf291cdccc87e5889794"
+    },
+    {
+      "file": "kicad-C_0805_2012Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Capacitor_SMD.pretty/C_0805_2012Metric.kicad_mod",
+      "sha256": "62775a51fe74ba7f1b572de327bdbd3fc92582721b2abcaa47787865590d89cb"
+    },
+    {
+      "file": "kicad-L_0805_2012Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Inductor_SMD.pretty/L_0805_2012Metric.kicad_mod",
+      "sha256": "22f5100d304229ddc07ba8218e3b631d6db4f8fe0b5c310b078c7e41ad56517d"
+    },
+    {
+      "file": "kicad-R_1206_3216Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Resistor_SMD.pretty/R_1206_3216Metric.kicad_mod",
+      "sha256": "c7320668dc81bbb954cb4f15e4e7a766c120059343d43551468c8f7ccc8fde37"
+    },
+    {
+      "file": "kicad-C_1206_3216Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Capacitor_SMD.pretty/C_1206_3216Metric.kicad_mod",
+      "sha256": "b2e4a08e3aaf40bc587090190c0e3969e962d7ae962c172cce0581ae8327651c"
+    },
+    {
+      "file": "kicad-L_1206_3216Metric.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Inductor_SMD.pretty/L_1206_3216Metric.kicad_mod",
+      "sha256": "f64cb60a5a118ca3ba88d838df05b3cca9da7c3a922a3d36c1856e732f6ba056"
+    },
+    {
+      "file": "kicad-SOT-23.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_TO_SOT_SMD.pretty/SOT-23.kicad_mod",
+      "sha256": "0d88c86c1b6d8c1aae4aa8c09386264c089d4451a128b6ccd63ed253f4300b15"
+    },
+    {
+      "file": "kicad-SOT-23-5.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_TO_SOT_SMD.pretty/SOT-23-5.kicad_mod",
+      "sha256": "455a3f7c3e5eb5b8847eaa5df23e18651e78ab9f75afd09a0883758a0d901761"
+    },
+    {
+      "file": "kicad-SOT-23-6.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_TO_SOT_SMD.pretty/SOT-23-6.kicad_mod",
+      "sha256": "f341c73aac9dcb553456f68bf3fee3d26eb14acf6d8a1cae82b50418fe1d71ca"
+    },
+    {
+      "file": "kicad-SOIC-8_3.9x4.9mm_P1.27mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/SOIC-8_3.9x4.9mm_P1.27mm.kicad_mod",
+      "sha256": "074ecb2092b24fa4b4b9cdd7c926fc587b0d7d6d21e7341e57935fd42d36894f"
+    },
+    {
+      "file": "kicad-SOIC-14_3.9x8.7mm_P1.27mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/SOIC-14_3.9x8.7mm_P1.27mm.kicad_mod",
+      "sha256": "a885b619b22880c9559522d2bf865b059d80453b95a98defc9e6ceef284da1fc"
+    },
+    {
+      "file": "kicad-SOIC-16_3.9x9.9mm_P1.27mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/SOIC-16_3.9x9.9mm_P1.27mm.kicad_mod",
+      "sha256": "f9b5075740f7816c540ae1137f025d659beaec522ed7b86b1a5274cc9a2d8a25"
+    },
+    {
+      "file": "kicad-TSSOP-16_4.4x5mm_P0.65mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/TSSOP-16_4.4x5mm_P0.65mm.kicad_mod",
+      "sha256": "fbac79fc5f310754726589d67071a422c429216f843ecd6013bbe2e6a49e7064"
+    },
+    {
+      "file": "kicad-TSSOP-20_4.4x6.5mm_P0.65mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/TSSOP-20_4.4x6.5mm_P0.65mm.kicad_mod",
+      "sha256": "b7ca3a31dd45c1225609f9b94e8ba1534bd16edd193628c8d67a8ea669b26b72"
+    },
+    {
+      "file": "kicad-MSOP-8_3x3mm_P0.65mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/MSOP-8_3x3mm_P0.65mm.kicad_mod",
+      "sha256": "c85207be7edf4b5e1a128249fb05f91b67d622f536fc832d7a9f2a7f1e9a1223"
+    },
+    {
+      "file": "kicad-MSOP-10_3x3mm_P0.5mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SO.pretty/MSOP-10_3x3mm_P0.5mm.kicad_mod",
+      "sha256": "c179dbee33613027667b07b4dba02648f193fc65f63616c9d73d6f1162c6bb9d"
+    },
+    {
+      "file": "kicad-DIP-8_W7.62mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_DIP.pretty/DIP-8_W7.62mm.kicad_mod",
+      "sha256": "222fb44370968119abbd978176814cc43a71bc32ac2de275d8a3c418c0830fc6"
+    },
+    {
+      "file": "kicad-DIP-16_W7.62mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_DIP.pretty/DIP-16_W7.62mm.kicad_mod",
+      "sha256": "d9f5f5a3dbebef059800781d37575e4120e5ae5e7fd96001eda365f65de94485"
+    },
+    {
+      "file": "kicad-TO-92_Inline.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_TO_SOT_THT.pretty/TO-92_Inline.kicad_mod",
+      "sha256": "19731cf8b8c297aa1405bb1441d8b9e1828eddbe919b0084f9dbfac29c9a36fc"
+    },
+    {
+      "file": "kicad-TO-220-3_Vertical.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_TO_SOT_THT.pretty/TO-220-3_Vertical.kicad_mod",
+      "sha256": "b395d252c6407196b991269be7e3873f5f8b335f0b554387d60152164a239fe5"
+    },
+    {
+      "file": "kicad-WSON-10-1EP_2.5x2.5mm_P0.5mm_EP1.2x2mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SON.pretty/WSON-10-1EP_2.5x2.5mm_P0.5mm_EP1.2x2mm.kicad_mod",
+      "sha256": "17eab32d60dc0a046e348e50c2205e8f4255864f6d4c8983f21fa689d3bd1c21"
+    },
+    {
+      "file": "kicad-Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm.kicad_mod",
+      "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SON.pretty/Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm.kicad_mod",
+      "sha256": "8beb57ce756ebcab32109aa9aa075151b42ebfd5f490614407832d761d1a314d"
+    }
+  ],
+  "footprints": [
+    {
+      "name": "ESP32-S3-WROOM-1",
+      "why": "A module drawn pad by pad from Espressif's land pattern drawing (Figure 11-1): castellated edge pads and a 3 × 3 ground pad.",
+      "reference": "espressif-ESP32-S3-WROOM-1.kicad_mod",
+      "tolerance": 0.01,
+      "sizes": true,
+      "drawn": {
+        "family": "custom",
+        "name": "ESP32-S3-WROOM-1",
+        "pins": 41,
+        "bodyWidth": {
+          "nom": 18
+        },
+        "bodyLength": {
+          "nom": 25.5
+        },
+        "height": {
+          "nom": 3.1
+        },
+        "pads": [
+          {
+            "number": "1",
+            "x": -8.75,
+            "y": -5.26,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "2",
+            "x": -8.75,
+            "y": -3.99,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "3",
+            "x": -8.75,
+            "y": -2.72,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "4",
+            "x": -8.75,
+            "y": -1.45,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "5",
+            "x": -8.75,
+            "y": -0.18,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "6",
+            "x": -8.75,
+            "y": 1.09,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "7",
+            "x": -8.75,
+            "y": 2.36,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "8",
+            "x": -8.75,
+            "y": 3.63,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "9",
+            "x": -8.75,
+            "y": 4.9,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "10",
+            "x": -8.75,
+            "y": 6.17,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "11",
+            "x": -8.75,
+            "y": 7.44,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "12",
+            "x": -8.75,
+            "y": 8.71,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "13",
+            "x": -8.75,
+            "y": 9.98,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "14",
+            "x": -8.75,
+            "y": 11.25,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "15",
+            "x": -6.985,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "16",
+            "x": -5.715,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "17",
+            "x": -4.445,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "18",
+            "x": -3.175,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "19",
+            "x": -1.905,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "20",
+            "x": -0.635,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "21",
+            "x": 0.635,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "22",
+            "x": 1.905,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "23",
+            "x": 3.175,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "24",
+            "x": 4.445,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "25",
+            "x": 5.715,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "26",
+            "x": 6.985,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "27",
+            "x": 8.75,
+            "y": 11.25,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "28",
+            "x": 8.75,
+            "y": 9.98,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "29",
+            "x": 8.75,
+            "y": 8.71,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "30",
+            "x": 8.75,
+            "y": 7.44,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "31",
+            "x": 8.75,
+            "y": 6.17,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "32",
+            "x": 8.75,
+            "y": 4.9,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "33",
+            "x": 8.75,
+            "y": 3.63,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "34",
+            "x": 8.75,
+            "y": 2.36,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "35",
+            "x": 8.75,
+            "y": 1.09,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "36",
+            "x": 8.75,
+            "y": -0.18,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "37",
+            "x": 8.75,
+            "y": -1.45,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "38",
+            "x": 8.75,
+            "y": -2.72,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": 8.75,
+            "y": -3.99,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "40",
+            "x": 8.75,
+            "y": -5.26,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -2.9,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -1.5,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -0.1,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -2.9,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -1.5,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -0.1,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -2.9,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -1.5,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": -0.1,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ESP32-WROOM-32E",
+      "why": "The WROOM-32E's 38 edge pads (10 on the bottom) and ground pad 39, from Figure 13.",
+      "reference": "espressif-ESP32-WROOM-32E.kicad_mod",
+      "tolerance": 0.01,
+      "sizes": true,
+      "drawn": {
+        "family": "custom",
+        "name": "ESP32-WROOM-32E",
+        "pins": 39,
+        "bodyWidth": {
+          "nom": 18
+        },
+        "bodyLength": {
+          "nom": 25.5
+        },
+        "height": {
+          "nom": 3.1
+        },
+        "pads": [
+          {
+            "number": "1",
+            "x": -8.75,
+            "y": -5.26,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "2",
+            "x": -8.75,
+            "y": -3.99,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "3",
+            "x": -8.75,
+            "y": -2.72,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "4",
+            "x": -8.75,
+            "y": -1.45,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "5",
+            "x": -8.75,
+            "y": -0.18,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "6",
+            "x": -8.75,
+            "y": 1.09,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "7",
+            "x": -8.75,
+            "y": 2.36,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "8",
+            "x": -8.75,
+            "y": 3.63,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "9",
+            "x": -8.75,
+            "y": 4.9,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "10",
+            "x": -8.75,
+            "y": 6.17,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "11",
+            "x": -8.75,
+            "y": 7.44,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "12",
+            "x": -8.75,
+            "y": 8.71,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "13",
+            "x": -8.75,
+            "y": 9.98,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "14",
+            "x": -8.75,
+            "y": 11.25,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "15",
+            "x": -5.715,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "16",
+            "x": -4.445,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "17",
+            "x": -3.175,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "18",
+            "x": -1.905,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "19",
+            "x": -0.635,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "20",
+            "x": 0.635,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "21",
+            "x": 1.905,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "22",
+            "x": 3.175,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "23",
+            "x": 4.445,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "24",
+            "x": 5.715,
+            "y": 12.5,
+            "w": 0.9,
+            "h": 1.5,
+            "shape": "rect"
+          },
+          {
+            "number": "25",
+            "x": 8.75,
+            "y": 11.25,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "26",
+            "x": 8.75,
+            "y": 9.98,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "27",
+            "x": 8.75,
+            "y": 8.71,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "28",
+            "x": 8.75,
+            "y": 7.44,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "29",
+            "x": 8.75,
+            "y": 6.17,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "30",
+            "x": 8.75,
+            "y": 4.9,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "31",
+            "x": 8.75,
+            "y": 3.63,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "32",
+            "x": 8.75,
+            "y": 2.36,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "33",
+            "x": 8.75,
+            "y": 1.09,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "34",
+            "x": 8.75,
+            "y": -0.18,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "35",
+            "x": 8.75,
+            "y": -1.45,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "36",
+            "x": 8.75,
+            "y": -2.72,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "37",
+            "x": 8.75,
+            "y": -3.99,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "38",
+            "x": 8.75,
+            "y": -5.26,
+            "w": 1.5,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -2.9,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -1.5,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -0.1,
+            "y": 1.06,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -2.9,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -1.5,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -0.1,
+            "y": 2.46,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -2.9,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -1.5,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": -0.1,
+            "y": 3.86,
+            "w": 0.9,
+            "h": 0.9,
+            "shape": "rect"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ESP32-C3-MINI-1",
+      "why": "Pads under the module on four sides, corner pads and a ground array, from Figure 11-1 (the bottom row's place measured off the drawing).",
+      "reference": "espressif-ESP32-C3-MINI-1.kicad_mod",
+      "tolerance": 0.01,
+      "sizes": true,
+      "drawn": {
+        "family": "custom",
+        "name": "ESP32-C3-MINI-1",
+        "pins": 53,
+        "bodyWidth": {
+          "nom": 13.2
+        },
+        "bodyLength": {
+          "nom": 16.6
+        },
+        "height": {
+          "nom": 2.4
+        },
+        "pads": [
+          {
+            "number": "1",
+            "x": -5.9,
+            "y": -1.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "2",
+            "x": -5.9,
+            "y": -0.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "3",
+            "x": -5.9,
+            "y": 0.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "4",
+            "x": -5.9,
+            "y": 1.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "5",
+            "x": -5.9,
+            "y": 1.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "6",
+            "x": -5.9,
+            "y": 2.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "7",
+            "x": -5.9,
+            "y": 3.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "8",
+            "x": -5.9,
+            "y": 4.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "9",
+            "x": -5.9,
+            "y": 5.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "10",
+            "x": -5.9,
+            "y": 5.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "11",
+            "x": -5.9,
+            "y": 6.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "12",
+            "x": -4.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "13",
+            "x": -4.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "14",
+            "x": -3.2,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "15",
+            "x": -2.4,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "16",
+            "x": -1.6,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "17",
+            "x": -0.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "18",
+            "x": 0.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "19",
+            "x": 0.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "20",
+            "x": 1.6,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "21",
+            "x": 2.4,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "22",
+            "x": 3.2,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "23",
+            "x": 4.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "24",
+            "x": 4.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "25",
+            "x": 5.9,
+            "y": 6.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "26",
+            "x": 5.9,
+            "y": 5.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "27",
+            "x": 5.9,
+            "y": 5.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "28",
+            "x": 5.9,
+            "y": 4.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "29",
+            "x": 5.9,
+            "y": 3.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "30",
+            "x": 5.9,
+            "y": 2.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "31",
+            "x": 5.9,
+            "y": 1.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "32",
+            "x": 5.9,
+            "y": 1.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "33",
+            "x": 5.9,
+            "y": 0.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "34",
+            "x": 5.9,
+            "y": -0.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "35",
+            "x": 5.9,
+            "y": -1.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "36",
+            "x": 4.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "37",
+            "x": 4.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "38",
+            "x": 3.2,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": 2.4,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "40",
+            "x": 1.6,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": 0.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "42",
+            "x": -0.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "43",
+            "x": -0.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "44",
+            "x": -1.6,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "45",
+            "x": -2.4,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "46",
+            "x": -3.2,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "47",
+            "x": -4.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "48",
+            "x": -4.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "50",
+            "x": 5.95,
+            "y": -2.25,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "51",
+            "x": 5.95,
+            "y": 7.65,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "52",
+            "x": -5.95,
+            "y": 7.65,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "53",
+            "x": -5.95,
+            "y": -2.25,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ESP32-C6-MINI-1",
+      "why": "Taken as the C3-MINI-1's: its drawing gives the same dimensions.",
+      "reference": "espressif-ESP32-C6-MINI-1.kicad_mod",
+      "tolerance": 0.01,
+      "sizes": true,
+      "drawn": {
+        "family": "custom",
+        "name": "ESP32-C6-MINI-1",
+        "pins": 53,
+        "bodyWidth": {
+          "nom": 13.2
+        },
+        "bodyLength": {
+          "nom": 16.6
+        },
+        "height": {
+          "nom": 2.4
+        },
+        "pads": [
+          {
+            "number": "1",
+            "x": -5.9,
+            "y": -1.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "2",
+            "x": -5.9,
+            "y": -0.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "3",
+            "x": -5.9,
+            "y": 0.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "4",
+            "x": -5.9,
+            "y": 1.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "5",
+            "x": -5.9,
+            "y": 1.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "6",
+            "x": -5.9,
+            "y": 2.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "7",
+            "x": -5.9,
+            "y": 3.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "8",
+            "x": -5.9,
+            "y": 4.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "9",
+            "x": -5.9,
+            "y": 5.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "10",
+            "x": -5.9,
+            "y": 5.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "11",
+            "x": -5.9,
+            "y": 6.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "12",
+            "x": -4.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "13",
+            "x": -4.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "14",
+            "x": -3.2,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "15",
+            "x": -2.4,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "16",
+            "x": -1.6,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "17",
+            "x": -0.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "18",
+            "x": 0.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "19",
+            "x": 0.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "20",
+            "x": 1.6,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "21",
+            "x": 2.4,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "22",
+            "x": 3.2,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "23",
+            "x": 4.0,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "24",
+            "x": 4.8,
+            "y": 7.6,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "25",
+            "x": 5.9,
+            "y": 6.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "26",
+            "x": 5.9,
+            "y": 5.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "27",
+            "x": 5.9,
+            "y": 5.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "28",
+            "x": 5.9,
+            "y": 4.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "29",
+            "x": 5.9,
+            "y": 3.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "30",
+            "x": 5.9,
+            "y": 2.7,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "31",
+            "x": 5.9,
+            "y": 1.9,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "32",
+            "x": 5.9,
+            "y": 1.1,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "33",
+            "x": 5.9,
+            "y": 0.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "34",
+            "x": 5.9,
+            "y": -0.5,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "35",
+            "x": 5.9,
+            "y": -1.3,
+            "w": 0.8,
+            "h": 0.4,
+            "shape": "rect"
+          },
+          {
+            "number": "36",
+            "x": 4.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "37",
+            "x": 4.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "38",
+            "x": 3.2,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "39",
+            "x": 2.4,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "40",
+            "x": 1.6,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "41",
+            "x": 0.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "42",
+            "x": -0.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "43",
+            "x": -0.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "44",
+            "x": -1.6,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "45",
+            "x": -2.4,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "46",
+            "x": -3.2,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "47",
+            "x": -4.0,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "48",
+            "x": -4.8,
+            "y": -2.2,
+            "w": 0.4,
+            "h": 0.8,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 0.725,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 2.7,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": -1.975,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 0,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "49",
+            "x": 1.975,
+            "y": 4.675,
+            "w": 1.45,
+            "h": 1.45,
+            "shape": "rect"
+          },
+          {
+            "number": "50",
+            "x": 5.95,
+            "y": -2.25,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "51",
+            "x": 5.95,
+            "y": 7.65,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "52",
+            "x": -5.95,
+            "y": 7.65,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          },
+          {
+            "number": "53",
+            "x": -5.95,
+            "y": -2.25,
+            "w": 0.7,
+            "h": 0.7,
+            "shape": "rect"
+          }
+        ]
+      }
+    },
+    {
+      "name": "STM32U545CE LQFP48",
+      "why": "Dimensions from Table 141 (footnote marks, dashes off their rows); D and E tip to tip on a QFP. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-LQFP-48_7x7mm_P0.5mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "LQFP48"
+      }
+    },
+    {
+      "name": "STM32U545RE LQFP64",
+      "why": "The family's LQFP64, assigned to the RE by the ordering scheme. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-LQFP-64_10x10mm_P0.5mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "LQFP64"
+      }
+    },
+    {
+      "name": "STM32U545VE LQFP100",
+      "why": "The family's LQFP100. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-LQFP-100_14x14mm_P0.5mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "LQFP100"
+      }
+    },
+    {
+      "name": "STM32U545CE UFQFPN48",
+      "why": "A no-lead package (D and E are the body) with its exposed pad. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-QFN-48-1EP_7x7mm_P0.5mm_EP5.6x5.6mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "UFQFPN48"
+      }
+    },
+    {
+      "name": "STM32U545RE UFBGA64",
+      "why": "Balls laid out from the pin table's ball names. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-UFBGA-64_5x5mm_Layout8x8_P0.5mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "UFBGA64"
+      }
+    },
+    {
+      "name": "STM32U545VE UFBGA100",
+      "why": "A 12 × 12 grid with 44 balls left out, from the ball names. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-UFBGA-100_7x7mm_Layout12x12_P0.5mm.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "UFBGA100"
+      }
+    },
+    {
+      "name": "STM32U545NE WLCSP56 SMPS",
+      "why": "A staggered ball map spread over the drawing's e1 × e2. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-ST_WLCSP-56_3.38x3.38mm_Layout14x8_P0.4mm_Stagger.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545NE",
+        "package": "WLCSP56 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545JE WLCSP72 SMPS",
+      "why": "A staggered ball map at 0.35 mm. Pad centres against KiCad's; their sizes follow other conventions (IPC density, ball-sized pads).",
+      "reference": "kicad-ST_WLCSP-72_3.38x3.38mm_Layout16x9_P0.35mm_Stagger.kicad_mod",
+      "tolerance": 0.05,
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545JE",
+        "package": "WLCSP72 SMPS"
+      }
+    },
+    {
+      "name": "0402 / R_0402_1005Metric",
+      "why": "A chip resistor's footprint: SheetDiver has one 0402 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.022 mm in place, 0.060 mm in size), to catch a change.",
+      "reference": "kicad-R_0402_1005Metric.kicad_mod",
+      "tolerance": 0.04,
+      "sizeTolerance": 0.07,
+      "standard": "0402"
+    },
+    {
+      "name": "0402 / C_0402_1005Metric",
+      "why": "A chip capacitor's footprint: SheetDiver has one 0402 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.007 mm in place, 0.040 mm in size), to catch a change.",
+      "reference": "kicad-C_0402_1005Metric.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.05,
+      "standard": "0402"
+    },
+    {
+      "name": "0402 / L_0402_1005Metric",
+      "why": "A chip inductor's footprint: SheetDiver has one 0402 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.003 mm in place, 0.060 mm in size), to catch a change.",
+      "reference": "kicad-L_0402_1005Metric.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.07,
+      "standard": "0402"
+    },
+    {
+      "name": "0603 / R_0603_1608Metric",
+      "why": "A chip resistor's footprint: SheetDiver has one 0603 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.025 mm in place, 0.010 mm in size), to catch a change.",
+      "reference": "kicad-R_0603_1608Metric.kicad_mod",
+      "tolerance": 0.04,
+      "sizeTolerance": 0.02,
+      "standard": "0603"
+    },
+    {
+      "name": "0603 / C_0603_1608Metric",
+      "why": "A chip capacitor's footprint: SheetDiver has one 0603 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.075 mm in place, 0.100 mm in size), to catch a change.",
+      "reference": "kicad-C_0603_1608Metric.kicad_mod",
+      "tolerance": 0.09,
+      "sizeTolerance": 0.11,
+      "standard": "0603"
+    },
+    {
+      "name": "0603 / L_0603_1608Metric",
+      "why": "A chip inductor's footprint: SheetDiver has one 0603 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.062 mm in place, 0.075 mm in size), to catch a change.",
+      "reference": "kicad-L_0603_1608Metric.kicad_mod",
+      "tolerance": 0.08,
+      "sizeTolerance": 0.09,
+      "standard": "0603"
+    },
+    {
+      "name": "0805 / R_0805_2012Metric",
+      "why": "A chip resistor's footprint: SheetDiver has one 0805 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.037 mm in place, 0.060 mm in size), to catch a change.",
+      "reference": "kicad-R_0805_2012Metric.kicad_mod",
+      "tolerance": 0.05,
+      "sizeTolerance": 0.07,
+      "standard": "0805"
+    },
+    {
+      "name": "0805 / C_0805_2012Metric",
+      "why": "A chip capacitor's footprint: SheetDiver has one 0805 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.000 mm in place, 0.050 mm in size), to catch a change.",
+      "reference": "kicad-C_0805_2012Metric.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.07,
+      "standard": "0805"
+    },
+    {
+      "name": "0805 / L_0805_2012Metric",
+      "why": "A chip inductor's footprint: SheetDiver has one 0805 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.113 mm in place, 0.260 mm in size), to catch a change.",
+      "reference": "kicad-L_0805_2012Metric.kicad_mod",
+      "tolerance": 0.13,
+      "sizeTolerance": 0.27,
+      "standard": "0805"
+    },
+    {
+      "name": "1206 / R_1206_3216Metric",
+      "why": "A chip resistor's footprint: SheetDiver has one 1206 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.037 mm in place, 0.075 mm in size), to catch a change.",
+      "reference": "kicad-R_1206_3216Metric.kicad_mod",
+      "tolerance": 0.05,
+      "sizeTolerance": 0.09,
+      "standard": "1206"
+    },
+    {
+      "name": "1206 / C_1206_3216Metric",
+      "why": "A chip capacitor's footprint: SheetDiver has one 1206 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.025 mm in place, 0.100 mm in size), to catch a change.",
+      "reference": "kicad-C_1206_3216Metric.kicad_mod",
+      "tolerance": 0.04,
+      "sizeTolerance": 0.11,
+      "standard": "1206"
+    },
+    {
+      "name": "1206 / L_1206_3216Metric",
+      "why": "A chip inductor's footprint: SheetDiver has one 1206 for resistors, capacitors and inductors; KiCad's differ by end-cap size (IPC RESC, CAPC, INDC). Tolerances just above today's differences (0.075 mm in place, 0.090 mm in size), to catch a change.",
+      "reference": "kicad-L_1206_3216Metric.kicad_mod",
+      "tolerance": 0.09,
+      "sizeTolerance": 0.1,
+      "standard": "1206"
+    },
+    {
+      "name": "SOT-23 / SOT-23",
+      "why": "Three leads, pin 3 alone on the right. Tolerances just above today's differences (0.067 mm in place, 0.100 mm in size), to catch a change.",
+      "reference": "kicad-SOT-23.kicad_mod",
+      "tolerance": 0.08,
+      "sizeTolerance": 0.11,
+      "standard": "SOT-23"
+    },
+    {
+      "name": "SOT-23-5 / SOT-23-5",
+      "why": "Five leads, no pin opposite 2. Tolerances just above today's differences (0.090 mm in place, 0.020 mm in size), to catch a change.",
+      "reference": "kicad-SOT-23-5.kicad_mod",
+      "tolerance": 0.1,
+      "sizeTolerance": 0.03,
+      "standard": "SOT-23-5"
+    },
+    {
+      "name": "SOT-23-6 / SOT-23-6",
+      "why": "Tolerances just above today's differences (0.075 mm in place, 0.020 mm in size), to catch a change.",
+      "reference": "kicad-SOT-23-6.kicad_mod",
+      "tolerance": 0.09,
+      "sizeTolerance": 0.03,
+      "standard": "SOT-23-6"
+    },
+    {
+      "name": "SOIC-8 / SOIC-8_3.9x4.9mm_P1.27mm",
+      "why": "Our pads are shorter than KiCad's (1.775 against 1.95 mm): different IPC fillet goals. Tolerances just above today's differences (0.113 mm in place, 0.175 mm in size), to catch a change.",
+      "reference": "kicad-SOIC-8_3.9x4.9mm_P1.27mm.kicad_mod",
+      "tolerance": 0.13,
+      "sizeTolerance": 0.19,
+      "standard": "SOIC-8"
+    },
+    {
+      "name": "SOIC-14 / SOIC-14_3.9x8.7mm_P1.27mm",
+      "why": "Tolerances just above today's differences (0.113 mm in place, 0.175 mm in size), to catch a change.",
+      "reference": "kicad-SOIC-14_3.9x8.7mm_P1.27mm.kicad_mod",
+      "tolerance": 0.13,
+      "sizeTolerance": 0.19,
+      "standard": "SOIC-14"
+    },
+    {
+      "name": "SOIC-16 / SOIC-16_3.9x9.9mm_P1.27mm",
+      "why": "Tolerances just above today's differences (0.113 mm in place, 0.175 mm in size), to catch a change.",
+      "reference": "kicad-SOIC-16_3.9x9.9mm_P1.27mm.kicad_mod",
+      "tolerance": 0.13,
+      "sizeTolerance": 0.19,
+      "standard": "SOIC-16"
+    },
+    {
+      "name": "TSSOP-16 / TSSOP-16_4.4x5mm_P0.65mm",
+      "why": "Tolerances just above today's differences (0.075 mm in place, 0.010 mm in size), to catch a change.",
+      "reference": "kicad-TSSOP-16_4.4x5mm_P0.65mm.kicad_mod",
+      "tolerance": 0.09,
+      "sizeTolerance": 0.02,
+      "standard": "TSSOP-16"
+    },
+    {
+      "name": "TSSOP-20 / TSSOP-20_4.4x6.5mm_P0.65mm",
+      "why": "Tolerances just above today's differences (0.075 mm in place, 0.010 mm in size), to catch a change.",
+      "reference": "kicad-TSSOP-20_4.4x6.5mm_P0.65mm.kicad_mod",
+      "tolerance": 0.09,
+      "sizeTolerance": 0.02,
+      "standard": "TSSOP-20"
+    },
+    {
+      "name": "MSOP-8 / MSOP-8_3x3mm_P0.65mm",
+      "why": "Our pads are shorter than KiCad's (1.4 against 1.625 mm). Tolerances just above today's differences (0.087 mm in place, 0.225 mm in size), to catch a change.",
+      "reference": "kicad-MSOP-8_3x3mm_P0.65mm.kicad_mod",
+      "tolerance": 0.1,
+      "sizeTolerance": 0.24,
+      "standard": "MSOP-8"
+    },
+    {
+      "name": "MSOP-10 / MSOP-10_3x3mm_P0.5mm",
+      "why": "Tolerances just above today's differences (0.100 mm in place, 0.100 mm in size), to catch a change.",
+      "reference": "kicad-MSOP-10_3x3mm_P0.5mm.kicad_mod",
+      "tolerance": 0.11,
+      "sizeTolerance": 0.11,
+      "standard": "MSOP-10"
+    },
+    {
+      "name": "DIP-8 / DIP-8_W7.62mm",
+      "why": "Through hole: pads and drills as KiCad's. Tolerances just above today's differences (0.000 mm in place, 0.000 mm in size), to catch a change.",
+      "reference": "kicad-DIP-8_W7.62mm.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.02,
+      "standard": "DIP-8"
+    },
+    {
+      "name": "DIP-16 / DIP-16_W7.62mm",
+      "why": "Tolerances just above today's differences (0.000 mm in place, 0.000 mm in size), to catch a change.",
+      "reference": "kicad-DIP-16_W7.62mm.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.02,
+      "standard": "DIP-16"
+    },
+    {
+      "name": "TO-92 / TO-92_Inline",
+      "why": "Drills 0.70 against KiCad's 0.75 mm. Tolerances just above today's differences (0.000 mm in place, 0.050 mm in size), to catch a change.",
+      "reference": "kicad-TO-92_Inline.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.07,
+      "standard": "TO-92"
+    },
+    {
+      "name": "TO-220-3 / TO-220-3_Vertical",
+      "why": "Drills 1.2 against KiCad's 1.1 mm. Tolerances just above today's differences (0.000 mm in place, 0.095 mm in size), to catch a change.",
+      "reference": "kicad-TO-220-3_Vertical.kicad_mod",
+      "tolerance": 0.02,
+      "sizeTolerance": 0.11,
+      "standard": "TO-220-3"
+    },
+    {
+      "name": "TPS63900 WSON (DSK0010A)",
+      "why": "TI's drawing read into its outline and land pattern. KiCad has no DSK0010A of TI's: its generic WSON-10 is its own IPC calculation (0.825 mm pads, rows 2.425 mm apart) where TI's land pattern has 0.6 mm pads 2.3 mm apart, so pad centres only, to 0.07 mm.",
+      "reference": "kicad-WSON-10-1EP_2.5x2.5mm_P0.5mm_EP1.2x2mm.kicad_mod",
+      "tolerance": 0.07,
+      "datasheet": {
+        "file": "tps63900.pdf",
+        "part": "TPS63900",
+        "package": "WSON"
+      }
+    },
+    {
+      "name": "TPS2595 WSON (DSG0008A)",
+      "why": "The eFuses' WSON, against KiCad's own copy of TI's DSG0008A: pads exactly in place. TI's land pattern (p47) has 0.5 mm pads where KiCad's copy has 0.6 mm; the pin table calls the exposed pad PAD, KiCad 9.",
+      "reference": "kicad-Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm.kicad_mod",
+      "tolerance": 0.01,
+      "sizeTolerance": 0.11,
+      "datasheet": {
+        "file": "tps2595.pdf",
+        "part": "TPS259520",
+        "package": "WSON"
+      },
+      "padNames": {
+        "PAD": "9"
+      }
+    },
+    {
+      "name": "PCM5102A TSSOP (PW0020A)",
+      "why": "A gull-wing from TI's drawing, its land pattern TI's (1.5 × 0.45 mm pads, rows 5.8 mm apart).",
+      "reference": "kicad-TSSOP-20_4.4x6.5mm_P0.65mm.kicad_mod",
+      "tolerance": 0.05,
+      "sizeTolerance": 0.05,
+      "datasheet": {
+        "file": "pcm5102a.pdf",
+        "part": "PCM5102A",
+        "package": "TSSOP"
+      }
+    }
+  ],
+  "symbols": [
+    {
+      "name": "STM32U545CE LQFP48",
+      "reference": {
+        "file": "kicad-STM32U545CETx.kicad_sym",
+        "symbol": "STM32U545CETx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "LQFP48"
+      }
+    },
+    {
+      "name": "STM32U545CE LQFP48 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545CETxQ.kicad_sym",
+        "symbol": "STM32U545CETxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "LQFP48 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545CE UFQFPN48",
+      "reference": {
+        "file": "kicad-STM32U545CEUx.kicad_sym",
+        "symbol": "STM32U545CEUx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "UFQFPN48"
+      },
+      "missing": [
+        "49"
+      ],
+      "why": "ST's pin table doesn't list the exposed pad; KiCad's symbol has it as pin 49 (VSS)."
+    },
+    {
+      "name": "STM32U545CE UFQFPN48 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545CEUxQ.kicad_sym",
+        "symbol": "STM32U545CEUxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545CE",
+        "package": "UFQFPN48 SMPS"
+      },
+      "missing": [
+        "49"
+      ],
+      "why": "ST's pin table doesn't list the exposed pad; KiCad's symbol has it as pin 49 (VSS)."
+    },
+    {
+      "name": "STM32U545JE WLCSP72 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545JEYxQ.kicad_sym",
+        "symbol": "STM32U545JEYxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545JE",
+        "package": "WLCSP72 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545NE WLCSP56 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545NEYxQ.kicad_sym",
+        "symbol": "STM32U545NEYxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545NE",
+        "package": "WLCSP56 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545RE UFBGA64",
+      "reference": {
+        "file": "kicad-STM32U545REIx.kicad_sym",
+        "symbol": "STM32U545REIx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "UFBGA64"
+      }
+    },
+    {
+      "name": "STM32U545RE UFBGA64 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545REIxQ.kicad_sym",
+        "symbol": "STM32U545REIxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "UFBGA64 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545RE LQFP64",
+      "reference": {
+        "file": "kicad-STM32U545RETx.kicad_sym",
+        "symbol": "STM32U545RETx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "LQFP64"
+      }
+    },
+    {
+      "name": "STM32U545RE LQFP64 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545RETxQ.kicad_sym",
+        "symbol": "STM32U545RETxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545RE",
+        "package": "LQFP64 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545VE UFBGA100",
+      "reference": {
+        "file": "kicad-STM32U545VEIx.kicad_sym",
+        "symbol": "STM32U545VEIx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "UFBGA100"
+      }
+    },
+    {
+      "name": "STM32U545VE UFBGA100 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545VEIxQ.kicad_sym",
+        "symbol": "STM32U545VEIxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "UFBGA100 SMPS"
+      }
+    },
+    {
+      "name": "STM32U545VE LQFP100",
+      "reference": {
+        "file": "kicad-STM32U545VETx.kicad_sym",
+        "symbol": "STM32U545VETx"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "LQFP100"
+      }
+    },
+    {
+      "name": "STM32U545VE LQFP100 SMPS",
+      "reference": {
+        "file": "kicad-STM32U545VETxQ.kicad_sym",
+        "symbol": "STM32U545VETxQ"
+      },
+      "datasheet": {
+        "file": "DS_stm32u545ce.pdf",
+        "part": "STM32U545VE",
+        "package": "LQFP100 SMPS"
+      }
+    },
+    {
+      "name": "ESP32-S3-WROOM-1",
+      "reference": {
+        "file": "espressif-Espressif.kicad_sym",
+        "symbol": "ESP32-S3-WROOM-1"
+      },
+      "datasheet": {
+        "file": "esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+        "part": "ESP32-S3-WROOM-1"
+      },
+      "aliases": {
+        "RXD0": "U0RXD",
+        "TXD0": "U0TXD",
+        "EPAD": "GND"
+      }
+    },
+    {
+      "name": "ESP32-C3-MINI-1",
+      "reference": {
+        "file": "espressif-Espressif.kicad_sym",
+        "symbol": "ESP32-C3-MINI-1"
+      },
+      "datasheet": {
+        "file": "esp32-c3-mini-1_datasheet_en.pdf",
+        "part": "ESP32-C3-MINI-1"
+      },
+      "aliases": {
+        "RXD0": "U0RXD",
+        "TXD0": "U0TXD",
+        "EPAD": "GND"
+      }
+    }
+  ]
+}

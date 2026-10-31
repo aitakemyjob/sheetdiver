@@ -313,6 +313,21 @@ func readPad(x *Node) cad.Pad {
 		p.Kind = cad.PadSMD
 		p.NoPaste = !has("F.Paste")
 	}
+	// A custom pad is its anchor and the shapes drawn on it (a corner
+	// cut off as a mark): its size is theirs.
+	if p.Shape == "custom" {
+		if prims := x.Child("primitives"); prims != nil {
+			w, h := p.W/2, p.H/2
+			for _, g := range prims.Children("gr_poly") {
+				if pts := g.Child("pts"); pts != nil {
+					for _, xy := range pts.Children("xy") {
+						w, h = math.Max(w, math.Abs(xy.Float(0))), math.Max(h, math.Abs(xy.Float(1)))
+					}
+				}
+			}
+			p.W, p.H = 2*w, 2*h
+		}
+	}
 	if p.Shape == "oval" || p.Shape == "custom" || p.Shape == "trapezoid" {
 		p.Shape = "roundrect"
 	}

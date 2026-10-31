@@ -41,8 +41,9 @@ test-frontend: ## Frontend type check and unit tests
 corpus: ## Download the real-datasheet test corpus (testdata/corpus/manifest.json)
 	scripts/corpus.sh
 
-test-corpus: ## Check extraction against the downloaded corpus
+test-corpus: ## Check extraction, footprints and symbols against the downloaded corpus
 	go test -tags nogui -run TestCorpus -count=1 -v ./internal/extract/
+	go test -tags nogui -run TestCadCorpus -count=1 -v ./internal/core/
 
 vet: ## go vet
 	go vet -tags nogui ./...
