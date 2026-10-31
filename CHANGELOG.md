@@ -72,6 +72,13 @@ every merged pull request.
   no longer fails with "not in the BOM or the blocks", so a drawing
   block can be swapped for the BOM part in one call (#133).
 
+### Changed
+- Dependencies: Wails 2.17.0 (and its CLI in the build scripts),
+  go-pdfium 1.21.4, modernc.org/sqlite 1.61.0; lucide-react 1.61.0,
+  zustand 5.0.16, Vite 8.3.5; for development, ESLint 10 with
+  @eslint/js 10 and typescript-eslint 8.72.0; the Scorecard workflow's
+  upload-sarif action 4.39.1.
+
 ## [0.2.1] - 2026-10-29
 
 ### Added

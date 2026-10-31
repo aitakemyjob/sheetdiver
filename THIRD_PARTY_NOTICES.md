@@ -1937,7 +1937,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## Go modules
 
-### github.com/dustin/go-humanize v1.0.1
+### github.com/dustin/go-humanize v1.1.0
 
 ```text
 Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
@@ -2227,7 +2227,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    limitations under the License.
 ```
 
-### github.com/klippa-app/go-pdfium v1.21.3
+### github.com/klippa-app/go-pdfium v1.21.4
 
 ```text
 MIT License
@@ -2566,7 +2566,7 @@ CC-BY-4.0. See https://creativecommons.org/licenses/by/4.0/legalcode for
 the full license text.
 ```
 
-### github.com/ncruces/go-strftime v1.0.0
+### github.com/ncruces/go-strftime v1.1.0
 
 ```text
 MIT License
@@ -2972,7 +2972,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### github.com/wailsapp/wails/v2 v2.16.0
+### github.com/wailsapp/wails/v2 v2.17.0
 
 ```text
 MIT License
@@ -3060,7 +3060,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### golang.org/x/sync v0.23.0
+### golang.org/x/sync v0.24.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -3092,7 +3092,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### golang.org/x/sys v0.48.0
+### golang.org/x/sys v0.49.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -3124,7 +3124,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### golang.org/x/text v0.42.0
+### golang.org/x/text v0.43.0
 
 ```text
 Copyright 2009 The Go Authors.
@@ -3188,7 +3188,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### modernc.org/libc v1.77.1
+### modernc.org/libc v1.79.0
 
 ```text
 Copyright (c) 2017 The Libc Authors. All rights reserved.
@@ -3284,7 +3284,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### modernc.org/sqlite v1.60.1
+### modernc.org/sqlite v1.61.0
 
 ```text
 Copyright (c) 2017 The Sqlite Authors. All rights reserved.
@@ -5368,7 +5368,7 @@ in the Eclipse Public License, v. 2.0 are satisfied: GNU General Public License 
 > You may add additional accurate notices of copyright ownership.
 ```
 
-### lucide-react 1.59.0
+### lucide-react 1.61.0
 
 Licence: ISC
 
@@ -5553,7 +5553,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### zustand 5.0.15
+### zustand 5.0.16
 
 Licence: MIT
 

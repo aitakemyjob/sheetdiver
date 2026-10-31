@@ -6,7 +6,7 @@
 # Linux desktop builds need: sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-WAILS_VERSION := v2.16.0
+WAILS_VERSION := v2.17.0
 GOLANGCI_VERSION := v2.5.0
 GOLANGCI ?= $(shell go env GOPATH)/bin/golangci-lint
 WAILS ?= $(shell go env GOPATH)/bin/wails

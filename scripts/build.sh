@@ -23,7 +23,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
-WAILS_VERSION="v2.16.0"
+WAILS_VERSION="v2.17.0"
 APP="SheetDiver"
 BIN="sheetdiver"
 BUNDLE_ID="io.github.aitakemyjob.sheetdiver"
