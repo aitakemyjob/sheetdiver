@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calculator, CloudDownload, ExternalLink, FileText, FolderPlus, Languages, RefreshCw, Trash2 } from 'lucide-react';
 import { ReextractDialog } from '../components/ReextractDialog';
-import { SectionText } from '../components/SectionText';
 import { T, TranslateProvider } from '../components/Translated';
 import { needsTranslation } from '../lib/translate';
 import { api, figureImageURL, openPDF, tableImageURL } from '../lib/api';
 import { categories, figureKinds, headline, plural, relTime, sectionLabels, sig3 } from '../lib/format';
 import { useStore } from '../lib/store';
-import type { Figure, Parameter, PartDetail, Section } from '../lib/types';
+import type { Figure, Parameter, PartDetail } from '../lib/types';
 import { Menu } from '../components/Menu';
 import { discouraged, FavoriteStar, StatusBadge, StatusPicker } from '../components/PartStatus';
 import { CategoryBadge, Empty, ErrorBox, Markdown, SourceBadge, Spinner, useAsync } from '../components/ui';
@@ -18,7 +17,13 @@ import { PartPackagesPanel } from './PartPackages';
 import { UpdateDialog } from '../components/UpdateDialog';
 import { DeleteDialog } from '../components/DeleteDialog';
 
-type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'package' | 'cad' | 'sections' | 'registers' | 'tables' | 'alternatives' | 'notes' | 'variants';
+type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'package' | 'cad' | 'tables' | 'alternatives' | 'notes' | 'variants';
+const subs: Sub[] = ['overview', 'parameters', 'figures', 'pins', 'package', 'cad', 'tables', 'alternatives', 'notes', 'variants'];
+
+/** The sub-tab a name means; the overview for one there isn't (an agent asking for the old Sections tab). */
+function subOf(name: unknown): Sub {
+  return subs.includes(name as Sub) ? (name as Sub) : 'overview';
+}
 
 /** Calculator suggested for a category. */
 export function calcFor(category: string): string | undefined {
@@ -33,13 +38,13 @@ export function calcFor(category: string): string | undefined {
 export function PartView({ params }: { params: Record<string, unknown> }) {
   const s = useStore();
   const ref = String(params.part ?? '');
-  const [sub, setSub] = useState<Sub>((params.tab as Sub) || 'overview');
+  const [sub, setSub] = useState<Sub>(subOf(params.tab));
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [reextracting, setReextracting] = useState(false);
   useEffect(() => {
-    if (params.tab) setSub(params.tab as Sub);
+    if (params.tab) setSub(subOf(params.tab));
   }, [params.tab, params.nonce]);
   const detail = useAsync(() => api.part(ref), [ref, s.libraryVersion]);
   const d = detail.data;
@@ -63,8 +68,6 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
     ['pins', 'Pins', c.pins],
     ['package', 'Package'],
     ['cad', 'CAD'],
-    ['sections', 'Sections', c.sections],
-    ['registers', 'Registers', c.registers],
     ['tables', 'Tables', c.tables],
     ['alternatives', 'Alternatives'],
     ['notes', 'Notes', d.notes?.length],
@@ -205,8 +208,6 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
                 <PartCadPanel part={d.part.mpn} />
               </div>
             )}
-            {sub === 'sections' && ds && <Sections d={d} />}
-            {sub === 'registers' && ds && <Registers d={d} />}
             {sub === 'tables' && ds && <Tables d={d} />}
           </>
         )}
@@ -657,112 +658,6 @@ function Pins({ d }: { d: PartDetail }) {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Section outline and text. */
-function Sections({ d }: { d: PartDetail }) {
-  const s = useStore();
-  const [sel, setSel] = useState<Section | undefined>(d.sections?.[0]);
-  const text = useAsync(() => (sel ? api.section(sel.id) : Promise.resolve(undefined)), [sel?.id]);
-  return (
-    <div className="split" style={{ height: '100%' }}>
-      <div className="side toc" style={{ padding: 8 }}>
-        {(d.sections ?? []).map((x) => (
-          <a key={x.id} className={sel?.id === x.id ? 'on' : ''} style={{ paddingLeft: 8 + (x.level - 1) * 12 }} onClick={() => setSel(x)}>
-            {x.num} <T text={x.title} />
-          </a>
-        ))}
-      </div>
-      <div className="main scroll pad">
-        {sel && (
-          <>
-            <div className="row" style={{ marginBottom: 10 }}>
-              <h3 style={{ margin: 0 }}>
-                {sel.num} <T text={sel.title} />
-              </h3>
-              <span className="badge">{sel.kind}</span>
-              <div className="grow" />
-              <button className="btn sm" onClick={() => s.open({ kind: 'page', title: `${d.part.mpn} p${sel.page + 1}`, params: { ds: d.datasheet!.id, page: sel.page, part: d.part.mpn, nonce: Date.now() } })}>
-                <FileText size={13} /> Page {sel.page + 1}
-              </button>
-            </div>
-            {text.data && (text.data.text ? <SectionText text={text.data.text} /> : <div className="sec-text faint">(no text under this heading; see its subsections)</div>)}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Recorded registers and the register-map sections. */
-function Registers({ d }: { d: PartDetail }) {
-  const s = useStore();
-  const regs = useAsync(() => api.registers(d.datasheet!.id), [d.datasheet!.id, s.libraryVersion]);
-  const secs = (d.sections ?? []).filter((x) => x.kind === 'registers');
-  return (
-    <div className="pad col">
-      {regs.data?.length === 0 && (
-        <div className="muted">
-          {secs.length ? 'Register-map sections are listed below. Ask your agent to record the registers (record_registers) to make them searchable and structured.' : 'No register map found in this datasheet.'}
-        </div>
-      )}
-      {regs.data?.map((r) => (
-        <div key={r.id} className="card">
-          <h3 style={{ textTransform: 'none', letterSpacing: 0, fontSize: 13, color: 'var(--text)' }}>
-            <span className="mono">{r.address}</span> {r.name}
-            <span className="faint" style={{ fontWeight: 500 }}>
-              {r.width ? `${r.width}-bit` : ''} {r.reset ? `reset ${r.reset}` : ''} {r.access}
-            </span>
-            <span style={{ marginLeft: 'auto' }}>
-              <SourceBadge source={r.source} />
-            </span>
-          </h3>
-          {r.description && <div className="muted"><T text={r.description} /></div>}
-          {(r.fields?.length ?? 0) > 0 && (
-            <table className="dtable" style={{ marginTop: 8 }}>
-              <thead>
-                <tr>
-                  <th>Bits</th>
-                  <th>Field</th>
-                  <th>Access</th>
-                  <th>Reset</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.fields!.map((f, i) => (
-                  <tr key={i}>
-                    <td className="mono">{f.bits}</td>
-                    <td className="mono">{f.name}</td>
-                    <td className="mono">{f.access}</td>
-                    <td className="mono">{f.reset}</td>
-                    <td><T text={f.description} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      ))}
-      {secs.length > 0 && (
-        <div className="card">
-          <h3>Register sections</h3>
-          {secs.map((x) => (
-            <div key={x.id} className="row" style={{ padding: '4px 0' }}>
-              <span>
-                {x.num} {x.title}
-              </span>
-              <span className="faint">pages {x.page + 1}–{x.endPage + 1}</span>
-              <div className="grow" />
-              <button className="btn sm" onClick={() => s.open({ kind: 'page', title: `${d.part.mpn} p${x.page + 1}`, params: { ds: d.datasheet!.id, page: x.page, part: d.part.mpn, nonce: Date.now() } })}>
-                Open
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

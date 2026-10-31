@@ -181,6 +181,10 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; min-height: 
 .tree-row .heat { margin-left: auto; width: 34px; height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; flex: none; }
 .tree-row .heat i { display: block; height: 100%; border-radius: 2px; }
 .tree-row .tag { margin-left: auto; font-size: 10px; font-weight: 700; font-family: var(--font-mono); }
+.tree-row .count { margin-left: auto; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.library-tree .tree-row.group { padding-left: 4px; font-weight: 600; color: var(--text); }
+.library-tree .tree-row.category { padding-left: 20px; }
+.library-tree .part-row.leaf { margin-left: 36px; padding: 5px 8px; }
 
 .list-item { display: flex; gap: 8px; padding: 8px; border-radius: 8px; cursor: pointer; align-items: flex-start; }
 .list-item:hover { background: var(--bg-2); }

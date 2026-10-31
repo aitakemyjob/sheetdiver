@@ -114,6 +114,21 @@ export const categories: Record<string, string> = {
   interface: 'Interface',
   sensor: 'Sensor',
   power: 'Power',
+  resistor: 'Resistor',
+  'capacitor-polarised': 'Polarised capacitor',
+  ferrite: 'Ferrite bead',
+  fuse: 'Fuse',
+  crystal: 'Crystal',
+  battery: 'Battery',
+  schottky: 'Schottky diode',
+  zener: 'Zener diode',
+  led: 'LED',
+  esd: 'ESD protection',
+  npn: 'NPN transistor',
+  pnp: 'PNP transistor',
+  connector: 'Connector',
+  switch: 'Switch',
+  module: 'Module',
 };
 
 /** Parses a value typed with an SI prefix ("4.7u", "650k", "2.2µ") into a number. */

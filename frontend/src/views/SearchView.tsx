@@ -38,7 +38,9 @@ export async function openHit(h: Hit) {
       s.open({ kind: 'part', title: part, params: { part, tab: 'pins' } });
       return;
     case 'register':
-      s.open({ kind: 'part', title: part, params: { part, tab: 'registers' } });
+      // The register map is the agent's to read: a hit opens its page.
+      if (h.datasheetId) s.open({ kind: 'page', title: `${part} p${h.page + 1}`, params: { ds: h.datasheetId, page: h.page, part, nonce: Date.now() } });
+      else s.open({ kind: 'part', title: part, params: { part } });
       return;
     case 'recommendation':
       s.open({ kind: 'part', title: part, params: { part, tab: 'overview' } });

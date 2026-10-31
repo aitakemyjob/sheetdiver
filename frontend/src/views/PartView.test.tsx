@@ -47,13 +47,6 @@ describe('PartView', () => {
     for (const pin of ['GND', 'SW', 'VIN', 'VFB']) expect(within(table).getByText(pin)).toBeInTheDocument();
   });
 
-  it('reads a section as formatted text', async () => {
-    await part();
-    tab('Sections');
-    fireEvent.click((await screen.findAllByText(/Electrical Characteristics/)).at(-1)!);
-    await waitFor(() => expect(b.callsTo('section.get').length).toBeGreaterThan(0));
-  });
-
   it('lists tables, notes and variants', async () => {
     await part();
     tab('Tables');
