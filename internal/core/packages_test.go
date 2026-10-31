@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -97,5 +98,24 @@ func TestLandOf(t *testing.T) {
 	pp.Land = append(pp.Land[2:], PackageDim{library.PackageDim{Key: "rowSpan", Nom: f(0.95)}, "auto"})
 	if _, ok := landOf(pp, 0.95); ok {
 		t.Error("C equal to the pitch taken for the rows' span")
+	}
+}
+
+func TestNoPackagesIsAnEmptyList(t *testing.T) {
+	s := newService(t)
+	pp, err := s.PartPackages(context.Background(), "SD1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(pp)
+	if !strings.Contains(string(b), `"packages":[]`) {
+		t.Errorf("a part with no package dimensions: %s", b)
+	}
+}
+
+func TestPinCountWithoutNumbers(t *testing.T) {
+	pins := []library.Pin{{Name: "G"}, {Name: "S"}, {Name: "D"}, {Number: "1", Name: "A"}, {Number: "1", Name: "A2"}}
+	if n := pinCount(pins, "SOT-23", true); n != 4 {
+		t.Errorf("%d pins, want 4 (three unnumbered, one number twice)", n)
 	}
 }

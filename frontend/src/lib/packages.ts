@@ -45,5 +45,5 @@ export function packageTitle(p: PartPackage): string {
 
 /** The rows of a package an agent or the user recorded, which may be removed. */
 export function recordedRows(p: PartPackage) {
-  return p.rows.filter((r) => r.source !== 'auto');
+  return (p.rows ?? []).filter((r) => r.source !== 'auto');
 }

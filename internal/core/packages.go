@@ -73,6 +73,9 @@ func (s *Service) partPackages(ctx context.Context, p library.Part) ([]PartPacka
 		return nil, err
 	}
 	out := mergePackageRows(rows)
+	if out == nil {
+		out = []PartPackage{}
+	}
 	for i := range out {
 		out[i].Pins = pinCount(pins, out[i].Name, len(out) == 1)
 		out[i].Checks = append(out[i].Checks, checkPackage(out[i])...)
@@ -148,13 +151,17 @@ func cadNormal(name string) string {
 	return b.String()
 }
 
-// pinCount is how many pins the pin table gives a package, by number; a
-// lone package takes every pin.
+// pinCount is how many pins the pin table gives a package, by number
+// (pins without one each count); a lone package takes every pin.
 func pinCount(pins []library.Pin, name string, only bool) int {
 	numbers := map[string]bool{}
-	for _, p := range pins {
+	for i, p := range pins {
 		if only || p.Package == "" || packageMatches(p.Package, name) {
-			numbers[strings.ToUpper(p.Number)] = true
+			key := strings.ToUpper(p.Number)
+			if key == "" { // a pin read without its number counts by itself
+				key = fmt.Sprintf("#%d", i)
+			}
+			numbers[key] = true
 		}
 	}
 	return len(numbers)
