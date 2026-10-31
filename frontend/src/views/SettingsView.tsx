@@ -4,8 +4,9 @@ import { Switch } from '../components/ui';
 import { CatalogSettings } from '../components/CatalogPanel';
 import { TranslationSettings } from '../components/TranslationSettings';
 import { NgspiceSettings } from '../components/NgspiceSettings';
+import { CadLibrarySettings } from '../components/CadLibrarySettings';
 
-/** Settings: appearance, agent access, catalogue, translation, simulation, server and library. */
+/** Settings: appearance, agent access, catalogue, translation, simulation, CAD library, server and library. */
 export function SettingsView() {
   const s = useStore();
   const st = s.app?.config.settings;
@@ -67,6 +68,7 @@ export function SettingsView() {
         <CatalogSettings />
         <TranslationSettings />
         <NgspiceSettings />
+        <CadLibrarySettings />
         <div className="card">
           <h3>Server & library</h3>
           {row(

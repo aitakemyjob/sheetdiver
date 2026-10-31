@@ -8,6 +8,31 @@ every merged pull request.
 
 ## [Unreleased]
 
+### Added
+- **CAD library** (preview). SheetDiver keeps your own library of
+  schematic symbols, footprints and 3D models for your parts, in a folder
+  you choose (Settings → CAD library), as KiCad libraries (`.kicad_sym`,
+  `.pretty`, STEP models) and, if you like, an Eagle / Fusion library
+  (`.lbr`, which Altium's Import Wizard also reads). Each part's **CAD**
+  tab shows them per package, with where each came from:
+  - **SheetDiver** draws a symbol from every pin table (supplies on top,
+    grounds below, outputs on the right) and a footprint and 3D model for
+    standard outlines (SOIC, TSSOP, MSOP, SOT-23, 0402–1206), with
+    IPC-7351 nominal pads.
+  - **Your agent** draws the rest from the datasheet: it reads the package
+    outline's dimension table and the recommended land pattern
+    (`draw_footprint`: gull-wing, QFP, DFN, QFN, chip and BGA packages,
+    exposed pads with paste windows and thermal vias), lays out the symbol
+    the way an engineer reads it (`draw_symbol`), and looks at both
+    (`get_cad_image`, with the pitch, row span and pad size dimensioned)
+    to compare with the drawing.
+  - **You** edit anything in KiCad. Every sync reads the library back first:
+    a symbol or footprint you changed (not merely re-saved) is kept as you
+    left it, shown in the app, carried into the Eagle library, and never
+    redrawn until you reset it; a 3D model you replaced is left alone.
+  New MCP tools: `get_cad`, `get_cad_image`, `draw_symbol`,
+  `draw_footprint`, `reset_cad` and `sync_cad_library`.
+
 ### Fixed
 - The block diagram no longer fails with "Cannot read properties of
   undefined (reading 'pins')" when a BOM entry with several designators

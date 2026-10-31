@@ -138,6 +138,39 @@ limit and a cap on its results' size.
 | `delete_variation` | Delete one variation of a test with its runs; the test and its other variations stay. |
 | `delete_simulation` | Delete a test with all its variations, runs and results. |
 
+## CAD library
+
+SheetDiver keeps the user's own CAD library: each part's schematic
+symbol, footprint and 3D model, in a folder (Settings → CAD library) in
+the formats they choose: **KiCad** (`<name>.kicad_sym`, `<name>.pretty`,
+`<name>.3dshapes` STEP models) and **Eagle / Fusion** (`<name>.lbr`, which
+Altium's Import Wizard and other tools also read).
+
+SheetDiver draws what it can on its own: a symbol from every pin table
+(supplies on top, grounds along the bottom, outputs on the right), and a
+footprint for standard outlines (SOIC, TSSOP, MSOP, SOT-23, 0402…1206)
+with IPC-7351 nominal pads. The agent draws the rest from the datasheet:
+the package outline's dimension table and the recommended land pattern
+(`draw_footprint`), and a symbol laid out the way an engineer reads it
+(`draw_symbol`), checking each with `get_cad_image`.
+
+The user edits symbols and footprints in KiCad. Every sync reads the
+library back first: a symbol or footprint whose content differs from what
+SheetDiver last wrote (formatting aside, so KiCad re-saving it isn't an
+edit) is kept as the user left it, read back into the app and the Eagle
+library, and isn't redrawn until reset. A 3D model file the user replaced
+is left alone. Each symbol and footprint has a state: `auto`
+(SheetDiver's), `drawn` (an agent's) or `edited` (the user's).
+
+| Tool | What it does |
+|---|---|
+| `get_cad` | A part's CAD data per package: the symbol's pins by side and type, the footprint (from a standard outline, the datasheet's land pattern or calculated), each one's state, what doesn't match between pins and pads, and what's missing. |
+| `get_cad_image` | A picture of a part's `symbol`, `footprint` (pads numbered; pitch, row span and pad size dimensioned; courtyard dashed) or `3d` model, to compare with the datasheet's drawings. |
+| `draw_symbol` | Place pins: `{number, side, position, type, name, hidden}`; unplaced pins keep their place by role. Electrical types are KiCad's (`power_in`, `open_collector`…). Refused for a symbol the user edited. |
+| `draw_footprint` | Give the package `outline` from its datasheet in mm: `family` (`gullwing`, `qfp`, `dfn`, `qfn`, `chip`, `bga`), `pins`, `pitch`, `bodyLength`, `bodyWidth`, `height`, `standoff`, `span`, `leadLength`, `leadWidth`, `leadThickness` (each `{min, nom, max}`), `exposedPad`, `layout` for skipped or oddly numbered pins, BGA `rows`/`columns`/`depopulated`, and `land`, the recommended land pattern (`padLength`, `padWidth`, `rowSpan` centre to centre, `exposedPad`, `paste`, `vias`). Pads come from `land` when given, else IPC-7351 nominal; the 3D model is built from the outline. Refused for a footprint the user edited. |
+| `reset_cad` | Drop the newest work on a symbol or footprint: the user's edit (back to the agent's drawing or SheetDiver's) or an agent's drawing. Only when the user asks. |
+| `sync_cad_library` | Read back the user's edits, then write the library in every format; says where it is and how to add it to KiCad. |
+
 ## Canonical parameter keys
 
 Calculators and project checks find values by key. `list_calculators`

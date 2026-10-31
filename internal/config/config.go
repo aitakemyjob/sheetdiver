@@ -37,6 +37,15 @@ type Settings struct {
 	// NgspicePath is the ngspice program simulations run with; empty
 	// finds it on the PATH or where its installers put it.
 	NgspicePath string `json:"ngspicePath"`
+	// CadLibraryDir is the folder SheetDiver keeps the user's CAD library
+	// in (empty: cad-library in the SheetDiver library).
+	CadLibraryDir string `json:"cadLibraryDir"`
+	// CadLibraryName is the library's name in the CAD tools (empty:
+	// SheetDiver).
+	CadLibraryName string `json:"cadLibraryName"`
+	// CadFormats are the formats it is kept in (kicad, eagle); empty is
+	// KiCad only, ["none"] keeps none.
+	CadFormats []string `json:"cadFormats"`
 }
 
 // DefaultCatalogRemindDays is the default catalogue refresh reminder.

@@ -21,6 +21,12 @@ export interface Settings {
   catalogRemindDays?: number;
   /** The ngspice program simulations run with; empty finds it. */
   ngspicePath?: string;
+  /** The folder the CAD library is kept in (empty: in the SheetDiver library). */
+  cadLibraryDir?: string;
+  /** The CAD library's name in the CAD tools (empty: SheetDiver). */
+  cadLibraryName?: string;
+  /** The formats it is kept in (kicad, eagle); empty is KiCad, ["none"] none. */
+  cadFormats?: string[];
 }
 
 export interface Config {
@@ -1194,4 +1200,133 @@ export interface SimulationData {
   xName: string;
   xUnit: string;
   series: SimSeries[];
+}
+
+/** A point, in millimetres. */
+export interface CadPt {
+  x: number;
+  y: number;
+}
+
+/** A shape of a CAD drawing, coloured by its role (copper, silk, body…). */
+export interface CadShape {
+  kind: 'line' | 'rect' | 'poly' | 'circle' | 'text';
+  role: string;
+  pts?: CadPt[];
+  /** A circle's radius or a rect's corner radius. */
+  r?: number;
+  width?: number;
+  text?: string;
+  size?: number;
+  anchor?: 'start' | 'middle' | 'end';
+  vertical?: boolean;
+  /** A 3D face's shaded colour. */
+  color?: string;
+}
+
+/** A symbol, footprint or 3D model as shapes, y down. */
+export interface CadDrawing {
+  view: { x0: number; y0: number; x1: number; y1: number };
+  items: CadShape[];
+}
+
+export interface CadProblem {
+  level: 'error' | 'warning';
+  text: string;
+}
+
+/** Where a symbol or footprint came from: SheetDiver, an agent, or the user's edit in their CAD tool. */
+export type CadState = 'auto' | 'drawn' | 'edited';
+
+export interface CadSymbolPin {
+  number: string;
+  name: string;
+  type: string;
+  side: string;
+}
+
+export interface CadPad {
+  number: string;
+  kind: string;
+}
+
+export interface CadDim {
+  min?: number;
+  nom?: number;
+  max?: number;
+}
+
+/** A package as its datasheet drawing gives it. */
+export interface CadOutline {
+  family: string;
+  name?: string;
+  pins: number;
+  pitch?: number;
+  bodyLength?: CadDim;
+  bodyWidth?: CadDim;
+  height?: CadDim;
+  span?: CadDim;
+  leadLength?: CadDim;
+  leadWidth?: CadDim;
+  exposedPad?: { w: number; h: number };
+  land?: { padLength: number; padWidth: number; rowSpan: number; page?: number };
+  page?: number;
+}
+
+/** A symbol or footprint as the app shows it. */
+export interface CadView {
+  name: string;
+  state: CadState;
+  source?: string;
+  notes?: string;
+  updated?: string;
+  problems?: CadProblem[];
+  drawing: CadDrawing;
+  symbol?: { name: string; pins: CadSymbolPin[] };
+  footprint?: { name: string; description: string; from: string; pads: CadPad[] };
+  package?: CadOutline;
+  model?: CadDrawing;
+  standard?: boolean;
+  modelKept?: boolean;
+}
+
+/** A part's symbol and footprint for one of its packages. */
+export interface CadPackage {
+  package: string;
+  pins: number;
+  symbol?: CadView;
+  footprint?: CadView;
+  match?: CadProblem[];
+  missing?: string;
+}
+
+export interface CadFormatInfo {
+  name: string;
+  label: string;
+  readsEdits: boolean;
+}
+
+/** Where and how the user's CAD library is kept. */
+export interface CadLibrary {
+  dir: string;
+  name: string;
+  formats: string[] | null;
+  available: CadFormatInfo[];
+  kicad: { dir: string; symbols: string; footprints: string; models: string };
+  eagle: string;
+}
+
+export interface PartCad {
+  part: Part;
+  packages: CadPackage[];
+  library: CadLibrary;
+}
+
+/** What a sync of the CAD library did. */
+export interface CadReport {
+  dir: string;
+  written: Record<string, string>;
+  adopted?: string[];
+  symbols: number;
+  footprints: number;
 }

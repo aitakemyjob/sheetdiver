@@ -59,6 +59,7 @@ func New(c *core.Service) *API {
 	a.registerLibrary()
 	a.registerProjects()
 	a.registerSimulations()
+	a.registerCad()
 	return a
 }
 
@@ -671,5 +672,25 @@ func (a *API) registerSimulations() {
 		Variation string `json:"variation"`
 	}) (any, error) {
 		return nil, c.DeleteVariation(ctx, in.Project, in.Name, in.Variation)
+	})
+}
+
+// cadReq names a part's symbol or footprint.
+type cadReq struct {
+	Part    string `json:"part"`
+	Package string `json:"package"`
+	Kind    string `json:"kind"`
+}
+
+// registerCad adds the CAD library methods: where it's kept, a part's
+// symbols, footprints and models, syncing it and resetting an item.
+func (a *API) registerCad() {
+	c := a.core
+	a.methods["cad.library"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CadLibrary(), nil })
+	a.methods["cad.part"] = method(func(ctx context.Context, in cadReq) (any, error) { return c.PartCad(ctx, in.Part) })
+	a.methods["cad.parts"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.CadParts(ctx) })
+	a.methods["cad.sync"] = method(func(ctx context.Context, _ struct{}) (any, error) { return c.SyncCad(ctx) })
+	a.methods["cad.reset"] = method(func(ctx context.Context, in cadReq) (any, error) {
+		return c.ResetCad(ctx, in.Part, in.Package, in.Kind)
 	})
 }

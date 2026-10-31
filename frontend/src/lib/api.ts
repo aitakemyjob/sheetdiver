@@ -8,7 +8,7 @@ import type {
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ProjectImportResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
   ConnectionsChange,
-  NgspiceState, SimulationSummary, SimulationDetail, SimulationData, SimRun,
+  NgspiceState, PartCad, CadLibrary, CadReport, SimulationSummary, SimulationDetail, SimulationData, SimRun,
 } from './types';
 
 /** Calls a backend method. */
@@ -104,6 +104,14 @@ export const api = {
   deleteProject: (id: number) => call<void>('projects.delete', { id }),
   setActiveProject: (name: string) => call<void>('projects.setActive', { name }),
   project: (project: string) => call<ProjectDetail>('project.detail', { project }),
+  /** A part's symbols, footprints and 3D models, per package. */
+  partCad: (part: string) => call<PartCad>('cad.part', { part }),
+  /** Where and how the CAD library is kept. */
+  cadLibrary: () => call<CadLibrary>('cad.library'),
+  /** Read the user's edits back from the CAD library, then write it. */
+  syncCad: () => call<CadReport>('cad.sync'),
+  /** Drop the newest work on a symbol or footprint (the user's edit, or an agent's drawing). */
+  resetCad: (part: string, pkg: string, kind: 'symbol' | 'footprint') => call<PartCad>('cad.reset', { part, package: pkg, kind }),
   /** The ngspice simulations run with (Settings, the PATH or its usual place). */
   ngspice: () => call<NgspiceState>('sim.ngspice'),
   simulations: (project: string) => call<SimulationSummary[]>('sim.list', { project }),

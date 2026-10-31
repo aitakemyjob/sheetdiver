@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aitakemyjob/sheetdiver/internal/cad"
 	"github.com/aitakemyjob/sheetdiver/internal/core"
 	"github.com/aitakemyjob/sheetdiver/internal/library"
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
@@ -199,6 +200,10 @@ func TestFrontendFixtures(t *testing.T) {
 		}
 		out = append(out, fixture{Method: "project.detail", Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
 	}
+	// The CAD library, last for the same reason: SD1234 with a SOT-23-6
+	// pin table, its footprint drawn by an agent from a land pattern and
+	// its symbol edited by the user in KiCad; TPX5430 with no package.
+	out = append(out, cadFixtures(t, a)...)
 	got, _ := json.MarshalIndent(out, "", " ")
 	got = append(got, '\n')
 	if *update {
@@ -295,4 +300,55 @@ func buildCircuit(t *testing.T, c *core.Service, cir testutil.Circuit) {
 	if problems, err := c.ChangeConnections(ctx, cir.Name, ch, library.SourceUser); err != nil || len(problems) > 0 {
 		t.Fatalf("%s: %v %q", cir.Name, err, problems)
 	}
+}
+
+// cadFixtures sets up the CAD library and records its methods.
+func cadFixtures(t *testing.T, a *API) []fixture {
+	t.Helper()
+	ctx := context.Background()
+	c := a.core
+	r, err := c.Lib.Resolve(ctx, "SD1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pins := []library.Pin{{Number: "1", Name: "BST", Type: "I"}, {Number: "2", Name: "GND"}, {Number: "3", Name: "FB", Type: "I"},
+		{Number: "4", Name: "EN", Type: "I"}, {Number: "5", Name: "VIN", Type: "P"}, {Number: "6", Name: "SW", Type: "O"}}
+	if err := c.RecordPins(ctx, r.Part.DatasheetID, "SOT-23-6", pins, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	spec, _ := cad.Standard("SOT-23-6", 6)
+	spec.Land = &cad.Land{PadLength: 1.1, PadWidth: 0.6, RowSpan: 2.6, Page: 31}
+	if _, _, err := c.DrawFootprint(ctx, "SD1234", "SOT-23-6", spec, "Land pattern from page 31"); err != nil {
+		t.Fatal(err)
+	}
+	lib := c.CadLibrary()
+	b, err := os.ReadFile(lib.KiCad.Symbols)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lib.KiCad.Symbols, []byte(strings.Replace(string(b), `(name "EN"`, `(name "~{EN}"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out []fixture
+	for _, call := range []struct {
+		method string
+		args   any
+	}{
+		{"cad.sync", nil},
+		{"cad.part", map[string]any{"part": "SD1234"}},
+		{"cad.part", map[string]any{"part": "TPX5430"}},
+		{"cad.library", nil},
+		{"cad.parts", nil},
+	} {
+		raw, _ := json.Marshal(call.args)
+		if call.args == nil {
+			raw = []byte("null")
+		}
+		res, err := a.Invoke(ctx, call.method, raw)
+		if err != nil {
+			t.Fatalf("%s: %v", call.method, err)
+		}
+		out = append(out, fixture{Method: call.method, Args: raw, Result: normalize(res, filepath.Dir(os.Getenv("SHEETDIVER_LIBRARY")))})
+	}
+	return out
 }

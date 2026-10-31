@@ -61,6 +61,8 @@ type Service struct {
 	mu      sync.Mutex
 	mcp     MCPStatus
 	session session
+	// cadMu serializes CAD library syncs: one writer of its files.
+	cadMu sync.Mutex
 	// importMu serializes saving imports (one writer, and two imports of
 	// the same file must not race); slots bounds concurrent extraction.
 	importMu sync.Mutex
