@@ -641,13 +641,14 @@ func mentionedParts(text string, mpns []string) []string {
 // variantPins gives each part its own table when a pin is named one way
 // on some of a datasheet's parts and another on others (the TPS2595x3's
 // pin 2 EN/OVLO, the others' EN/UVLO): of a pin's names, a part takes the
-// one whose description names it (or its family, "TPS2595x3"), else the
-// first. Tables without such pins stay every part's.
+// one whose description names it (or its family, "TPS2595x3"). A number
+// listed under two names that name no part (SDA in I2C mode, SDI in SPI
+// mode) is both for every part, and a table without a variant's pin stays
+// every part's.
 func variantPins(pins []library.Pin, mpns []string) []library.Pin {
 	type key struct{ pkg, num string }
 	groups := map[key][]int{}
 	var order []key
-	split := false
 	for i, p := range pins {
 		k := key{strings.ToUpper(p.Package), strings.ToUpper(p.Number)}
 		if p.Number == "" {
@@ -656,27 +657,35 @@ func variantPins(pins []library.Pin, mpns []string) []library.Pin {
 		if _, ok := groups[k]; !ok {
 			order = append(order, k)
 		}
-		for _, j := range groups[k] {
-			if !strings.EqualFold(pins[j].Name, p.Name) {
-				split = true
-			}
-		}
 		groups[k] = append(groups[k], i)
 	}
-	if !split || len(mpns) < 2 {
+	// A group of names is a variant's when a description names a part.
+	variant := map[key]bool{}
+	for k, idx := range groups {
+		names := map[string]bool{}
+		for _, i := range idx {
+			names[strings.ToUpper(pins[i].Name)] = true
+		}
+		if len(names) < 2 {
+			continue
+		}
+		for _, i := range idx {
+			for _, mpn := range mpns {
+				if namesPart(pins[i].Description, mpn) {
+					variant[k] = true
+				}
+			}
+		}
+	}
+	if len(variant) == 0 || len(mpns) < 2 {
 		return pins
 	}
 	var out []library.Pin
 	for _, mpn := range mpns {
 		for _, k := range order {
 			idx := groups[k]
-			names := map[string]bool{}
-			for _, i := range idx {
-				names[strings.ToUpper(pins[i].Name)] = true
-			}
-			if len(names) == 1 {
-				// One name: every pin of the number (IN on 3 and 4 are
-				// two numbers; a number listed twice stays twice).
+			if !variant[k] {
+				// Not a variant's: every row of the number, as listed.
 				for _, i := range idx {
 					p := pins[i]
 					p.Part = mpn

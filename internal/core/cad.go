@@ -134,7 +134,7 @@ type cadPkg struct {
 // cadPackages are a part's packages with their pins: the pin table's
 // packages, else the part's (or its first variant's) package; then the
 // other packages its datasheet draws with as many pins.
-func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []library.CadItem) ([]cadPkg, error) {
+func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []library.CadItem, own ownPkgs) ([]cadPkg, error) {
 	pins, err := s.PartPins(ctx, p, "")
 	if err != nil {
 		return nil, err
@@ -196,7 +196,14 @@ func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []libr
 		}
 		out = append(out, cadPkg{name: n, pins: mine})
 	}
-	return append(out, s.drawnPackages(ctx, p, out, seen)...), nil
+	return append(out, drawnPackages(own, out, seen)...), nil
+}
+
+// ownPkgs are the packages a part comes in (ownPackages), looked up once
+// for everything drawing the part.
+type ownPkgs struct {
+	mine    []PartPackage
+	claimed bool
 }
 
 // drawnPackages are the packages a part comes in by its datasheet's
@@ -205,13 +212,12 @@ func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []libr
 // gives no pins takes those of another of the part's packages with as
 // many, when both are numbered round their edges (1 to N); a ball
 // grid's are its own.
-func (s *Service) drawnPackages(ctx context.Context, p library.Part, have []cadPkg, seen map[string]bool) []cadPkg {
-	mine, claimed, err := s.ownPackages(ctx, p)
-	if err != nil || !claimed {
+func drawnPackages(own ownPkgs, have []cadPkg, seen map[string]bool) []cadPkg {
+	if !own.claimed {
 		return nil
 	}
 	var out []cadPkg
-	for _, dp := range mine {
+	for _, dp := range own.mine {
 		// A pin table's package covers its outline: the WLCSP72 is drawn
 		// as the "WLCSP72 SMPS" the pin table names.
 		if seen[strings.ToUpper(dp.Name)] || slices.ContainsFunc(have, func(h cadPkg) bool { return packageMatches(h.name, dp.Name) }) {
@@ -325,6 +331,12 @@ func deref(v *float64) float64 {
 	return *v
 }
 
+// ownPkgsOf looks a part's packages up once.
+func (s *Service) ownPkgsOf(ctx context.Context, p library.Part) (ownPkgs, error) {
+	mine, claimed, err := s.ownPackages(ctx, p)
+	return ownPkgs{mine: mine, claimed: claimed}, err
+}
+
 // padNumberRe is an exposed pad's number in a pin table.
 var padNumberRe = regexp.MustCompile(`(?i)^(E?PAD|EP|TP|PowerPAD|thermal pad)$`)
 
@@ -332,11 +344,11 @@ var padNumberRe = regexp.MustCompile(`(?i)^(E?PAD|EP|TP|PowerPAD|thermal pad)$`)
 // its ordering scheme says it doesn't come in (made before the scheme
 // was read: a family's 100-pin part given its 48-pin sibling's LQFP48),
 // which are stale. What an agent drew or the user edited is kept.
-func (s *Service) ownStored(ctx context.Context, p library.Part, stored []library.CadItem) ([]library.CadItem, []int64) {
-	mine, claimed, err := s.ownPackages(ctx, p)
-	if err != nil || !claimed {
+func ownStored(own ownPkgs, stored []library.CadItem) ([]library.CadItem, []int64) {
+	if !own.claimed {
 		return stored, nil
 	}
+	mine := own.mine
 	var kept []library.CadItem
 	var stale []int64
 	for _, it := range stored {
@@ -425,8 +437,12 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 	if err != nil {
 		return cadPart{}, err
 	}
-	stored, stale := s.ownStored(ctx, p, stored)
-	pkgs, err := s.cadPackages(ctx, p, stored)
+	own, err := s.ownPkgsOf(ctx, p)
+	if err != nil {
+		return cadPart{}, err
+	}
+	stored, stale := ownStored(own, stored)
+	pkgs, err := s.cadPackages(ctx, p, stored, own)
 	if err != nil {
 		return cadPart{}, err
 	}
@@ -620,7 +636,12 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 		default:
 			view.Missing = fmt.Sprintf("no dimensions for package %q yet: read them (get_package) and record them (record_package), or draw it from the datasheet's package drawing (draw_footprint)", pk.name)
 			if len(pk.pins) == 0 {
-				view.Missing = fmt.Sprintf("the datasheet draws package %q but its pin table wasn't read for it, and its balls can't be laid out without it: record its pins (record_pins with package %q)", pk.name, pk.name)
+				switch {
+				case edgeNumbered(pk.name):
+					view.Missing = fmt.Sprintf("the datasheet draws package %q but its dimensions weren't read: record them (record_package) or draw it from its drawing (draw_footprint); its pin table wasn't read either (record_pins with package %q)", pk.name, pk.name)
+				default:
+					view.Missing = fmt.Sprintf("the datasheet draws package %q but its pin table wasn't read for it, and its balls can't be laid out without it: record its pins (record_pins with package %q)", pk.name, pk.name)
+				}
 			}
 			if pk.name == "" {
 				view.Missing = "the part's package isn't known: say which it is and draw it (draw_footprint)"
@@ -719,8 +740,12 @@ func (s *Service) cadItem(ctx context.Context, ref, pkg, kind string) (library.P
 	if err != nil {
 		return r.Part, library.CadItem{}, err
 	}
-	stored, _ = s.ownStored(ctx, r.Part, stored)
-	pkgs, err := s.cadPackages(ctx, r.Part, stored)
+	own, err := s.ownPkgsOf(ctx, r.Part)
+	if err != nil {
+		return r.Part, library.CadItem{}, err
+	}
+	stored, _ = ownStored(own, stored)
+	pkgs, err := s.cadPackages(ctx, r.Part, stored, own)
 	if err != nil {
 		return r.Part, library.CadItem{}, err
 	}
