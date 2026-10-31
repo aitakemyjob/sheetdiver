@@ -167,6 +167,9 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 		r.Pins = ProsePins(r.Lines, r.Sections, lay)
 	}
 	if len(r.Pins) == 0 {
+		r.Pins = PackageColumnPins(doc, r.Sections)
+	}
+	if len(r.Pins) == 0 {
 		r.Pins = drawingPins(r.Lines, r.Category)
 	}
 	fillSectionText(r.Sections, r.Lines, lay, r.BodySize, contentRegions(r.Figures, r.Tables))
@@ -176,6 +179,9 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	r.Manufacturer = Manufacturer(doc, r.PageText)
 	r.Families = Families(doc, r.PageText)
 	r.PartNumbers, r.Variants = Expand(r.PageText, PartNumbers(doc, r.Lines, filename), r.Families)
+	if o, ok := OrderingScheme(r.Lines, r.Sections); ok {
+		partsOfPackages(r.Packages, r.PartNumbers, o)
+	}
 	// A row whose minimum exceeds its maximum was misread; don't let it
 	// stand for a key.
 	for i, p := range r.Params {

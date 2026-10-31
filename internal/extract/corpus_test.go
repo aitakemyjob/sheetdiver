@@ -235,6 +235,8 @@ type corpusPackage struct {
 	Dims          map[string][2]float64 `json:"dims"`
 	Land          map[string]float64    `json:"land"`
 	MinCandidates int                   `json:"minCandidates"`
+	// Parts are the parts that come in it, by the ordering scheme.
+	Parts []string `json:"parts"`
 }
 
 // checkPackages compares packages read with those expected.
@@ -279,6 +281,9 @@ func checkPackages(t *testing.T, got []Package, exp map[string]corpusPackage) {
 			if !ok {
 				t.Errorf("package %s land has no %s of %g mm", name, key, mm)
 			}
+		}
+		if w.Parts != nil && !slices.Equal(p.Parts, w.Parts) {
+			t.Errorf("package %s parts = %v, want %v", name, p.Parts, w.Parts)
 		}
 		if len(p.Candidates) < w.MinCandidates {
 			t.Errorf("package %s: %d numbers off its drawing, want at least %d", name, len(p.Candidates), w.MinCandidates)

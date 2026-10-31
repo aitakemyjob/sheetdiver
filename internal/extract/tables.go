@@ -644,6 +644,11 @@ func tableRows(rows []Row, i int, pageH float64, headerSize float64) ([]Row, int
 		if captionRe.MatchString(text) || tableCaptionRe.MatchString(text) || footnoteRe.MatchString(text) || (headingRe.MatchString(text) || isPlainHeading(text)) && maxSize(r) > headerSize+1 {
 			break
 		}
+		// The table's notes: its key ("P: power supply; I: input") or a
+		// note marked in superscript.
+		if typeKeyRe.MatchString(text) || noteMarked(r) {
+			break
+		}
 		if _, ok := specHeader(r); ok {
 			break
 		}
@@ -651,6 +656,38 @@ func tableRows(rows []Row, i int, pageH float64, headerSize float64) ([]Row, int
 		last = r.Box.Y1
 	}
 	return out, j
+}
+
+// footnoteMark reports whether a span is a footnote's mark by a cell
+// (IO47ᶜ): one small letter or star in a smaller size. A subscript is a
+// size smaller too, but sits low and belongs to its text.
+func footnoteMark(sp pdf.Span, size float64) bool {
+	return isMark(sp.Text) && sp.Size < size-1.5
+}
+
+// isMark reports whether a text is a footnote's mark: one small letter
+// or a star.
+func isMark(t string) bool {
+	t = strings.TrimSpace(t)
+	return len([]rune(t)) == 1 && strings.ContainsAny(t, "abcdefghijklmnopqrstuvwxyz*†")
+}
+
+// typeKeyRe is a pin table's key to its type letters.
+var typeKeyRe = regexp.MustCompile(`(?i)\b[A-Z]{1,2}\s*:\s*(power|input|output|ground)\b[^;]*;`)
+
+// noteMarked reports whether a row starts as a note does: a superscript
+// mark (a letter, digit or star, smaller and raised) before its text.
+func noteMarked(r Row) bool {
+	if len(r.Spans) == 0 {
+		return false
+	}
+	first, rest := r.Spans[0], r.Spans[1:]
+	t := strings.TrimSpace(first.Text)
+	if len(rest) == 0 || len([]rune(t)) > 1 || !strings.ContainsAny(strings.ToLower(t), "abcdefghijklmnopqrstuvwxyz0123456789*†") {
+		return false
+	}
+	next := rest[0]
+	return first.Box.Y0 < next.Box.Y0-1 && len(strings.Fields(next.Text)) >= 3
 }
 
 // isProse reports whether a row is running text rather than table cells:
@@ -1349,7 +1386,7 @@ func thermalRow(r Row, page int, secName string) (Param, bool) {
 }
 
 // pinTypeRe matches a pin type cell.
-var pinTypeRe = regexp.MustCompile(`^(?i:I|O|I/O|IO|P|G|PWR|GND|A|AI|AO|D|DI|DO|OD|NC|S|B|—|-|–)$`)
+var pinTypeRe = regexp.MustCompile(`^(?i:I|O|I/O|IO|P|G|PWR|GND|A|AI|AO|D|DI|DO|OD|NC|S|B|I/O/T|I/T|O/T|—|-|–)$`)
 
 // hasAlnum reports whether s contains a letter or digit.
 func hasAlnum(s string) bool {
@@ -1376,9 +1413,16 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		var spans []pdf.Span
 		for _, sp := range b.Spans {
 			n := len(spans)
+			if footnoteMark(sp, size) {
+				continue
+			}
 			if math.Abs(sp.Size-size) <= 1.5 || (n > 0 && sp.Box.X0-spans[n-1].Box.X1 < 2) {
 				spans = append(spans, sp)
 			}
+		}
+		// A footnote's mark raised over a name sets a line of its own.
+		if len(spans) == 1 && isMark(spans[0].Text) {
+			continue
 		}
 		if len(spans) > 0 {
 			b.Spans = spans
@@ -1433,24 +1477,50 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 		for j, r := range rows {
 			rows[j].pin = hasAlnum(role(r.cells, "name"))
 		}
-		for _, r := range rows {
-			if r.pin {
-				continue
+		// A long list runs over more lines than the name ("4, 7, 9, 10,"
+		// over three more lines round one NC): a line next to one taken
+		// is taken too.
+		type line struct {
+			y    float64
+			cont bool // ends with a comma: the list goes on below
+		}
+		near := map[int][]line{}
+		for j, o := range rows {
+			if o.pin {
+				near[j] = []line{{o.y, slices.ContainsFunc(numCols, func(k int) bool { return strings.HasSuffix(strings.TrimSpace(o.cells[k]), ",") })}}
 			}
-			best, dist := -1, math.Inf(1)
-			for j, o := range rows {
-				if o.pin && math.Abs(o.y-r.y) < dist {
-					best, dist = j, math.Abs(o.y-r.y)
+		}
+		for taken := true; taken; {
+			taken = false
+			for _, r := range rows {
+				if r.pin || !slices.ContainsFunc(numCols, func(k int) bool { return hasAlnum(r.cells[k]) }) {
+					continue
 				}
-			}
-			if best < 0 || dist >= 12 {
-				continue
-			}
-			for _, k := range numCols {
-				if hasAlnum(r.cells[k]) {
-					frags[[2]int{best, k}] = append(frags[[2]int{best, k}], extra{r.y, r.cells[k]})
-					r.cells[k] = ""
+				cont := slices.ContainsFunc(numCols, func(k int) bool { return strings.HasSuffix(strings.TrimSpace(r.cells[k]), ",") })
+				best, dist := -1, math.Inf(1)
+				for j, ls := range near {
+					for _, l := range ls {
+						d := math.Abs(l.y - r.y)
+						// The line a comma runs on into, either way.
+						if d < 18 && (l.y < r.y && l.cont || l.y > r.y && cont) {
+							d = 0
+						}
+						if d < dist {
+							best, dist = j, d
+						}
+					}
 				}
+				if best < 0 || dist >= 12 {
+					continue
+				}
+				for _, k := range numCols {
+					if hasAlnum(r.cells[k]) {
+						frags[[2]int{best, k}] = append(frags[[2]int{best, k}], extra{r.y, r.cells[k]})
+						r.cells[k] = ""
+					}
+				}
+				near[best] = append(near[best], line{r.y, cont})
+				taken = true
 			}
 		}
 		for jk, fs := range frags {
@@ -1473,6 +1543,43 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 				}
 			}
 			rows[j].cells[k] = cell
+		}
+	}
+	// One number for two names set one over the other (a pin that's
+	// EN/UVLO on some parts and EN/OVLO on others): the name with an empty
+	// number cell shares the number, and the type, of the one beside it.
+	// A dash isn't empty: the pin isn't in that package.
+	if len(numCols) == 1 {
+		k := numCols[0]
+		for j := range rows {
+			// An exposed pad's empty cell is its own: it's numbered
+			// after the pins (numberPads).
+			if !rows[j].pin || strings.TrimSpace(rows[j].cells[k]) != "" || padRe.MatchString(role(rows[j].cells, "name")) {
+				continue
+			}
+			// The number sits between the names, read with the lower: look
+			// below first.
+			best := -1
+			for _, below := range []bool{true, false} {
+				dist := 25.0
+				for i, o := range rows {
+					if i != j && o.pin && hasAlnum(o.cells[k]) && (o.y > rows[j].y) == below && math.Abs(o.y-rows[j].y) < dist {
+						best, dist = i, math.Abs(o.y-rows[j].y)
+					}
+				}
+				if best >= 0 {
+					break
+				}
+			}
+			if best < 0 {
+				continue
+			}
+			rows[j].cells[k] = rows[best].cells[k]
+			for c, col := range cols {
+				if col.role == "type" && strings.TrimSpace(rows[j].cells[c]) == "" {
+					rows[j].cells[c] = rows[best].cells[c]
+				}
+			}
 		}
 	}
 	attached := map[int][]extra{}
@@ -1503,6 +1610,10 @@ func pinTable(cols []column, header Row, body []Row, page int, secName string) (
 			continue
 		}
 		name, typ := role(r.cells, "name"), role(r.cells, "type")
+		// A footnote's mark run into the name: "IO47 c".
+		if i := strings.LastIndexByte(name, ' '); i > 0 && isMark(name[i+1:]) {
+			name = strings.TrimSpace(name[:i])
+		}
 		parts := []extra{{r.y, role(r.cells, "description")}}
 		parts = append(parts, attached[j]...)
 		sort.SliceStable(parts, func(a, b int) bool { return parts[a].y < parts[b].y })

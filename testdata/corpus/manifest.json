@@ -91,7 +91,47 @@
         "packages": {
           "WSON": {
             "code": "DSK0010A",
-            "minCandidates": 10
+            "minCandidates": 10,
+            "dims": {
+              "bodyLength": [
+                2.4,
+                2.6
+              ],
+              "bodyWidth": [
+                2.4,
+                2.6
+              ],
+              "height": [
+                0.7,
+                0.8
+              ],
+              "pitch": [
+                0.5,
+                0.5
+              ],
+              "leadWidth": [
+                0.2,
+                0.3
+              ],
+              "leadLength": [
+                0.3,
+                0.5
+              ],
+              "padLength": [
+                1.9,
+                2.1
+              ],
+              "padWidth": [
+                1.1,
+                1.3
+              ]
+            },
+            "land": {
+              "padLength": 0.6,
+              "padWidth": 0.25,
+              "rowSpan": 2.3,
+              "pitch": 0.5
+            }
           }
         }
       }
@@ -455,7 +495,115 @@
         ],
         "minSections": 200,
         "minFigures": 40,
-        "revision": "DS14216 rev 5"
+        "revision": "DS14216 rev 5",
+        "pins": 976,
+        "pinNames": [
+          "PC14-OSC32_IN",
+          "VBAT",
+          "PH3-BOOT0",
+          "VDD11"
+        ],
+        "pinPackages": [
+          "LQFP48",
+          "UFQFPN48",
+          "LQFP64",
+          "UFBGA64",
+          "LQFP100",
+          "UFBGA100",
+          "LQFP48 SMPS",
+          "WLCSP56 SMPS",
+          "WLCSP72 SMPS",
+          "UFBGA100 SMPS"
+        ],
+        "packages": {
+          "LQFP48": {
+            "parts": [
+              "STM32U545CE"
+            ],
+            "dims": {
+              "bodyLength": [
+                7,
+                7
+              ],
+              "bodyWidth": [
+                7,
+                7
+              ],
+              "span": [
+                9,
+                9
+              ],
+              "spanX": [
+                9,
+                9
+              ],
+              "leadWidth": [
+                0.17,
+                0.27
+              ],
+              "leadLength": [
+                0.45,
+                0.75
+              ],
+              "pitch": [
+                0.5,
+                0.5
+              ]
+            }
+          },
+          "UFQFPN48": {
+            "parts": [
+              "STM32U545CE"
+            ],
+            "dims": {
+              "bodyLength": [
+                6.9,
+                7.1
+              ],
+              "bodyWidth": [
+                6.9,
+                7.1
+              ],
+              "padWidth": [
+                5.5,
+                5.7
+              ],
+              "leadLength": [
+                0.3,
+                0.5
+              ]
+            }
+          },
+          "WLCSP72": {
+            "parts": [
+              "STM32U545JE"
+            ]
+          },
+          "LQFP100": {
+            "parts": [
+              "STM32U545VE"
+            ]
+          },
+          "UFBGA64": {
+            "parts": [
+              "STM32U545RE"
+            ],
+            "dims": {
+              "bodyLength": [
+                5,
+                5
+              ],
+              "bodyWidth": [
+                5,
+                5
+              ],
+              "pitch": [
+                0.5,
+                0.5
+              ]
+            }
+          }
+        }
       }
     },
     {
@@ -653,10 +801,55 @@
       "file": "tps2595.pdf",
       "url": "https://www.ti.com/lit/ds/symlink/tps2595.pdf",
       "sha256": "53968dbb14ef48a79fddf24bd473a34344dbc3d0f4ce141bac440f2d95f6a525",
-      "why": "An eFuse (imported as a load switch, #78), a family of variants in one datasheet.",
+      "why": "An eFuse (imported as a load switch, #78), a family of variants in one datasheet. Its package is a TI drawing with no table (DSG0008A): read from the drawing's numbers.",
       "expect": {
         "manufacturer": "Texas Instruments",
-        "category": "efuse"
+        "category": "efuse",
+        "packages": {
+          "WSON": {
+            "code": "DSG0008A",
+            "dims": {
+              "bodyLength": [
+                1.9,
+                2.1
+              ],
+              "bodyWidth": [
+                1.9,
+                2.1
+              ],
+              "height": [
+                0.7,
+                0.8
+              ],
+              "pitch": [
+                0.5,
+                0.5
+              ],
+              "leadWidth": [
+                0.18,
+                0.32
+              ],
+              "leadLength": [
+                0.2,
+                0.4
+              ],
+              "padLength": [
+                1.5,
+                1.7
+              ],
+              "padWidth": [
+                0.8,
+                1.0
+              ]
+            },
+            "land": {
+              "padLength": 0.5,
+              "padWidth": 0.25,
+              "rowSpan": 1.9,
+              "pitch": 0.5
+            }
+          }
+        }
       }
     },
     {
@@ -858,6 +1051,110 @@
           "4": "schematic",
           "5": "graph",
           "16": "schematic"
+        }
+      }
+    },
+    {
+      "file": "esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf",
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf",
+      "sha256": "4c7a345d1c1bfec34c38665639e39a7f43b79a35a12f6adcc2c7c0f83850f8b8",
+      "why": "Module pin table whose key and footnotes (\"I: input; O: output; P: power supply\", \"Pins GPIO6 to GPIO11 ...\") follow it on the next page: they aren't pins.",
+      "expect": {
+        "partNumbers": [
+          "ESP32-WROOM-32E"
+        ],
+        "pins": 38,
+        "pinNames": [
+          "EN",
+          "SENSOR_VP",
+          "IO0",
+          "RXD0",
+          "TXD0"
+        ]
+      }
+    },
+    {
+      "file": "esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+      "sha256": "27d71971da07c280c6068d08c74720d1a25b8f20cf8494dc1765bdd28d40d435",
+      "why": "Pin names with superscript footnote marks (IO47ᶜ, IO35ᵇ on a line of their own), I/O/T types, and lettered notes after the table.",
+      "expect": {
+        "partNumbers": [
+          "ESP32-S3-WROOM-1"
+        ],
+        "pins": 41,
+        "pinNames": [
+          "IO47",
+          "IO35",
+          "EPAD",
+          "IO0"
+        ]
+      }
+    },
+    {
+      "file": "esp32-c3-mini-1_datasheet_en.pdf",
+      "url": "https://www.espressif.com/sites/default/files/documentation/esp32-c3-mini-1_datasheet_en.pdf",
+      "sha256": "de7361381348d82a1abd337f10170be7a420675987568f71fe3c5b100deed270",
+      "why": "Pin numbers listed over four lines round one name (NC: \"4, 7, 9, 10,\" … \"32-35\"), lines further apart than the name's.",
+      "expect": {
+        "partNumbers": [
+          "ESP32-C3-MINI-1"
+        ],
+        "pins": 53,
+        "pinNames": [
+          "GND",
+          "3V3",
+          "IO18",
+          "NC"
+        ]
+      }
+    },
+    {
+      "file": "pcm5102a.pdf",
+      "url": "https://www.ti.com/lit/ds/symlink/pcm5102a.pdf",
+      "sha256": "a522083606b8e994875883215046fbdb92fd362996ca97719d259fbe9df07a85",
+      "why": "Audio DAC family (PCM5100A/5101A/5102A) in a TSSOP-20 given only as TI's drawing (PW0020A): a gull-wing read from the drawing's numbers, its span marked TYP.",
+      "expect": {
+        "partNumbers": [
+          "PCM5102A"
+        ],
+        "pins": 20,
+        "packages": {
+          "TSSOP": {
+            "code": "PW0020A",
+            "dims": {
+              "bodyLength": [
+                6.4,
+                6.6
+              ],
+              "bodyWidth": [
+                4.3,
+                4.5
+              ],
+              "span": [
+                6.2,
+                6.6
+              ],
+              "pitch": [
+                0.65,
+                0.65
+              ],
+              "leadWidth": [
+                0.19,
+                0.3
+              ],
+              "leadLength": [
+                0.5,
+                0.75
+              ]
+            },
+            "land": {
+              "padLength": 1.5,
+              "padWidth": 0.45,
+              "rowSpan": 5.8,
+              "pitch": 0.65
+            }
+          }
         }
       }
     }

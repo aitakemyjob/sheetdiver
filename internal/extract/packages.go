@@ -54,6 +54,9 @@ type Package struct {
 	Candidates []string `json:"candidates,omitempty"`
 	// Checks are what doesn't add up (mm and inch columns disagreeing).
 	Checks []string `json:"checks,omitempty"`
+	// Parts are the datasheet's parts that come in it, by its ordering
+	// scheme; none when it doesn't say (every part's).
+	Parts []string `json:"parts,omitempty"`
 }
 
 var (
@@ -65,6 +68,8 @@ var (
 	dimSymbolRe = regexp.MustCompile(`^(?:[A-Za-z]{1,2}\d?|[θΘ]\d?)$`)
 	// placesRe is Microchip's "(3 PLACES)" or a "(X3)" count after a symbol.
 	placesRe = regexp.MustCompile(`(?i)\s*\((\d+\s*places|x\d+)\)`)
+	// symbolNoteRe is a footnote mark after a symbol: A1 (12), b(9)(11).
+	symbolNoteRe = regexp.MustCompile(`\s*(\(\d{1,2}\))+`)
 	// valueRe is a value cell: a number, a qualifier, an inch value in
 	// brackets after it.
 	valueRe = regexp.MustCompile(`^\(?(-?\d*\.?\d+)\)?\s*(?:\((BSC|REF|TYP)\)|(BSC|REF|TYP))?\s*(?:\[[\d.]+\])?$`)
@@ -79,11 +84,13 @@ var (
 	// outlineHeadRe marks an outline's heading.
 	outlineHeadRe = regexp.MustCompile(`(?i)package (outline|dimensions)|outline dimensions|case outline|mechanical`)
 	// packageNameRe finds a package's name.
-	packageNameRe = regexp.MustCompile(`(?i)\b((?:T|V|W|X)?SOT-?\d{2,3}(?:-\d{1,2})?|SC-?\d{2,3}(?:-\d)?|SO-?\d{1,2}|SOIC-?\d{1,2}|E?TSSOP-?\d{1,2}|V?MSOP-?\d{1,2}|VSSOP-?\d{1,2}|[UVWX]?[QD]FN-?\d{1,2}|W?SON-?\d{1,2}|WSON|VSON|DSBGA-?\d*|[FW]?BGA-?\d*|TO-?\d{2,3}(?:-\d)?|SOD-?\d{3}F?|P?DIP-?\d{1,2}|SOT-?223|SOT-?89|DFN\d+X\d+-\d+)\b`)
+	packageNameRe = regexp.MustCompile(`(?i)\b((?:T|V|W|X)?SOT-?\d{2,3}(?:-\d{1,2})?|SC-?\d{2,3}(?:-\d)?|SO-?\d{1,2}|SOIC-?\d{1,2}|E?TSSOP-?\d{1,2}|V?MSOP-?\d{1,2}|VSSOP-?\d{1,2}|[UVWX]?[QD]FN-?\d{1,2}|UFQFPN-?\d{2}|[LTMV]?QFP-?\d{2,3}|WLCSP-?\d*|W?SON-?\d{1,2}|WSON|VSON|DSBGA-?\d*|(?:UF|TF|LF|F|W)?BGA-?\d*|TO-?\d{2,3}(?:-\d)?|SOD-?\d{3}F?|P?DIP-?\d{1,2}|SOT-?223|SOT-?89|DFN\d+X\d+-\d+)\b`)
 	// heightNameRe is TI's "WSON - 0.8 mm max height" title.
 	heightNameRe = regexp.MustCompile(`(?i)^\s*([A-Z][A-Z0-9-]*(?:\s?[A-Z0-9-]+)?)\s+-\s+[\d.]+\s*(mm\s+)?max height`)
-	// drawingCodeRe is TI's drawing code (DDC0006A, DSK0010A).
-	drawingCodeRe = regexp.MustCompile(`^[A-Z]{3}\d{4}[A-Z]$`)
+	// drawingPageRe heads the pages of TI's package drawings.
+	drawingPageRe = regexp.MustCompile(`(?i:package outline|board layout|stencil design)|MECHANICAL DATA`)
+	// drawingCodeRe is TI's drawing code (DDC0006A, DSK0010A, PW0020A).
+	drawingCodeRe = regexp.MustCompile(`^[A-Z]{2,4}\d{4}[A-Z]$`)
 	// jedecRe finds a JEDEC outline reference.
 	jedecRe = regexp.MustCompile(`(?i)\b(?:jedec|outline conforms to)(?:\s+(?:outline|registration|reference))?\s+([A-Z]{2,3}-?\d{3}[A-Z]?(?:\s?[A-Z]{2})?)`)
 	// electricalRe marks a row of an electrical table.
@@ -179,9 +186,11 @@ func Packages(doc *pdf.Document, secs []Section) []Package {
 			}
 		}
 		code, name := "", ""
+		// A drawing's code heads its pages (a part number looks alike).
+		drawingPage := drawingPageRe.MatchString(pageText)
 		for _, r := range rows {
 			for _, s := range r.Spans {
-				if drawingCodeRe.MatchString(strings.TrimSpace(s.Text)) && code == "" {
+				if drawingPage && drawingCodeRe.MatchString(strings.TrimSpace(s.Text)) && code == "" {
 					code = strings.TrimSpace(s.Text)
 				}
 				if m := heightNameRe.FindStringSubmatch(s.Text); m != nil && name == "" {
@@ -206,18 +215,26 @@ func Packages(doc *pdf.Document, secs []Section) []Package {
 			found = true
 			pk := Package{Name: firstNonBlank(nearestName(rows, i), name, pageName(pageText, ref), code), Code: code, Reference: ref, Page: pi, Box: box}
 			if isLand(rows, i) {
-				pk.Land = keyed(dims, landKeys, true)
+				pk.Land = keyed(dims, landKeys, true, pk.Name)
 			} else {
-				pk.Dims = keyed(dims, dimKeys, jedecStyle(dims))
+				pk.Dims = keyed(dims, dimKeys, jedecStyle(dims), pk.Name)
 			}
 			pk.Checks = unitChecks(dims)
 			out = append(out, pk)
 			i = end
 		}
 		if !found && (code != "" || name != "") {
-			// A drawing without a table: its numbers, for an agent.
+			// A drawing without a table: its numbers, for an agent, and
+			// what they say when it's one of TI's.
 			pk := Package{Name: firstNonBlank(name, pageName(pageText, ref), code), Code: code, Reference: ref, Page: pi, Candidates: candidates(rows)}
-			if len(pk.Candidates) > 0 {
+			dims, land := tiPage(rows, p.Graphics, pageText, pk.Name, code)
+			for _, d := range dims {
+				pk.Dims = append(pk.Dims, d.dim)
+			}
+			for _, d := range land {
+				pk.Land = append(pk.Land, d.dim)
+			}
+			if len(pk.Candidates)+len(pk.Dims)+len(pk.Land) > 0 {
 				out = append(out, pk)
 			}
 		}
@@ -332,6 +349,14 @@ func readDims(rows []Row, header int, cols []limitColumn, symX float64) ([]dimRo
 		if r.Box.Y0-rows[last].Box.Y1 > 40 {
 			break
 		}
+		// A row's parts set a little off its line (ST's "-" for no value,
+		// a symbol beside values with a footnote) come as rows of their
+		// own overlapping it: they're the same row.
+		for k+1 < len(rows) && rows[k+1].Box.Y0 < r.Box.Y1-1 {
+			k++
+			r = Row{Y: r.Y, Box: r.Box.Union(rows[k].Box), Spans: append(append([]pdf.Span(nil), r.Spans...), rows[k].Spans...)}
+		}
+		sort.SliceStable(r.Spans, func(a, b int) bool { return r.Spans[a].Box.X0 < r.Spans[b].Box.X0 })
 		var label []string
 		var raw rawDim
 		raw.values, raw.notes = map[int]float64{}, map[int]string{}
@@ -399,6 +424,7 @@ type dimRow struct {
 // "A1", "X (3 PLACES)", "Contact Pitch E", "Overall Height A".
 func splitLabel(s string) (string, string) {
 	s = strings.TrimSpace(placesRe.ReplaceAllString(s, ""))
+	s = strings.TrimSpace(symbolNoteRe.ReplaceAllString(s, " "))
 	f := strings.Fields(s)
 	switch {
 	case len(f) == 0:
@@ -473,7 +499,7 @@ func toDim(raw rawDim, cols []limitColumn) dimRow {
 // keyed gives each dimension its key: from its description when it has
 // one, else its symbol. A gull-wing's E is its span when there is an E1
 // (the body); otherwise E is the body's width.
-func keyed(rows []dimRow, keys map[string]string, jedec bool) []PackageDim {
+func keyed(rows []dimRow, keys map[string]string, jedec bool, name string) []PackageDim {
 	hasE1 := false
 	for _, r := range rows {
 		hasE1 = hasE1 || r.dim.Symbol == "E1"
@@ -489,6 +515,9 @@ func keyed(rows []dimRow, keys map[string]string, jedec bool) []PackageDim {
 		}
 		if d.Key == "" && jedec {
 			d.Key = keys[d.Symbol]
+			if k, ok := shapeKeys[outlineShape(name)][d.Symbol]; ok {
+				d.Key = k
+			}
 		}
 		if d.Symbol == "E" && !hasE1 && d.Key == "span" {
 			d.Key = "bodyWidth"
@@ -496,6 +525,30 @@ func keyed(rows []dimRow, keys map[string]string, jedec bool) []PackageDim {
 		out = append(out, d)
 	}
 	return out
+}
+
+// outlineShape is what a package's name says its D and E measure:
+// "array" for no-lead and ball packages, where they're the body (D1 and
+// E1 the terminals' or balls' span); "quad" for quad flat packages,
+// whose D, like E, is tip to tip across the leads.
+func outlineShape(name string) string {
+	n := strings.ToUpper(name)
+	switch {
+	case arrayNameRe.MatchString(n):
+		return "array"
+	case strings.Contains(n, "QFP"):
+		return "quad"
+	}
+	return ""
+}
+
+// arrayNameRe names no-lead and ball packages (UFQFPN is a QFN).
+var arrayNameRe = regexp.MustCompile(`QFPN|QFN|DFN|SON|BGA|CSP|LGA`)
+
+// shapeKeys are the keys that differ from dimKeys by outline shape.
+var shapeKeys = map[string]map[string]string{
+	"array": {"E": "bodyWidth", "E1": "", "D1": ""},
+	"quad":  {"D": "spanX", "D1": "bodyLength"},
 }
 
 // jedecStyle reports whether a table's symbols are JEDEC's (A1, b, e,
