@@ -604,6 +604,8 @@ polygon.cad-silk { stroke: none; }
 .cad-editor-side { border-left: 1px solid var(--border); padding: 10px; overflow: auto; }
 .cad-editor-status { padding: 6px 14px; border-top: 1px solid var(--border); font-size: 12px; }
 .ed-canvas { outline: none; cursor: crosshair; touch-action: none; }
+.ed-3d { cursor: grab; }
+.ed-3d:active { cursor: grabbing; }
 .ed-canvas:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .ed-grid line { stroke: var(--border); stroke-width: .01; vector-effect: non-scaling-stroke; }
 .ed-grid .ed-axis { stroke: var(--text-3); }

@@ -24,7 +24,7 @@ export function CadEditView({ params }: { params: Record<string, unknown> }) {
   if (what === '3d') {
     const fp = cad.data?.packages.find((p) => p.package === m.data!.package)?.footprint;
     if (!m.data.shapes?.length) return <div className="pad muted">This package has no 3D model to edit yet: it comes with its footprint's package outline.</div>;
-    return <Model3DEditor part={part} pkg={m.data.package} shapes={m.data.shapes} edited={!!fp?.model3dEdited} onSaved={() => saved('Written to the library.')} onError={onError} />;
+    return <Model3DEditor part={part} pkg={m.data.package} shapes={m.data.shapes} footprint={m.data.footprint} edited={!!fp?.model3dEdited} onSaved={() => saved('Written to the library.')} onError={onError} />;
   }
   const model = what === 'symbol' ? m.data.symbol : m.data.footprint;
   if (!model) return <div className="pad muted">There's no {what} to edit yet for this package.</div>;

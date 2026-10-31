@@ -3,8 +3,8 @@ import { EditorController } from './controller';
 import { FootprintDocument, SymbolDocument } from './documents';
 import { fieldsOf } from './fields';
 import { arcPoints, circleThrough } from './geometry';
-import type { FootprintModel, SymbolModel } from './model';
-import { Model3DController, draw } from './model3d';
+import type { FootprintModel, Shape3D, SymbolModel } from './model';
+import { Model3DController, draw, homeCamera, orbit, topCamera } from './model3d';
 import { pick } from './picking';
 
 const footprint = (): FootprintModel => ({
@@ -135,6 +135,33 @@ describe('the CAD editors', () => {
     expect(poly?.type === 'graphic' && poly.g.pts).toHaveLength(3);
     // Saved y up.
     expect(ed.model().graphics?.at(-1)?.pts[2]).toEqual({ x: 2.54, y: -2.54 });
+  });
+
+  it("draws a no-lead part's terminals over its body down the far end", () => {
+    // A 2×2 DFN: four terminals flush with the right side, which the view sees.
+    const shapes: Shape3D[] = [{ kind: 'box', part: 'body', min: [-1, -1, 0.02], max: [1, 1, 0.75] }];
+    for (const y of [-0.75, -0.25, 0.25, 0.75]) {
+      shapes.push({ kind: 'box', part: 'lead', min: [-1.01, y - 0.125, 0], max: [-0.7, y + 0.125, 0.2] });
+      shapes.push({ kind: 'box', part: 'lead', min: [0.7, y - 0.125, 0], max: [1.01, y + 0.125, 0.2] });
+    }
+    const faces = draw(shapes);
+    const lastBody = faces.map((f) => f.shape).lastIndexOf(0);
+    const over = faces.slice(lastBody + 1).map((f) => f.shape);
+    // Each right-hand terminal's end face, and none of their faces inside the body.
+    expect(over.sort((a, b) => a - b)).toEqual([2, 4, 6, 8]);
+  });
+
+  it('turns the 3D view above the board and draws the footprint under the model', () => {
+    // Kept above the board, however far it's dragged.
+    expect(orbit(homeCamera, 0, 200).tilt).toBe(90);
+    expect(orbit(homeCamera, 0, -200).tilt).toBe(5);
+    expect(orbit({ yaw: 170, tilt: 55 }, 20, 0).yaw).toBeCloseTo(-170);
+    const body: Shape3D[] = [{ kind: 'box', part: 'body', min: [-1, -0.7, 0], max: [1, 0.7, 1] }];
+    const faces = draw(body, topCamera, footprint());
+    // The board, two pads, a silk line, the silk mark and the courtyard, then the body's top.
+    expect(faces.map((f) => f.shape)).toEqual([-1, -1, -1, -1, -1, -1, 0]);
+    expect(faces.filter((f) => f.line)).toHaveLength(2);
+    expect(draw(body, topCamera)).toHaveLength(1);
   });
 
   it('edits a 3D model by its shapes', () => {

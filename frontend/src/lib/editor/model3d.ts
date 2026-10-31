@@ -1,5 +1,5 @@
 import { History } from './history';
-import type { Shape3D, Solid, V3 } from './model';
+import type { FootprintModel, Pt, Shape3D, Solid, V3 } from './model';
 
 // The 3D model's editor: shapes (boxes, cylinders, solids as built) built
 // into solids and drawn as an isometric view the way the backend draws
@@ -63,69 +63,216 @@ export function solidOf(sh: Shape3D): Solid {
 /** A solid's colour, as the backend colours it. */
 function rgb(s: Solid): [number, number, number] {
   if (s.part === 'lead' || s.part === 'pad') return [0.82, 0.82, 0.84];
-  if (s.part === 'mark') return [0.55, 0.55, 0.55];
+  if (s.part === 'mark') return [0.95, 0.95, 0.95];
   const named: Record<string, [number, number, number]> = { tan: [0.76, 0.66, 0.48], brown: [0.45, 0.3, 0.18], blue: [0.15, 0.25, 0.55], grey: [0.4, 0.4, 0.42], gray: [0.4, 0.4, 0.42] };
   return named[s.color ?? ''] ?? [0.12, 0.12, 0.13];
 }
 
-/** A face as drawn: its points, colour and the shape it belongs to. */
-export interface Face {
-  pts: { x: number; y: number }[];
-  color: string;
-  shape: number;
+/** A face's unit normal (Newell's). */
+function normal(s: Solid, f: number[]): V3 {
+  const n: V3 = [0, 0, 0];
+  f.forEach((vi, k) => {
+    const a = s.verts[vi];
+    const b = s.verts[f[(k + 1) % f.length]];
+    n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+    n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+    n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+  });
+  const nl = Math.hypot(...n) || 1;
+  return n.map((x) => x / nl) as V3;
 }
 
-/** The shapes drawn isometric from above the front right, far faces first. */
-export function draw(shapes: Shape3D[]): Face[] {
-  const yaw = (-35 * Math.PI) / 180;
-  const tilt = (55 * Math.PI) / 180;
+/** How far a point is out past a solid's face (negative: inside it). */
+function outPast(s: Solid, f: number[], n: V3, p: V3): number {
+  const o = s.verts[f[0]];
+  return n[0] * (p[0] - o[0]) + n[1] * (p[1] - o[1]) + n[2] * (p[2] - o[2]);
+}
+
+/** A solid's bounding box. */
+function bounds(s: Solid): [V3, V3] {
+  const lo: V3 = [Infinity, Infinity, Infinity];
+  const hi: V3 = [-Infinity, -Infinity, -Infinity];
+  for (const v of s.verts) for (let k = 0; k < 3; k++) [lo[k], hi[k]] = [Math.min(lo[k], v[k]), Math.max(hi[k], v[k])];
+  return [lo, hi];
+}
+
+/**
+ * -1 when a solid sits under a body (out past a face of it the viewer
+ * doesn't see), 1 when over it (out past one they see), 0 when it touches
+ * no body.
+ */
+function onBody(s: Solid, bodies: Solid[], seen: (n: V3) => boolean): number {
+  const [lo, hi] = bounds(s);
+  let rank = 0;
+  for (const b of bodies) {
+    const [blo, bhi] = bounds(b);
+    if ([0, 1, 2].some((k) => lo[k] > bhi[k] + 0.05 || blo[k] > hi[k] + 0.05)) continue;
+    for (const f of b.faces) {
+      const n = normal(b, f);
+      if (!s.verts.some((v) => outPast(b, f, n, v) > 1e-6)) continue;
+      if (seen(n)) return 1;
+      rank = -1;
+    }
+  }
+  return rank;
+}
+
+/** Whether a point is inside one of the (convex) bodies. */
+function insideAny(p: V3, bodies: Solid[]): boolean {
+  return bodies.some((b) => b.faces.every((f) => outPast(b, f, normal(b, f), p) < -1e-6));
+}
+
+/**
+ * A face as drawn: its points, colour and the shape it belongs to (-1 for
+ * the board and footprint under the model); a line is a stroke, not a fill.
+ */
+export interface Face {
+  pts: Pt[];
+  color: string;
+  shape: number;
+  line?: number;
+}
+
+/**
+ * Where the view looks from, in degrees: yaw turns it round the board,
+ * tilt is down from the horizon (90 straight down). It stays above the
+ * board, where drawing far faces first holds.
+ */
+export interface Camera {
+  yaw: number;
+  tilt: number;
+}
+
+/** The view the backend draws: from above the front right. */
+export const homeCamera: Camera = { yaw: -35, tilt: 55 };
+
+/** Straight down onto the footprint. */
+export const topCamera: Camera = { yaw: 0, tilt: 90 };
+
+/** A camera turned by a drag, kept above the board. */
+export function orbit(c: Camera, dYaw: number, dTilt: number): Camera {
+  return { yaw: ((((c.yaw + dYaw + 180) % 360) + 360) % 360) - 180, tilt: Math.min(90, Math.max(5, c.tilt + dTilt)) };
+}
+
+/** A camera's projection: a point's place on screen and its depth, and whether a face's normal faces the viewer. */
+export function projector(c: Camera): { project: (v: V3) => [Pt, number]; seen: (n: V3) => boolean } {
+  const yaw = (c.yaw * Math.PI) / 180;
+  const tilt = (c.tilt * Math.PI) / 180;
   const [ca, sa, cb, sb] = [Math.cos(yaw), Math.sin(yaw), Math.cos(tilt), Math.sin(tilt)];
+  return {
+    project: (v) => {
+      const x1 = v[0] * ca - v[1] * sa;
+      const y1 = v[0] * sa + v[1] * ca;
+      return [{ x: x1, y: -(y1 * sb + v[2] * cb) }, y1 * cb - v[2] * sb];
+    },
+    seen: (n) => (n[0] * sa + n[1] * ca) * cb - n[2] * sb < -1e-9,
+  };
+}
+
+/** A footprint point (y down) on the board. */
+const onBoard = (p: Pt): V3 => [p.x, -p.y, 0];
+
+/** A pad's outline, footprint coordinates. */
+function padOutline(x: number, y: number, w: number, h: number, shape: string): Pt[] {
+  if (shape !== 'circle' && shape !== 'oval') {
+    return [
+      { x: x - w / 2, y: y - h / 2 },
+      { x: x + w / 2, y: y - h / 2 },
+      { x: x + w / 2, y: y + h / 2 },
+      { x: x - w / 2, y: y + h / 2 },
+    ];
+  }
+  // A stadium: two half circles joined along the long side.
+  const r = Math.min(w, h) / 2;
+  const [dx, dy] = [w / 2 - r, h / 2 - r];
+  const pts: Pt[] = [];
+  for (let i = 0; i < 24; i++) {
+    const a = (2 * Math.PI * i) / 24;
+    const [cx, cy] = [Math.cos(a) >= 0 ? dx : -dx, Math.sin(a) >= 0 ? dy : -dy];
+    pts.push({ x: x + cx + r * Math.cos(a), y: y + cy + r * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** The board under a footprint and its copper, silkscreen and courtyard, flat at z 0. */
+function footprintFaces(fp: FootprintModel, project: (v: V3) => [Pt, number]): Face[] {
+  const flat = (pts: Pt[]) => pts.map((p) => project(onBoard(p))[0]);
+  const c = fp.courtyard;
+  const m = 0.5;
+  const out: Face[] = [{ pts: flat(padOutline((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, c.x1 - c.x0 + 2 * m, c.y1 - c.y0 + 2 * m, 'rect')), color: '#1d4a2e', shape: -1 }];
+  for (const p of fp.pads) {
+    if (p.kind === 'paste') continue;
+    if (p.kind !== 'npth') out.push({ pts: flat(padOutline(p.x, p.y, p.w, p.h, p.shape)), color: '#c9a44c', shape: -1 });
+    if (p.drill) out.push({ pts: flat(padOutline(p.x, p.y, p.drill, p.drill, 'circle')), color: '#111', shape: -1 });
+  }
+  for (const l of fp.lines ?? []) {
+    if (l.layer === 'silk') out.push({ pts: flat([l.a, l.b]), color: '#eee', shape: -1, line: Math.max(l.width, 0.05) });
+  }
+  for (const p of fp.polys ?? []) {
+    if (p.layer === 'silk') out.push({ pts: flat(p.pts), color: '#eee', shape: -1 });
+  }
+  out.push({
+    pts: flat([
+      { x: c.x0, y: c.y0 },
+      { x: c.x1, y: c.y0 },
+      { x: c.x1, y: c.y1 },
+      { x: c.x0, y: c.y1 },
+      { x: c.x0, y: c.y0 },
+    ]),
+    color: '#c040c0',
+    shape: -1,
+    line: 0.03,
+  });
+  return out;
+}
+
+/** The middle of the model and its footprint, and how far they reach from it: what the view frames. */
+export function frameOf(shapes: Shape3D[], fp?: FootprintModel): { centre: V3; radius: number } {
+  const pts: V3[] = shapes.flatMap((sh) => solidOf(sh).verts);
+  if (fp) {
+    const c = fp.courtyard;
+    pts.push(onBoard({ x: c.x0, y: c.y0 }), onBoard({ x: c.x1, y: c.y1 }));
+  }
+  if (!pts.length) return { centre: [0, 0, 0], radius: 5 };
+  const lo = [0, 1, 2].map((k) => Math.min(...pts.map((p) => p[k])));
+  const hi = [0, 1, 2].map((k) => Math.max(...pts.map((p) => p[k])));
+  const centre = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2) as V3;
+  return { centre, radius: Math.max(0.5, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2) };
+}
+
+/**
+ * The shapes drawn from a camera (the backend's view by default), far
+ * faces first, over the footprint they sit on when given.
+ */
+export function draw(shapes: Shape3D[], camera: Camera = homeCamera, fp?: FootprintModel): Face[] {
   const ll = Math.hypot(-0.4, -0.6, 1);
   const light: V3 = [-0.4 / ll, -0.6 / ll, 1 / ll];
-  const project = (v: V3): [{ x: number; y: number }, number] => {
-    const x1 = v[0] * ca - v[1] * sa;
-    const y1 = v[0] * sa + v[1] * ca;
-    return [{ x: x1, y: -(y1 * sb + v[2] * cb) }, y1 * cb - v[2] * sb];
-  };
-  const faces: (Face & { depth: number; solid: number })[] = [];
-  shapes.forEach((sh, si) => {
-    const s = solidOf(sh);
+  const { project, seen } = projector(camera);
+  const solids = shapes.map(solidOf);
+  const bodies = solids.filter((s) => s.part === 'body' && s.verts.length);
+  const faces: (Face & { depth: number; solid: number; rank: number })[] = [];
+  solids.forEach((s, si) => {
     if (!s.verts.length) return;
-    let solidDepth = s.verts.reduce((d, v) => d + project(v)[1], 0) / s.verts.length;
-    if (s.part === 'mark') solidDepth -= 1e3;
-    if (s.part === 'pad') solidDepth += 1e3;
+    const solidDepth = s.verts.reduce((d, v) => d + project(v)[1], 0) / s.verts.length;
+    // A lead, pad or mark goes over the body it sits on when it sticks out
+    // of a face of it the viewer sees, under it otherwise.
+    const rank = s.part === 'body' ? 0 : onBody(s, bodies, seen);
     const c = rgb(s);
     for (const f of s.faces) {
-      // Newell's normal.
-      const n: V3 = [0, 0, 0];
-      f.forEach((vi, k) => {
-        const a = s.verts[vi];
-        const b = s.verts[f[(k + 1) % f.length]];
-        n[0] += (a[1] - b[1]) * (a[2] + b[2]);
-        n[1] += (a[2] - b[2]) * (a[0] + b[0]);
-        n[2] += (a[0] - b[0]) * (a[1] + b[1]);
-      });
-      const nl = Math.hypot(...n) || 1;
-      const nv = n.map((x) => x / nl) as V3;
-      if ((nv[0] * sa + nv[1] * ca) * cb - nv[2] * sb >= -1e-9) continue;
+      const nv = normal(s, f);
+      if (!seen(nv)) continue;
+      // A terminal's faces inside the body are hidden by it.
+      const mid = [0, 1, 2].map((k) => f.reduce((m, vi) => m + s.verts[vi][k], 0) / f.length) as V3;
+      if (rank !== 0 && insideAny(mid, bodies)) continue;
       const proj = f.map((vi) => project(s.verts[vi]));
       const k = 0.5 + 0.5 * Math.max(0, nv[0] * light[0] + nv[1] * light[1] + nv[2] * light[2]);
       const hex = (x: number) => Math.round(255 * x * k).toString(16).padStart(2, '0');
-      faces.push({ pts: proj.map((p) => p[0]), depth: proj.reduce((d, p) => d + p[1], 0) / proj.length, solid: solidDepth, color: `#${hex(c[0])}${hex(c[1])}${hex(c[2])}`, shape: si });
+      faces.push({ pts: proj.map((p) => p[0]), depth: proj.reduce((d, p) => d + p[1], 0) / proj.length, solid: solidDepth, color: `#${hex(c[0])}${hex(c[1])}${hex(c[2])}`, shape: si, rank });
     }
   });
-  faces.sort((a, b) => (a.solid !== b.solid ? b.solid - a.solid : b.depth - a.depth));
-  return faces.map(({ pts, color, shape }) => ({ pts, color, shape }));
-}
-
-/** A view box round faces. */
-export function viewOf(faces: Face[]): { x0: number; y0: number; x1: number; y1: number } {
-  const pts = faces.flatMap((f) => f.pts);
-  if (!pts.length) return { x0: -5, y0: -5, x1: 5, y1: 5 };
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const m = 0.1 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 1);
-  return { x0: Math.min(...xs) - m, y0: Math.min(...ys) - m, x1: Math.max(...xs) + m, y1: Math.max(...ys) + m };
+  faces.sort((a, b) => (a.rank !== b.rank ? a.rank - b.rank : a.solid !== b.solid ? b.solid - a.solid : b.depth - a.depth));
+  // The board is under everything, seen only from above.
+  return [...(fp ? footprintFaces(fp, project) : []), ...faces.map(({ pts, color, shape }) => ({ pts, color, shape }))];
 }
 
 /** What a shape can be given, by field: a factory of fields by shape kind. */
