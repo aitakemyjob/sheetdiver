@@ -261,8 +261,17 @@ func MakeSymbol(name string, pins []PinInfo, spec SymbolSpec) (Symbol, []Problem
 	}
 	inner := nameW(Left) + nameW(Right) + Grid
 	// Top and bottom pins' names run down and up into the body: leave
-	// them room to pass each other.
+	// them room to pass each other, and to clear the first and last of
+	// the left and right pins' names, which start at the body's edge.
 	halfH = math.Max(halfH, Grid*math.Ceil((nameW(Top)+nameW(Bottom)+Grid)/2/Grid))
+	if rows > 0 {
+		columnTop := Grid * math.Floor(float64(rows-1)/2+0.5)
+		for _, w := range []float64{nameW(Top), nameW(Bottom)} {
+			if w > 0 {
+				halfH = math.Max(halfH, Grid*math.Ceil((columnTop+w+Grid)/Grid))
+			}
+		}
+	}
 	halfW := math.Max(Grid*math.Ceil((inner/2)/Grid), Grid*math.Ceil(float64(cols+1)/2))
 	halfW = math.Max(halfW, 2*Grid)
 	s := Symbol{Name: name, Reference: spec.Reference, Value: name, Body: Rect{-halfW, -halfH, halfW, halfH}}

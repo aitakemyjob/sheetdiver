@@ -2,6 +2,7 @@ package cad
 
 import (
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -236,5 +237,34 @@ func TestDraw3DNoLeadTerminals(t *testing.T) {
 	// the body, and the mark its top: nothing of them inside the body.
 	if over := len(shapes) - 1 - last; over != 5 {
 		t.Errorf("%d light faces over the body, want 5", over)
+	}
+}
+
+func TestTopPinNamesClearTheSideRows(t *testing.T) {
+	// Power pins on top, their names running down into the body, over a
+	// column of I/O on the left: the first I/O's name mustn't sit under
+	// a top pin's.
+	pins := []PinInfo{{Number: "1", Name: "VDDUSB", Type: "P"}, {Number: "2", Name: "VBAT", Type: "P"}}
+	for i := 3; i <= 12; i++ {
+		pins = append(pins, PinInfo{Number: strconv.Itoa(i), Name: "PA" + strconv.Itoa(i), Type: "I/O"})
+	}
+	s, ps := MakeSymbol("MCU", pins, SymbolSpec{})
+	if err := Err(ps); err != nil {
+		t.Fatal(err)
+	}
+	top, side := 0.0, -1e9
+	for _, p := range s.Pins {
+		switch p.Side {
+		case Top:
+			top = math.Max(top, textWidth(p.Name, 1.27))
+		case Left, Right:
+			side = math.Max(side, p.Y)
+		}
+	}
+	if top == 0 {
+		t.Fatal("no pin on top")
+	}
+	if s.Body.Y1-top < side+Grid/2 {
+		t.Errorf("a top name %.2f mm long reaches y %.2f, the first side pin is at %.2f", top, s.Body.Y1-top, side)
 	}
 }

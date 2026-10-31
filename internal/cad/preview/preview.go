@@ -88,7 +88,7 @@ func PDF(d cad.Drawing, title string, widthPt float64) []byte {
 		case cad.ShapeText:
 			x, y := px(it.Pts[0])
 			size := it.Size * s
-			tw := float64(len([]rune(it.Text))) * size * 0.55
+			tw := textWidth(it.Text) * size
 			shift := map[string]float64{"middle": tw / 2, "end": tw}[it.Anchor]
 			if it.Vertical {
 				fmt.Fprintf(&c, "BT %s rg /F1 %s Tf 0 1 -1 0 %s %s Tm (%s) Tj ET\n", rgb(col), f(size), f(x), f(y-shift), pdfText(it.Text))
@@ -140,6 +140,30 @@ func page(w, h float64, content []byte) []byte {
 	}
 	fmt.Fprintf(&b, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objs)+1, xref)
 	return b.Bytes()
+}
+
+// textWidth is a string's width in Helvetica, in ems: capitals and most
+// lower case about two thirds, digits and underscores just over half,
+// narrow letters and punctuation less.
+func textWidth(s string) float64 {
+	w := 0.0
+	for _, r := range s {
+		switch {
+		case r == 'i' || r == 'j' || r == 'l' || r == 'I' || r == '.' || r == ',' || r == ':' || r == '/' || r == '\'' || r == ' ':
+			w += 0.28
+		case r == 'f' || r == 't' || r == 'r' || r == '-' || r == '(' || r == ')' || r == '[' || r == ']':
+			w += 0.35
+		case r == 'm' || r == 'w' || r == 'M' || r == 'W':
+			w += 0.85
+		case r >= '0' && r <= '9' || r == '_' || r == 'J' || r == 'L' || r == 'E' || r == 'F' || r == 'T' || r == 'Z':
+			w += 0.58
+		case r >= 'A' && r <= 'Z':
+			w += 0.7
+		default:
+			w += 0.56
+		}
+	}
+	return w
 }
 
 // f writes a number for PDF.
