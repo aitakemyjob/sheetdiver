@@ -8,11 +8,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"sort"
 
+	"github.com/aitakemyjob/sheetdiver/internal/cad"
 	"github.com/aitakemyjob/sheetdiver/internal/catalog"
 	"github.com/aitakemyjob/sheetdiver/internal/config"
 	"github.com/aitakemyjob/sheetdiver/internal/connect"
@@ -708,6 +710,22 @@ func (a *API) registerCad() {
 	a.methods["cad.reset"] = method(func(ctx context.Context, in cadReq) (any, error) {
 		return c.ResetCad(ctx, in.Part, in.Package, in.Kind)
 	})
+	a.methods["cad.model"] = method(func(ctx context.Context, in cadReq) (any, error) { return c.CadModelOf(ctx, in.Part, in.Package) })
+	a.methods["cad.editSymbol"] = method(func(ctx context.Context, in cadEditReq) (any, error) {
+		if in.Symbol == nil {
+			return nil, errors.New("no symbol given")
+		}
+		return cadEdited(c.EditSymbol(ctx, in.Part, in.Package, *in.Symbol, "", library.SourceUser))
+	})
+	a.methods["cad.editFootprint"] = method(func(ctx context.Context, in cadEditReq) (any, error) {
+		if in.Footprint == nil {
+			return nil, errors.New("no footprint given")
+		}
+		return cadEdited(c.EditFootprint(ctx, in.Part, in.Package, *in.Footprint, "", library.SourceUser))
+	})
+	a.methods["cad.edit3d"] = method(func(ctx context.Context, in cadEditReq) (any, error) {
+		return cadEdited(c.EditModel3D(ctx, in.Part, in.Package, in.Shapes, ""))
+	})
 	a.methods["packages.part"] = method(func(ctx context.Context, in cadReq) (any, error) { return c.PartPackages(ctx, in.Part) })
 	a.methods["packages.record"] = method(func(ctx context.Context, in packageReq) (any, error) {
 		return c.RecordPackage(ctx, in.Part, in.Package, library.SourceUser)
@@ -715,6 +733,33 @@ func (a *API) registerCad() {
 	a.methods["packages.delete"] = method(func(ctx context.Context, in idReq) (any, error) {
 		return nil, c.DeletePackage(ctx, in.ID)
 	})
+}
+
+// cadEditReq is an edit of a part's symbol, footprint or 3D model.
+type cadEditReq struct {
+	Part      string         `json:"part"`
+	Package   string         `json:"package"`
+	Symbol    *cad.Symbol    `json:"symbol,omitempty"`
+	Footprint *cad.Footprint `json:"footprint,omitempty"`
+	Shapes    []cad.Shape3D  `json:"shapes,omitempty"`
+}
+
+// cadEditResult is the part's CAD after an edit, with what its checks
+// found.
+type cadEditResult struct {
+	Cad      core.PartCad  `json:"cad"`
+	Problems []cad.Problem `json:"problems"`
+}
+
+// cadEdited is an edit's result; a refused edit's problems are its error.
+func cadEdited(pc core.PartCad, ps []cad.Problem, err error) (any, error) {
+	if err != nil {
+		return nil, err
+	}
+	if ps == nil {
+		ps = []cad.Problem{}
+	}
+	return cadEditResult{pc, ps}, nil
 }
 
 // packageReq records a package's dimensions for a part.

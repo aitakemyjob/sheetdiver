@@ -88,6 +88,13 @@ type CadView struct {
 	DatasheetPage int `json:"datasheetPage,omitempty"`
 	// ModelKept says the user replaced the 3D model with their own.
 	ModelKept bool `json:"modelKept,omitempty"`
+	// EditedIn is where an edit was made: kicad, altium, eagle, or
+	// sheetdiver (the app's editor or an agent's edit_ tools).
+	EditedIn string `json:"editedIn,omitempty"`
+	// Shapes are the 3D model as shapes to edit; Model3DEdited says they
+	// were edited rather than built from the package.
+	Shapes        []cad.Shape3D `json:"shapes,omitempty"`
+	Model3DEdited bool          `json:"model3dEdited,omitempty"`
 }
 
 // CadPackage is a part's symbol and footprint for one of its packages.
@@ -267,6 +274,7 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			sv.State, sv.Source, sv.Notes, sv.Updated = st.State, st.Source, st.Notes, st.Updated
 			meta.spec, meta.notes, meta.source = st.Spec, st.Notes, st.Source
 		}
+		sv.EditedIn = cadlib.EditedIn(sym.Raw)
 		if sym.State == cadlib.Edited {
 			if got, _ := cadlib.Decode(library.CadSymbol, sym.Raw); got != nil {
 				got.Name = symName
@@ -309,7 +317,9 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 				}
 			}
 		}
-		if pkgSpec == nil && fpi.State == cadlib.Auto {
+		// The package's outline, which an edited footprint keeps for its
+		// 3D model.
+		if pkgSpec == nil {
 			// The datasheet's own dimensions, when they make a footprint.
 			if pp, ok := packageFor(dsPkgs, pk.name); ok {
 				if sp, ok := datasheetPackage(pp, pk.name, nonPad); ok {
@@ -319,11 +329,15 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 				}
 			}
 		}
-		if pkgSpec == nil && fpi.State == cadlib.Auto {
+		if pkgSpec == nil {
 			if sp, ok := cad.Standard(pk.name, nonPad); ok {
 				pkgSpec, fv.Standard = &sp, true
 			}
 		}
+		if fpi.State == cadlib.Edited {
+			fv.Standard, fv.DatasheetPage = false, 0
+		}
+		fv.EditedIn = cadlib.EditedIn(fpi.Raw)
 		if pkgSpec != nil && pkgSpec.ExposedPad != nil && pkgSpec.ExposedPadNumber == "" {
 			pkgSpec.ExposedPadNumber = epNum
 		}
@@ -357,10 +371,19 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			fv.Problems = append(fv.Problems, ps...)
 			fpi.Solids = solids
 			fv.Package = pkgSpec
-			if len(solids) > 0 {
-				m := cad.Draw3D(solids)
-				fv.Model = &m
+		}
+		// The 3D model as the user or an agent edited it.
+		if raw, ok := fpi.Raw[cadlib.Model3DKey]; ok {
+			var shapes []cad.Shape3D
+			if json.Unmarshal([]byte(raw), &shapes) == nil {
+				if solids, err := cad.SolidsOf(shapes); err == nil {
+					fpi.Solids, fv.Model3DEdited = solids, true
+				}
 			}
+		}
+		if len(fpi.Solids) > 0 {
+			m := cad.Draw3D(fpi.Solids)
+			fv.Model, fv.Shapes = &m, cad.ShapesOf(fpi.Solids)
 		}
 		fv.ModelKept = fpi.Written["kicad.step.user"] != ""
 		switch {
@@ -442,8 +465,8 @@ func (s *Service) syncCad(ctx context.Context) (cadlib.Report, error) {
 			continue
 		}
 		m := meta[it]
-		if it.State == cadlib.Edited {
-			m.source = library.SourceUser
+		if it.State == cadlib.Edited && cadlib.EditedIn(it.Raw) != cadlib.ModelKey {
+			m.source = library.SourceUser // adopted from their CAD tool
 		}
 		if _, serr := s.Lib.SaveCadItem(ctx, library.CadItem{PartID: m.partID, Kind: it.Kind, Package: m.pkg, Spec: m.spec, State: string(it.State),
 			Raw: it.Raw, Written: it.Written, Notes: m.notes, Source: m.source}); serr != nil && err == nil {
@@ -558,12 +581,15 @@ func (s *Service) DrawFootprint(ctx context.Context, ref, pkg string, spec cad.P
 
 // ResetCad drops the newest work on a symbol or footprint: the user's
 // edit (back to the agent's drawing, or SheetDiver's), or the agent's
-// drawing (back to SheetDiver's).
+// drawing (back to SheetDiver's); or a 3D model's edit (kind 3d).
 func (s *Service) ResetCad(ctx context.Context, ref, pkg, kind string) (PartCad, error) {
+	if kind == "3d" || kind == "model" {
+		return s.ResetModel3D(ctx, ref, pkg)
+	}
 	s.cadMu.Lock()
 	defer s.cadMu.Unlock()
 	if kind != library.CadSymbol && kind != library.CadFootprint {
-		return PartCad{}, fmt.Errorf("kind %q isn't symbol or footprint", kind)
+		return PartCad{}, fmt.Errorf("kind %q isn't symbol, footprint or 3d", kind)
 	}
 	if _, err := s.syncCad(ctx); err != nil {
 		return PartCad{}, err
@@ -575,7 +601,12 @@ func (s *Service) ResetCad(ctx context.Context, ref, pkg, kind string) (PartCad,
 	st := cadlib.State(it.State)
 	to := st.Reset(len(it.Spec) > 0 && st == cadlib.Edited)
 	if st == cadlib.Edited {
+		// The edit goes; a 3D model's edit stays (it's reset by itself).
+		m3d, ok := it.Raw[cadlib.Model3DKey]
 		it.Raw = nil
+		if ok {
+			it.Raw = map[string]string{cadlib.Model3DKey: m3d}
+		}
 		delete(it.Written, "kicad.step.user")
 	}
 	if to == cadlib.Auto {

@@ -53,7 +53,7 @@ type drawFootprintArgs struct {
 type resetCadArgs struct {
 	Part    string `json:"part"`
 	Package string `json:"package,omitempty"`
-	Kind    string `json:"kind" jsonschema:"symbol or footprint"`
+	Kind    string `json:"kind" jsonschema:"symbol, footprint or 3d"`
 }
 
 // problemsText lists problems.
@@ -73,6 +73,9 @@ func cadText(pc core.PartCad) string {
 		fmt.Fprintf(&b, "\n## package %q (%d pins in the pin table)\n", p.Package, p.Pins)
 		if s := p.Symbol; s != nil {
 			fmt.Fprintf(&b, "symbol %s: %s", s.Name, s.State)
+			if s.EditedIn != "" {
+				fmt.Fprintf(&b, " in %s", s.EditedIn)
+			}
 			if s.Notes != "" {
 				fmt.Fprintf(&b, " — %s", s.Notes)
 			}
@@ -94,6 +97,9 @@ func cadText(pc core.PartCad) string {
 		}
 		if f := p.Footprint; f != nil {
 			fmt.Fprintf(&b, "footprint %s: %s", f.Name, f.State)
+			if f.EditedIn != "" {
+				fmt.Fprintf(&b, " in %s", f.EditedIn)
+			}
 			if f.Standard {
 				b.WriteString(", from the standard outline (not yet checked against the datasheet's drawing)")
 			}
@@ -109,6 +115,9 @@ func cadText(pc core.PartCad) string {
 			}
 			if f.ModelKept {
 				b.WriteString("  3D model: the user's own (kept)\n")
+			}
+			if f.Model3DEdited {
+				fmt.Fprintf(&b, "  3D model: edited (%d shapes)\n", len(f.Shapes))
 			}
 			b.WriteString(problemsText(f.Problems))
 		} else if p.Missing != "" {
@@ -187,7 +196,7 @@ func (s *Server) registerCad() {
 			return text("drawn.\n" + problemsText(ps) + cadText(pc)), nil
 		})
 
-	addTool(s, &mcp.Tool{Name: "reset_cad", Description: "Drop the newest work on a part's symbol or footprint: the user's edit from their CAD tool (back to the agent's drawing, or SheetDiver's), or an agent's drawing (back to SheetDiver's). Only when the user asks: their edits are theirs.", Annotations: writes("Reset CAD", false)},
+	addTool(s, &mcp.Tool{Name: "reset_cad", Description: "Drop the newest work on a part's symbol or footprint: an edit (the user's, from their CAD tool or the app's editor, or an agent's edit_ tools: back to the agent's drawing, or SheetDiver's), or an agent's drawing (back to SheetDiver's); kind 3d drops the 3D model's edit. Only when the user asks: their edits are theirs.", Annotations: writes("Reset CAD", false)},
 		write, func(a resetCadArgs) string { return "reset " + a.Kind + " " + a.Part }, func(ctx context.Context, a resetCadArgs) (result, error) {
 			pc, err := c.ResetCad(ctx, a.Part, a.Package, strings.ToLower(a.Kind))
 			if err != nil {

@@ -156,6 +156,12 @@ the package outline's dimension table and the recommended land pattern
 (`draw_footprint`), and a symbol laid out the way an engineer reads it
 (`draw_symbol`), checking each with `get_cad_image`.
 
+Symbols, footprints and 3D models can also be edited in SheetDiver
+itself: the part's CAD tab has an editor for each, and agents use
+`get_cad_model` and the `edit_` tools the same way. Such an edit is
+kept like one made in a CAD tool and written to every format; a 3D
+model's edit is kept beside the footprint's.
+
 The user edits symbols and footprints in KiCad, Altium or Eagle. Every
 sync reads each library back first: a symbol or footprint whose content
 differs from what SheetDiver last wrote there (formatting, ids and order
@@ -172,7 +178,11 @@ KiCad library is left alone and embedded in the Altium one. Each symbol and foot
 | `get_cad_image` | A picture of a part's `symbol`, `footprint` (pads numbered; pitch, row span and pad size dimensioned; courtyard dashed) or `3d` model, to compare with the datasheet's drawings. |
 | `draw_symbol` | Place pins: `{number, side, position, type, name, hidden}`; unplaced pins keep their place by role. Electrical types are KiCad's (`power_in`, `open_collector`…). Refused for a symbol the user edited. |
 | `draw_footprint` | Give the package `outline` from its datasheet in mm: `family` (surface mount `gullwing`, `qfp`, `dfn`, `qfn`, `chip`, `bga`; through hole `dip`, `header`, `inline` for TO-92/TO-220, `radial`, `axial`; `custom` with its `pads` listed one by one, for connectors, modules and anything else, with plated and bare holes), `pins`, `pitch`, `bodyLength`, `bodyWidth`, `height`, `standoff`, `span`, `leadLength`, `leadWidth`, `leadThickness` (each `{min, nom, max}`), `exposedPad`, `layout` for skipped or oddly numbered pins, BGA `rows`/`columns`/`depopulated`, and `land`, the recommended land pattern (`padLength`, `padWidth`, `rowSpan` centre to centre, `exposedPad`, `paste`, `vias`). Pads come from `land` when given, else IPC-7351 nominal; the 3D model is built from the outline. Refused for a footprint the user edited. |
-| `reset_cad` | Drop the newest work on a symbol or footprint: the user's edit (back to the agent's drawing or SheetDiver's) or an agent's drawing. Only when the user asks. |
+| `get_cad_model` | A part's symbol, footprint and 3D model exactly, as JSON to change and give back to the `edit_` tools. |
+| `edit_symbol` | Change the symbol freely: pins anywhere on any side, the body, and drawn lines, rectangles, circles, arcs, polygons and texts. Give the whole symbol back; kept as an edit. |
+| `edit_footprint` | Change the footprint freely: pads of every kind and drawing on silkscreen, fab, courtyard and copper. Give the whole footprint back; kept as an edit. |
+| `edit_3d_model` | Change the 3D model: boxes, cylinders and the built solids (moved), each with its part and colour. Kept beside the footprint whoever edits it. |
+| `reset_cad` | Drop the newest work on a symbol or footprint: an edit (back to the agent's drawing or SheetDiver's) or an agent's drawing; `kind: 3d` drops the 3D model's edit. Only when the user asks. |
 | `sync_cad_library` | Read back the user's edits, then write the library in every format; says where it is and how to add it to KiCad. |
 
 ### Package dimensions

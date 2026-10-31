@@ -89,7 +89,7 @@ type Item struct {
 func (it *Item) adopt(format, raw, fingerprint string) {
 	// The newest edit wins: what was kept from another tool goes, and
 	// that tool's file is rewritten from this one.
-	it.Raw = map[string]string{format: raw}
+	it.Raw = it.keep3D(map[string]string{format: raw})
 	if it.Written == nil {
 		it.Written = map[string]string{}
 	}
@@ -101,7 +101,7 @@ func (it *Item) adopt(format, raw, fingerprint string) {
 // Edit takes the user's edit made in SheetDiver's own editor: kept as the
 // model itself, every format's file rewritten from it.
 func (it *Item) Edit(raw string) {
-	it.Raw = map[string]string{ModelKey: raw}
+	it.Raw = it.keep3D(map[string]string{ModelKey: raw})
 	it.State = Edited
 	it.Changed = true
 }

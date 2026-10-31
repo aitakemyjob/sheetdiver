@@ -101,6 +101,7 @@ func New(c *core.Service) *Server {
 	s.registerSimulation()
 	s.registerCad()
 	s.registerPackages()
+	s.registerCadEdit()
 	return s
 }
 

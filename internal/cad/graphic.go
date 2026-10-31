@@ -257,3 +257,102 @@ func (d *Drawing) graphic(g Graphic, role string) {
 		d.add(Shape{Kind: ShapeText, Role: role, Text: g.Text, Pts: []Pt{g.Pts[0]}, Size: g.Size, Anchor: "start", Vertical: math.Abs(math.Mod(g.Angle+360, 360)-90) < 1})
 	}
 }
+
+// Tidy sets what a footprint's drawing implies once it's edited: its
+// mounting from its pads, its courtyard and body boxes from what's drawn
+// on those layers (the courtyard round the pads when nothing is).
+func (f *Footprint) Tidy() {
+	f.Mount = mountOf(f.Pads)
+	var crt, fab Rect
+	grow := func(r *Rect, b Rect) { *r = r.union(b) }
+	for _, l := range f.Lines {
+		b := Rect{math.Min(l.A.X, l.B.X), math.Min(l.A.Y, l.B.Y), math.Max(l.A.X, l.B.X), math.Max(l.A.Y, l.B.Y)}
+		switch l.Layer {
+		case LayerCourtyard:
+			grow(&crt, b)
+		case LayerFab:
+			grow(&fab, b)
+		}
+	}
+	for _, g := range f.Graphics {
+		if g.Check() != nil {
+			continue
+		}
+		switch g.Layer {
+		case LayerCourtyard:
+			grow(&crt, g.Bounds())
+		case LayerFab:
+			grow(&fab, g.Bounds())
+		}
+	}
+	if crt == (Rect{}) {
+		for _, p := range f.Pads {
+			grow(&crt, p.Rect().grow(0.25))
+		}
+	}
+	f.Courtyard, f.Body = crt, fab
+}
+
+// Problems are what's wrong with a footprint as edited: pads that can't
+// be made, graphics off any layer or misshapen.
+func (f Footprint) Problems() []Problem {
+	var ps problems
+	shapes := map[string]bool{"rect": true, "roundrect": true, "circle": true, "oval": true}
+	for i, p := range f.Pads {
+		name := fmt.Sprintf("pad %d (%q)", i+1, p.Number)
+		switch {
+		case p.Kind != PadSMD && p.Kind != PadThru && p.Kind != PadNPTH && p.Kind != PadPaste:
+			ps.errf("%s: kind %q isn't smd, thru, npth or paste", name, p.Kind)
+		case p.Kind != PadNPTH && (p.W <= 0 || p.H <= 0):
+			ps.errf("%s has no size", name)
+		case (p.Kind == PadThru || p.Kind == PadNPTH) && p.Drill <= 0:
+			ps.errf("%s is a hole with no drill", name)
+		case p.Kind == PadThru && p.Drill >= math.Min(p.W, p.H):
+			ps.errf("%s: its %s mm hole leaves no copper round it", name, mm(p.Drill))
+		case p.Kind != PadNPTH && !shapes[p.Shape]:
+			ps.errf("%s: shape %q isn't rect, roundrect, circle or oval", name, p.Shape)
+		case p.Terminal() && p.Number == "":
+			ps.warnf("%s has no number: no pin lands on it", name)
+		}
+	}
+	for i, g := range f.Graphics {
+		if _, ok := layerRoles[g.Layer]; !ok {
+			ps.errf("graphic %d: layer %q isn't silk, fab, courtyard or copper", i+1, g.Layer)
+		} else if err := g.Check(); err != nil {
+			ps.errf("graphic %d: %v", i+1, err)
+		}
+	}
+	return ps
+}
+
+// Problems are what's wrong with a symbol as edited: pins without a
+// number, side or type, and misshapen graphics.
+func (s Symbol) Problems() []Problem {
+	var ps problems
+	sides := map[string]bool{Left: true, Right: true, Top: true, Bottom: true}
+	types := map[string]bool{TypeInput: true, TypeOutput: true, TypeBidir: true, TypeTriState: true, TypePassive: true, TypePowerIn: true,
+		TypePowerOut: true, TypeOpenDrain: true, TypeNoConnect: true, TypeUnspecified: true, "free": true, "open_emitter": true}
+	seen := map[string]bool{}
+	for i, p := range s.Pins {
+		name := fmt.Sprintf("pin %d (%q)", i+1, p.Number)
+		switch {
+		case p.Number == "":
+			ps.errf("pin %d has no number", i+1)
+		case !sides[p.Side]:
+			ps.errf("%s: side %q isn't left, right, top or bottom (the side of the body it sticks out of)", name, p.Side)
+		case !types[p.Type]:
+			ps.errf("%s: type %q isn't one of KiCad's electrical types", name, p.Type)
+		case p.Length < 0:
+			ps.errf("%s has a negative length", name)
+		case seen[p.Number]:
+			ps.warnf("%s: the number is used twice (stacked pins)", name)
+		}
+		seen[p.Number] = true
+	}
+	for i, g := range s.Graphics {
+		if err := g.Check(); err != nil {
+			ps.errf("graphic %d: %v", i+1, err)
+		}
+	}
+	return ps
+}

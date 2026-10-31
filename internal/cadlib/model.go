@@ -7,6 +7,19 @@ import (
 	"github.com/aitakemyjob/sheetdiver/internal/cad"
 )
 
+// Model3DKey is the key a 3D model edited in SheetDiver (its shapes, as
+// JSON) is kept under, beside the footprint's edit: it stays whoever
+// edits the footprint, until it is reset itself.
+const Model3DKey = "sheetdiver.3d"
+
+// keep3D is a new set of kept edits with the 3D model's edit carried over.
+func (it *Item) keep3D(raw map[string]string) map[string]string {
+	if m, ok := it.Raw[Model3DKey]; ok {
+		raw[Model3DKey] = m
+	}
+	return raw
+}
+
 // ModelKey is the key an edit made in SheetDiver's own editor is kept
 // under: the model itself, as JSON.
 const ModelKey = "sheetdiver"
@@ -39,6 +52,7 @@ func (modelDecoder) Decode(kind, raw string) (*cad.Symbol, *cad.Footprint, error
 // EditedIn is where an edited item's edit was made: a format's name, or
 // ModelKey for SheetDiver's own editor; "" when it isn't edited.
 func EditedIn(raw map[string]string) string {
+	raw = without3D(raw)
 	if _, ok := raw[ModelKey]; ok {
 		return ModelKey
 	}
@@ -51,4 +65,18 @@ func EditedIn(raw map[string]string) string {
 		return k
 	}
 	return ""
+}
+
+// without3D are kept edits without the 3D model's.
+func without3D(raw map[string]string) map[string]string {
+	if _, ok := raw[Model3DKey]; !ok {
+		return raw
+	}
+	out := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if k != Model3DKey {
+			out[k] = v
+		}
+	}
+	return out
 }
