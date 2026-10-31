@@ -271,7 +271,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[
 			value = descriptionValue(descriptions[pp.ID])
 		}
 		kind, passive := symbolKind(pp.Category, false), twoTerminal(pp.Category, false)
-		if passive && len(pins[pp.ID]) > 2 && !strings.ContainsAny(strings.TrimSpace(pp.Designator), ", ") {
+		if passive && len(pins[pp.ID]) > 2 && len(splitDesignators(pp.Designator)) < 2 {
 			kind, passive = "ic", false
 		}
 		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: kind, value: value, label: firstNonEmpty(pp.Designator, pp.MPN), passive: passive, entry: pp}

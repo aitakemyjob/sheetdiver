@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -716,13 +715,9 @@ type target struct {
 // found reports whether the target names anything.
 func (t target) found() bool { return t.entry != 0 || t.block != 0 }
 
-// designatorSplit separates the designators of one BOM entry ("R1,R2",
-// "C3 C4").
-var designatorSplit = regexp.MustCompile(`[,;\s]+`)
-
 // endpoint finds what a connection names: a BOM entry by designator (or
-// by one of its designators, "R1" of "R1,R2"), or by part number when
-// only one entry has it, else a block by name.
+// by one of its designators, "R1" of "R1,R2", "C42" of "C40-C45"), or by
+// part number when only one entry has it, else a block by name.
 func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) target {
 	for _, pp := range parts {
 		if pp.Designator != "" && strings.EqualFold(pp.Designator, ref) {
@@ -730,7 +725,7 @@ func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) t
 		}
 	}
 	for _, pp := range parts {
-		if refs := designatorSplit.Split(strings.TrimSpace(pp.Designator), -1); len(refs) > 1 {
+		if refs := splitDesignators(pp.Designator); len(refs) > 1 {
 			for _, d := range refs {
 				if strings.EqualFold(d, ref) {
 					return target{entry: pp.ID, ref: d}

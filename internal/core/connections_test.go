@@ -702,3 +702,74 @@ func TestPackagePins(t *testing.T) {
 		}
 	}
 }
+
+func TestDesignatorRanges(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "board", ""); err != nil {
+		t.Fatal(err)
+	}
+	res, _ := s.Lib.Resolve(ctx, "SD1235")
+	cat := "capacitor"
+	if _, err := s.Lib.UpdatePart(ctx, res.Part.ID, library.PartUpdate{Category: &cat}); err != nil {
+		t.Fatal(err)
+	}
+	// The board was drafted with C42 as a block; then the BOM came, with
+	// decoupling caps in one line of ranges.
+	if _, err := s.ChangeConnections(ctx, "board", ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "C42", Kind: "capacitor", Value: "100nF"}, {Name: "U1 MCU", Kind: "ic"}},
+		Connect: []ConnectChange{{Net: "3V3", Part: "C42"}, {Net: "3V3", Part: "U1 MCU", Pin: "VDD"}, {Net: "VDDA", Part: "U1 MCU", Pin: "VDDA"}, {Net: "1V8", Part: "U1 MCU", Pin: "VCORE"}},
+	}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddToProject(ctx, "board", "SD1235", library.ProjectPart{Designator: "C40-C45, C60 – C62", Qty: 9, Role: "100nF"}); err != nil {
+		t.Fatal(err)
+	}
+	// One call takes the block away and wires the BOM's C42 in its place.
+	problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "C42", Remove: true}},
+		Connect: []ConnectChange{{Net: "3V3", Part: "C42"}, {Net: "VDDA", Part: "C61"}, {Net: "1V8", Part: "C40"}},
+	}, library.SourceUser)
+	if err != nil || len(problems) > 0 {
+		t.Fatalf("%v %q", err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "board")
+	ends := map[string]string{}
+	for _, r := range d.Connections.Connections {
+		if r.EntryID != 0 {
+			ends[r.Endpoint] = r.Net
+		}
+	}
+	if len(ends) != 3 || ends["C42"] != "3V3" || ends["C61"] != "VDDA" || ends["C40"] != "1V8" {
+		t.Errorf("connections by designator in a range = %v", ends)
+	}
+	if len(d.Connections.Blocks) != 1 {
+		t.Errorf("blocks = %+v", d.Connections.Blocks)
+	}
+	// Each one drawn on its own.
+	if got := strings.Join(drawn{t, d.Connections.Diagram}.passives(), "; "); strings.Count(got, "100nF") != 3 {
+		t.Errorf("passives = %q", got)
+	}
+	// A designator outside the ranges isn't there.
+	problems, _ = s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "3V3", Part: "C46"}}}, library.SourceUser)
+	if len(problems) != 1 || !strings.Contains(problems[0], "C46: not in the BOM") {
+		t.Errorf("C46: %q", problems)
+	}
+}
+
+func TestSplitDesignators(t *testing.T) {
+	for in, want := range map[string]string{
+		"R1, R2":         "R1 R2",
+		"C40-C45":        "C40 C41 C42 C43 C44 C45",
+		"C40 - C42, C60": "C40 C41 C42 C60",
+		"C1–3":           "C1 C2 C3",
+		"U1 U2":          "U1 U2",
+		"R5-C7":          "R5-C7", // not a range: two prefixes
+		"J1":             "J1",
+		"D3 – D1":        "D3–D1", // backwards: kept as written
+	} {
+		if got := strings.Join(splitDesignators(in), " "); got != want {
+			t.Errorf("splitDesignators(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
