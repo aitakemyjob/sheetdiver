@@ -269,6 +269,19 @@ func textBox(r Row) pdf.Rect {
 	return box
 }
 
+// namedPackage is the package a datasheet names on its first page
+// without drawing it ("Industry standard outline SOT-23 surface mount
+// package"): by name alone, so a standard outline's footprint can stand
+// in for the drawing it lacks.
+func namedPackage(text string) (Package, bool) {
+	m := packageNameRe.FindString(text)
+	if m == "" {
+		return Package{}, false
+	}
+	name := commonName(m)
+	return Package{Name: name, Checks: []string{fmt.Sprintf("named on the first page (%q) but not drawn: the footprint is the standard %s outline's", m, name)}}, true
+}
+
 // firstNonBlank is the first non-blank string.
 func firstNonBlank(ss ...string) string {
 	for _, s := range ss {

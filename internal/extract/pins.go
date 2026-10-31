@@ -255,6 +255,67 @@ func drawingPins(lines [][]Line, category string) []Pin {
 	return nil
 }
 
+// leadConventions number a package's lettered leads the way its makers
+// do when a drawing only letters them: a SOT-23 MOSFET's gate, source
+// and drain are 1, 2 and 3 (KiCad's Q_NMOS_GSD; onsemi's, Nexperia's
+// and Diodes' SOT-23 FETs alike).
+var leadConventions = map[string]map[string]string{
+	"SOT23": {"Gate": "1", "Source": "2", "Drain": "3"},
+}
+
+// conventionCategories are the categories a convention applies to.
+var conventionCategories = map[string]bool{"mosfet": true, "mosfet-n": true, "mosfet-p": true}
+
+// numberByConvention numbers pins read unnumbered off a drawing by the
+// convention for the package, when the datasheet names one with a
+// convention for the part's category and the pins are exactly its leads.
+// It says so in each pin's description and returns a note for the
+// import.
+func numberByConvention(pins []Pin, pkgs []Package, category string) (string, bool) {
+	if len(pins) == 0 || !conventionCategories[category] {
+		return "", false
+	}
+	for _, p := range pins {
+		if p.Number != "" {
+			return "", false
+		}
+	}
+	var conv map[string]string
+	pkgName := ""
+	for _, pk := range pkgs {
+		if c, ok := leadConventions[normalPackage(pk.Name)]; ok {
+			conv, pkgName = c, pk.Name
+			break
+		}
+	}
+	if conv == nil || len(pins) != len(conv) {
+		return "", false
+	}
+	for _, p := range pins {
+		if conv[p.Name] == "" {
+			return "", false
+		}
+	}
+	for i := range pins {
+		pins[i].Number = conv[pins[i].Name]
+		pins[i].Description = strings.TrimSpace(pins[i].Description + fmt.Sprintf(" Numbered %s by the %s convention (gate 1, source 2, drain 3): the drawing doesn't number its leads; check it against the package drawing.", pins[i].Number, pkgName))
+	}
+	slices.SortFunc(pins, func(a, b Pin) int { return cmp.Compare(a.Number, b.Number) })
+	return fmt.Sprintf("the pins are numbered by the %s convention (gate 1, source 2, drain 3), not by the datasheet: check them", pkgName), true
+}
+
+// normalPackage is a package name with only its letters and digits,
+// upper case, a trailing lead count dropped (SOT-23-3 is SOT-23).
+func normalPackage(name string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSuffix(strings.ToUpper(strings.TrimSpace(name)), "-3") {
+		if r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // letterSpread is how far apart (in points) the letters on one package
 // drawing can be: a SOT-23 drawn an inch or two across.
 const letterSpread = 120

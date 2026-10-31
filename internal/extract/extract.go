@@ -175,7 +175,15 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	fillSectionText(r.Sections, r.Lines, lay, r.BodySize, contentRegions(r.Figures, r.Tables))
 	r.Pins = numberPads(r.Pins)
 	r.Packages = Packages(doc, r.Sections)
+	if len(r.Packages) == 0 {
+		if p, ok := namedPackage(first(r.PageText)); ok {
+			r.Packages = []Package{p}
+		}
+	}
 	r.PinWarnings = pinWarnings(r.Pins, packagePinCounts(pinTexts(r.Sections, r.Figures), first(r.PageText)))
+	if note, ok := numberByConvention(r.Pins, r.Packages, r.Category); ok {
+		r.PinWarnings = append(r.PinWarnings, note)
+	}
 	r.Manufacturer = Manufacturer(doc, r.PageText)
 	r.Families = Families(doc, r.PageText)
 	r.PartNumbers, r.Variants = Expand(r.PageText, PartNumbers(doc, r.Lines, filename), r.Families)

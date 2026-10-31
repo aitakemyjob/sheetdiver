@@ -32,9 +32,11 @@ type corpusEntry struct {
 		// Tables by number that must (or must not) be flagged irregular.
 		IrregularTables []string `json:"irregularTables"`
 		// Pin names that must be extracted, and the packages pins list.
-		PinNames      []string `json:"pinNames"`
-		PinPackages   []string `json:"pinPackages"`
-		RegularTables []string `json:"regularTables"`
+		PinNames    []string `json:"pinNames"`
+		PinPackages []string `json:"pinPackages"`
+		// PinNumbers are the numbers pins of these names must have.
+		PinNumbers    map[string]string `json:"pinNumbers"`
+		RegularTables []string          `json:"regularTables"`
 		// Revision as rendered by Revision.String.
 		Revision string `json:"revision"`
 		// Language as detected (en when omitted).
@@ -182,6 +184,17 @@ func TestCorpus(t *testing.T) {
 			for _, pk := range x.PinPackages {
 				if !pinPkgs[pk] {
 					t.Errorf("no pins for package %q", pk)
+				}
+			}
+			for name, num := range x.PinNumbers {
+				found := false
+				for _, p := range r.Pins {
+					if p.Name == name && p.Number == num {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("no pin %s numbered %s", name, num)
 				}
 			}
 			irregular := map[string]bool{}

@@ -275,6 +275,11 @@
       "file": "kicad-Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm.kicad_mod",
       "url": "https://gitlab.com/kicad/libraries/kicad-footprints/-/raw/a337146e090931ad1176e20ed0b7100990fac5fa/Package_SON.pretty/Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm.kicad_mod",
       "sha256": "8beb57ce756ebcab32109aa9aa075151b42ebfd5f490614407832d761d1a314d"
+    },
+    {
+      "file": "kicad-Q_NMOS_GSD.kicad_sym",
+      "url": "https://gitlab.com/kicad/libraries/kicad-symbols/-/raw/45efbd93be87e365a21d743daf9b8a07e6414df6/Transistor_FET.kicad_symdir/Q_NMOS_GSD.kicad_sym",
+      "sha256": "00e9d626faf0e7630687d29a091eb4ce05b128e996476b57980d6c873bc411c7"
     }
   ],
   "footprints": [
@@ -2447,6 +2452,18 @@
         "part": "PCM5102A",
         "package": "TSSOP"
       }
+    },
+    {
+      "name": "NDS331N SOT-23 (named, not drawn)",
+      "why": "A datasheet with no package drawing: 'Industry standard outline SOT-23' on its first page names the package, and the standard outline stands in. Same tolerances as the standard SOT-23 entry.",
+      "reference": "kicad-SOT-23.kicad_mod",
+      "tolerance": 0.08,
+      "sizeTolerance": 0.11,
+      "datasheet": {
+        "file": "nds331n-rev5.pdf",
+        "part": "NDS331N",
+        "package": "SOT-23"
+      }
     }
   ],
   "symbols": [
@@ -2656,6 +2673,23 @@
         "RXD0": "U0RXD",
         "TXD0": "U0TXD",
         "EPAD": "GND"
+      }
+    },
+    {
+      "name": "NDS331N",
+      "why": "Leads lettered D, G, S on the drawing and numbered by the SOT-23 MOSFET convention (gate 1, source 2, drain 3), as KiCad's Q_NMOS_GSD.",
+      "reference": {
+        "file": "kicad-Q_NMOS_GSD.kicad_sym",
+        "symbol": "Q_NMOS_GSD"
+      },
+      "datasheet": {
+        "file": "nds331n-rev5.pdf",
+        "part": "NDS331N"
+      },
+      "aliases": {
+        "Gate": "G",
+        "Source": "S",
+        "Drain": "D"
       }
     }
   ]
