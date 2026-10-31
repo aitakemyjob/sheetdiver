@@ -1316,6 +1316,8 @@ export interface CadLibrary {
   available: CadFormatInfo[];
   kicad: { dir: string; symbols: string; footprints: string; models: string };
   eagle: string;
+  /** The folder of the Altium libraries. */
+  altium: string;
 }
 
 export interface PartCad {

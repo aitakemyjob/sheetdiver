@@ -54,12 +54,13 @@ func TestStates(t *testing.T) {
 func TestSyncKeepsEdits(t *testing.T) {
 	dir := t.TempDir()
 	l := library(t, dir)
-	rep, err := Sync(l, []string{"kicad", "eagle"})
+	rep, err := Sync(l, []string{"kicad", "eagle", "altium"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := KiCad(l)
-	for _, f := range []string{p.Symbols, filepath.Join(p.Footprints, "SOIC-8_OPA2333.kicad_mod"), filepath.Join(p.Models, "SOIC-8_OPA2333.step"), filepath.Join(dir, "eagle", "MyParts.lbr")} {
+	for _, f := range []string{p.Symbols, filepath.Join(p.Footprints, "SOIC-8_OPA2333.kicad_mod"), filepath.Join(p.Models, "SOIC-8_OPA2333.step"), filepath.Join(dir, "eagle", "MyParts.lbr"),
+		filepath.Join(dir, "altium", "MyParts.SchLib"), filepath.Join(dir, "altium", "MyParts.PcbLib")} {
 		if _, err := os.Stat(f); err != nil {
 			t.Errorf("%s wasn't written", f)
 		}

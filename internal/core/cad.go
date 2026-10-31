@@ -34,6 +34,8 @@ type CadLibrary struct {
 	Available []cadlib.FormatInfo `json:"available"`
 	KiCad     cadlib.KiCadPaths   `json:"kicad"`
 	Eagle     string              `json:"eagle"`
+	// Altium is the folder of the Altium libraries (.SchLib, .PcbLib).
+	Altium string `json:"altium"`
 }
 
 // CadLibrary is the library's settings, with their defaults.
@@ -54,6 +56,7 @@ func (s *Service) CadLibrary() CadLibrary {
 	}
 	l.KiCad = cadlib.KiCad(&cadlib.Library{Dir: l.Dir, Name: l.Name})
 	l.Eagle = filepath.Join(l.Dir, "eagle", l.Name+".lbr")
+	l.Altium = filepath.Join(l.Dir, "altium")
 	return l
 }
 

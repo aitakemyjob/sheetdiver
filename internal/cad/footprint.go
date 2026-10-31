@@ -187,6 +187,15 @@ func MakeFootprint(name string, p Package) (Footprint, []Problem) {
 		return Footprint{Name: name}, ps
 	}
 	fp := Footprint{Name: name, Pads: pads, Body: body, From: from, Mount: mountOf(pads)}
+	if p.Pins == 0 { // a custom package counts its pins from its pads
+		seen := map[string]bool{}
+		for _, pad := range pads {
+			if pad.Terminal() && !seen[pad.Number] {
+				seen[pad.Number] = true
+				p.Pins++
+			}
+		}
+	}
 	fp.Description = describe(p, from)
 	fp.Courtyard = courtyard(pads, body)
 	if o, ok := f.(outliner); ok {

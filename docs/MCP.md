@@ -143,8 +143,9 @@ limit and a cap on its results' size.
 SheetDiver keeps the user's own CAD library: each part's schematic
 symbol, footprint and 3D model, in a folder (Settings → CAD library) in
 the formats they choose: **KiCad** (`<name>.kicad_sym`, `<name>.pretty`,
-`<name>.3dshapes` STEP models) and **Eagle / Fusion** (`<name>.lbr`, which
-Altium's Import Wizard and other tools also read).
+`<name>.3dshapes` STEP models), **Eagle / Fusion** (`<name>.lbr`) and
+**Altium** (`<name>.SchLib` and `<name>.PcbLib`, each symbol linked to its
+footprint). Edits are read back from the KiCad library.
 
 SheetDiver draws what it can on its own: a symbol from every pin table
 (supplies on top, grounds along the bottom, outputs on the right), and a

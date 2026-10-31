@@ -23110,6 +23110,11 @@
     ],
     "available": [
      {
+      "name": "altium",
+      "label": "Altium",
+      "readsEdits": false
+     },
+     {
       "name": "eagle",
       "label": "Eagle / Fusion",
       "readsEdits": false
@@ -23126,7 +23131,8 @@
      "footprints": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.pretty",
      "models": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.3dshapes"
     },
-    "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr"
+    "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr",
+    "altium": "/tmp/sheetdiver/lib/cad-library/altium"
    }
   }
  },
@@ -23163,6 +23169,11 @@
     ],
     "available": [
      {
+      "name": "altium",
+      "label": "Altium",
+      "readsEdits": false
+     },
+     {
       "name": "eagle",
       "label": "Eagle / Fusion",
       "readsEdits": false
@@ -23179,7 +23190,8 @@
      "footprints": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.pretty",
      "models": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.3dshapes"
     },
-    "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr"
+    "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr",
+    "altium": "/tmp/sheetdiver/lib/cad-library/altium"
    }
   }
  },
@@ -23193,6 +23205,11 @@
     "kicad"
    ],
    "available": [
+    {
+     "name": "altium",
+     "label": "Altium",
+     "readsEdits": false
+    },
     {
      "name": "eagle",
      "label": "Eagle / Fusion",
@@ -23210,7 +23227,8 @@
     "footprints": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.pretty",
     "models": "/tmp/sheetdiver/lib/cad-library/kicad/SheetDiver.3dshapes"
    },
-   "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr"
+   "eagle": "/tmp/sheetdiver/lib/cad-library/eagle/SheetDiver.lbr",
+   "altium": "/tmp/sheetdiver/lib/cad-library/altium"
   }
  },
  {

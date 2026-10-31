@@ -73,7 +73,12 @@ export function CadLibrarySettings() {
       )}
       {l && keeps(l, 'eagle') && (
         <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-          Eagle / Fusion library: <code>{l.eagle}</code> (Altium: File → Import Wizard → EAGLE).
+          Eagle / Fusion library: <code>{l.eagle}</code>.
+        </div>
+      )}
+      {l && keeps(l, 'altium') && (
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          Altium libraries: <code>{l.name}.SchLib</code> and <code>{l.name}.PcbLib</code> in <code>{l.altium}</code> (each symbol linked to its footprint; 3D models are in the KiCad folder as STEP).
         </div>
       )}
       {report && (

@@ -13,7 +13,8 @@ every merged pull request.
   schematic symbols, footprints and 3D models for your parts, in a folder
   you choose (Settings → CAD library), as KiCad libraries (`.kicad_sym`,
   `.pretty`, STEP models) and, if you like, an Eagle / Fusion library
-  (`.lbr`, which Altium's Import Wizard also reads). Each part's **CAD**
+  (`.lbr`) and Altium libraries (`.SchLib`, `.PcbLib`, each symbol linked
+  to its footprint). Each part's **CAD**
   tab shows them per package, with where each came from:
   - **SheetDiver** draws a symbol from every pin table (supplies on top,
     grounds below, outputs on the right) and a footprint and 3D model for
