@@ -100,6 +100,8 @@ type Footprint struct {
 	Pads        []Pad  `json:"pads"`
 	Lines       []Line `json:"lines"`
 	Polys       []Poly `json:"polys,omitempty"`
+	// Graphics are drawn free-hand: in the app, or in another tool.
+	Graphics []Graphic `json:"graphics,omitempty"`
 	// Body is the package body's outline (the fab layer).
 	Body Rect `json:"body"`
 	// Courtyard is the keep-out around pads and body.

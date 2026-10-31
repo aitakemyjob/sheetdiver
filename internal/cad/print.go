@@ -52,8 +52,11 @@ func FootprintPrint(f Footprint) string {
 		lines = append(lines, lineKey(l.Layer, l.A, l.B))
 	}
 	for _, p := range f.Polys {
-		for i := range p.Pts {
-			lines = append(lines, lineKey(p.Layer, p.Pts[i], p.Pts[(i+1)%len(p.Pts)]))
+		lines = append(lines, polyKey(p.Layer, p.Pts))
+	}
+	for _, g := range f.Graphics {
+		if g.Check() == nil {
+			lines = append(lines, graphicKeys(g)...)
 		}
 	}
 	return digest(lines)
@@ -67,7 +70,13 @@ func SymbolPrint(s Symbol) string {
 		lines = append(lines, fmt.Sprintf("pin %s %s %s %s %s %s %s %v", p.Number, p.Name, p.Type, p.Side, r3(p.X), r3(p.Y), r3(p.Length), p.Hidden))
 	}
 	for _, l := range s.Extra {
-		lines = append(lines, lineKey("body", l.A, l.B))
+		lines = append(lines, lineKey(LayerBody, l.A, l.B))
+	}
+	for _, g := range s.Graphics {
+		if g.Check() == nil {
+			g.Layer = LayerBody
+			lines = append(lines, graphicKeys(g)...)
+		}
 	}
 	return digest(lines)
 }

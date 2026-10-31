@@ -54,6 +54,8 @@ type Shape struct {
 	// Anchor is start, middle or end; Vertical text reads bottom to top.
 	Anchor   string `json:"anchor,omitempty"`
 	Vertical bool   `json:"vertical,omitempty"`
+	// Fill fills a drawn rect, poly or circle.
+	Fill bool `json:"fill,omitempty"`
 	// Color is a 3D face's shaded colour (#rrggbb).
 	Color string `json:"color,omitempty"`
 }
@@ -110,9 +112,16 @@ func (d *Drawing) pad(m float64) {
 func DrawSymbol(s Symbol) Drawing {
 	var d Drawing
 	b := s.Body
-	d.add(Shape{Kind: ShapeRect, Role: RoleBody, Pts: []Pt{{b.X0, -b.Y1}, {b.X1, -b.Y0}}, Width: 0.254})
+	if b != (Rect{}) {
+		d.add(Shape{Kind: ShapeRect, Role: RoleBody, Pts: []Pt{{b.X0, -b.Y1}, {b.X1, -b.Y0}}, Width: 0.254})
+	}
 	for _, l := range s.Extra {
 		d.line(RoleBody, Pt{l.A.X, -l.A.Y}, Pt{l.B.X, -l.B.Y}, 0.254)
+	}
+	for _, g := range s.Graphics {
+		if g.Check() == nil {
+			d.graphic(g.Flip(), RoleBody)
+		}
 	}
 	const size = 1.27
 	for _, p := range s.Pins {
@@ -158,6 +167,9 @@ func DrawSymbol(s Symbol) Drawing {
 	return d
 }
 
+// layerRoles are the roles footprint layers are drawn in.
+var layerRoles = map[string]string{LayerSilk: RoleSilk, LayerFab: RoleFab, LayerCourtyard: RoleCourtyard, LayerCopper: RoleCopper}
+
 // DrawFootprint draws a footprint from the top: courtyard, fabrication
 // outline, silkscreen, pads with their numbers and paste, and the pitch,
 // row span and pad size dimensioned so they can be checked against the
@@ -165,11 +177,15 @@ func DrawSymbol(s Symbol) Drawing {
 func DrawFootprint(f Footprint) Drawing {
 	var d Drawing
 	for _, l := range f.Lines {
-		role := map[string]string{LayerSilk: RoleSilk, LayerFab: RoleFab, LayerCourtyard: RoleCourtyard}[l.Layer]
-		d.line(role, l.A, l.B, l.Width)
+		d.line(layerRoles[l.Layer], l.A, l.B, l.Width)
 	}
 	for _, p := range f.Polys {
 		d.add(Shape{Kind: ShapePoly, Role: RoleSilk, Pts: p.Pts})
+	}
+	for _, g := range f.Graphics {
+		if g.Check() == nil {
+			d.graphic(g, layerRoles[g.Layer])
+		}
 	}
 	for _, p := range f.Pads {
 		r := p.Rect()

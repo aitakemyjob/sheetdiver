@@ -26,8 +26,8 @@ const (
 	// Drawn is drawn by the agent from the datasheet; it is redrawn from
 	// the agent's spec when the pin table changes.
 	Drawn State = "drawn"
-	// Edited is changed by the user in a CAD tool; it is kept as they left
-	// it until they reset it.
+	// Edited is changed by the user, in a CAD tool or in SheetDiver's own
+	// editor; it is kept as they left it until they reset it.
 	Edited State = "edited"
 )
 
@@ -98,6 +98,14 @@ func (it *Item) adopt(format, raw, fingerprint string) {
 	it.Changed = true
 }
 
+// Edit takes the user's edit made in SheetDiver's own editor: kept as the
+// model itself, every format's file rewritten from it.
+func (it *Item) Edit(raw string) {
+	it.Raw = map[string]string{ModelKey: raw}
+	it.State = Edited
+	it.Changed = true
+}
+
 // wrote records what was written to a file.
 func (it *Item) wrote(file, fingerprint string) {
 	if it.Written == nil {
@@ -160,7 +168,7 @@ func Decode(kind string, raw map[string]string) (*cad.Symbol, *cad.Footprint) {
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		if d, ok := formats[n].(Decoder); ok {
+		if d, ok := decoders[n]; ok {
 			if s, f, err := d.Decode(kind, raw[n]); err == nil {
 				return s, f
 			}
@@ -169,11 +177,24 @@ func Decode(kind string, raw map[string]string) (*cad.Symbol, *cad.Footprint) {
 	return nil, nil
 }
 
-// formats are the known formats by name.
-var formats = map[string]Format{}
+// formats are the known formats by name; decoders are what can read a
+// kept edit back, by the key it's kept under.
+var (
+	formats  = map[string]Format{}
+	decoders = map[string]Decoder{}
+)
 
 // Register adds a format.
-func Register(f Format) { formats[f.Name()] = f }
+func Register(f Format) {
+	formats[f.Name()] = f
+	if d, ok := f.(Decoder); ok {
+		decoders[f.Name()] = d
+	}
+}
+
+// RegisterDecoder adds a way to read back an edit kept under a key that
+// isn't a library format's: one made in SheetDiver itself.
+func RegisterDecoder(key string, d Decoder) { decoders[key] = d }
 
 // FormatInfo describes a format.
 type FormatInfo struct {

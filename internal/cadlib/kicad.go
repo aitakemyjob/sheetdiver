@@ -157,7 +157,7 @@ func (kicadFormat) Write(l *Library) (string, error) {
 	raw := map[string]string{}
 	for _, it := range l.Items {
 		if it.Kind == "symbol" && it.Symbol != nil {
-			if f, ok := fps[it.Key]; ok && it.State != Edited {
+			if f, ok := fps[it.Key]; ok && it.Raw[kicadFile] == "" {
 				it.Symbol.Footprint = l.Name + ":" + kicad.SafeName(f.Name)
 			}
 			syms = append(syms, it)

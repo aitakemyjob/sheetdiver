@@ -102,6 +102,8 @@ type Symbol struct {
 	// Extra are lines drawn besides the body: what a symbol edited in a
 	// CAD tool has beyond its box.
 	Extra []Line `json:"extra,omitempty"`
+	// Graphics are drawn free-hand on the body, y up.
+	Graphics []Graphic `json:"graphics,omitempty"`
 }
 
 // sideOf is the side a pin goes on by its role: supplies on top, grounds
