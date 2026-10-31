@@ -93,7 +93,7 @@ type netArgs struct {
 
 type connectArgs struct {
 	Net    string `json:"net"`
-	Part   string `json:"part" jsonschema:"BOM designator (U1), one designator of an entry with several (R1 of R1,R2), part number, or block name; U1.SDA names the pin too"`
+	Part   string `json:"part" jsonschema:"BOM designator (U1), one designator of an entry with several (R1 of R1,R2; C42 of C40-C45), part number, or block name; U1.SDA names the pin too"`
 	Pin    string `json:"pin,omitempty" jsonschema:"pin number or name, checked against the part's pin table (get_pins); blocks need none"`
 	Notes  string `json:"notes,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
@@ -543,6 +543,7 @@ type catalogArgs struct {
 	InStock     bool            `json:"in_stock,omitempty" jsonschema:"only parts JLCPCB has in stock"`
 	Basic       bool            `json:"basic,omitempty" jsonschema:"only JLCPCB basic/preferred parts (no extended-part setup fee)"`
 	Subcategory string          `json:"subcategory,omitempty" jsonschema:"exact JLCPCB category from catalog_parameters, such as 'DC-DC Converters' or 'MOSFETs'"`
+	Category    string          `json:"category,omitempty" jsonschema:"the subcategory's parent, when the same subcategory name is in several (catalog_parameters lists them as category › subcategory)"`
 	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"parameter requirements (need a subcategory or query). For ranges such as an input voltage range, >= 24V means the part accepts 24 V"`
 	Sort        string          `json:"sort,omitempty" jsonschema:"stock (default), price, mpn, or a parameter name to sort by it"`
 	Desc        bool            `json:"desc,omitempty"`
@@ -552,6 +553,7 @@ type catalogArgs struct {
 
 type catalogParamsArgs struct {
 	Subcategory string          `json:"subcategory,omitempty" jsonschema:"a JLCPCB category; omit to list the categories"`
+	Category    string          `json:"category,omitempty" jsonschema:"the subcategory's parent, when the same subcategory name is in several"`
 	Query       string          `json:"query,omitempty" jsonschema:"without a subcategory: only categories containing this text"`
 	InStock     bool            `json:"in_stock,omitempty"`
 	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"with a subcategory: summarize each parameter over the parts that pass the other filters (e.g. the packages still available after Drain to Source Voltage >= 30V)"`
@@ -566,7 +568,7 @@ func (s *Server) registerDesign() {
 			if a.Limit == 0 {
 				a.Limit = 20
 			}
-			q := catalog.Query{Text: a.Query, InStock: a.InStock, Basic: a.Basic, Subcategory: a.Subcategory, Limit: a.Limit, Offset: a.Offset, Desc: a.Desc}
+			q := catalog.Query{Text: a.Query, InStock: a.InStock, Basic: a.Basic, Category: a.Category, Subcategory: a.Subcategory, Limit: a.Limit, Offset: a.Offset, Desc: a.Desc}
 			switch a.Sort {
 			case "", "stock", "price", "mpn":
 				q.Sort = a.Sort
@@ -630,7 +632,7 @@ func (s *Server) registerDesign() {
 				}
 				return text(b.String()), nil
 			}
-			q := catalog.Query{Subcategory: a.Subcategory, InStock: a.InStock}
+			q := catalog.Query{Category: a.Category, Subcategory: a.Subcategory, InStock: a.InStock}
 			for _, f := range a.Filters {
 				q.Attrs = append(q.Attrs, catalog.AttrFilter{Key: f.Parameter, Op: f.Op, Input: f.Value})
 			}
@@ -638,7 +640,11 @@ func (s *Server) registerDesign() {
 			if err != nil {
 				return result{}, err
 			}
-			fmt.Fprintf(&b, "parameters of %s (how many parts have each):\n", a.Subcategory)
+			name := a.Subcategory
+			if a.Category != "" {
+				name = a.Category + " › " + a.Subcategory
+			}
+			fmt.Fprintf(&b, "parameters of %s (how many parts have each):\n", name)
 			for _, p := range ps {
 				if p.Kind == "number" {
 					fmt.Fprintf(&b, "- %s [number, %s] %d parts, %s … %s", p.Key, firstNonEmpty(p.Unit, "count"), p.Count, calc.Eng(p.Min, p.Unit), calc.Eng(p.Max, p.Unit))

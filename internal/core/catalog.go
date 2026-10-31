@@ -101,7 +101,7 @@ func (s *Service) CatalogCategories(ctx context.Context) ([]catalog.Category, er
 // are cached per catalogue download; ones with words or filters aren't.
 func (s *Service) CatalogParams(ctx context.Context, q catalog.Query) ([]catalog.Param, error) {
 	q.Sort, q.Desc, q.Limit, q.Offset = "", false, 0, 0
-	key := fmt.Sprintf("%s|%v|%v|%s", q.Subcategory, q.InStock, q.Basic, s.Catalog.Status(ctx).Downloaded)
+	key := fmt.Sprintf("%s|%s|%v|%v|%s", q.Category, q.Subcategory, q.InStock, q.Basic, s.Catalog.Status(ctx).Downloaded)
 	cacheable := strings.TrimSpace(q.Text) == "" && len(q.Attrs) == 0
 	if cacheable {
 		s.mu.Lock()

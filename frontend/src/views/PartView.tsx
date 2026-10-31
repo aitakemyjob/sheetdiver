@@ -596,7 +596,8 @@ function ParamGroup(props: { section: string; params: Parameter[]; keys: Record<
 /** Pin table. */
 function Pins({ d }: { d: PartDetail }) {
   const s = useStore();
-  const pins = useAsync(() => api.pins(d.datasheet!.id), [d.datasheet!.id, s.libraryVersion]);
+  // This part's: a datasheet of a 2-pin and a 3-pin header has a table for each.
+  const pins = useAsync(() => api.pins(d.datasheet!.id, d.part.id), [d.datasheet!.id, d.part.id, s.libraryVersion]);
   const pinSec = (d.sections ?? []).find((x) => x.kind === 'pins');
   if (pins.data?.length === 0)
     return (

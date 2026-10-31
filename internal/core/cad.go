@@ -115,12 +115,9 @@ type cadPkg struct {
 // cadPackages are a part's packages with their pins: the pin table's
 // packages, else the part's (or its first variant's) package.
 func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []library.CadItem) ([]cadPkg, error) {
-	var pins []library.Pin
-	if p.DatasheetID != 0 {
-		var err error
-		if pins, err = s.Lib.Pins(ctx, p.DatasheetID, ""); err != nil {
-			return nil, err
-		}
+	pins, err := s.PartPins(ctx, p, "")
+	if err != nil {
+		return nil, err
 	}
 	var names []string
 	seen := map[string]bool{}
@@ -519,7 +516,7 @@ func (s *Service) redraw(ctx context.Context, ref, pkg, kind string, spec any, n
 // goes and what it is.
 func (s *Service) DrawSymbol(ctx context.Context, ref, pkg string, spec cad.SymbolSpec, notes string) (PartCad, []cad.Problem, error) {
 	return s.redraw(ctx, ref, pkg, library.CadSymbol, spec, notes, func(p library.Part, pkg string) []cad.Problem {
-		pins, _ := s.Lib.Pins(ctx, p.DatasheetID, "")
+		pins, _ := s.PartPins(ctx, p, "")
 		var infos []cad.PinInfo
 		for _, pin := range pins {
 			if pin.Package == "" || strings.EqualFold(pin.Package, pkg) {

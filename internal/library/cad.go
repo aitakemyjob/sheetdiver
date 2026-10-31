@@ -46,7 +46,7 @@ const (
 
 // cadMigration adds the table.
 const cadMigration = `
-CREATE TABLE cad_items (
+CREATE TABLE IF NOT EXISTS cad_items (
 	id INTEGER PRIMARY KEY,
 	part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
 	kind TEXT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE cad_items (
 	updated_at TEXT NOT NULL,
 	UNIQUE(part_id, kind, package)
 );
-CREATE INDEX cad_items_part ON cad_items(part_id);
+CREATE INDEX IF NOT EXISTS cad_items_part ON cad_items(part_id);
 `
 
 // cadCols are an item's columns, with its part's number.

@@ -14,7 +14,9 @@ the [MIT License](LICENSE).
    tests in the automated suite that fail without the change.
 4. Run `make test` and `make lint` before pushing. CI must be green and a
    maintainer review is required before merging into `main`; PRs are
-   squash-merged.
+   squash-merged. A PR that only changes documentation (Markdown and
+   `docs/`, except `docs/MCP.md` and the third-party notices, which the
+   tests check) skips the builds and tests; `scripts/ci-changes.sh` decides.
 5. Sign off every commit (`git commit -s`). This adds a `Signed-off-by:` line
    certifying, under the [Developer Certificate of Origin](https://developercert.org),
    that you have the right to submit the change. The DCO check fails without

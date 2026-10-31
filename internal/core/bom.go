@@ -61,9 +61,14 @@ var lcscRe = regexp.MustCompile(`^C\d{1,9}$`)
 // refRangeRe matches a designator range such as R1-R4 or C10–C12.
 var refRangeRe = regexp.MustCompile(`^([A-Za-z]+)(\d+)\s*[-–]\s*([A-Za-z]*)(\d+)$`)
 
-// splitDesignators expands "R1, R2", "R1 R2" and "R1-R4" into designators.
+// rangeDashRe is a range's dash with the spaces around it ("C40 - C45").
+var rangeDashRe = regexp.MustCompile(`\s*([-–])\s*`)
+
+// splitDesignators expands "R1, R2", "R1 R2" and "R1-R4" (or "R1 - R4")
+// into designators.
 func splitDesignators(s string) []string {
 	var out []string
+	s = rangeDashRe.ReplaceAllString(s, "$1")
 	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\t' }) {
 		if m := refRangeRe.FindStringSubmatch(f); m != nil && (m[3] == "" || strings.EqualFold(m[1], m[3])) {
 			a, _ := strconv.Atoi(m[2])

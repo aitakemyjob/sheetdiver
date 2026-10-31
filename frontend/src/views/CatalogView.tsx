@@ -130,6 +130,13 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   const c = s.catalog;
   const [text, setText] = useState(String(params.query ?? ''));
   const [sub, setSub] = useState<string>(String(params.subcategory ?? ''));
+  // The subcategory's category: JLCPCB has subcategories of the same name
+  // in several (MOSFETs under Transistors/Thyristors and Triode/MOS Tube/Transistor).
+  const [cat, setCat] = useState<string>(String(params.category ?? ''));
+  const choose = (category: string, subcategory: string) => {
+    setCat(category);
+    setSub(subcategory);
+  };
   const [inStock, setInStock] = useState(true);
   const [basic, setBasic] = useState(false);
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: '', desc: false });
@@ -151,18 +158,18 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   useEffect(() => {
     if (params.nonce === undefined) return;
     setText(String(params.query ?? ''));
-    setSub(String(params.subcategory ?? ''));
+    choose(String(params.category ?? ''), String(params.subcategory ?? ''));
     setFilters((params.filters as CatalogFilter[] | undefined) ?? []);
     setCandidates(agentCodes.length > 0);
     firstSub.current = true;
-  }, [params.nonce, params.query, params.subcategory, params.filters, agentCodes.length]);
+  }, [params.nonce, params.query, params.category, params.subcategory, params.filters, agentCodes.length]);
   const sent = useMemo(() => activeFilters(filters), [filters]);
   // Each parameter's values and range follow the other filters (faceted);
   // refetched once typing settles.
   const facetFilters = useDebounced(sent, 300);
   const catParams = useAsync(
-    () => (c?.installed && sub ? api.catalogParams({ text: '', subcategory: sub, inStock, basic, attrs: facetFilters.length ? facetFilters : undefined }) : Promise.resolve([] as CatalogParam[])),
-    [c?.installed, sub, inStock, basic, c?.downloaded, facetFilters],
+    () => (c?.installed && sub ? api.catalogParams({ text: '', category: cat || undefined, subcategory: sub, inStock, basic, attrs: facetFilters.length ? facetFilters : undefined }) : Promise.resolve([] as CatalogParam[])),
+    [c?.installed, cat, sub, inStock, basic, c?.downloaded, facetFilters],
   );
   const cols = useMemo(() => paramColumns(catParams.data ?? [], sent, sort.key), [catParams.data, sent, sort.key]);
   const cats = useAsync(() => (c?.installed ? api.catalogCategories() : Promise.resolve([])), [c?.installed, c?.downloaded]);
@@ -171,7 +178,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
   useEffect(() => {
     api.uiContext({ view: 'catalog', selection: sub || text }).catch(() => {});
   }, [sub, text]);
-  useEffect(() => setPage(0), [text, sub, inStock, basic, sort, sent]);
+  useEffect(() => setPage(0), [text, cat, sub, inStock, basic, sort, sent]);
   // Parameters belong to a category: switching category drops its filters
   // (not the agent's, given with its category).
   useEffect(() => {
@@ -181,7 +188,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
     }
     setFilters([]);
     setSort((x) => (x.key.startsWith('attr:') ? { key: '', desc: false } : x));
-  }, [sub]);
+  }, [cat, sub]);
   useEffect(() => {
     if (!c?.installed) return;
     if (candidates) {
@@ -202,7 +209,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
     const t = setTimeout(() => {
       setLoading(true);
       api
-        .catalogSearch({ text, subcategory: sub || undefined, inStock, basic, attrs: sent.length ? sent : undefined, sort: sort.key || undefined, desc: sort.desc, limit: pageSize, offset: page * pageSize })
+        .catalogSearch({ text, category: (sub && cat) || undefined, subcategory: sub || undefined, inStock, basic, attrs: sent.length ? sent : undefined, sort: sort.key || undefined, desc: sort.desc, limit: pageSize, offset: page * pageSize })
         .then((r) => {
           setItems(r);
           setError(undefined);
@@ -210,7 +217,7 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [text, sub, inStock, basic, sent, sort, page, c?.installed, c?.downloaded, s.libraryVersion, candidates, agentCodes]);
+  }, [text, cat, sub, inStock, basic, sent, sort, page, c?.installed, c?.downloaded, s.libraryVersion, candidates, agentCodes]);
 
   if (!c?.installed) {
     return (
@@ -294,41 +301,65 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                   <span className="faint">{g.inStock.toLocaleString()}</span>
                 </button>
                 {expanded &&
-                  g.subs.map((x) => (
-                    <button key={x.category + x.subcategory} className={`cat-sub ${sub === x.subcategory ? 'on' : ''}`} onClick={() => setSub(sub === x.subcategory ? '' : x.subcategory)} title={`${x.parts.toLocaleString()} parts, ${x.inStock.toLocaleString()} in stock`}>
-                      <span className="grow ellipsis">{x.subcategory}</span>
-                      <span className="faint">{(inStock ? x.inStock : x.parts).toLocaleString()}</span>
-                    </button>
-                  ))}
+                  g.subs.map((x) => {
+                    // Picked by category and subcategory: another category's
+                    // subcategory of the same name isn't this one. One the
+                    // agent named without its category matches by name.
+                    const on = sub === x.subcategory && (!cat || cat === x.category);
+                    return (
+                      <button key={x.category + x.subcategory} className={`cat-sub ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => (on ? choose('', '') : choose(x.category, x.subcategory))} title={`${x.parts.toLocaleString()} parts, ${x.inStock.toLocaleString()} in stock`}>
+                        <span className="grow ellipsis">{x.subcategory}</span>
+                        <span className="faint">{(inStock ? x.inStock : x.parts).toLocaleString()}</span>
+                      </button>
+                    );
+                  })}
               </div>
             );
           })}
         </div>
       </aside>
       <div className="catalog-main">
-        <div className="toolbar" style={{ flexWrap: 'wrap' }}>
+        {/* One line down to a 1280 px window with the library open (#20):
+            the search box gives way first, the rest keeps its size. */}
+        <div className="toolbar catalog-toolbar">
           <Search size={14} className="faint" />
-          <input className="input" style={{ width: 340 }} autoFocus placeholder="Part number or specs: TPS563200 · buck 3A SOT-23 · 10k 0402" value={text} onChange={(e) => setText(e.target.value)} />
+          <input className="input catalog-search" autoFocus placeholder="Part number or specs: TPS563200 · buck 3A SOT-23 · 10k 0402" value={text} onChange={(e) => setText(e.target.value)} />
           {sub && (
-            <span className="chip on" onClick={() => setSub('')} title="Clear the category">
-              {sub} <X size={11} />
+            <span className="chip on catalog-chip" onClick={() => choose('', '')} title={`${cat ? `${cat} › ${sub}` : sub}: click to clear the category`}>
+              {/* The category gives way first: the subcategory is what was picked. */}
+              {cat && (
+                <>
+                  <span className="ellipsis catalog-chip-cat">{cat}</span>
+                  <span className="catalog-chip-sep">›</span>
+                </>
+              )}
+              <span className="ellipsis catalog-chip-sub">{sub}</span> <X size={11} />
             </span>
           )}
-          <label className="row" style={{ gap: 6 }}>
+          <label className="row nowrap" style={{ gap: 6 }}>
             <Switch on={inStock} onChange={setInStock} label="In stock only" /> In stock
           </label>
-          <label className="row" style={{ gap: 6 }} title="JLCPCB basic and preferred parts have no extended-part setup fee">
-            <Switch on={basic} onChange={setBasic} label="Basic parts only" /> Basic / preferred
+          <label className="row nowrap" style={{ gap: 6 }} title="Basic and preferred parts only: JLCPCB charges no extended-part setup fee for them">
+            <Switch on={basic} onChange={setBasic} label="Basic parts only" /> Basic
           </label>
           <div className="grow" />
-          <span className={`badge ${c.stale ? 'warn' : ''}`} title={`Published ${new Date(c.published).toLocaleString()}`}>
-            {c.ageDays === 0 ? 'today' : `${c.ageDays} days old`}
-          </span>
-          <button className="btn sm ghost" disabled={c.updating} onClick={() => s.downloadCatalog()} title="Download the latest catalogue">
-            <RefreshCw size={12} /> {c.updating ? catalogProgressText(c) : 'Refresh'}
+          {/* Its age is said when it's time to refresh; otherwise on the button. */}
+          {c.stale && (
+            <span className="badge warn nowrap" title={`Published ${new Date(c.published).toLocaleString()}`}>
+              {c.ageDays} days old
+            </span>
+          )}
+          <button
+            className={`btn sm ghost ${c.updating ? 'nowrap' : 'icon'}`}
+            disabled={c.updating}
+            onClick={() => s.downloadCatalog()}
+            title={`Refresh: download the latest catalogue (this one was published ${c.ageDays === 0 ? 'today' : `${c.ageDays} days ago`}, ${new Date(c.published).toLocaleString()})`}
+            aria-label="Refresh the catalogue"
+          >
+            <RefreshCw size={12} /> {c.updating ? catalogProgressText(c) : null}
           </button>
-          <button className="btn sm primary" disabled={!picked.size} onClick={() => importParts([...picked])}>
-            <FileDown size={13} /> Import {picked.size || ''} datasheet{picked.size === 1 ? '' : 's'}
+          <button className="btn sm primary nowrap" disabled={!picked.size} onClick={() => importParts([...picked])} title="Import the picked parts' datasheets into the library">
+            <FileDown size={13} /> Import{picked.size ? ` ${picked.size}` : ''}
           </button>
         </div>
         {sub && (
@@ -376,25 +407,28 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
                 </span>
               );
             })}
-            <Menu
-              width={340}
-              trigger={() => (
-                <button className="btn sm" disabled={!catParams.data?.length}>
-                  <Plus size={12} /> {catParams.loading ? 'Reading parameters…' : 'Filter on a parameter'}
+            {/* Adding and clearing stay together: Clear never wraps alone (#20). */}
+            <span className="row nowrap catalog-filter-actions" style={{ gap: 4 }}>
+              <Menu
+                width={340}
+                trigger={() => (
+                  <button className="btn sm" disabled={!catParams.data?.length}>
+                    <Plus size={12} /> {catParams.loading ? 'Reading parameters…' : 'Filter on a parameter'}
+                  </button>
+                )}
+                items={(catParams.data ?? []).map((p) => ({
+                  key: p.key,
+                  label: p.key,
+                  hint: p.kind === 'number' ? paramRange(p) : `${p.values?.length ?? 0} values`,
+                  onSelect: () => setFilters([...filters, p.kind === 'text' ? { key: p.key, op: '=', input: '', values: [] } : { key: p.key, op: '>=', input: '' }]),
+                }))}
+              />
+              {filters.length > 0 && (
+                <button className="btn sm ghost" onClick={() => setFilters([])}>
+                  Clear
                 </button>
               )}
-              items={(catParams.data ?? []).map((p) => ({
-                key: p.key,
-                label: p.key,
-                hint: p.kind === 'number' ? paramRange(p) : `${p.values?.length ?? 0} values`,
-                onSelect: () => setFilters([...filters, p.kind === 'text' ? { key: p.key, op: '=', input: '', values: [] } : { key: p.key, op: '>=', input: '' }]),
-              }))}
-            />
-            {filters.length > 0 && (
-              <button className="btn sm ghost" onClick={() => setFilters([])}>
-                Clear
-              </button>
-            )}
+            </span>
           </div>
         )}
         <div className="catalog-body">

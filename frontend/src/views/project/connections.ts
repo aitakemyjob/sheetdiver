@@ -24,10 +24,34 @@ export function marked(hl: string | undefined, ...names: (string | undefined)[])
   return !!hl && names.some((n) => n?.toLowerCase() === hl);
 }
 
-/** What an entry can be named as: its designators, and each one when it has several ("R1,R2", "R1", "R2"). */
+/**
+ * What an entry can be named as: its designators, and each one when it
+ * has several ("R1,R2", "R1", "R2"), ranges expanded ("C40-C45",
+ * "C40 - C45") as the backend does.
+ */
 export function designators(d: string): string[] {
-  const each = d.split(/[,;\s]+/).filter(Boolean);
+  const each = d
+    .replace(/\s*([-–])\s*/g, '$1')
+    .split(/[,;\s]+/)
+    .filter(Boolean)
+    .flatMap(expandRange);
   return each.length > 1 ? [d, ...each] : [d];
+}
+
+/** Each designator of an entry, ranges expanded: "C40-C42, C60" is C40, C41, C42 and C60; none when it has none. */
+export function eachDesignator(d: string | undefined): string[] {
+  if (!d?.trim()) return [];
+  const all = designators(d.trim());
+  return all.length > 1 ? all.slice(1) : all;
+}
+
+/** One designator, or each of a range "C40-C45" (one prefix, at most 500). */
+function expandRange(f: string): string[] {
+  const m = /^([A-Za-z]+)(\d+)[-–]([A-Za-z]*)(\d+)$/.exec(f);
+  if (!m || (m[3] && m[3].toLowerCase() !== m[1].toLowerCase())) return [f];
+  const [a, b] = [Number(m[2]), Number(m[4])];
+  if (b < a || b - a >= 500) return [f];
+  return Array.from({ length: b - a + 1 }, (_, i) => `${m[1]}${a + i}`);
 }
 
 /** Every BOM designator (and each one of an entry with several) and block name. */

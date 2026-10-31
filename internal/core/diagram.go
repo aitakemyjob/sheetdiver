@@ -271,7 +271,7 @@ func ends(parts []library.ProjectPart, blocks []library.Block, descriptions map[
 			value = descriptionValue(descriptions[pp.ID])
 		}
 		kind, passive := symbolKind(pp.Category, false), twoTerminal(pp.Category, false)
-		if passive && len(pins[pp.ID]) > 2 && !strings.ContainsAny(strings.TrimSpace(pp.Designator), ", ") {
+		if passive && len(pins[pp.ID]) > 2 && len(splitDesignators(pp.Designator)) < 2 {
 			kind, passive = "ic", false
 		}
 		out[id] = &end{id: id, title: strings.TrimSpace(pp.Designator + " " + pp.MPN), mpn: pp.MPN, kind: kind, value: value, label: firstNonEmpty(pp.Designator, pp.MPN), passive: passive, entry: pp}
@@ -766,6 +766,39 @@ func (b *diagramBuilder) links() []DiagramLink {
 	type key struct{ from, to, kind string }
 	byKey := map[key]*DiagramLink{}
 	var order []key
+	// add puts nets on the link between two boxes, merging with the link
+	// they have: the other way round too for a signal, or for any link
+	// when either is true. Each net and label appears once.
+	add := func(from, to, kind string, nets []string, label string, either bool) {
+		k := key{from, to, kind}
+		if _, ok := byKey[key{to, from, kind}]; ok && (kind == "signal" || either) {
+			k = key{to, from, kind}
+		}
+		l := byKey[k]
+		if l == nil {
+			l = &DiagramLink{From: k.from, To: k.to, Kind: kind, Nets: []string{}}
+			byKey[k] = l
+			order = append(order, k)
+		}
+		for _, n := range nets {
+			if !contains(l.Nets, n) {
+				l.Nets = append(l.Nets, n)
+			}
+		}
+		if l.Label == "" {
+			l.Label = label
+		} else if !contains(strings.Split(l.Label, ", "), label) {
+			l.Label += ", " + label
+		}
+	}
+	// label is what a signal net is called on a link: its bus, if it's on
+	// one.
+	label := func(net string) string {
+		if bus := b.buses[strings.ToLower(net)]; bus != "" {
+			return bus
+		}
+		return net
+	}
 	var netNames []string
 	for _, r := range b.rows {
 		if !containsFold(netNames, r.Net) {
@@ -777,13 +810,9 @@ func (b *diagramBuilder) links() []DiagramLink {
 			continue
 		}
 		ids := b.mainsOn(net)
-		kind := "signal"
+		kind, name := "signal", label(net)
 		if b.kinds[strings.ToLower(net)] == library.NetPower {
-			kind = "power"
-		}
-		label := net
-		if bus := b.buses[strings.ToLower(net)]; bus != "" && kind == "signal" {
-			label = bus
+			kind, name = "power", net
 		}
 		for i := 0; i < len(ids); i++ {
 			for j := i + 1; j < len(ids); j++ {
@@ -795,57 +824,41 @@ func (b *diagramBuilder) links() []DiagramLink {
 				if kind == "power" && !b.drives(from, net) {
 					continue
 				}
-				k := key{from, to, kind}
-				if _, ok := byKey[key{to, from, kind}]; ok && kind == "signal" {
-					k = key{to, from, kind}
-				}
-				l := byKey[k]
-				if l == nil {
-					l = &DiagramLink{From: k.from, To: k.to, Kind: kind, Nets: []string{}}
-					byKey[k] = l
-					order = append(order, k)
-				}
-				if !contains(l.Nets, net) {
-					l.Nets = append(l.Nets, net)
-				}
-				if l.Label == "" {
-					l.Label = label
-				} else if !contains(strings.Split(l.Label, ", "), label) {
-					l.Label += ", " + label
-				}
+				add(from, to, kind, []string{net}, name, false)
 			}
 		}
 	}
 	// Two boxes joined through a series passive (an MCU pin, a resistor,
 	// an LED) are linked too, from the one that drives the passive's net.
-	// Not through a pull-up: its rail goes everywhere.
+	// Not through a pull-up: its rail goes everywhere. A second path
+	// between the same two boxes (CC1 through R6 beside CC2 through R3)
+	// joins the link the first made (#85).
 	for _, q := range b.order {
 		nets := b.passives[q]
 		if len(nets) != 2 || !b.carries(q, nets[0], nets[1]) {
 			continue
+		}
+		// Power when the passive carries a rail (the inductor to the
+		// output rail), labelled with the rail; else with the bus, if
+		// either net is on one.
+		kind, name := "signal", label(nets[0])
+		if name == nets[0] {
+			name = label(nets[1])
+			if name == nets[1] {
+				name = nets[0]
+			}
+		}
+		for _, n := range nets {
+			if b.kinds[strings.ToLower(n)] == library.NetPower {
+				kind, name = "power", n
+			}
 		}
 		for _, from := range b.mainsOn(nets[0]) {
 			for _, to := range b.mainsOn(nets[1]) {
 				if from == to || !b.drives(from, nets[0]) && b.drives(to, nets[1]) {
 					continue
 				}
-				// Power when the passive carries a rail (the inductor to
-				// the output rail), labelled with the rail.
-				kind, label := "signal", nets[0]
-				for _, n := range nets {
-					if b.kinds[strings.ToLower(n)] == library.NetPower {
-						kind, label = "power", n
-					}
-				}
-				k := key{from, to, kind}
-				if _, ok := byKey[k]; ok {
-					continue
-				}
-				if _, ok := byKey[key{to, from, kind}]; ok {
-					continue
-				}
-				byKey[k] = &DiagramLink{From: from, To: to, Kind: kind, Nets: []string{nets[0], nets[1]}, Label: label}
-				order = append(order, k)
+				add(from, to, kind, nets, name, true)
 			}
 		}
 	}

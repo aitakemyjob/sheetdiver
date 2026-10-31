@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"github.com/aitakemyjob/sheetdiver/internal/testutil"
 	"reflect"
 	"sort"
 	"strings"
@@ -701,4 +702,181 @@ func TestPackagePins(t *testing.T) {
 			t.Errorf("%s (%s): %s, want %s", c.part.MPN, c.part.Package, got, c.want)
 		}
 	}
+}
+
+func TestDesignatorRanges(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.CreateProject(ctx, "board", ""); err != nil {
+		t.Fatal(err)
+	}
+	res, _ := s.Lib.Resolve(ctx, "SD1235")
+	cat := "capacitor"
+	if _, err := s.Lib.UpdatePart(ctx, res.Part.ID, library.PartUpdate{Category: &cat}); err != nil {
+		t.Fatal(err)
+	}
+	// The board was drafted with C42 as a block; then the BOM came, with
+	// decoupling caps in one line of ranges.
+	if _, err := s.ChangeConnections(ctx, "board", ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "C42", Kind: "capacitor", Value: "100nF"}, {Name: "U1 MCU", Kind: "ic"}},
+		Connect: []ConnectChange{{Net: "3V3", Part: "C42"}, {Net: "3V3", Part: "U1 MCU", Pin: "VDD"}, {Net: "VDDA", Part: "U1 MCU", Pin: "VDDA"}, {Net: "1V8", Part: "U1 MCU", Pin: "VCORE"}},
+	}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddToProject(ctx, "board", "SD1235", library.ProjectPart{Designator: "C40-C45, C60 – C62", Qty: 9, Role: "100nF"}); err != nil {
+		t.Fatal(err)
+	}
+	// One call takes the block away and wires the BOM's C42 in its place.
+	problems, err := s.ChangeConnections(ctx, "board", ConnectionsChange{
+		Blocks:  []BlockChange{{Name: "C42", Remove: true}},
+		Connect: []ConnectChange{{Net: "3V3", Part: "C42"}, {Net: "VDDA", Part: "C61"}, {Net: "1V8", Part: "C40"}},
+	}, library.SourceUser)
+	if err != nil || len(problems) > 0 {
+		t.Fatalf("%v %q", err, problems)
+	}
+	d, _ := s.ProjectDetail(ctx, "board")
+	ends := map[string]string{}
+	for _, r := range d.Connections.Connections {
+		if r.EntryID != 0 {
+			ends[r.Endpoint] = r.Net
+		}
+	}
+	if len(ends) != 3 || ends["C42"] != "3V3" || ends["C61"] != "VDDA" || ends["C40"] != "1V8" {
+		t.Errorf("connections by designator in a range = %v", ends)
+	}
+	if len(d.Connections.Blocks) != 1 {
+		t.Errorf("blocks = %+v", d.Connections.Blocks)
+	}
+	// Each one drawn on its own.
+	if got := strings.Join(drawn{t, d.Connections.Diagram}.passives(), "; "); strings.Count(got, "100nF") != 3 {
+		t.Errorf("passives = %q", got)
+	}
+	// A designator outside the ranges isn't there.
+	problems, _ = s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "3V3", Part: "C46"}}}, library.SourceUser)
+	if len(problems) != 1 || !strings.Contains(problems[0], "C46: not in the BOM") {
+		t.Errorf("C46: %q", problems)
+	}
+}
+
+func TestSplitDesignators(t *testing.T) {
+	for in, want := range map[string]string{
+		"R1, R2":         "R1 R2",
+		"C40-C45":        "C40 C41 C42 C43 C44 C45",
+		"C40 - C42, C60": "C40 C41 C42 C60",
+		"C1–3":           "C1 C2 C3",
+		"U1 U2":          "U1 U2",
+		"R5-C7":          "R5-C7", // not a range: two prefixes
+		"J1":             "J1",
+		"D3 – D1":        "D3–D1", // backwards: kept as written
+	} {
+		if got := strings.Join(splitDesignators(in), " "); got != want {
+			t.Errorf("splitDesignators(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPartsOfOneDatasheetKeepTheirOwnPins(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	// A 2-pin and a 3-pin header from one catalogue datasheet.
+	if _, err := s.Import(ctx, ImportRequest{Data: testutil.Mini("SD2002", "Connector"), Filename: "headers.pdf", MPNs: []string{"SD2002", "SD2003"}}); err != nil {
+		t.Fatal(err)
+	}
+	two, three := mustPart(t, s, "SD2002"), mustPart(t, s, "SD2003")
+	if two.DatasheetID == 0 || two.DatasheetID != three.DatasheetID {
+		t.Fatalf("one datasheet: %+v %+v", two, three)
+	}
+	ds := two.DatasheetID
+	if _, err := s.Lib.CreateProject(ctx, "board", ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []struct{ ref, des string }{{"SD2002", "J3"}, {"SD2003", "J5"}} {
+		if _, err := s.AddToProject(ctx, "board", e.ref, library.ProjectPart{Designator: e.des}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// J5 wired by name before its table had numbers.
+	if _, err := s.ChangeConnections(ctx, "board", ConnectionsChange{Connect: []ConnectChange{{Net: "UART1_RX", Part: "J5", Pin: "RX"}, {Net: "VIN", Part: "J3", Pin: "VIN"}}}, library.SourceUser); err != nil {
+		t.Fatal(err)
+	}
+	// As the agent did: a table for each, the second with a package.
+	if err := s.RecordPartPins(ctx, ds, "SD2003", "", []library.Pin{{Number: "1", Name: "VIN"}, {Number: "2", Name: "GND"}, {Number: "3", Name: "RX"}}, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPartPins(ctx, ds, "SD2002", "", []library.Pin{{Number: "1", Name: "VIN"}, {Number: "2", Name: "GND"}}, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPartPins(ctx, ds, "SD2002", "1x2", []library.Pin{{Number: "1", Name: "VIN"}, {Number: "2", Name: "GND"}}, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	names := func(ps []library.Pin) string {
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.Number+" "+p.Name)
+		}
+		return strings.Join(out, ", ")
+	}
+	pp, _ := s.Lib.ProjectParts(ctx, mustProject(t, s, "board"))
+	byDes := map[string][]library.Pin{}
+	for id, pins := range s.entryPins(ctx, pp) {
+		for _, e := range pp {
+			if e.ID == id {
+				byDes[e.Designator] = pins
+			}
+		}
+	}
+	// No phantom pin 3 on J3, pin 3 kept on J5, and the 1x2 table replaced
+	// the one without a package: no doubled numbers.
+	if got := names(byDes["J3"]); got != "1 VIN, 2 GND" {
+		t.Errorf("J3 pins = %q", got)
+	}
+	if got := names(byDes["J5"]); got != "1 VIN, 2 GND, 3 RX" {
+		t.Errorf("J5 pins = %q", got)
+	}
+	// J5's connection by name moved to pin 3; J3's VIN stayed with J3.
+	d, _ := s.ProjectDetail(ctx, "board")
+	ends := map[string]string{}
+	for _, r := range d.Connections.Connections {
+		ends[r.Endpoint+"."+r.Pin] = r.Net
+	}
+	if ends["J5.3"] != "UART1_RX" || ends["J3.1"] != "VIN" {
+		t.Errorf("connections = %v", ends)
+	}
+	// Each header's pin table on the diagram is its own.
+	rows := map[string]int{}
+	for _, po := range d.Connections.Pinouts {
+		rows[strings.Fields(po.Title)[0]] = len(po.Pins)
+	}
+	if rows["J3"] != 2 || rows["J5"] != 3 {
+		t.Errorf("pinout rows = %v", rows)
+	}
+	// The part view's pins, and a table for every part still serves a
+	// part without its own.
+	if got, _ := s.PartPins(ctx, three, ""); names(got) != "1 VIN, 2 GND, 3 RX" {
+		t.Errorf("SD2003's pins = %q", names(got))
+	}
+	if err := s.RecordPins(ctx, ds, "", []library.Pin{{Number: "1", Name: "A"}}, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.PartPins(ctx, two, ""); names(got) != "1 VIN, 2 GND" {
+		t.Errorf("SD2002 keeps its own pins over the shared ones: %q", names(got))
+	}
+	s.Import(ctx, ImportRequest{Data: testutil.Mini("SD2004", "Connector"), Filename: "other.pdf"})
+	other := mustPart(t, s, "SD2004")
+	if err := s.RecordPins(ctx, other.DatasheetID, "", []library.Pin{{Number: "1", Name: "A"}}, library.SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.PartPins(ctx, other, ""); names(got) != "1 A" {
+		t.Errorf("a part with only shared pins: %q", names(got))
+	}
+}
+
+// mustProject is a project's ID, or fails.
+func mustProject(t *testing.T, s *Service, name string) int64 {
+	t.Helper()
+	p, err := s.Lib.Project(context.Background(), name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p.ID
 }

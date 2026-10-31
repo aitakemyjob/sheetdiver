@@ -373,7 +373,9 @@ ALTER TABLE project_groups ADD COLUMN below TEXT NOT NULL DEFAULT '';
 `, `
 ALTER TABLE project_assignments ADD COLUMN col INTEGER;
 ALTER TABLE project_assignments ADD COLUMN row INTEGER;
-`, simulationMigration, variationMigration, cadMigration}
+`, simulationMigration, variationMigration, `
+ALTER TABLE pins ADD COLUMN part TEXT NOT NULL DEFAULT '';
+`, cadMigration}
 
 // migrate applies pending schema migrations.
 func (s *Store) migrate(ctx context.Context) error {
@@ -397,6 +399,26 @@ func (s *Store) migrate(ctx context.Context) error {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+	}
+	return s.repair(ctx)
+}
+
+// repair brings a library that ran a preview build's migrations in
+// another order to the schema all builds expect: user_version counts
+// migrations, so one that took another's place made it look done. Each
+// step checks before it changes anything.
+func (s *Store) repair(ctx context.Context) error {
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('pins') WHERE name = 'part'`).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE pins ADD COLUMN part TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("repair pins: %w", err)
+		}
+	}
+	if _, err := s.db.ExecContext(ctx, cadMigration); err != nil {
+		return fmt.Errorf("repair cad_items: %w", err)
 	}
 	return nil
 }

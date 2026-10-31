@@ -119,6 +119,7 @@ type showArgs struct {
 	// Catalogue.
 	LCSC        []string        `json:"lcsc,omitempty" jsonschema:"catalog: the JLCPCB/LCSC codes to show as candidates (from search_catalog)"`
 	Subcategory string          `json:"subcategory,omitempty" jsonschema:"catalog: a JLCPCB category to search instead"`
+	Category    string          `json:"category,omitempty" jsonschema:"catalog: the subcategory's parent, when the same name is in several"`
 	Filters     []catalogFilter `json:"filters,omitempty" jsonschema:"catalog: parameter filters for the search (as in search_catalog)"`
 	// Calculator.
 	Calculator string         `json:"calculator,omitempty" jsonschema:"calc: buck, boost, ldo, gate_drive, gate_divider or divider (filled from part and project, like calculate)"`
@@ -457,11 +458,11 @@ func (s *Server) registerLibrary() {
 
 	addTool(s, &mcp.Tool{Name: "get_pins", Description: "A part's pin table (number, name, type, description, package). If empty or wrong, read get_section with section=pins and record_pins.", Annotations: readOnly("Get pins")},
 		read, func(a pinsArgs) string { return "pins " + a.Part }, func(ctx context.Context, a pinsArgs) (result, error) {
-			r, d, err := c.DatasheetOf(ctx, a.Part)
+			r, _, err := c.DatasheetOf(ctx, a.Part)
 			if err != nil {
 				return result{}, err
 			}
-			pins, err := c.Lib.Pins(ctx, d.ID, a.Package)
+			pins, err := c.PartPins(ctx, r.Part, a.Package)
 			if err != nil {
 				return result{}, err
 			}
@@ -469,6 +470,9 @@ func (s *Server) registerLibrary() {
 				return text(fmt.Sprintf("no pins recorded for %s; read get_section(section=pins) and record them with record_pins", r.Part.MPN)), nil
 			}
 			var b strings.Builder
+			if pins[0].Part != "" {
+				fmt.Fprintf(&b, "recorded for %s alone (its datasheet covers other parts too)\n", pins[0].Part)
+			}
 			for _, p := range pins {
 				pkg := ""
 				if p.Package != "" {
@@ -573,7 +577,7 @@ func (s *Server) focusOf(ctx context.Context, a showArgs) (core.Focus, error) {
 		if len(a.LCSC) == 0 && a.Query == "" && a.Subcategory == "" {
 			return f, fmt.Errorf("catalog needs lcsc codes, a query or a subcategory")
 		}
-		f.LCSC, f.Subcategory = a.LCSC, a.Subcategory
+		f.LCSC, f.Category, f.Subcategory = a.LCSC, a.Category, a.Subcategory
 		for _, fl := range a.Filters {
 			f.Filters = append(f.Filters, catalog.AttrFilter{Key: fl.Parameter, Op: fl.Op, Input: fl.Value})
 		}

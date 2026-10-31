@@ -17567,7 +17567,8 @@
        "label": "VBUS",
        "kind": "power",
        "nets": [
-        "VBUS"
+        "VBUS",
+        "MOTOR"
        ]
       },
       {

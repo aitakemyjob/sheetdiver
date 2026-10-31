@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -24,17 +25,13 @@ func TestVariationMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Back to just before the variation migration: its tables and any
-	// added since are dropped, so they are made again.
-	before := 0
-	for i, m := range migrations {
-		if m == variationMigration {
-			before = i
-		}
-	}
+	// The schema just before the variation migration: the migrations
+	// after it undone too.
+	before := slices.Index(migrations, variationMigration)
 	for _, q := range []string{
 		"DROP TABLE cad_items",
 		"DROP TABLE simulation_runs", "DROP TABLE simulation_variations", "DROP TABLE simulations", "DROP TABLE spice_models",
+		"ALTER TABLE pins DROP COLUMN part",
 		migrations[before-1],
 		fmt.Sprintf("PRAGMA user_version = %d", before),
 		"INSERT INTO projects (name, created_at, updated_at) VALUES ('Sensor', 't0', 't0')",

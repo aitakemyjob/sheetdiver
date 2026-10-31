@@ -302,6 +302,11 @@ func TestCatalogueTools(t *testing.T) {
 	db, err := testutil.JLCDatabase(t.TempDir(), "source-db-v2", [][]any{
 		{1, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX7001DBVR", "SOT-23-6", "Zed Semi", "base", 0, "2A 4.5V~28V Buck", pdfSrv.URL + "/zx7001.pdf", 1200, "1-:0.31", `{"Output Current":"2A"}`},
 		{2, 1, "Power Management (PMIC)", "DC-DC Converters", "ZX9000", "SOT-23-6", "Zed Semi", "expand", 0, "1A 5V~12V Buck", "", 0, "", `{"Output Current":"1A"}`},
+		// One subcategory name in two categories (#19).
+		{4, 1, "Transistors/Thyristors", "MOSFETs", "ZQ3400", "SOT-23", "Zed Semi", "base", 0, "30V 5.7A N-Channel", "", 900, "1-:0.09", `{"Drain to Source Voltage":"30V"}`},
+		{5, 1, "Transistors/Thyristors", "MOSFETs", "ZQ3401", "SOT-23", "Zed Semi", "base", 0, "30V 4A P-Channel", "", 700, "1-:0.08", `{"Drain to Source Voltage":"30V"}`},
+		{6, 1, "Triode/MOS Tube/Transistor", "MOSFETs", "ZQ2302", "SOT-23", "Zed Semi", "expand", 0, "20V 2.6A N-Channel", "", 100, "1-:0.05", `{"Drain to Source Voltage":"20V"}`},
+		{7, 1, "Triode/MOS Tube/Transistor", "MOSFETs", "ZQ2301", "SOT-23", "Zed Semi", "expand", 0, "20V 2A P-Channel", "", 50, "1-:0.05", `{"Drain to Source Voltage":"20V"}`},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +333,14 @@ func TestCatalogueTools(t *testing.T) {
 	if out := h.must("search_catalog", map[string]any{"query": "buck"}); !strings.Contains(out, "ZX9000") {
 		t.Errorf("out-of-stock parts are found unless filtered: %s", out)
 	}
-	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)")
+	h.must("catalog_parameters", map[string]any{}, "Power Management (PMIC) › DC-DC Converters: 2 (1)", "Transistors/Thyristors › MOSFETs: 2 (2)", "Triode/MOS Tube/Transistor › MOSFETs: 2 (2)")
+	// Each category's MOSFETs, searched and summarized on their own; the
+	// summaries are cached per category, not per subcategory name.
+	if out := h.must("search_catalog", map[string]any{"category": "Triode/MOS Tube/Transistor", "subcategory": "MOSFETs"}, "ZQ2302"); strings.Contains(out, "ZQ3400") {
+		t.Errorf("another category's MOSFETs: %s", out)
+	}
+	h.must("catalog_parameters", map[string]any{"category": "Transistors/Thyristors", "subcategory": "MOSFETs"}, "Drain to Source Voltage [number, V] 2 parts, 30 V")
+	h.must("catalog_parameters", map[string]any{"category": "Triode/MOS Tube/Transistor", "subcategory": "MOSFETs"}, "parameters of Triode/MOS Tube/Transistor › MOSFETs", "Drain to Source Voltage [number, V] 2 parts, 20 V")
 	h.must("catalog_parameters", map[string]any{"subcategory": "DC-DC Converters"}, "- Output Current [number, A] 2 parts, 1 A … 2 A; common: ")
 	if out := h.must("search_catalog", map[string]any{"subcategory": "DC-DC Converters", "filters": []map[string]any{{"parameter": "Output Current", "op": "=", "value": "1A"}}}, "ZX9000"); strings.Contains(out, "ZX7001DBVR") {
 		t.Errorf("output current = 1 A: %s", out)
@@ -607,4 +619,27 @@ func TestAssignAPassiveToAGroupWithNoParts(t *testing.T) {
 	if strings.Contains(out, "but drawn") {
 		t.Errorf("C5 with U3 in its group:\n%s", out)
 	}
+}
+
+func TestRecordPinsForOnePartOfADatasheet(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	// A 2-pin and a 3-pin header from one catalogue datasheet.
+	if _, err := h.core.Import(ctx, core.ImportRequest{Data: testutil.Mini("ZX2002", "Connector"), Filename: "headers.pdf", MPNs: []string{"ZX2002", "ZX2003"}}); err != nil {
+		t.Fatal(err)
+	}
+	pin := func(n, name string) map[string]any { return map[string]any{"number": n, "name": name} }
+	h.must("record_pins", map[string]any{"part": "ZX2003", "pins": []any{pin("1", "VIN"), pin("2", "GND"), pin("3", "RX")}}, "recorded 3 pins for ZX2003 alone (its datasheet covers 2 parts")
+	h.must("record_pins", map[string]any{"part": "ZX2002", "package": "1x2", "pins": []any{pin("1", "VIN"), pin("2", "GND")}}, "recorded 2 pins for ZX2002 alone")
+	out := h.must("get_pins", map[string]any{"part": "ZX2002"}, "recorded for ZX2002 alone", "[1x2] 1 VIN", "[1x2] 2 GND")
+	if strings.Contains(out, "RX") {
+		t.Errorf("ZX2002 has the 3-pin header's pin:\n%s", out)
+	}
+	h.must("get_pins", map[string]any{"part": "ZX2003"}, "3 RX")
+	// One table for both, when asked.
+	if out := h.must("record_pins", map[string]any{"part": "ZX2002", "all_parts": true, "pins": []any{pin("1", "A")}}, "recorded 1 pins"); strings.Contains(out, "alone") {
+		t.Errorf("all_parts: %s", out)
+	}
+	// Each part's own table still wins over the shared one.
+	h.must("get_pins", map[string]any{"part": "ZX2003"}, "3 RX")
 }

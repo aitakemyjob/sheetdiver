@@ -200,6 +200,8 @@ export interface Parameter {
 
 export interface Pin {
   id: number;
+  /** The part it's recorded for, when the datasheet covers several with different pinouts. */
+  part?: string;
   package?: string;
   number: string;
   name: string;
@@ -793,6 +795,7 @@ export interface Focus {
   notes?: Record<string, string>;
   /** catalog: candidates by LCSC code, or a search. */
   lcsc?: string[];
+  category?: string;
   subcategory?: string;
   filters?: CatalogFilter[];
   /** What to mark: the recommended part, an LCSC code, a rail or a BOM entry. */
