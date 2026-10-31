@@ -267,12 +267,201 @@ func (r *rec) fill(layer int, x0, y0, x1, y1 float64) {
 	})
 }
 
-// layerOf is the Altium layer a footprint drawing layer goes on.
-var layerOf = map[string]int{cad.LayerSilk: layerTopOverlay, cad.LayerFab: layerMech13, cad.LayerCourtyard: layerMech15}
+// arc writes an arc: its centre in footprint coordinates, its radius, and
+// its start and end angles Altium's way, degrees anticlockwise with y up,
+// 0 to 360 a circle.
+func (r *rec) arc(layer int, c cad.Pt, rad, start, end, w float64) {
+	r.u8(1)
+	r.block(func(a *rec) {
+		a.common(layer)
+		a.coord(c.X)
+		a.coord(-c.Y)
+		a.coord(rad)
+		a.f64(start)
+		a.f64(end)
+		a.coord(w)
+		a.u16(0)
+		a.u8(0)
+		a.u32(0)
+		a.u32(v7Layer(layer))
+		a.u8(0)
+		a.Write([]byte{0, 0, 0})
+	})
+}
 
-// footprintData is a footprint's Data stream and how many primitives it
-// holds.
-func footprintData(f cad.Footprint) ([]byte, int) {
+// v7Name is a layer's name in a region's parameters.
+func v7Name(layer int) string {
+	switch {
+	case layer == layerTop:
+		return "TOP"
+	case layer == layerTopOverlay:
+		return "TOPOVERLAY"
+	case layer >= 57 && layer <= 72:
+		return "MECHANICAL" + strconv.Itoa(layer-56)
+	}
+	return "MULTILAYER"
+}
+
+// region writes a filled polygon, its corners in footprint coordinates.
+func (r *rec) region(layer int, pts []cad.Pt) {
+	r.u8(11)
+	r.block(func(b *rec) {
+		b.common(layer)
+		b.u32(0) // no holes
+		b.u8(0)
+		kv := []string{"V7_LAYER", v7Name(layer), "NAME", " ", "KIND", "0", "SUBPOLYINDEX", "-1", "UNIONINDEX", "0",
+			"ARCRESOLUTION", "0.5mil", "ISSHAPEBASED", "FALSE", "CAVITYHEIGHT", "0mil"}
+		b.block(func(c *rec) {
+			c.Write(latin1(strings.TrimPrefix(paramText(kv...), "|")))
+			c.u8(0)
+		})
+		b.u32(u32(len(pts)))
+		for _, p := range pts {
+			b.f64(float64(units(p.X)))
+			b.f64(float64(units(-p.Y)))
+		}
+	})
+}
+
+// utf16Name is a font name as a text record's 64-byte UTF-16 field.
+func utf16Name(name string) []byte {
+	out := make([]byte, 64)
+	for i, c := range utf16.Encode([]rune(name)) {
+		if 2*i+2 >= len(out) {
+			break
+		}
+		binary.LittleEndian.PutUint16(out[2*i:], c)
+	}
+	return out
+}
+
+// text writes a stroke-font text: its anchor, the left end of its
+// baseline, as Altium's bottom left corner; its height and rotation
+// (anticlockwise as seen, either way up); and the index of its string
+// among the footprint's wide strings.
+func (r *rec) text(layer int, g cad.Graphic, index int) {
+	stroke := g.Width
+	if stroke <= 0 {
+		stroke = g.Size / 10
+	}
+	r.u8(5)
+	r.block(func(t *rec) {
+		t.common(layer)
+		t.coord(g.Pts[0].X)
+		t.coord(-g.Pts[0].Y)
+		t.coord(g.Size)
+		t.u16(1) // the default stroke font
+		t.f64(degrees(g.Angle))
+		t.u8(0) // not mirrored
+		t.coord(stroke)
+		t.Write([]byte{0, 0, 0}) // not the comment or designator
+		t.u8(0)                  // a stroke font
+		t.u8(0)                  // not bold
+		t.u8(0)                  // not italic
+		t.Write(utf16Name("Arial"))
+		t.u8(0)  // not inverted
+		t.i32(0) // its margin
+		t.u32(u32(index))
+		t.u32(0)
+		t.u8(0)  // no inverted rectangle
+		t.i32(0) // its width
+		t.i32(0) // and height
+		t.u8(3)  // justified left, bottom
+		t.i32(0) // text offset
+		t.Write(make([]byte, 23))
+		t.u8(0) // a stroke font
+		t.Write(utf16Name("Arial"))
+		t.u8(0)
+		t.u32(v7Layer(layer))
+		t.Write(make([]byte, 22))
+	})
+	r.stringBlock(g.Text)
+}
+
+// degrees is an angle from 0 up to 360.
+func degrees(v float64) float64 {
+	v = math.Mod(v, 360)
+	if v < 0 {
+		v += 360
+	}
+	return v
+}
+
+// graphic writes a drawn shape and says how many primitives it took: a
+// line as a track; a rectangle as a fill, or its sides as tracks; a
+// polygon as a region, or its sides as tracks; an arc as an arc; a
+// circle as a full arc, a filled one as a full arc as thick as the
+// circle's radius (and its stroke as a second); a text as a text, its
+// string kept among the footprint's wide strings too.
+func (r *rec) graphic(layer int, g cad.Graphic, texts *[]string) int {
+	sides := func(pts []cad.Pt) int {
+		for i := range pts {
+			r.track(layer, pts[i], pts[(i+1)%len(pts)], g.Width)
+		}
+		return len(pts)
+	}
+	switch g.Kind {
+	case cad.GraphicLine:
+		r.track(layer, g.Pts[0], g.Pts[1], g.Width)
+		return 1
+	case cad.GraphicRect:
+		a, b := g.Pts[0], g.Pts[1]
+		if g.Fill {
+			r.fill(layer, a.X, a.Y, b.X, b.Y)
+			return 1
+		}
+		return sides([]cad.Pt{a, {X: b.X, Y: a.Y}, b, {X: a.X, Y: b.Y}})
+	case cad.GraphicPoly:
+		if g.Fill {
+			r.region(layer, g.Pts)
+			return 1
+		}
+		return sides(g.Pts)
+	case cad.GraphicArc:
+		// With y flipped up the angles negate: the arc runs from -end to
+		// -start.
+		o, rad, a, b := cad.ArcAngles(g)
+		r.arc(layer, o, rad, degrees(-b), degrees(-a), g.Width)
+		return 1
+	case cad.GraphicCircle:
+		if !g.Fill {
+			r.arc(layer, g.Pts[0], g.R, 0, 360, g.Width)
+			return 1
+		}
+		r.arc(layer, g.Pts[0], g.R/2, 0, 360, g.R)
+		if g.Width > 0 {
+			r.arc(layer, g.Pts[0], g.R, 0, 360, g.Width)
+			return 2
+		}
+		return 1
+	case cad.GraphicText:
+		r.text(layer, g, len(*texts))
+		*texts = append(*texts, g.Text)
+		return 1
+	}
+	return 0
+}
+
+// wideStrings are a footprint's WideStrings parameters: each text's
+// string as UTF-16 code units, by its index.
+func wideStrings(texts []string) []string {
+	var kv []string
+	for i, s := range texts {
+		var units []string
+		for _, c := range utf16.Encode([]rune(s)) {
+			units = append(units, strconv.Itoa(int(c)))
+		}
+		kv = append(kv, "ENCODEDTEXT"+strconv.Itoa(i), strings.Join(units, ","))
+	}
+	return kv
+}
+
+// layerOf is the Altium layer a footprint drawing layer goes on.
+var layerOf = map[string]int{cad.LayerSilk: layerTopOverlay, cad.LayerFab: layerMech13, cad.LayerCourtyard: layerMech15, cad.LayerCopper: layerTop}
+
+// footprintData is a footprint's Data stream, how many primitives it
+// holds, and its texts' strings by their index.
+func footprintData(f cad.Footprint) ([]byte, int, []string) {
 	var r rec
 	r.stringBlock(f.Name)
 	n := 0
@@ -299,7 +488,13 @@ func footprintData(f cad.Footprint) ([]byte, int) {
 			n++
 		}
 	}
-	return r.Bytes(), n
+	var texts []string
+	for _, g := range f.Graphics {
+		if layer, ok := layerOf[g.Layer]; ok && g.Check() == nil {
+			n += r.graphic(layer, g, &texts)
+		}
+	}
+	return r.Bytes(), n, texts
 }
 
 // mils writes a length as Altium's mil-suffixed coordinate text.
@@ -539,7 +734,7 @@ func PcbLib(name string, fps []Footprint) ([]byte, error) {
 			}
 			continue
 		}
-		d, n := footprintData(f.Footprint)
+		d, n, texts := footprintData(f.Footprint)
 		if len(f.Step) > 0 {
 			var b rec
 			b.body(f.Footprint, f.Height, modelID(f.Footprint.Name), f.Step)
@@ -551,7 +746,7 @@ func PcbLib(name string, fps []Footprint) ([]byte, error) {
 		params.params("PATTERN", f.Footprint.Name, "HEIGHT", mils(f.Height), "DESCRIPTION", f.Footprint.Description, "ITEMGUID", "", "REVISIONGUID", "")
 		st.Stream("Parameters", params.Bytes())
 		var ws rec
-		ws.params()
+		ws.params(wideStrings(texts)...)
 		st.Stream("WideStrings", ws.Bytes())
 		st.Stream("Data", d)
 	}

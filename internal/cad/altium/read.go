@@ -294,7 +294,7 @@ func ReadPcbLib(b []byte) ([]ReadFootprint, error) {
 	var out []ReadFootprint
 	for _, dir := range dirs {
 		params := paramsBlock(streams[dir+"/Parameters"])
-		f, err := readFootprint(streams[dir+"/Data"])
+		f, err := readFootprint(streams[dir+"/Data"], streams[dir+"/WideStrings"])
 		if err != nil {
 			return nil, fmt.Errorf("footprint %s: %w", params["PATTERN"], err)
 		}
@@ -328,15 +328,174 @@ type readFP struct {
 	models []string
 }
 
-// readFootprint reads a footprint's records: pads, lines, arcs and fills
-// on the layers SheetDiver draws, and 3D bodies.
-func readFootprint(d []byte) (readFP, error) {
+// drawnLayer is the footprint layer a shape drawn on an Altium layer
+// reads as: SheetDiver's drawing layers, and top copper.
+var drawnLayer = map[byte]string{layerTop: cad.LayerCopper, layerTopOverlay: cad.LayerSilk, layerMech13: cad.LayerFab, layerMech15: cad.LayerCourtyard}
+
+// layerAt is a primitive's layer, its first byte.
+func layerAt(b []byte) byte {
+	if len(b) == 0 {
+		return 0
+	}
+	return b[0]
+}
+
+// at is an Altium point at an offset, in footprint coordinates (y down).
+func at(b []byte, off int) cad.Pt {
+	return cad.Pt{X: cad.Number(mmAt(b, off)), Y: cad.Number(-mmAt(b, off+4))}
+}
+
+// readArc reads an arc record: an arc, or a circle when it goes all the
+// way round, filled when it's as thick as it's wide.
+func readArc(a []byte) cad.Graphic {
+	c, rad, w := at(a, 13), mmAt(a, 21), cad.Number(mmAt(a, 41))
+	start, end := f64At(a, 25), f64At(a, 33)
+	if end <= start {
+		end += 360
+	}
+	switch {
+	case end-start < 360-1e-6:
+		// Altium's y is up: the arc runs from -end to -start, y down.
+		g := cad.ArcFrom(c, rad, -end, -start)
+		g.Width = w
+		return g
+	case w >= 2*rad-1e-4:
+		return cad.Graphic{Kind: cad.GraphicCircle, Pts: []cad.Pt{c}, R: cad.Number(rad + w/2), Fill: true}
+	}
+	return cad.Graphic{Kind: cad.GraphicCircle, Pts: []cad.Pt{c}, R: cad.Number(rad), Width: w}
+}
+
+// readFill reads a fill record: a filled rectangle, or a filled polygon
+// when it's turned.
+func readFill(b []byte) cad.Graphic {
+	x0, y0, x1, y1 := mmAt(b, 13), mmAt(b, 17), mmAt(b, 21), mmAt(b, 25)
+	rot := f64At(b, 29)
+	if math.Abs(math.Remainder(rot, 180)) < 1e-6 {
+		return cad.Graphic{Kind: cad.GraphicRect, Fill: true, Pts: []cad.Pt{at(b, 13), at(b, 21)}}
+	}
+	// Turned about its centre, anticlockwise with y up.
+	cx, cy := (x0+x1)/2, (y0+y1)/2
+	s, c := math.Sincos(rot * math.Pi / 180)
+	var pts []cad.Pt
+	for _, p := range [][2]float64{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}} {
+		dx, dy := p[0]-cx, p[1]-cy
+		pts = append(pts, cad.Pt{X: cad.Number(cx + dx*c - dy*s), Y: cad.Number(-(cy + dx*s + dy*c))})
+	}
+	return cad.Graphic{Kind: cad.GraphicPoly, Fill: true, Pts: pts}
+}
+
+// readRegion reads a region record's outline as a filled polygon; ok is
+// false for a keep-out, a cutout or a cavity.
+func readRegion(b []byte) (cad.Graphic, bool) {
+	if len(b) < 22 || b[2] == 2 {
+		return cad.Graphic{}, false
+	}
+	r := &reader{b: b, pos: 18}
+	p := parseParams(r.block())
+	if k := p["KIND"]; (k != "" && k != "0") || strings.EqualFold(p["ISBOARDCUTOUT"], "TRUE") {
+		return cad.Graphic{}, false
+	}
+	n := int(r.u32())
+	if r.err != nil || n < 3 || n > (len(b)-r.pos)/16 {
+		return cad.Graphic{}, false
+	}
+	pts := make([]cad.Pt, 0, n)
+	for i := 0; i < n; i++ {
+		x, y := f64At(b, r.pos+16*i), f64At(b, r.pos+16*i+8)
+		pts = append(pts, cad.Pt{X: cad.Number(x * 0.0254 / 10000), Y: cad.Number(-y * 0.0254 / 10000)})
+	}
+	if pts[0] == pts[len(pts)-1] {
+		pts = pts[:len(pts)-1]
+	}
+	return cad.Graphic{Kind: cad.GraphicPoly, Fill: true, Pts: pts}, true
+}
+
+// readText reads a text record and its string (or its wide string, by
+// its index, when the footprint keeps one): its anchor is Altium's
+// bottom left corner.
+func readText(t, s []byte, wide map[uint32]string) (cad.Graphic, bool) {
+	if len(t) < 40 {
+		return cad.Graphic{}, false
+	}
+	text := pascal(s)
+	if len(t) >= 123 {
+		if w, ok := wide[binary.LittleEndian.Uint32(t[115:])]; ok {
+			text = w
+		}
+	}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	if text == "" {
+		return cad.Graphic{}, false
+	}
+	return cad.Graphic{Kind: cad.GraphicText, Pts: []cad.Pt{at(t, 13)}, Text: text, Size: cad.Number(mmAt(t, 21)),
+		Angle: cad.Number(degrees(f64At(t, 27))), Width: cad.Number(mmAt(t, 36))}, true
+}
+
+// readWideStrings reads a footprint's WideStrings stream: each text's
+// string by its index.
+func readWideStrings(b []byte) map[uint32]string {
+	out := map[uint32]string{}
+	if len(b) < 4 {
+		return out
+	}
+	for k, v := range paramsBlock(b) {
+		i, ok := strings.CutPrefix(k, "ENCODEDTEXT")
+		n, err := strconv.ParseUint(i, 10, 32)
+		if !ok || err != nil {
+			continue
+		}
+		var u []uint16
+		for _, c := range strings.Split(v, ",") {
+			if x, err := strconv.ParseUint(strings.TrimSpace(c), 10, 16); err == nil {
+				u = append(u, uint16(x))
+			}
+		}
+		out[uint32(n)] = string(utf16.Decode(u))
+	}
+	return out
+}
+
+// mergeRings makes a filled circle and the ring of its stroke, as a
+// footprint's filled circle is written, one circle again.
+func mergeRings(gs []cad.Graphic) []cad.Graphic {
+	gone := map[int]bool{}
+	for i, g := range gs {
+		if g.Kind != cad.GraphicCircle || !g.Fill || g.Width > 0 {
+			continue
+		}
+		for j, h := range gs {
+			if !gone[j] && h.Kind == cad.GraphicCircle && !h.Fill && h.Layer == g.Layer && h.Pts[0] == g.Pts[0] && math.Abs(h.R-g.R) < 1e-3 {
+				gs[i].Width, gone[j] = h.Width, true
+				break
+			}
+		}
+	}
+	out := gs[:0]
+	for i, g := range gs {
+		if !gone[i] {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// readFootprint reads a footprint's records: pads, tracks, arcs, fills,
+// regions and texts on the layers SheetDiver draws, and 3D bodies; its
+// WideStrings stream holds its texts' strings.
+func readFootprint(d, wideStream []byte) (readFP, error) {
 	var f readFP
+	wide := readWideStrings(wideStream)
 	r := &reader{b: d}
 	r.block() // its name
 	add := func(layer byte, a, b cad.Pt, w float64) {
 		if l, ok := layerName[layer]; ok {
 			f.Lines = append(f.Lines, cad.Line{Layer: l, A: a, B: b, Width: w})
+		}
+	}
+	draw := func(layer byte, g cad.Graphic) {
+		if l, ok := drawnLayer[layer]; ok {
+			g.Layer = l
+			f.Graphics = append(f.Graphics, g)
 		}
 	}
 	for r.pos < len(d) && r.err == nil {
@@ -351,28 +510,28 @@ func readFootprint(d []byte) (readFP, error) {
 			f.Pads = append(f.Pads, readPad(name, m))
 		case 4:
 			t := r.block()
-			add(t[0], cad.Pt{X: mmAt(t, 13), Y: -mmAt(t, 17)}, cad.Pt{X: mmAt(t, 21), Y: -mmAt(t, 25)}, mmAt(t, 29))
+			a, b := cad.Pt{X: mmAt(t, 13), Y: -mmAt(t, 17)}, cad.Pt{X: mmAt(t, 21), Y: -mmAt(t, 25)}
+			if layerAt(t) == layerTop {
+				draw(layerTop, cad.Graphic{Kind: cad.GraphicLine, Pts: []cad.Pt{at(t, 13), at(t, 21)}, Width: cad.Number(mmAt(t, 29))})
+				continue
+			}
+			add(layerAt(t), a, b, mmAt(t, 29))
 		case 1:
 			a := r.block()
-			cx, cy, rad := mmAt(a, 13), mmAt(a, 17), mmAt(a, 21)
-			start, end := f64At(a, 25), f64At(a, 33)
-			if end <= start {
-				end += 360
-			}
-			n := max(4, int((end-start)/15))
-			for i := 0; i < n; i++ {
-				t0, t1 := (start+(end-start)*float64(i)/float64(n))*math.Pi/180, (start+(end-start)*float64(i+1)/float64(n))*math.Pi/180
-				add(a[0], cad.Pt{X: cx + rad*math.Cos(t0), Y: -(cy + rad*math.Sin(t0))}, cad.Pt{X: cx + rad*math.Cos(t1), Y: -(cy + rad*math.Sin(t1))}, mmAt(a, 41))
-			}
+			draw(layerAt(a), readArc(a))
 		case 6:
 			b := r.block()
-			x0, y0, x1, y1 := mmAt(b, 13), -mmAt(b, 17), mmAt(b, 21), -mmAt(b, 25)
-			switch b[0] {
-			case layerTopPaste:
+			if layerAt(b) == layerTopPaste {
+				x0, y0, x1, y1 := mmAt(b, 13), -mmAt(b, 17), mmAt(b, 21), -mmAt(b, 25)
 				f.Pads = append(f.Pads, cad.Pad{Kind: cad.PadPaste, Shape: "roundrect", X: cad.Number((x0 + x1) / 2), Y: cad.Number((y0 + y1) / 2),
 					W: cad.Number(math.Abs(x1 - x0)), H: cad.Number(math.Abs(y1 - y0))})
-			case layerTopOverlay:
-				f.Polys = append(f.Polys, cad.Poly{Layer: cad.LayerSilk, Pts: []cad.Pt{{X: x0, Y: y0}, {X: x1, Y: y0}, {X: x1, Y: y1}, {X: x0, Y: y1}}})
+				continue
+			}
+			draw(layerAt(b), readFill(b))
+		case 11:
+			b := r.block()
+			if g, ok := readRegion(b); ok {
+				draw(layerAt(b), g)
 			}
 		case 12:
 			b := r.block()
@@ -380,9 +539,12 @@ func readFootprint(d []byte) (readFP, error) {
 				f.models = append(f.models, paramsBlock(b[18:])["MODELID"])
 			}
 		case 5:
-			r.block()
-			r.block()
-		case 3, 11:
+			t := r.block()
+			s := r.block()
+			if g, ok := readText(t, s, wide); ok {
+				draw(layerAt(t), g)
+			}
+		case 3:
 			r.block()
 		default:
 			return f, fmt.Errorf("a record of unknown kind %d", kind)
@@ -391,6 +553,7 @@ func readFootprint(d []byte) (readFP, error) {
 	if r.err != nil {
 		return f, r.err
 	}
+	f.Graphics = mergeRings(f.Graphics)
 	// Thermal vias are holes numbered like a surface pad.
 	smd := map[string]bool{}
 	for _, p := range f.Pads {
@@ -417,6 +580,20 @@ func readFootprint(d []byte) (readFP, error) {
 		case cad.LayerCourtyard:
 			grow(&crt, l.A)
 			grow(&crt, l.B)
+		}
+	}
+	for _, g := range f.Graphics {
+		if g.Kind == cad.GraphicText || g.Check() != nil {
+			continue
+		}
+		b := g.Bounds()
+		switch g.Layer {
+		case cad.LayerFab:
+			grow(&body, cad.Pt{X: b.X0, Y: b.Y0})
+			grow(&body, cad.Pt{X: b.X1, Y: b.Y1})
+		case cad.LayerCourtyard:
+			grow(&crt, cad.Pt{X: b.X0, Y: b.Y0})
+			grow(&crt, cad.Pt{X: b.X1, Y: b.Y1})
 		}
 	}
 	f.Body, f.Courtyard = body, crt
@@ -496,6 +673,14 @@ func ReadSchLib(b []byte) ([]ReadSymbol, error) {
 			keys[kp[fmt.Sprintf("LIBREF%d", i)]] = kp[fmt.Sprintf("SECTIONKEY%d", i)]
 		}
 	}
+	// The fonts' text heights, by id.
+	fonts := map[string]float64{}
+	nf, _ := strconv.Atoi(head["FONTIDCOUNT"])
+	for i := 1; i <= nf; i++ {
+		if sz, err := strconv.ParseFloat(head[fmt.Sprintf("SIZE%d", i)], 64); err == nil {
+			fonts[strconv.Itoa(i)] = cad.Number(sz * 0.127)
+		}
+	}
 	n, _ := strconv.Atoi(head["COMPCOUNT"])
 	var out []ReadSymbol
 	for i := 0; i < n; i++ {
@@ -508,7 +693,7 @@ func ReadSchLib(b []byte) ([]ReadSymbol, error) {
 		if !ok {
 			return nil, fmt.Errorf("symbol %s has no data", name)
 		}
-		s, fp, err := readSymbol(d)
+		s, fp, err := readSymbol(d, fonts)
 		if err != nil {
 			return nil, fmt.Errorf("symbol %s: %w", name, err)
 		}
@@ -524,14 +709,85 @@ func ReadSchLib(b []byte) ([]ReadSymbol, error) {
 	return out, nil
 }
 
-// readSymbol reads a symbol's records: its pins, body, lines, designator,
-// comment and current footprint (part 1 of a multi-part symbol).
-func readSymbol(d []byte) (cad.Symbol, string, error) {
+// widthAt is a record's line width in mm.
+func widthAt(p map[string]string) float64 {
+	i, _ := strconv.Atoi(p["LINEWIDTH"])
+	return schWidths[max(0, min(i, len(schWidths)-1))]
+}
+
+// ptAt is a schematic point parameter pair in mm.
+func ptAt(p map[string]string, x, y string) cad.Pt {
+	return cad.Pt{X: cad.Number(schAt(p, x)), Y: cad.Number(schAt(p, y))}
+}
+
+// ptsAt are a polyline's or polygon's points.
+func ptsAt(p map[string]string) []cad.Pt {
+	n, _ := strconv.Atoi(p["LOCATIONCOUNT"])
+	var pts []cad.Pt
+	for i := 1; i <= n && i <= 1<<16; i++ {
+		pts = append(pts, ptAt(p, fmt.Sprintf("X%d", i), fmt.Sprintf("Y%d", i)))
+	}
+	return pts
+}
+
+// readEllipse reads an ellipse record: a circle when its radii are the
+// same, else a polygon round it.
+func readEllipse(p map[string]string) cad.Graphic {
+	c := ptAt(p, "LOCATION.X", "LOCATION.Y")
+	rx, ry := schAt(p, "RADIUS"), schAt(p, "SECONDARYRADIUS")
+	solid := p["ISSOLID"] == "T"
+	if math.Abs(rx-ry) < 1e-6 {
+		return cad.Graphic{Kind: cad.GraphicCircle, Pts: []cad.Pt{c}, R: cad.Number(rx), Width: widthAt(p), Fill: solid}
+	}
+	pts := make([]cad.Pt, 0, 36)
+	for i := 0; i < 36; i++ {
+		s, co := math.Sincos(float64(i) * math.Pi / 18)
+		pts = append(pts, cad.Pt{X: cad.Number(c.X + rx*co), Y: cad.Number(c.Y + ry*s)})
+	}
+	return cad.Graphic{Kind: cad.GraphicPoly, Pts: pts, Width: widthAt(p), Fill: solid}
+}
+
+// readSchArc reads an arc record: anticlockwise from its start angle to
+// its end, a circle when it goes all the way round.
+func readSchArc(p map[string]string) cad.Graphic {
+	c, rad := ptAt(p, "LOCATION.X", "LOCATION.Y"), schAt(p, "RADIUS")
+	start, _ := strconv.ParseFloat(p["STARTANGLE"], 64)
+	end, _ := strconv.ParseFloat(p["ENDANGLE"], 64)
+	if end <= start {
+		end += 360
+	}
+	if end-start >= 360-1e-6 {
+		return cad.Graphic{Kind: cad.GraphicCircle, Pts: []cad.Pt{c}, R: cad.Number(rad), Width: widthAt(p)}
+	}
+	g := cad.ArcFrom(c, rad, start, end)
+	g.Width = widthAt(p)
+	return g
+}
+
+// readLabel reads a label record: its text, at its font's height, turned
+// a quarter for each step of its orientation.
+func readLabel(p map[string]string, fonts map[string]float64) cad.Graphic {
+	size, ok := fonts[p["FONTID"]]
+	if !ok {
+		size = 10 * 0.127
+	}
+	o, _ := strconv.Atoi(p["ORIENTATION"])
+	return cad.Graphic{Kind: cad.GraphicText, Pts: []cad.Pt{ptAt(p, "LOCATION.X", "LOCATION.Y")}, Text: p["TEXT"], Size: size, Angle: float64(90 * (o & 3))}
+}
+
+// readSymbol reads a symbol's records: its pins, body, lines, drawn
+// shapes, designator, comment and current footprint (part 1 of a
+// multi-part symbol); fonts are the library's text heights by font id.
+func readSymbol(d []byte, fonts map[string]float64) (cad.Symbol, string, error) {
 	var s cad.Symbol
 	var fp string
 	haveBody := false
 	r := &reader{b: d}
 	line := func(a, b cad.Pt) { s.Extra = append(s.Extra, cad.Line{Layer: "body", A: a, B: b, Width: 0.254}) }
+	draw := func(g cad.Graphic) {
+		g.Layer = cad.LayerBody
+		s.Graphics = append(s.Graphics, g)
+	}
 	for r.pos+4 <= len(d) && r.err == nil {
 		h := r.u32()
 		body := r.take(int(h & 0xFFFFFF))
@@ -555,16 +811,26 @@ func readSymbol(d []byte) (cad.Symbol, string, error) {
 				s.Body, haveBody = rect, true
 				continue
 			}
-			c := []cad.Pt{{X: rect.X0, Y: rect.Y0}, {X: rect.X1, Y: rect.Y0}, {X: rect.X1, Y: rect.Y1}, {X: rect.X0, Y: rect.Y1}}
-			for i := range c {
-				line(c[i], c[(i+1)%4])
-			}
+			draw(cad.Graphic{Kind: cad.GraphicRect, Pts: []cad.Pt{{X: cad.Number(rect.X0), Y: cad.Number(rect.Y0)}, {X: cad.Number(rect.X1), Y: cad.Number(rect.Y1)}},
+				Width: widthAt(p), Fill: p["ISSOLID"] == "T"})
 		case "13":
 			line(cad.Pt{X: schAt(p, "LOCATION.X"), Y: schAt(p, "LOCATION.Y")}, cad.Pt{X: schAt(p, "CORNER.X"), Y: schAt(p, "CORNER.Y")})
 		case "6":
 			n, _ := strconv.Atoi(p["LOCATIONCOUNT"])
 			for i := 1; i < n; i++ {
 				line(cad.Pt{X: schAt(p, fmt.Sprintf("X%d", i)), Y: schAt(p, fmt.Sprintf("Y%d", i))}, cad.Pt{X: schAt(p, fmt.Sprintf("X%d", i+1)), Y: schAt(p, fmt.Sprintf("Y%d", i+1))})
+			}
+		case "7":
+			if pts := ptsAt(p); len(pts) >= 3 {
+				draw(cad.Graphic{Kind: cad.GraphicPoly, Pts: pts, Width: widthAt(p), Fill: p["ISSOLID"] == "T"})
+			}
+		case "8":
+			draw(readEllipse(p))
+		case "12":
+			draw(readSchArc(p))
+		case "4":
+			if p["TEXT"] != "" {
+				draw(readLabel(p, fonts))
 			}
 		case "34":
 			s.Reference = strings.TrimRight(p["TEXT"], "?")
@@ -621,7 +887,7 @@ func readPin(b []byte) (cad.SymbolPin, bool) {
 
 // DecodeFootprint is the footprint a raw footprint holds.
 func DecodeFootprint(r Raw) (cad.Footprint, error) {
-	f, err := readFootprint(r.Streams["Data"])
+	f, err := readFootprint(r.Streams["Data"], r.Streams["WideStrings"])
 	if err != nil {
 		return cad.Footprint{}, err
 	}
@@ -631,7 +897,8 @@ func DecodeFootprint(r Raw) (cad.Footprint, error) {
 }
 
 // DecodeSymbol is the symbol a raw symbol's streams hold, and its
-// footprint.
+// footprint. The library's fonts aren't among them: its labels read at
+// the default font's height.
 func DecodeSymbol(streams map[string][]byte) (cad.Symbol, string, error) {
-	return readSymbol(streams["Data"])
+	return readSymbol(streams["Data"], nil)
 }

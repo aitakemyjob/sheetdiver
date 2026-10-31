@@ -107,8 +107,108 @@ func (r *rec) textRecord(kv ...string) {
 	r.Write(t)
 }
 
-// symbolData is a symbol's Data stream.
-func symbolData(s Symbol, id string) []byte {
+// schWidths are Altium's schematic line widths in mm: smallest, small,
+// medium and large.
+var schWidths = []float64{0, 0.254, 0.762, 1.27}
+
+// lineWidth is the nearest of Altium's line widths to one in mm.
+func lineWidth(mm float64) string {
+	best := 0
+	for i, w := range schWidths {
+		if math.Abs(w-mm) < math.Abs(schWidths[best]-mm) {
+			best = i
+		}
+	}
+	return strconv.Itoa(best)
+}
+
+// fontSize is a text height in mm as a font size: a font's height is
+// half its size in schematic units.
+func fontSize(mm float64) int { return max(1, int(math.Round(mm/0.127))) }
+
+// angleText writes an angle as Altium does, to the thousandth.
+func angleText(v float64) string { return strconv.FormatFloat(v, 'f', 3, 64) }
+
+// pointParams are a polyline's or polygon's points' parameters.
+func pointParams(pts []cad.Pt) []string {
+	out := []string{"LocationCount", strconv.Itoa(len(pts))}
+	for i, p := range pts {
+		out = append(out, coordParams(fmt.Sprintf("X%d", i+1), p.X)...)
+		out = append(out, coordParams(fmt.Sprintf("Y%d", i+1), p.Y)...)
+	}
+	return out
+}
+
+// graphicRecord is a drawn shape's record on a symbol's body: a line, a
+// rectangle, a circle as an ellipse of equal radii, an arc, a filled
+// polygon as a polygon and an unfilled one as a closed polyline, and a
+// text as a label in the font of its size, turned to the nearest
+// quarter.
+func (r *rec) graphicRecord(g cad.Graphic, fonts map[int]int) {
+	kv := []string{"OwnerIndex", "0", "OwnerPartId", "1"}
+	solid := "F"
+	if g.Fill {
+		solid = "T"
+	}
+	switch g.Kind {
+	case cad.GraphicLine, cad.GraphicRect:
+		kind := "13"
+		a, b := g.Pts[0], g.Pts[1]
+		if g.Kind == cad.GraphicRect {
+			kind = "14"
+			a, b = cad.Pt{X: math.Min(a.X, b.X), Y: math.Min(a.Y, b.Y)}, cad.Pt{X: math.Max(a.X, b.X), Y: math.Max(a.Y, b.Y)}
+		}
+		kv = append([]string{"RECORD", kind}, kv...)
+		kv = append(kv, coordParams("Location.X", a.X)...)
+		kv = append(kv, coordParams("Location.Y", a.Y)...)
+		kv = append(kv, coordParams("Corner.X", b.X)...)
+		kv = append(kv, coordParams("Corner.Y", b.Y)...)
+		kv = append(kv, "LineWidth", lineWidth(g.Width), "Color", "128")
+		if g.Kind == cad.GraphicRect {
+			kv = append(kv, "AreaColor", "11599871", "IsSolid", solid)
+		}
+	case cad.GraphicCircle:
+		kv = append([]string{"RECORD", "8"}, kv...)
+		kv = append(kv, coordParams("Location.X", g.Pts[0].X)...)
+		kv = append(kv, coordParams("Location.Y", g.Pts[0].Y)...)
+		kv = append(kv, coordParams("Radius", g.R)...)
+		kv = append(kv, coordParams("SecondaryRadius", g.R)...)
+		kv = append(kv, "LineWidth", lineWidth(g.Width), "Color", "128", "AreaColor", "11599871", "IsSolid", solid)
+	case cad.GraphicArc:
+		o, rad, a, b := cad.ArcAngles(g)
+		kv = append([]string{"RECORD", "12"}, kv...)
+		kv = append(kv, coordParams("Location.X", o.X)...)
+		kv = append(kv, coordParams("Location.Y", o.Y)...)
+		kv = append(kv, coordParams("Radius", rad)...)
+		kv = append(kv, "StartAngle", angleText(degrees(a)), "EndAngle", angleText(degrees(b)), "LineWidth", lineWidth(g.Width), "Color", "128")
+	case cad.GraphicPoly:
+		if g.Fill {
+			kv = append([]string{"RECORD", "7"}, kv...)
+			kv = append(kv, pointParams(g.Pts)...)
+			kv = append(kv, "LineWidth", lineWidth(g.Width), "Color", "128", "AreaColor", "11599871", "IsSolid", "T")
+		} else {
+			kv = append([]string{"RECORD", "6"}, kv...)
+			kv = append(kv, pointParams(append(append([]cad.Pt(nil), g.Pts...), g.Pts[0]))...)
+			kv = append(kv, "LineWidth", lineWidth(g.Width), "Color", "128")
+		}
+	case cad.GraphicText:
+		quarter := int(math.Round(degrees(g.Angle)/90)) % 4
+		kv = append([]string{"RECORD", "4"}, kv...)
+		kv = append(kv, coordParams("Location.X", g.Pts[0].X)...)
+		kv = append(kv, coordParams("Location.Y", g.Pts[0].Y)...)
+		if quarter != 0 {
+			kv = append(kv, "Orientation", strconv.Itoa(quarter))
+		}
+		kv = append(kv, "Color", "128", "FontID", strconv.Itoa(fonts[fontSize(g.Size)]), "Text", g.Text)
+	default:
+		return
+	}
+	r.textRecord(kv...)
+}
+
+// symbolData is a symbol's Data stream; fonts are the library's font ids
+// by size.
+func symbolData(s Symbol, id string, fonts map[int]int) []byte {
 	var r rec
 	sy := s.Symbol
 	r.textRecord("RECORD", "1", "LibReference", sy.Name, "ComponentDescription", sy.Description, "PartCount", "2", "DisplayModeCount", "1",
@@ -133,6 +233,11 @@ func symbolData(s Symbol, id string) []byte {
 		line = append(line, coordParams("Corner.X", l.B.X)...)
 		line = append(line, coordParams("Corner.Y", l.B.Y)...)
 		r.textRecord(append(line, "LineWidth", "1", "Color", "128")...)
+	}
+	for _, g := range sy.Graphics {
+		if g.Check() == nil {
+			r.graphicRecord(g, fonts)
+		}
 	}
 	top, bottom := b.Y1+1.27, b.Y0-2.54
 	for _, p := range sy.Pins {
@@ -159,11 +264,25 @@ func symbolData(s Symbol, id string) []byte {
 // SchLib writes symbols as a schematic library.
 func SchLib(name string, symbols []Symbol) ([]byte, error) {
 	root := NewStorage()
+	// The fonts: the designator's and comment's, then one for each size
+	// of text drawn.
+	fonts, sizes := map[int]int{10: 1}, []int{10}
+	for _, s := range symbols {
+		for _, g := range s.Symbol.Graphics {
+			if g.Kind == cad.GraphicText && g.Check() == nil && fonts[fontSize(g.Size)] == 0 {
+				sizes = append(sizes, fontSize(g.Size))
+				fonts[fontSize(g.Size)] = len(sizes)
+			}
+		}
+	}
 	head := []string{"HEADER", "Protel for Windows - Schematic Library Editor Binary File Version 5.0", "Weight", strconv.Itoa(len(symbols)),
-		"MinorVersion", "2", "UniqueID", uniqueID(name, "schlib"), "FontIdCount", "1", "Size1", "10", "FontName1", "Times New Roman",
-		"UseMBCS", "T", "IsBOC", "T", "SheetStyle", "9", "BorderOn", "T", "SheetNumberSpaceSize", "12", "AreaColor", "16317695",
+		"MinorVersion", "2", "UniqueID", uniqueID(name, "schlib"), "FontIdCount", strconv.Itoa(len(sizes))}
+	for i, sz := range sizes {
+		head = append(head, fmt.Sprintf("Size%d", i+1), strconv.Itoa(sz), fmt.Sprintf("FontName%d", i+1), "Times New Roman")
+	}
+	head = append(head, "UseMBCS", "T", "IsBOC", "T", "SheetStyle", "9", "BorderOn", "T", "SheetNumberSpaceSize", "12", "AreaColor", "16317695",
 		"SnapGridOn", "T", "SnapGridSize", "10", "VisibleGridOn", "T", "VisibleGridSize", "10", "CustomX", "18000", "CustomY", "18000",
-		"UseCustomSheet", "T", "ReferenceZonesOn", "T", "Display_Unit", "0", "CompCount", strconv.Itoa(len(symbols))}
+		"UseCustomSheet", "T", "ReferenceZonesOn", "T", "Display_Unit", "0", "CompCount", strconv.Itoa(len(symbols)))
 	var keys []string
 	for i, s := range symbols {
 		head = append(head, fmt.Sprintf("LibRef%d", i), s.Symbol.Name, fmt.Sprintf("CompDescr%d", i), s.Symbol.Description, fmt.Sprintf("PartCount%d", i), "2")
@@ -191,7 +310,7 @@ func SchLib(name string, symbols []Symbol) ([]byte, error) {
 			}
 			continue
 		}
-		st.Stream("Data", symbolData(s, uniqueID(name, s.Symbol.Name)))
+		st.Stream("Data", symbolData(s, uniqueID(name, s.Symbol.Name), fonts))
 	}
 	var stor rec
 	stor.params("HEADER", "Icon storage")
