@@ -8,11 +8,13 @@ import (
 	"image/color"
 	"image/png"
 	"io"
+	"math"
 	"os"
 	"testing"
 
 	"github.com/aitakemyjob/sheetdiver/internal/testutil"
 	pdfium "github.com/klippa-app/go-pdfium"
+	"github.com/klippa-app/go-pdfium/enums"
 	"github.com/klippa-app/go-pdfium/webassembly"
 )
 
@@ -204,6 +206,26 @@ func TestEngineDoesNotUseTheProcessConsole(t *testing.T) {
 		}
 		if _, isFile := w.(*os.File); isFile {
 			t.Errorf("%s is a file handle", name)
+		}
+	}
+}
+
+func TestPageView(t *testing.T) {
+	// A landscape page (842 × 595 as shown) stored portrait and turned 90°
+	// clockwise: text running up the stored page reads across, from the top.
+	view := pageView(enums.FPDF_PAGE_ROTATION_90_CW, 842, 595)
+	if got := view(77, 300, 84, 310); got != (Rect{300, 77, 310, 84}) {
+		t.Errorf("90°: %+v", got)
+	}
+	if got := pageView(enums.FPDF_PAGE_ROTATION_NONE, 612, 792)(10, 700, 20, 710); got != (Rect{10, 82, 20, 92}) {
+		t.Errorf("0°: %+v", got)
+	}
+	if got := pageView(enums.FPDF_PAGE_ROTATION_270_CW, 842, 595)(77, 300, 84, 310); got != (Rect{532, 511, 542, 518}) {
+		t.Errorf("270°: %+v", got)
+	}
+	for a, want := range map[float64]bool{0: false, math.Pi / 2: true, 3 * math.Pi / 2: true, math.Pi: false, 4.712 + math.Pi/2: false} {
+		if sideways(a) != want {
+			t.Errorf("sideways(%g) = %v", a, !want)
 		}
 	}
 }

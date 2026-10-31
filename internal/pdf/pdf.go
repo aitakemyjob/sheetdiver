@@ -86,6 +86,9 @@ type Span struct {
 	Box  Rect    `json:"box"`
 	Size float64 `json:"size"`
 	Bold bool    `json:"bold,omitempty"`
+	// Vertical is text set sideways (a table's column heads), its
+	// characters stacked down the box in reading order.
+	Vertical bool `json:"vertical,omitempty"`
 }
 
 // Graphic is the bounding box of a non-text page object: a vector path,
@@ -326,13 +329,18 @@ func extractPage(p pdfium.Pdfium, doc references.FPDF_DOCUMENT, index int) (Page
 		return Page{}, err
 	}
 	pg := Page{Index: index, Width: size.Width, Height: size.Height, Spans: []Span{}, Graphics: []Graphic{}}
+	rot := enums.FPDF_PAGE_ROTATION_NONE
+	if r, err := p.FPDFPage_GetRotation(&requests.FPDFPage_GetRotation{Page: ref}); err == nil {
+		rot = r.PageRotation
+	}
+	view := pageView(rot, size.Width, size.Height)
 	txt, err := p.GetPageTextStructured(&requests.GetPageTextStructured{
 		Page: ref, Mode: requests.GetPageTextStructuredModeChars, CollectFontInformation: true,
 	})
 	if err != nil {
 		return Page{}, err
 	}
-	pg.Spans = charSpans(txt.Chars, pg.Height)
+	pg.Spans = charSpans(txt.Chars, view, float64(rot)*math.Pi/2)
 	cnt, err := p.FPDFPage_CountObjects(&requests.FPDFPage_CountObjects{Page: ref})
 	if err != nil {
 		return pg, nil // text is still useful without graphics
@@ -350,10 +358,34 @@ func extractPage(p pdfium.Pdfium, doc references.FPDF_DOCUMENT, index int) (Page
 		if err != nil {
 			continue
 		}
-		box := Rect{float64(b.Left), pg.Height - float64(b.Top), float64(b.Right), pg.Height - float64(b.Bottom)}
+		box := view(float64(b.Left), float64(b.Bottom), float64(b.Right), float64(b.Top))
 		pg.Graphics = append(pg.Graphics, Graphic{Box: box, Kind: objKind(t.Type)})
 	}
 	return pg, nil
+}
+
+// pageView maps a box in a page's own space (points, y up, as pdfium
+// gives text and objects) to the page as it's shown (y down from the
+// top), turned as the page says it's turned: a landscape table printed
+// on a portrait page reads across like any other. w and h are the page's
+// size as shown.
+func pageView(rot enums.FPDF_PAGE_ROTATION, w, h float64) func(l, b, r, t float64) Rect {
+	at := func(x, y float64) (float64, float64) {
+		switch rot {
+		case enums.FPDF_PAGE_ROTATION_90_CW:
+			return y, x
+		case enums.FPDF_PAGE_ROTATION_180_CW:
+			return w - x, y
+		case enums.FPDF_PAGE_ROTATION_270_CW:
+			return w - y, h - x
+		}
+		return x, h - y
+	}
+	return func(l, b, r, t float64) Rect {
+		x0, y0 := at(l, b)
+		x1, y1 := at(r, t)
+		return Rect{math.Min(x0, x1), math.Min(y0, y1), math.Max(x0, x1), math.Max(y0, y1)}
+	}
 }
 
 // mentionsFigure reports whether a page's text has a figure caption.
@@ -399,8 +431,8 @@ func objKind(t enums.FPDF_PAGEOBJ) string {
 // font size, broken at gaps wider than a word space. Building spans from
 // characters (rather than PDFium's runs) keeps table columns apart even
 // when a PDF draws a whole table row as one text run.
-func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Span {
-	var out []Span
+func charSpans(chars []*responses.GetPageTextStructuredChar, view func(l, b, r, t float64) Rect, turn float64) []Span {
+	out := verticalSpans(chars, view, turn)
 	var cur *Span
 	var b strings.Builder
 	space := false
@@ -424,8 +456,11 @@ func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Sp
 			}
 			continue
 		}
+		if sideways(c.Angle + turn) {
+			continue
+		}
 		pp := c.PointPosition
-		box := Rect{pp.Left, pageH - pp.Top, pp.Right, pageH - pp.Bottom}
+		box := view(pp.Left, pp.Bottom, pp.Right, pp.Top)
 		size, bold := box.H(), false
 		if fi := c.FontInformation; fi != nil {
 			if fi.Size > 0 {
@@ -470,6 +505,77 @@ func charSpans(chars []*responses.GetPageTextStructuredChar, pageH float64) []Sp
 			}
 			cur.Box = cur.Box.Union(box)
 			cur.Bold = cur.Bold && bold
+		}
+		b.WriteString(t)
+		space = false
+	}
+	flush()
+	return out
+}
+
+// sideways reports whether a character at an angle (radians, on the page
+// as shown) is set vertically, reading up or down.
+func sideways(a float64) bool {
+	a = math.Mod(a, 2*math.Pi)
+	if a < 0 {
+		a += 2 * math.Pi
+	}
+	return math.Abs(a-math.Pi/2) < 0.2 || math.Abs(a-3*math.Pi/2) < 0.2
+}
+
+// verticalSpans joins sideways characters into spans: each next one
+// stacked on the last (up or down the page, as it reads) in the same
+// column.
+func verticalSpans(chars []*responses.GetPageTextStructuredChar, view func(l, b, r, t float64) Rect, turn float64) []Span {
+	var out []Span
+	var cur *Span
+	var b strings.Builder
+	space := false
+	flush := func() {
+		if cur != nil {
+			if cur.Text = strings.TrimSpace(b.String()); cur.Text != "" {
+				out = append(out, *cur)
+			}
+		}
+		cur, space = nil, false
+		b.Reset()
+	}
+	for _, c := range chars {
+		t := strings.ReplaceAll(c.Text, "\u0000", "")
+		if strings.TrimSpace(t) == "" {
+			space = cur != nil
+			continue
+		}
+		if !sideways(c.Angle + turn) {
+			continue
+		}
+		pp := c.PointPosition
+		box := view(pp.Left, pp.Bottom, pp.Right, pp.Top)
+		size := box.W()
+		if fi := c.FontInformation; fi != nil && fi.Size > 0 {
+			size = fi.Size
+			if fi.RenderedSize > 0 {
+				size = fi.RenderedSize
+			}
+		}
+		if cur != nil {
+			cx, nx := (cur.Box.X0+cur.Box.X1)/2, (box.X0+box.X1)/2
+			// The gap to the run's end in the direction it reads.
+			gap := math.Min(math.Abs(box.Y1-cur.Box.Y0), math.Abs(box.Y0-cur.Box.Y1))
+			if box.Y0 < cur.Box.Y1 && box.Y1 > cur.Box.Y0 {
+				gap = 0
+			}
+			if math.Abs(cx-nx) > math.Max(1.5, size*0.35) || gap > size*0.8 || math.Abs(cur.Size-size) > 0.6 {
+				flush()
+			}
+		}
+		if cur == nil {
+			cur = &Span{Box: box, Size: size, Vertical: true}
+		} else {
+			if space {
+				b.WriteByte(' ')
+			}
+			cur.Box = cur.Box.Union(box)
 		}
 		b.WriteString(t)
 		space = false
