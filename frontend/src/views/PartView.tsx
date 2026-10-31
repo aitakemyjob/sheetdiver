@@ -200,7 +200,11 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
                 />
               </div>
             )}
-            {sub === 'cad' && <PartCadPanel part={d.part.mpn} />}
+            {sub === 'cad' && (
+              <div className="pad">
+                <PartCadPanel part={d.part.mpn} />
+              </div>
+            )}
             {sub === 'sections' && ds && <Sections d={d} />}
             {sub === 'registers' && ds && <Registers d={d} />}
             {sub === 'tables' && ds && <Tables d={d} />}
