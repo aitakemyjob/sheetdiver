@@ -83,7 +83,11 @@ func SymbolNode(s cad.Symbol) *Node {
 		if p.Hidden {
 			pin.Args = append(pin.Args, Atom("hide"))
 		}
-		pin.Args = append(pin.Args, n("name", Str(p.Name), font(false)), n("number", Str(p.Number), font(false)))
+		name := p.Name
+		if name == "" {
+			name = "~" // KiCad's "no name"
+		}
+		pin.Args = append(pin.Args, n("name", Str(name), font(false)), n("number", Str(p.Number), font(false)))
 		pins.Args = append(pins.Args, pin)
 	}
 	sym.Args = append(sym.Args, body, pins)

@@ -128,6 +128,10 @@ func DrawSymbol(s Symbol) Drawing {
 		if p.Hidden {
 			continue
 		}
+		// "~" is KiCad's "no name".
+		if p.Name == "~" {
+			p.Name = ""
+		}
 		end := Pt{p.X, -p.Y}
 		var in Pt
 		switch p.Side {

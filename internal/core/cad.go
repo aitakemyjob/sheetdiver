@@ -519,6 +519,15 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 				sym.Symbol = &got
 			}
 		}
+		// A two-terminal with no pin table (a resistor's datasheet has
+		// none): its standard symbol, pins 1 and 2.
+		if sym.Symbol == nil && len(infos) == 0 && library.TwoTerminal(p.Category) {
+			if got, ok := cad.PassiveSymbol(symName, p.Category); ok {
+				got.Value, got.Description, got.Datasheet = p.MPN, p.Description, url
+				sym.Symbol = &got
+				sv.Problems = append(sv.Problems, cad.Problem{Level: "warning", Text: fmt.Sprintf("the standard %s symbol, pins 1 and 2: the datasheet has no pin table", p.Category)})
+			}
+		}
 		if sym.Symbol != nil {
 			sv.Symbol, sv.Drawing = sym.Symbol, cad.DrawSymbol(*sym.Symbol)
 			if len(spec.Pins) > 0 || spec.Reference != "" {

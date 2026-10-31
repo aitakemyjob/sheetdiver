@@ -137,3 +137,22 @@ func TestCadLibrary(t *testing.T) {
 		}
 	}
 }
+
+func TestPassivePartGetsItsSymbol(t *testing.T) {
+	s := newService(t)
+	ctx := context.Background()
+	if _, err := s.Lib.AddPart(ctx, library.Part{MPN: "RC0603FR-0710KL", Category: "resistor", Package: "0603"}); err != nil {
+		t.Fatal(err)
+	}
+	pc, err := s.PartCad(ctx, "RC0603FR-0710KL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pk := pc.Packages[0]
+	if pk.Symbol == nil || pk.Symbol.Symbol == nil || len(pk.Symbol.Symbol.Pins) != 2 || pk.Symbol.Symbol.Reference != "R" {
+		t.Fatalf("symbol %+v", pk.Symbol)
+	}
+	if pk.Footprint == nil || pk.Footprint.Footprint == nil || len(pk.Match) != 0 {
+		t.Fatalf("footprint %+v, match %v", pk.Footprint, pk.Match)
+	}
+}

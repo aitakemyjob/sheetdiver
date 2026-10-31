@@ -304,8 +304,11 @@ func namesAlike(a, b string) bool {
 		}
 		return out
 	}
-	pa := parts(a)
-	for k := range parts(b) {
+	pa, pb := parts(a), parts(b)
+	if len(pa) == 0 && len(pb) == 0 {
+		return true // two unnamed pins ("~", "")
+	}
+	for k := range pb {
 		if pa[k] {
 			return true
 		}
