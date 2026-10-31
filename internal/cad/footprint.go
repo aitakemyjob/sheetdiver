@@ -339,8 +339,8 @@ func clip(l Line, keep []Rect) []Line {
 	return out
 }
 
-// pin1Mark is a small triangle pointing at pin 1 from outside the body, on
-// the side away from the other pads.
+// pin1Mark is a small dot by pin 1, outside the body: above pin 1's pad
+// on the left side, else off the body's corner (BGA).
 func pin1Mark(pads []Pad, body Rect) (Poly, bool) {
 	var p1 *Pad
 	for i := range pads {
@@ -352,16 +352,23 @@ func pin1Mark(pads []Pad, body Rect) (Poly, bool) {
 	if p1 == nil || len(pads) <= 2 {
 		return Poly{}, false
 	}
-	const s = 0.3
-	r := p1.Rect()
-	switch {
-	case r.X1 < body.X0+0.5 && r.X0 < body.X0: // a pad on the left side: point right, above it
-		x, y := r.X0+s, math.Min(r.Y0, body.Y0)-0.25
-		return Poly{LayerSilk, []Pt{{x, y}, {x - s, y - s*1.2}, {x + s, y - s*1.2}}}, true
-	default: // under the body (BGA): point at the corner from outside it
-		x, y := body.X0-0.25, body.Y0-0.25
-		return Poly{LayerSilk, []Pt{{x, y}, {x - s*1.4, y}, {x, y - s*1.4}}}, true
+	const r = 0.15
+	pr := p1.Rect()
+	if pr.X1 < body.X0+0.5 && pr.X0 < body.X0 { // a pad on the left side
+		return dot(LayerSilk, Pt{pr.X0 + r, math.Min(pr.Y0, body.Y0) - 0.2 - r}, r), true
 	}
+	return dot(LayerSilk, Pt{body.X0 - 0.2 - r, body.Y0 - 0.2 - r}, r), true
+}
+
+// dot is a filled circle as a polygon, which every CAD format takes.
+func dot(layer string, c Pt, r float64) Poly {
+	const n = 16
+	pts := make([]Pt, n)
+	for i := range pts {
+		a := 2 * math.Pi * float64(i) / n
+		pts[i] = Pt{Number(c.X + r*math.Cos(a)), Number(c.Y + r*math.Sin(a))}
+	}
+	return Poly{layer, pts}
 }
 
 // checkPads warns where pads come too close to each other for a solder
