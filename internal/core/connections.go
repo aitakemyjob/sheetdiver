@@ -806,6 +806,17 @@ func (s *Service) PartPins(ctx context.Context, p library.Part, pkg string) ([]l
 		return nil, err
 	}
 	own := ownPins(all, p.MPN)
+	// A table recorded for a package the part doesn't come in is another
+	// part's: a family's LQFP48 pins aren't its 100-pin part's.
+	if mine, claimed, err := s.ownPackages(ctx, p); err == nil && claimed {
+		kept := own[:0:0]
+		for _, pin := range own {
+			if pin.Package == "" || slices.ContainsFunc(mine, func(pp PartPackage) bool { return packageMatches(pp.Name, pin.Package) }) {
+				kept = append(kept, pin)
+			}
+		}
+		own = kept
+	}
 	if own == nil {
 		own = []library.Pin{}
 	}

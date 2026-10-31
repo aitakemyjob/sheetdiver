@@ -3,6 +3,7 @@ package cad
 import (
 	"math"
 	"strconv"
+	"strings"
 )
 
 // The package families.
@@ -301,14 +302,76 @@ func rowName(i int) string {
 	return rowLetters[i/len(rowLetters)-1] + rowLetters[i%len(rowLetters)]
 }
 
+// BallAt is a ball name's row and column from 0: B12 is row 1, column 11.
+func BallAt(name string) (row, col int, ok bool) {
+	n := strings.ToUpper(strings.TrimSpace(name))
+	i := strings.IndexAny(n, "0123456789")
+	if i <= 0 {
+		return 0, 0, false
+	}
+	c, err := strconv.Atoi(n[i:])
+	if err != nil || c < 1 {
+		return 0, 0, false
+	}
+	for k := 0; k < 2*len(rowLetters); k++ {
+		if rowName(k) == n[:i] {
+			return k, c - 1, true
+		}
+	}
+	return 0, 0, false
+}
+
+// BallGrid is the grid a ball map fills (A1, B12, …): its rows and
+// columns, and the balls of it that aren't there. ok is false when a
+// name isn't a ball's.
+func BallGrid(names []string) (rows, cols int, missing []string, ok bool) {
+	have := map[string]bool{}
+	for _, n := range names {
+		n = strings.ToUpper(strings.TrimSpace(n))
+		i := strings.IndexAny(n, "0123456789")
+		if i <= 0 {
+			return 0, 0, nil, false
+		}
+		r := -1
+		for k := 0; k < 2*len(rowLetters); k++ {
+			if rowName(k) == n[:i] {
+				r = k
+				break
+			}
+		}
+		c, err := strconv.Atoi(n[i:])
+		if r < 0 || err != nil || c < 1 {
+			return 0, 0, nil, false
+		}
+		rows, cols = max(rows, r+1), max(cols, c)
+		have[n] = true
+	}
+	for r := 0; r < rows; r++ {
+		for c := 1; c <= cols; c++ {
+			if n := rowName(r) + strconv.Itoa(c); !have[n] {
+				missing = append(missing, n)
+			}
+		}
+	}
+	return rows, cols, missing, rows > 0
+}
+
 // ball is a BGA ball and its place.
 type ball struct {
 	num  string
 	x, y float64
 }
 
-// balls are the grid's balls with their places.
+// balls are the grid's balls with their places: as the package places
+// them (a WLCSP's staggered map), else on its grid.
 func (bga) balls(p Package) []ball {
+	if len(p.Pads) > 0 {
+		out := make([]ball, 0, len(p.Pads))
+		for _, pd := range p.Pads {
+			out = append(out, ball{pd.Number, pd.X, pd.Y})
+		}
+		return out
+	}
 	gone := map[string]bool{}
 	for _, d := range p.Depopulated {
 		gone[d] = true
@@ -331,7 +394,8 @@ func (bga) balls(p Package) []ball {
 // Pads are round pads at the balls: the datasheet's size, else 80% of the
 // ball (non-solder-mask-defined).
 func (g bga) Pads(p Package, ps *problems) ([]Pad, Rect, string) {
-	need(ps, "bga", map[string]bool{"pitch": p.Pitch > 0, "rows": p.Rows > 0, "columns": p.Columns > 0,
+	placed := len(p.Pads) > 0
+	need(ps, "bga", map[string]bool{"pitch": p.Pitch > 0, "rows": placed || p.Rows > 0, "columns": placed || p.Columns > 0,
 		"bodyLength": p.BodyLength.Set(), "bodyWidth": p.BodyWidth.Set(), "leadWidth": p.LeadWidth.Set() || p.Land != nil && p.Land.PadWidth > 0})
 	if ps.failed() {
 		return nil, Rect{}, ""
@@ -344,7 +408,7 @@ func (g bga) Pads(p Package, ps *problems) ([]Pad, Rect, string) {
 	for _, b := range g.balls(p) {
 		pads = append(pads, Pad{Number: b.num, Kind: PadSMD, Shape: "circle", X: Number(b.x), Y: Number(b.y), W: d, H: d})
 	}
-	if n := p.Rows*p.Columns - len(p.Depopulated); p.Pins > 0 && n != p.Pins {
+	if n := p.Rows*p.Columns - len(p.Depopulated); !placed && p.Pins > 0 && n != p.Pins {
 		ps.warnf("the grid has %d balls but the package %d pins: list the missing balls in depopulated", n, p.Pins)
 	}
 	return pads, centred(0, 0, p.BodyWidth.Mid(), p.BodyLength.Mid()), from

@@ -43,9 +43,12 @@ type PackageDims struct {
 	Land        []PackageDim `json:"land"`
 	Candidates  []string     `json:"candidates,omitempty"`
 	Checks      []string     `json:"checks,omitempty"`
-	Notes       string       `json:"notes,omitempty"`
-	Source      string       `json:"source"`
-	Updated     string       `json:"updated"`
+	// Parts are the datasheet's parts that come in the package (its
+	// ordering scheme says); none means every part.
+	Parts   []string `json:"parts,omitempty"`
+	Notes   string   `json:"notes,omitempty"`
+	Source  string   `json:"source"`
+	Updated string   `json:"updated"`
 }
 
 // packageMigration adds the table.
@@ -81,8 +84,8 @@ func insertPackage(ctx context.Context, db execer, p PackageDims) error {
 	land, _ := json.Marshal(nonNilDims(p.Land))
 	cands, _ := json.Marshal(nonNil(p.Candidates))
 	checks, _ := json.Marshal(nonNil(p.Checks))
-	_, err := db.ExecContext(ctx, `INSERT INTO packages (datasheet_id, name, code, reference, page, box, dims, land, candidates, checks, notes, source, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.DatasheetID, strings.TrimSpace(p.Name), p.Code, p.Reference, p.Page, string(box), string(dims), string(land), string(cands), string(checks), p.Notes, p.Source, now())
+	_, err := db.ExecContext(ctx, `INSERT INTO packages (datasheet_id, name, code, reference, page, box, dims, land, candidates, checks, parts, notes, source, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.DatasheetID, strings.TrimSpace(p.Name), p.Code, p.Reference, p.Page, string(box), string(dims), string(land), string(cands), string(checks), strings.Join(p.Parts, ","), p.Notes, p.Source, now())
 	return err
 }
 
@@ -110,7 +113,7 @@ func savePackages(ctx context.Context, tx *sql.Tx, dsID int64, ps []PackageDims)
 
 // Packages are a datasheet's packages: the extractor's and recorded ones.
 func (s *Store) Packages(ctx context.Context, dsID int64) ([]PackageDims, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, datasheet_id, name, code, reference, page, box, dims, land, candidates, checks, notes, source, updated_at
+	rows, err := s.db.QueryContext(ctx, `SELECT id, datasheet_id, name, code, reference, page, box, dims, land, candidates, checks, parts, notes, source, updated_at
 		FROM packages WHERE datasheet_id = ? ORDER BY name, source = 'auto' DESC, id`, dsID)
 	if err != nil {
 		return nil, err
@@ -119,8 +122,8 @@ func (s *Store) Packages(ctx context.Context, dsID int64) ([]PackageDims, error)
 	out := []PackageDims{}
 	for rows.Next() {
 		var p PackageDims
-		var box, dims, land, cands, checks string
-		if err := rows.Scan(&p.ID, &p.DatasheetID, &p.Name, &p.Code, &p.Reference, &p.Page, &box, &dims, &land, &cands, &checks, &p.Notes, &p.Source, &p.Updated); err != nil {
+		var box, dims, land, cands, checks, parts string
+		if err := rows.Scan(&p.ID, &p.DatasheetID, &p.Name, &p.Code, &p.Reference, &p.Page, &box, &dims, &land, &cands, &checks, &parts, &p.Notes, &p.Source, &p.Updated); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(box), &p.Box)
@@ -128,6 +131,7 @@ func (s *Store) Packages(ctx context.Context, dsID int64) ([]PackageDims, error)
 		_ = json.Unmarshal([]byte(land), &p.Land)
 		_ = json.Unmarshal([]byte(cands), &p.Candidates)
 		_ = json.Unmarshal([]byte(checks), &p.Checks)
+		p.Parts = splitList(parts)
 		out = append(out, p)
 	}
 	return out, rows.Err()

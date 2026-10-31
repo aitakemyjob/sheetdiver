@@ -265,3 +265,30 @@ func TestAltiumAndEagleEdits(t *testing.T) {
 		t.Fatalf("third sync adopted %v: %v", rep.Adopted, err)
 	}
 }
+
+func TestSyncPrunesDroppedFootprints(t *testing.T) {
+	dir := t.TempDir()
+	l := library(t, dir)
+	if _, err := Sync(l, []string{"kicad"}); err != nil {
+		t.Fatal(err)
+	}
+	p := KiCad(l)
+	mine := filepath.Join(p.Footprints, "Mine.kicad_mod")
+	if err := os.WriteFile(mine, []byte("(footprint \"Mine\" (generator pcbnew))"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The part's footprint is gone from the library (its package turned
+	// out to be another part's): its files go; the user's own stays.
+	l.Items = l.Items[:1]
+	if _, err := Sync(l, []string{"kicad"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{filepath.Join(p.Footprints, "SOIC-8_OPA2333.kicad_mod"), filepath.Join(p.Models, "SOIC-8_OPA2333.step")} {
+		if _, err := os.Stat(f); err == nil {
+			t.Errorf("%s is still there", f)
+		}
+	}
+	if _, err := os.Stat(mine); err != nil {
+		t.Error("the user's own footprint was removed")
+	}
+}

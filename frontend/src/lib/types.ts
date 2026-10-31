@@ -1316,6 +1316,8 @@ export interface CadPackage {
   footprint?: CadView;
   match?: CadProblem[];
   missing?: string;
+  /** The package whose pin table this one takes: the datasheet draws it but gives it no pins of its own. */
+  pinsFrom?: string;
 }
 
 export interface CadFormatInfo {

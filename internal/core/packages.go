@@ -38,6 +38,9 @@ type PartPackage struct {
 	Sources []string `json:"sources"`
 	// Pins is how many pins the part's pin table gives the package.
 	Pins int `json:"pins,omitempty"`
+	// Parts are the datasheet's parts that come in it, by its ordering
+	// scheme; none when it doesn't say.
+	Parts []string `json:"parts,omitempty"`
 	// Rows are the stored rows it's merged from, for deleting one.
 	Rows []library.PackageDims `json:"rows"`
 }
@@ -58,13 +61,10 @@ func (s *Service) PartPackages(ctx context.Context, ref string) (PartPackages, e
 	return PartPackages{Part: r.Part, Packages: pkgs}, err
 }
 
-// partPackages merges a part's datasheet's package rows by name, and
-// checks each against its pin count.
+// partPackages are the packages a part comes in, from its datasheet's
+// rows merged by name, each checked against its pin count.
 func (s *Service) partPackages(ctx context.Context, p library.Part) ([]PartPackage, error) {
-	if p.DatasheetID == 0 {
-		return []PartPackage{}, nil
-	}
-	rows, err := s.Lib.Packages(ctx, p.DatasheetID)
+	out, _, err := s.ownPackages(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -72,15 +72,38 @@ func (s *Service) partPackages(ctx context.Context, p library.Part) ([]PartPacka
 	if err != nil {
 		return nil, err
 	}
-	out := mergePackageRows(rows)
-	if out == nil {
-		out = []PartPackage{}
-	}
 	for i := range out {
 		out[i].Pins = pinCount(pins, out[i].Name, len(out) == 1)
 		out[i].Checks = append(out[i].Checks, checkPackage(out[i])...)
 	}
 	return out, nil
+}
+
+// ownPackages are the packages of a part's datasheet that it comes in:
+// those its ordering scheme gives it (claimed), else, when the scheme
+// gives it none or there is no scheme, all of them.
+func (s *Service) ownPackages(ctx context.Context, p library.Part) ([]PartPackage, bool, error) {
+	if p.DatasheetID == 0 {
+		return []PartPackage{}, false, nil
+	}
+	rows, err := s.Lib.Packages(ctx, p.DatasheetID)
+	if err != nil {
+		return nil, false, err
+	}
+	all := mergePackageRows(rows)
+	var mine []PartPackage
+	for _, pp := range all {
+		if containsFold(pp.Parts, p.MPN) {
+			mine = append(mine, pp)
+		}
+	}
+	if len(mine) > 0 {
+		return mine, true, nil
+	}
+	if all == nil {
+		all = []PartPackage{}
+	}
+	return all, false, nil
 }
 
 // mergePackageRows joins rows of the same package: recorded ones first,
@@ -107,6 +130,11 @@ func mergePackageRows(rows []library.PackageDims) []PartPackage {
 		pp.Code = firstOf(pp.Code, r.Code)
 		pp.Reference = firstOf(pp.Reference, r.Reference)
 		pp.Notes = firstOf(pp.Notes, r.Notes)
+		for _, part := range r.Parts {
+			if !containsFold(pp.Parts, part) {
+				pp.Parts = append(pp.Parts, part)
+			}
+		}
 		if !containsFold(pp.Sources, r.Source) {
 			pp.Sources = append(pp.Sources, r.Source)
 		}
@@ -295,8 +323,8 @@ var familyRules = []struct {
 	family string
 }{
 	{regexp.MustCompile(`^(T|V|W)?SOT|^SC-?\d|^SOIC|^SO-?\d|^SOP|^E?TSSOP|^V?MSOP|^VSSOP|^SSOP|^HTSSOP`), "gullwing"},
+	{regexp.MustCompile(`QFPN|QFN|^LGA`), "qfn"},
 	{regexp.MustCompile(`QFP`), "qfp"},
-	{regexp.MustCompile(`QFN|^LGA`), "qfn"},
 	{regexp.MustCompile(`DFN|SON$|^W?SON|^X\d?SON|^VSON`), "dfn"},
 	{regexp.MustCompile(`BGA|CSP`), "bga"},
 }
@@ -342,7 +370,7 @@ func datasheetPackage(pp PartPackage, name string, pins int) (cad.Package, bool)
 		dst *cad.Dim
 		key string
 	}{
-		{&base.BodyLength, "bodyLength"}, {&base.BodyWidth, "bodyWidth"}, {&base.Span, "span"}, {&base.Height, "height"},
+		{&base.BodyLength, "bodyLength"}, {&base.BodyWidth, "bodyWidth"}, {&base.Span, "span"}, {&base.SpanX, "spanX"}, {&base.Height, "height"},
 		{&base.Standoff, "standoff"}, {&base.LeadLength, "leadLength"}, {&base.LeadWidth, "leadWidth"}, {&base.LeadThickness, "leadThickness"},
 	} {
 		if set(f.dst, f.key) {

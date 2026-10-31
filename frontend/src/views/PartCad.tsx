@@ -80,7 +80,7 @@ function PackageCard({ cad, pkg, onReset, onEdit }: { cad: PartCad; pkg: CadPack
     <section className="card" aria-label={`Package ${pkg.package || 'unknown'}`}>
       <div className="row" style={{ alignItems: 'baseline', gap: 8 }}>
         <h3 style={{ margin: 0 }}>{pkg.package || 'Package not known'}</h3>
-        <span className="muted">{pkg.pins} pins in the pin table</span>
+        <span className="muted">{pkg.pinsFrom ? `${pkg.pins} pins, numbered as ${pkg.pinsFrom}: the pin table has no column of its own for it` : `${pkg.pins} pins in the pin table`}</span>
       </div>
       <div className="cad-grid">
         <Pane title="Symbol" icon={<Shapes size={13} />} view={pkg.symbol} empty="No pin table yet: an agent can record it (record_pins), then the symbol is drawn from it." onReset={() => onReset('symbol')} onEdit={pkg.symbol?.symbol ? () => onEdit('symbol') : undefined}>

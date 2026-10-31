@@ -235,13 +235,31 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 			}
 		}
 		// Extracted pins only until someone records the table: recorded
-		// pins are the table, and the extractor's rows don't come back.
-		var recordedPins int
-		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM pins WHERE datasheet_id = ? AND source != ?`, dsID, SourceAuto).Scan(&recordedPins); err != nil {
-			return err
+		// pins are the package's table, and the extractor's rows for it
+		// don't come back. Another package's still do (a family's
+		// LQFP100 when the LQFP48 was recorded); a table recorded with
+		// no package is every package's, and one read with no package is
+		// the one recorded.
+		pinTables := map[string]bool{}
+		pkgRows, qerr := tx.QueryContext(ctx, `SELECT DISTINCT upper(package) FROM pins WHERE datasheet_id = ? AND source != ?`, dsID, SourceAuto)
+		if qerr != nil {
+			return qerr
 		}
-		if recordedPins == 0 {
+		for pkgRows.Next() {
+			var pkg string
+			if err := pkgRows.Scan(&pkg); err != nil {
+				pkgRows.Close()
+				return err
+			}
+			pinTables[pkg] = true
+		}
+		pkgRows.Close()
+		if !pinTables[""] {
 			for _, p := range in.Pins {
+				// A table read without its package's name is the one recorded.
+				if pinTables[strings.ToUpper(p.Package)] || p.Package == "" && len(pinTables) > 0 {
+					continue
+				}
 				p.DatasheetID, p.Source = dsID, SourceAuto
 				if _, err := insertPin(ctx, tx, p); err != nil {
 					return err

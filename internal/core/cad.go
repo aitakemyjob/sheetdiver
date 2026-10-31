@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +111,9 @@ type CadPackage struct {
 	Match []cad.Problem `json:"match,omitempty"`
 	// Missing says why there is no footprint yet.
 	Missing string `json:"missing,omitempty"`
+	// PinsFrom is the package whose pin table this one's symbol and
+	// pads take, when the datasheet draws it but gives it no pins.
+	PinsFrom string `json:"pinsFrom,omitempty"`
 }
 
 // PartCad is a part's CAD data and the library it's kept in.
@@ -116,14 +123,17 @@ type PartCad struct {
 	Library  CadLibrary   `json:"library"`
 }
 
-// cadPkg is a package of a part and its pins.
+// cadPkg is a package of a part and its pins, and the package they're
+// taken from when it has none of its own.
 type cadPkg struct {
-	name string
-	pins []library.Pin
+	name     string
+	pins     []library.Pin
+	pinsFrom string
 }
 
 // cadPackages are a part's packages with their pins: the pin table's
-// packages, else the part's (or its first variant's) package.
+// packages, else the part's (or its first variant's) package; then the
+// other packages its datasheet draws with as many pins.
 func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []library.CadItem) ([]cadPkg, error) {
 	pins, err := s.PartPins(ctx, p, "")
 	if err != nil {
@@ -186,7 +196,200 @@ func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []libr
 		}
 		out = append(out, cadPkg{name: n, pins: mine})
 	}
-	return out, nil
+	return append(out, s.drawnPackages(ctx, p, out, seen)...), nil
+}
+
+// drawnPackages are the packages a part comes in by its datasheet's
+// ordering scheme (the STM32U545CE's LQFP48 and UFQFPN48, not its
+// siblings' LQFP100) besides those of its pin table. One the pin table
+// gives no pins takes those of another of the part's packages with as
+// many, when both are numbered round their edges (1 to N); a ball
+// grid's are its own.
+func (s *Service) drawnPackages(ctx context.Context, p library.Part, have []cadPkg, seen map[string]bool) []cadPkg {
+	mine, claimed, err := s.ownPackages(ctx, p)
+	if err != nil || !claimed {
+		return nil
+	}
+	var out []cadPkg
+	for _, dp := range mine {
+		// A pin table's package covers its outline: the WLCSP72 is drawn
+		// as the "WLCSP72 SMPS" the pin table names.
+		if seen[strings.ToUpper(dp.Name)] || slices.ContainsFunc(have, func(h cadPkg) bool { return packageMatches(h.name, dp.Name) }) {
+			continue
+		}
+		seen[strings.ToUpper(dp.Name)] = true
+		pk := cadPkg{name: dp.Name}
+		n := namedPins(dp)
+		for i := range have {
+			if c := pinCount(have[i].pins, have[i].name, true); len(have[i].pins) > 0 && (c == n || c == n+1 && hasPad(have[i].pins)) &&
+				edgeNumbered(have[i].name) && edgeNumbered(dp.Name) {
+				pk.pins, pk.pinsFrom = have[i].pins, have[i].name
+				break
+			}
+		}
+		out = append(out, pk)
+	}
+	return out
+}
+
+// gridOf lays a ball grid package's balls out from its pin table's ball
+// names (A1 to M12, those not named left out), when that grid fits its
+// body at its pitch. A staggered map (a WLCSP's, its columns half the
+// pitch apart and its rows closer) is spread over the spans the drawing
+// gives its balls instead (staggered).
+func gridOf(sp *cad.Package, pp PartPackage, pins []library.Pin, problems *[]cad.Problem) {
+	var names []string
+	for _, p := range pins {
+		if p.Number != "" {
+			names = append(names, p.Number)
+		}
+	}
+	rows, cols, missing, ok := cad.BallGrid(names)
+	if !ok || sp.Pitch <= 0 {
+		return
+	}
+	if float64(cols-1)*sp.Pitch > sp.BodyWidth.Mid() || float64(rows-1)*sp.Pitch > sp.BodyLength.Mid() {
+		if !staggered(sp, pp, names, rows, cols) {
+			*problems = append(*problems, cad.Problem{Level: "warning", Text: fmt.Sprintf("its balls (%d rows, %d columns at %g mm) don't fit a grid on its %g mm body, and the drawing's ball spans don't place them a pitch apart: draw it ball by ball (draw_footprint)", rows, cols, sp.Pitch, sp.BodyWidth.Mid())})
+		}
+		return
+	}
+	sp.Rows, sp.Columns, sp.Depopulated = rows, cols, missing
+}
+
+// staggered places a staggered ball map: its columns spread evenly over
+// one of the spans the drawing gives (e1, e2: first ball to last) and its
+// rows over the other, whichever way puts the nearest balls a pitch
+// apart; without spans, columns half the pitch apart and rows the
+// height of a triangle of them (hexagonal packing).
+func staggered(sp *cad.Package, pp PartPackage, names []string, rows, cols int) bool {
+	if rows < 2 || cols < 2 {
+		return false
+	}
+	spans := [][2]float64{{float64(cols-1) * sp.Pitch / 2, float64(rows-1) * sp.Pitch * math.Sqrt(3) / 2}}
+	e1, ok1 := symbolDim(pp.Dims, "e1")
+	e2, ok2 := symbolDim(pp.Dims, "e2")
+	if ok1 && ok2 {
+		spans = [][2]float64{{e1, e2}, {e2, e1}}
+	}
+	place := func(w, h float64) []cad.PadSpec {
+		var out []cad.PadSpec
+		for _, n := range names {
+			r, c, ok := cad.BallAt(n)
+			if !ok {
+				return nil
+			}
+			out = append(out, cad.PadSpec{Number: n, X: cad.Number(-w/2 + float64(c)*w/float64(cols-1)), Y: cad.Number(-h/2 + float64(r)*h/float64(rows-1))})
+		}
+		return out
+	}
+	var best []cad.PadSpec
+	bestOff := math.Inf(1)
+	for _, s := range spans {
+		balls := place(s[0], s[1])
+		near := math.Inf(1)
+		for i := range balls {
+			for j := i + 1; j < len(balls); j++ {
+				near = math.Min(near, math.Hypot(balls[i].X-balls[j].X, balls[i].Y-balls[j].Y))
+			}
+		}
+		if off := math.Abs(near - sp.Pitch); off < bestOff {
+			best, bestOff = balls, off
+		}
+	}
+	// Nearest balls a pitch apart (to 5%), or it isn't this layout.
+	if best == nil || bestOff > 0.05*sp.Pitch {
+		return false
+	}
+	sp.Pads, sp.Rows, sp.Columns = best, rows, cols
+	return true
+}
+
+// symbolDim is a package's dimension of a symbol as printed (e1).
+func symbolDim(ds []PackageDim, symbol string) (float64, bool) {
+	for _, d := range ds {
+		if d.Symbol == symbol {
+			if v := (cad.Dim{Min: deref(d.Min), Nom: deref(d.Nom), Max: deref(d.Max)}).Mid(); v > 0 {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// deref is a value, or 0.
+func deref(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// padNumberRe is an exposed pad's number in a pin table.
+var padNumberRe = regexp.MustCompile(`(?i)^(E?PAD|EP|TP|PowerPAD|thermal pad)$`)
+
+// ownStored are a part's stored items but SheetDiver's own for packages
+// its ordering scheme says it doesn't come in (made before the scheme
+// was read: a family's 100-pin part given its 48-pin sibling's LQFP48),
+// which are stale. What an agent drew or the user edited is kept.
+func (s *Service) ownStored(ctx context.Context, p library.Part, stored []library.CadItem) ([]library.CadItem, []int64) {
+	mine, claimed, err := s.ownPackages(ctx, p)
+	if err != nil || !claimed {
+		return stored, nil
+	}
+	var kept []library.CadItem
+	var stale []int64
+	for _, it := range stored {
+		if it.Package != "" && it.State == string(cadlib.Auto) && it.Source == library.SourceAuto &&
+			!slices.ContainsFunc(mine, func(pp PartPackage) bool { return packageMatches(pp.Name, it.Package) }) {
+			stale = append(stale, it.ID)
+			continue
+		}
+		kept = append(kept, it)
+	}
+	return kept, stale
+}
+
+// namedPins is how many pins a datasheet package has: its N, else the
+// count in its name (LQFP48, QFN-16), but not a name's number that isn't
+// one (SOT-23, TO-220).
+func namedPins(pp PartPackage) int {
+	if d, ok := dimOf(pp.Dims, "pins"); ok && d.Mid() > 0 {
+		return int(d.Mid())
+	}
+	n := strings.ToUpper(strings.TrimSpace(pp.Name))
+	if outlineNumberRe.MatchString(n) {
+		return 0
+	}
+	if m := namedCountRe.FindStringSubmatch(n); m != nil {
+		v, _ := strconv.Atoi(m[1])
+		return v
+	}
+	return 0
+}
+
+var (
+	// outlineNumberRe is a name whose number is its outline's, not a count.
+	outlineNumberRe = regexp.MustCompile(`^(SOT|SC|TO|SOD)-?\d+[A-Z]*$`)
+	// namedCountRe is the pin count at the end of a package's name.
+	namedCountRe = regexp.MustCompile(`[A-Z]-?(\d{1,3})[A-Z]?$`)
+)
+
+// edgeNumbered reports whether a package's pins are numbered 1 to N round
+// its edges, so two such packages of a count share a pin table's numbers.
+func edgeNumbered(name string) bool {
+	f := familyOf(name)
+	return f != "" && f != "bga"
+}
+
+// hasPad reports whether a pin table has an exposed pad.
+func hasPad(pins []library.Pin) bool {
+	for _, p := range pins {
+		if pinrole.Of(p.Name, p.Type, p.Description) == pinrole.Pad {
+			return true
+		}
+	}
+	return false
 }
 
 // cadMeta is what a library item is stored with.
@@ -222,6 +425,7 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 	if err != nil {
 		return cadPart{}, err
 	}
+	stored, stale := s.ownStored(ctx, p, stored)
 	pkgs, err := s.cadPackages(ctx, p, stored)
 	if err != nil {
 		return cadPart{}, err
@@ -236,7 +440,7 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 	if err != nil {
 		return cadPart{}, err
 	}
-	out := cadPart{meta: map[*cadlib.Item]cadMeta{}}
+	out := cadPart{meta: map[*cadlib.Item]cadMeta{}, retired: stale}
 	find := func(kind, pkg string) (library.CadItem, bool) {
 		for _, it := range stored {
 			if it.Kind == kind && strings.EqualFold(it.Package, pkg) {
@@ -254,13 +458,15 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 		return library.CadItem{}, false
 	}
 	for _, pk := range pkgs {
-		view := CadPackage{Package: pk.name, Pins: len(pk.pins)}
+		view := CadPackage{Package: pk.name, Pins: len(pk.pins), PinsFrom: pk.pinsFrom}
 		key := p.MPN + "|" + strings.ToUpper(pk.name)
 		var infos []cad.PinInfo
 		epNum, nonPad := "", 0
 		for _, pin := range pk.pins {
 			infos = append(infos, cad.PinInfo{Number: pin.Number, Name: pin.Name, Type: pin.Type, Description: pin.Description})
-			if pinrole.Of(pin.Name, pin.Type, pin.Description) == pinrole.Pad {
+			// The exposed pad: by its name, or its number when it's named
+			// for its net (TI's "PAD" row, GND).
+			if pinrole.Of(pin.Name, pin.Type, pin.Description) == pinrole.Pad || padNumberRe.MatchString(pin.Number) {
 				epNum = pin.Number
 			} else {
 				nonPad++
@@ -330,7 +536,16 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 		if pkgSpec == nil {
 			// The datasheet's own dimensions, when they make a footprint.
 			if pp, ok := packageFor(dsPkgs, pk.name); ok {
-				if sp, ok := datasheetPackage(pp, pk.name, nonPad); ok {
+				pads := nonPad
+				// Without a pin table, a package numbered round its edges
+				// still has its pads 1 to N; a ball grid's need its map.
+				if len(pk.pins) == 0 && edgeNumbered(pk.name) {
+					pads = namedPins(pp)
+				}
+				if sp, ok := datasheetPackage(pp, pk.name, pads); ok {
+					if sp.Family == "bga" && sp.Rows == 0 {
+						gridOf(&sp, pp, pk.pins, &fv.Problems)
+					}
 					if _, ps := cad.MakeFootprint("check", sp); cad.Err(ps) == nil {
 						pkgSpec, fv.DatasheetPage = &sp, sp.Page
 					}
@@ -404,6 +619,9 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			view.Footprint = fv
 		default:
 			view.Missing = fmt.Sprintf("no dimensions for package %q yet: read them (get_package) and record them (record_package), or draw it from the datasheet's package drawing (draw_footprint)", pk.name)
+			if len(pk.pins) == 0 {
+				view.Missing = fmt.Sprintf("the datasheet draws package %q but its pin table wasn't read for it, and its balls can't be laid out without it: record its pins (record_pins with package %q)", pk.name, pk.name)
+			}
 			if pk.name == "" {
 				view.Missing = "the part's package isn't known: say which it is and draw it (draw_footprint)"
 			}
@@ -501,6 +719,7 @@ func (s *Service) cadItem(ctx context.Context, ref, pkg, kind string) (library.P
 	if err != nil {
 		return r.Part, library.CadItem{}, err
 	}
+	stored, _ = s.ownStored(ctx, r.Part, stored)
 	pkgs, err := s.cadPackages(ctx, r.Part, stored)
 	if err != nil {
 		return r.Part, library.CadItem{}, err

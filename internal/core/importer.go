@@ -506,10 +506,11 @@ func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha,
 	for _, p := range res.Pins {
 		in.Pins = append(in.Pins, library.Pin{Package: p.Package, Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page})
 	}
+	in.Pins = variantPins(in.Pins, mpns)
 	for _, p := range res.Packages {
 		in.Packages = append(in.Packages, library.PackageDims{
 			Name: p.Name, Code: p.Code, Reference: p.Reference, Page: p.Page, Box: p.Box,
-			Dims: libraryDims(p.Dims), Land: libraryDims(p.Land), Candidates: p.Candidates, Checks: p.Checks,
+			Dims: libraryDims(p.Dims), Land: libraryDims(p.Land), Candidates: p.Candidates, Checks: p.Checks, Parts: p.Parts,
 		})
 	}
 	return in
@@ -635,6 +636,86 @@ func mentionedParts(text string, mpns []string) []string {
 		return nil
 	}
 	return out
+}
+
+// variantPins gives each part its own table when a pin is named one way
+// on some of a datasheet's parts and another on others (the TPS2595x3's
+// pin 2 EN/OVLO, the others' EN/UVLO): of a pin's names, a part takes the
+// one whose description names it (or its family, "TPS2595x3"), else the
+// first. Tables without such pins stay every part's.
+func variantPins(pins []library.Pin, mpns []string) []library.Pin {
+	type key struct{ pkg, num string }
+	groups := map[key][]int{}
+	var order []key
+	split := false
+	for i, p := range pins {
+		k := key{strings.ToUpper(p.Package), strings.ToUpper(p.Number)}
+		if p.Number == "" {
+			k.num = fmt.Sprintf("#%d", i)
+		}
+		if _, ok := groups[k]; !ok {
+			order = append(order, k)
+		}
+		for _, j := range groups[k] {
+			if !strings.EqualFold(pins[j].Name, p.Name) {
+				split = true
+			}
+		}
+		groups[k] = append(groups[k], i)
+	}
+	if !split || len(mpns) < 2 {
+		return pins
+	}
+	var out []library.Pin
+	for _, mpn := range mpns {
+		for _, k := range order {
+			idx := groups[k]
+			names := map[string]bool{}
+			for _, i := range idx {
+				names[strings.ToUpper(pins[i].Name)] = true
+			}
+			if len(names) == 1 {
+				// One name: every pin of the number (IN on 3 and 4 are
+				// two numbers; a number listed twice stays twice).
+				for _, i := range idx {
+					p := pins[i]
+					p.Part = mpn
+					out = append(out, p)
+				}
+				continue
+			}
+			pick := idx[0]
+			for _, i := range idx {
+				if namesPart(pins[i].Description, mpn) {
+					pick = i
+					break
+				}
+			}
+			p := pins[pick]
+			p.Part = mpn
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// familyMentionRe is a family's part number in text: TPS2595x3.
+var familyMentionRe = regexp.MustCompile(`\b[A-Z][A-Z0-9-]{2,}x[A-Z0-9x]*\b`)
+
+// namesPart reports whether a text names a part: its number, or a family
+// pattern it fits (each x a letter or digit; the part may go on, an
+// orderable code's package letters).
+func namesPart(text, mpn string) bool {
+	if strings.Contains(strings.ToUpper(text), strings.ToUpper(mpn)) {
+		return true
+	}
+	for _, f := range familyMentionRe.FindAllString(text, -1) {
+		re := "(?i)^" + strings.ReplaceAll(regexp.QuoteMeta(f), "x", "[0-9A-Z]")
+		if ok, _ := regexp.MatchString(re, mpn); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // round1 rounds to one decimal place.

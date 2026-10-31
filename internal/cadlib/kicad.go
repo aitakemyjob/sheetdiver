@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/aitakemyjob/sheetdiver/internal/cad"
 	"github.com/aitakemyjob/sheetdiver/internal/cad/kicad"
@@ -187,11 +188,13 @@ func (kicadFormat) Write(l *Library) (string, error) {
 			it.wrote(kicadFile, kicad.Fingerprint(nd))
 		}
 	}
+	keep := map[string]bool{}
 	for _, it := range l.Items {
 		if it.Kind != "footprint" || it.Footprint == nil {
 			continue
 		}
 		name := kicad.SafeName(it.Name)
+		keep[name] = true
 		model := filepath.Join(p.Models, name+".step")
 		var text string
 		if r, ok := it.Raw[kicadFile]; ok && it.State == Edited {
@@ -215,6 +218,9 @@ func (kicadFormat) Write(l *Library) (string, error) {
 			it.wrote(stepFile, hash(b))
 		}
 	}
+	if err := pruneKiCad(p, keep); err != nil {
+		return "", err
+	}
 	readme := fmt.Sprintf(`SheetDiver keeps this library. Add it to KiCad once:
 
   Preferences > Manage Symbol Libraries > Global > + : %s
@@ -228,6 +234,35 @@ SheetDiver reads your changes back and keeps them. 3D models are in
 		return "", err
 	}
 	return p.Dir, nil
+}
+
+// pruneKiCad removes the footprints SheetDiver wrote that are no longer
+// in the library (a part's package it turned out not to come in), and
+// their 3D models. A file the user made, replaced or saved from KiCad
+// says another generator and stays.
+func pruneKiCad(p KiCadPaths, keep map[string]bool) error {
+	entries, err := os.ReadDir(p.Footprints)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		name, ok := strings.CutSuffix(e.Name(), ".kicad_mod")
+		if !ok || keep[name] {
+			continue
+		}
+		path := filepath.Join(p.Footprints, e.Name())
+		if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "(generator sheetdiver)") {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		model := filepath.Join(p.Models, name+".step")
+		if b, err := os.ReadFile(model); err == nil && strings.Contains(string(b), "('SheetDiver'),('SheetDiver'),'SheetDiver'") {
+			_ = os.Remove(model)
+		}
+	}
+	return nil
 }
 
 // Decode is the symbol or footprint a KiCad edit holds.

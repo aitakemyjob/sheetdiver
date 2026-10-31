@@ -378,3 +378,30 @@ func TestRecordedPackagesSurviveReExtraction(t *testing.T) {
 		t.Errorf("recorded counts %v", n)
 	}
 }
+
+func TestRecordedPackagePinsLeaveOthers(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	in := &Import{Datasheet: Datasheet{SHA256: "family", File: "f.pdf", Filename: "f.pdf", Pages: 2}, Parts: []Part{{MPN: "STM32U545CE"}},
+		Pins: []Pin{{Package: "LQFP48", Number: "1", Name: "VBAT"}, {Package: "LQFP100", Number: "1", Name: "PE2"}}}
+	ds, err := s.SaveImport(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPins(ctx, ds, "LQFP48", []Pin{{Number: "1", Name: "VBAT"}, {Number: "2", Name: "PC13"}}, SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	// Extracted again: the recorded LQFP48 stays as recorded, and the
+	// family's other package's pins come in.
+	if _, err := s.SaveImport(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	pins, _ := s.Pins(ctx, ds, "")
+	var got []string
+	for _, p := range pins {
+		got = append(got, p.Package+" "+p.Number+" "+p.Source)
+	}
+	if strings.Join(got, ", ") != "LQFP100 1 auto, LQFP48 1 agent, LQFP48 2 agent" {
+		t.Errorf("pins = %v", got)
+	}
+}

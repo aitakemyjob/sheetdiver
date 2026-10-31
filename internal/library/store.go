@@ -423,6 +423,15 @@ func (s *Store) repair(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, packageMigration); err != nil {
 		return fmt.Errorf("repair packages: %w", err)
 	}
+	// Which parts come in a package, from the datasheet's ordering scheme.
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_table_info('packages') WHERE name = 'parts'`).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE packages ADD COLUMN parts TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("repair packages.parts: %w", err)
+		}
+	}
 	return nil
 }
 
