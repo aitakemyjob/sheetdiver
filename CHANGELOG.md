@@ -8,84 +8,105 @@ every merged pull request.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-30
+
+Fixes from building real boards over MCP: the block diagram, connections
+and pin tables, the BOM, and the parts catalogue.
+
 ### Fixed
-- The BOM's Ref column shows every designator of an entry, wrapping onto
-  more lines instead of cutting "C40-C45, C60-C72" off at "C40-C4"; its
-  tooltip lists each one with ranges written out, and a badge says when
-  their count isn't the entry's quantity ("19 refs · qty 18").
-- The block diagram no longer fails with "Cannot read properties of
-  undefined (reading 'pins')" when a BOM entry with several designators
-  (`Q1,Q4`) is drawn as transistors (#107).
-- When the block diagram can't be laid out, the rest of the board is still
-  drawn: the parts the layout trips on (with the passives drawn by them)
-  are left off, and a message above the diagram names each with the error.
-  When nothing can be drawn, the message names the parts that fail even
-  on their own. The agent sees both:
-  `get_connections` reports the failure (instead of "not drawn since the
-  last change") or the part left off, `get_diagram_image` says why there's
-  no picture, and `set_connections` with `show` waits for the drawing and
-  says what went wrong (#134).
-- A transistor's name on the block diagram is written beside its symbol,
-  not across its drain or collector wire, and pins the pin table spells out
-  ("Gate", "Drain") are labelled with their letter (G, D) so they don't
-  crowd the symbol; the full name is the tooltip.
+
+#### Block diagram
+
+- **Transistors from an entry with several designators are drawn.** The
+  diagram failed with "Cannot read properties of undefined (reading
+  'pins')" when a BOM entry such as `Q1,Q4` was drawn as transistors.
+  (#107, #137)
+- **A layout failure no longer blanks the diagram.** The parts the layout
+  trips on (with the passives drawn by them) are left off and the rest of
+  the board is drawn, with a message above it naming each part and the
+  error; when nothing can be drawn, the message names the parts that fail
+  even on their own. The agent sees the same: `get_connections` reports
+  the failure (instead of "not drawn since the last change") or the parts
+  left off, `get_diagram_image` says why there's no picture, and
+  `set_connections` with `show` waits for the drawing and says what went
+  wrong. (#134, #138)
+- **Transistor labels are readable.** A transistor's name is written
+  beside its symbol, not across its drain or collector wire, and pins the
+  pin table spells out ("Gate", "Drain") are labelled with their letter
+  (G, D); the full name is the tooltip. (#142)
 - **Passives support load switches and eFuses.** A part categorized
   `load-switch` (power muxes, ideal diodes) or `efuse` (hot-swap) was
   drawn as a two-terminal switch or fuse, so a capacitor or resistor
-  couldn't be said to support it ("not another passive") and was hung
-  by a guessed IC instead. Power-path, analog-switch and multiplexer
-  categories are now ICs, and the fuse symbol matches the word fuse
-  only. (#77)
-- **A group set with a refused support is kept.** `set_connections`
-  dropped a whole assignment when its `supports` was refused (another
-  passive, a name that isn't on the board, or a load switch before #77),
-  so the group, subgroup and cell given with it were lost and the passive
-  was drawn in its part's group, listed as "(its part's)". The rest of
-  the assignment is now saved, and the support it had stays. A passive
-  put in a group that has no parts (so no frame), hanging off a part in
-  another, was drawn in no frame, or not at all on a board with groups;
-  it's now drawn with the part it hangs by, and the reply says so and
-  how to put it in its group. (#82)
+  couldn't be said to support it ("not another passive") and was hung by
+  a guessed IC instead. Power-path, analog-switch and multiplexer
+  categories are now ICs, and the fuse symbol matches the word fuse only.
+  (#77, #123)
+- **An explicit group for a passive is kept.** `set_connections` dropped a
+  whole assignment when its `supports` was refused, so the group,
+  subgroup and cell given with it were lost; the rest of the assignment is
+  now saved and the support it had stays. A passive put in a group with no
+  parts (so no frame), hanging off a part in another, was drawn in no
+  frame, or not at all on a board with groups; it's now drawn with the
+  part it hangs by, and the reply says so and how to put it in its group.
+  (#82, #124)
 - **Both paths through series passives are on a link.** Two boxes joined
   twice through series resistors (USB-C CC1 through R6 and CC2 through
-  R3) showed only the first path in the block diagram's links: the second
-  was dropped because the pair already had a link. It now joins that
-  link, with its nets, and a link through series passives is labelled
-  with the nets' bus when they're on one (`J1 — J2: USB_CC`). (#85)
-- **Catalogue subcategories are picked by their category.** JLCPCB has
-  the same subcategory under several categories ("MOSFETs" under
+  R3) showed only the first path in the diagram's links. The second now
+  joins that link with its nets, and a link through series passives is
+  labelled with the nets' bus when they're on one (`J1 — J2: USB_CC`).
+  (#85, #125)
+
+#### Connections and pins
+
+- **Designator ranges work in connections.** `set_connections` finds one
+  designator of a BOM entry written as a range: `C42` of "C40-C45,
+  C60-C72" (also with spaces round the dash) no longer fails with "not in
+  the BOM or the blocks", so a drawing block can be swapped for the BOM
+  part in one call, and the connection table's part picker offers each
+  designator. (#133, #139)
+- **Parts that share a datasheet keep their own pin tables.**
+  `record_pins` for a part whose datasheet covers others (a 2-pin and a
+  3-pin header from one catalogue PDF, or the MAX17048 and MAX17049)
+  records it for that part alone; the others keep their pins, and their
+  connections stay where they were. `all_parts` records one table for all
+  of them. Recording a package's table replaces one recorded without a
+  package instead of adding to it, so no pin numbers appear twice. The
+  Pins tab and the connection table's pin picker show the part's own
+  table. (#130, #140)
+
+#### BOM
+
+- **The Ref column shows every designator.** It wraps onto more lines
+  instead of cutting "C40-C45, C60-C72" off at "C40-C4"; its tooltip lists
+  each designator with ranges written out, and a badge says when their
+  count isn't the entry's quantity ("19 refs · qty 18"). (#143)
+
+#### Parts catalogue
+
+- **Subcategories are picked by their category.** JLCPCB has the same
+  subcategory under several categories ("MOSFETs" under
   Transistors/Thyristors, Triode/MOS Tube/Transistor and Transistors; 207
-  such names in all), and choosing one highlighted all of them and mixed
-  their parts in the results and parameter filters. The catalogue view
-  now selects and searches by category and subcategory, and
-  `search_catalog`, `catalog_parameters` and `show` take a `category` to
-  say which one. (#19)
-- **The catalogue toolbar fits on one line** down to a 1280 px window
-  with the library open, where Refresh and Import wrapped to a second
-  line and the filters' Clear onto a third. The search box gives way
-  first, Refresh is an icon (the catalogue's age in its tooltip, and as a
-  badge only when it's time to refresh), the category chip is capped,
+  such names in all), and choosing one mixed their parts in the results
+  and parameter filters. The catalogue now selects and searches by
+  category and subcategory, its filter chip reads "category ›
+  subcategory", and `search_catalog`, `catalog_parameters` and `show`
+  take a `category`. (#19, #126)
+- **The toolbar fits on one line** down to a 1280 px window with the
+  library open. The search box gives way first, Refresh is an icon (the
+  catalogue's age in its tooltip, and as a badge only when it's time to
+  refresh), the filter chip shortens its category before its subcategory,
   Import shows its count, and Clear stays beside "Filter on a parameter".
-  (#20)
-- `set_connections` finds one designator of a BOM entry written as a
-  range: `C42` of "C40-C45, C60-C72" (also with spaces round the dash)
-  no longer fails with "not in the BOM or the blocks", so a drawing
-  block can be swapped for the BOM part in one call (#133).
-- Parts that share a datasheet no longer share one pin table. `record_pins`
-  for a part whose datasheet covers others (a 2-pin and a 3-pin header
-  from one catalogue PDF) records it for that part alone; the others keep
-  their pins, and their connections stay where they were. `all_parts`
-  records one table for all of them. Recording a package's table now
-  replaces one recorded without a package, instead of adding to it, so no
-  pin numbers appear twice. The Pins tab and the connection table's pin
-  picker show the part's own table (#130).
+  (#20, #127)
 
 ### Changed
-- Dependencies: Wails 2.17.0 (and its CLI in the build scripts),
+- **Pin tables can belong to one part.** The library's pins gain a part
+  column, added on first start; existing pins stay shared by every part of
+  their datasheet.
+- **Dependencies:** Wails 2.17.0 (and its CLI in the build scripts),
   go-pdfium 1.21.4, modernc.org/sqlite 1.61.0; lucide-react 1.61.0,
-  zustand 5.0.16, Vite 8.3.5; for development, ESLint 10 with
-  @eslint/js 10 and typescript-eslint 8.72.0; the Scorecard workflow's
-  upload-sarif action 4.39.1.
+  zustand 5.0.16, Vite 8.3.5; for development, ESLint 10 with @eslint/js
+  10 and typescript-eslint 8.72.0; the Scorecard workflow's upload-sarif
+  action 4.39.1. (#21, #144)
 
 ## [0.2.1] - 2026-10-29
 
@@ -695,7 +716,8 @@ your AI agent over MCP.
 - Releases ship checksums, an SPDX SBOM, signed build provenance, and the
   third-party notices (`sheetdiver licenses`).
 
-[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/aitakemyjob/sheetdiver/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.2
 [0.2.1]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.1
 [0.2.0]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.2.0
 [0.1.1]: https://github.com/aitakemyjob/sheetdiver/releases/tag/v0.1.1
