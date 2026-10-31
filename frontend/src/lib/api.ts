@@ -8,8 +8,9 @@ import type {
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ProjectImportResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
   ConnectionsChange,
-  NgspiceState, PartCad, PartPackages, CadLibrary, CadReport, SimulationSummary, SimulationDetail, SimulationData, SimRun,
+  NgspiceState, PartCad, PartPackages, CadEditResult, CadLibrary, CadReport, SimulationSummary, SimulationDetail, SimulationData, SimRun,
 } from './types';
+import type { CadModel, FootprintModel, Shape3D, SymbolModel } from './editor/model';
 
 /** Calls a backend method. */
 async function call<T>(method: string, args?: unknown): Promise<T> {
@@ -116,7 +117,15 @@ export const api = {
   /** Read the user's edits back from the CAD library, then write it. */
   syncCad: () => call<CadReport>('cad.sync'),
   /** Drop the newest work on a symbol or footprint (the user's edit, or an agent's drawing). */
-  resetCad: (part: string, pkg: string, kind: 'symbol' | 'footprint') => call<PartCad>('cad.reset', { part, package: pkg, kind }),
+  resetCad: (part: string, pkg: string, kind: 'symbol' | 'footprint' | '3d') => call<PartCad>('cad.reset', { part, package: pkg, kind }),
+  /** A part's symbol, footprint and 3D model for a package, to edit. */
+  cadModel: (part: string, pkg: string) => call<CadModel>('cad.model', { part, package: pkg }),
+  /** Keep an edited symbol. */
+  editSymbol: (part: string, pkg: string, symbol: SymbolModel) => call<CadEditResult>('cad.editSymbol', { part, package: pkg, symbol }),
+  /** Keep an edited footprint. */
+  editFootprint: (part: string, pkg: string, footprint: FootprintModel) => call<CadEditResult>('cad.editFootprint', { part, package: pkg, footprint }),
+  /** Keep an edited 3D model. */
+  edit3d: (part: string, pkg: string, shapes: Shape3D[]) => call<CadEditResult>('cad.edit3d', { part, package: pkg, shapes }),
   /** The ngspice simulations run with (Settings, the PATH or its usual place). */
   ngspice: () => call<NgspiceState>('sim.ngspice'),
   simulations: (project: string) => call<SimulationSummary[]>('sim.list', { project }),

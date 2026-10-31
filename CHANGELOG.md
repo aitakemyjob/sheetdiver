@@ -9,6 +9,20 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **CAD editors.** Each symbol, footprint and 3D model on a part's CAD
+  tab has an **Edit** button that opens it in SheetDiver's own editor:
+  - symbols and footprints are drawn freely: lines, rectangles, circles,
+    arcs, polygons and texts on silkscreen, fab, courtyard or copper (or
+    the symbol's body), pads and pins placed, moved, resized and turned,
+    with grid and point snapping, box selection, undo and redo, and a
+    properties panel for exact values;
+  - the 3D model is edited as shapes: resize or move the body and leads,
+    add boxes and cylinders, with a live view.
+  What you save is kept as your edit and written to every library format;
+  drawn graphics now round-trip through KiCad, Altium and Eagle too, so
+  what you draw in those tools is read back. A 3D model's edit stays
+  whoever edits the footprint. Agents edit the same way with
+  `get_cad_model`, `edit_symbol`, `edit_footprint` and `edit_3d_model`.
 - **Package dimensions** (#59). Importing a datasheet now reads its
   package drawings' dimension tables (A, A1, b, c, D, E, E1, e, L…, in mm
   or inches, the two checked against each other) and recommended land

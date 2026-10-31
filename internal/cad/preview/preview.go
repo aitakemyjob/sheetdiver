@@ -49,13 +49,12 @@ func PDF(d cad.Drawing, title string, widthPt float64) []byte {
 		col := colors[it.Role]
 		switch it.Kind {
 		case cad.ShapeLine:
-			x0, y0 := px(it.Pts[0])
-			x1, y1 := px(it.Pts[1])
 			dash := ""
 			if it.Role == cad.RoleCourtyard {
 				dash = f(0.25*s) + " " + f(0.15*s)
 			}
-			fmt.Fprintf(&c, "%s RG %s w [%s] 0 d %s %s m %s %s l S\n", rgb(col), f(math.Max(it.Width*s, 0.5)), dash, f(x0), f(y0), f(x1), f(y1))
+			// A line, or a polyline (an arc drawn as one).
+			fmt.Fprintf(&c, "%s RG %s w [%s] 0 d %sS\n", rgb(col), f(math.Max(it.Width*s, 0.5)), dash, path(it.Pts, px))
 		case cad.ShapeRect:
 			x0, y0 := px(it.Pts[0])
 			x1, y1 := px(it.Pts[1])
@@ -67,24 +66,24 @@ func PDF(d cad.Drawing, title string, widthPt float64) []byte {
 			}
 		case cad.ShapePoly:
 			var b strings.Builder
-			for i, p := range it.Pts {
-				x, y := px(p)
-				op := "l"
-				if i == 0 {
-					op = "m"
-				}
-				fmt.Fprintf(&b, "%s %s %s ", f(x), f(y), op)
-			}
+			b.WriteString(path(it.Pts, px))
 			if it.Color != "" {
 				var r, g, bl int
 				_, _ = fmt.Sscanf(it.Color, "#%02x%02x%02x", &r, &g, &bl)
 				fc := [3]float64{float64(r) / 255, float64(g) / 255, float64(bl) / 255}
 				fmt.Fprintf(&c, "%s rg %s RG 0.3 w [] 0 d %sh B\n", rgb(fc), rgb(fc), b.String())
+			} else if it.Width > 0 && !it.Fill {
+				// A drawn, open shape: its outline only.
+				fmt.Fprintf(&c, "%s RG %s w [] 0 d %sh S\n", rgb(col), f(math.Max(it.Width*s, 0.5)), b.String())
 			} else {
 				fmt.Fprintf(&c, "%s rg %sh f\n", rgb(col), b.String())
 			}
 		case cad.ShapeCircle:
 			x, y := px(it.Pts[0])
+			if it.Width > 0 && !it.Fill && it.Role != cad.RoleCopper && it.Role != cad.RoleDrill {
+				fmt.Fprintf(&c, "%s RG %s w [] 0 d %s S\n", rgb(col), f(math.Max(it.Width*s, 0.5)), circle(x, y, it.R*s))
+				continue
+			}
 			fmt.Fprintf(&c, "%s rg %s f\n", rgb(col), circle(x, y, it.R*s))
 		case cad.ShapeText:
 			x, y := px(it.Pts[0])
@@ -102,6 +101,20 @@ func PDF(d cad.Drawing, title string, widthPt float64) []byte {
 		fmt.Fprintf(&c, "BT 0.1 0.1 0.1 rg /F1 12 Tf 6 %s Td (%s) Tj ET\n", f(h-15), pdfText(title))
 	}
 	return page(w, h, c.Bytes())
+}
+
+// path is points as a PDF path: moved to the first, lines to the rest.
+func path(pts []cad.Pt, px func(cad.Pt) (float64, float64)) string {
+	var b strings.Builder
+	for i, p := range pts {
+		x, y := px(p)
+		op := "l"
+		if i == 0 {
+			op = "m"
+		}
+		fmt.Fprintf(&b, "%s %s %s ", f(x), f(y), op)
+	}
+	return b.String()
 }
 
 // page wraps a content stream as a one-page PDF with Helvetica.

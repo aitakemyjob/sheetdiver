@@ -1223,6 +1223,8 @@ export interface CadShape {
   size?: number;
   anchor?: 'start' | 'middle' | 'end';
   vertical?: boolean;
+  /** A drawn rect, poly or circle is filled. */
+  fill?: boolean;
   /** A 3D face's shaded colour. */
   color?: string;
 }
@@ -1294,6 +1296,16 @@ export interface CadView {
   standard?: boolean;
   datasheetPage?: number;
   modelKept?: boolean;
+  /** Where an edit was made: kicad, altium, eagle or sheetdiver. */
+  editedIn?: string;
+  /** The 3D model was edited (it's kept beside the footprint). */
+  model3dEdited?: boolean;
+}
+
+/** A part's CAD after an edit, with what its checks found. */
+export interface CadEditResult {
+  cad: PartCad;
+  problems: CadProblem[];
 }
 
 /** A part's symbol and footprint for one of its packages. */

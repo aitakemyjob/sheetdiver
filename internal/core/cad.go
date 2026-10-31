@@ -162,6 +162,14 @@ func (s *Service) cadPackages(ctx context.Context, p library.Part, stored []libr
 			}
 		}
 	}
+	// A part whose package nobody named, and no agent drew, takes its datasheet's, when the
+	// datasheet draws only one.
+	if len(names) == 1 && names[0] == "" {
+		if pkgs, err := s.partPackages(ctx, p); err == nil && len(pkgs) == 1 {
+			names[0] = pkgs[0].Name
+			seen[strings.ToUpper(names[0])] = true
+		}
+	}
 	for _, it := range stored {
 		if k := strings.ToUpper(it.Package); !seen[k] && !strings.EqualFold(it.Package, names[0]) {
 			seen[k] = true

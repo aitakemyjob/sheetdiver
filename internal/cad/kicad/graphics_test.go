@@ -101,4 +101,3 @@ print(sorted(kinds.items()))`, pretty).CombinedOutput()
 		}
 	}
 }
-

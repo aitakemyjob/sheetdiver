@@ -262,13 +262,3 @@ func ReadSymbol(nd *Node) cad.Symbol {
 	}
 	return s
 }
-
-// rectEdges are a rectangle's sides as lines.
-func rectEdges(r cad.Rect) []cad.Line {
-	c := []cad.Pt{{X: r.X0, Y: r.Y0}, {X: r.X1, Y: r.Y0}, {X: r.X1, Y: r.Y1}, {X: r.X0, Y: r.Y1}}
-	var out []cad.Line
-	for i := range c {
-		out = append(out, cad.Line{Layer: "body", A: c[i], B: c[(i+1)%4], Width: 0.254})
-	}
-	return out
-}

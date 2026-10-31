@@ -21,11 +21,11 @@ import (
 // CadModel is a part's symbol, footprint and 3D model for one package,
 // as data to edit.
 type CadModel struct {
-	Part      string        `json:"part"`
-	Package   string        `json:"package"`
-	Symbol    *cad.Symbol   `json:"symbol,omitempty"`
+	Part      string         `json:"part"`
+	Package   string         `json:"package"`
+	Symbol    *cad.Symbol    `json:"symbol,omitempty"`
 	Footprint *cad.Footprint `json:"footprint,omitempty"`
-	Shapes    []cad.Shape3D `json:"shapes,omitempty"`
+	Shapes    []cad.Shape3D  `json:"shapes,omitempty"`
 }
 
 // CadModelOf is a part's model for a package (its only one when pkg is

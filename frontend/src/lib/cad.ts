@@ -1,5 +1,6 @@
 import { api } from './api';
-import type { CadDim, CadDrawing, CadLibrary, CadOutline, CadPackage, CadProblem, CadShape, CadState, CadView, PartCad } from './types';
+import type { FootprintModel, Shape3D, SymbolModel } from './editor/model';
+import type { CadEditResult, CadDim, CadDrawing, CadLibrary, CadOutline, CadPackage, CadProblem, CadShape, CadState, CadView, PartCad } from './types';
 
 /** How a symbol's or footprint's state reads: a badge's label, tone and explanation. */
 export interface StateInfo {
@@ -129,6 +130,14 @@ export function toggleFormat(l: CadLibrary, format: string, on: boolean): string
 
 /** The CAD library's actions, for the views. */
 export const cadActions = {
+  /** Keep an edited symbol or footprint, saying what its checks found. */
+  save: async (part: string, pkg: string, kind: 'symbol' | 'footprint', model: SymbolModel | FootprintModel): Promise<CadEditResult> =>
+    kind === 'symbol' ? api.editSymbol(part, pkg, model as SymbolModel) : api.editFootprint(part, pkg, model as FootprintModel),
+  /** Keep an edited 3D model. */
+  save3d: (part: string, pkg: string, shapes: Shape3D[]): Promise<CadEditResult> => api.edit3d(part, pkg, shapes),
+  /** Drop the 3D model's edit after the user confirms. */
+  reset3d: (part: string, pkg: string, confirm: (msg: string) => boolean): Promise<PartCad> | null =>
+    confirm('Drop your 3D model edit? It is built from the package outline again.') ? api.resetCad(part, pkg, '3d') : null,
   /** Reset a symbol or footprint after the user confirms. */
   reset: (part: string, pkg: string, kind: 'symbol' | 'footprint', v: CadView | undefined, confirm: (msg: string) => boolean): Promise<PartCad> | null => {
     const a = resetAction(v);
@@ -142,3 +151,14 @@ export const cadActions = {
     return `${r.symbols} symbols and ${r.footprints} footprints written.${kept}`;
   },
 };
+
+/** Where an edit was made, in words. */
+export function editedInLabel(v: CadView | undefined): string {
+  const where: Record<string, string> = { kicad: 'KiCad', altium: 'Altium', eagle: 'Eagle / Fusion', sheetdiver: 'SheetDiver' };
+  return v?.state === 'edited' && v.editedIn ? `edited in ${where[v.editedIn] ?? v.editedIn}` : '';
+}
+
+/** The problems an edit's checks found, in a line. */
+export function problemsLine(ps: CadProblem[]): string {
+  return ps.map((p) => p.text).join('; ');
+}

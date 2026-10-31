@@ -2,7 +2,7 @@
 // unit tested.
 import type { Focus } from './types';
 
-export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category' | 'catalog' | 'compare';
+export type TabKind = 'part' | 'page' | 'figure' | 'project' | 'calc' | 'search' | 'settings' | 'category' | 'catalog' | 'compare' | 'cadEdit';
 
 export interface Tab {
   id: string;
@@ -34,6 +34,8 @@ export function tabKey(kind: TabKind, params: Record<string, unknown>): string {
       return 'settings';
     case 'catalog':
       return 'catalog';
+    case 'cadEdit':
+      return `cadEdit:${String(params.part ?? '').toUpperCase()}:${params.package ?? ''}:${params.what ?? ''}`;
     case 'compare':
       return `compare:${((params.parts as string[] | undefined) ?? []).join(',').toUpperCase()}`;
   }

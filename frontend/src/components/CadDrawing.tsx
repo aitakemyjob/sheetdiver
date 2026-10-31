@@ -14,7 +14,9 @@ export function CadDrawing({ drawing, label, maxHeight = 320 }: { drawing: Drawi
         const cls = `cad-${s.role}`;
         switch (s.kind) {
           case 'line': {
-            const [a, b] = s.pts ?? [];
+            const pts = s.pts ?? [];
+            if (pts.length > 2) return <polyline key={i} className={cls} points={points(s)} strokeWidth={s.width} fill="none" />;
+            const [a, b] = pts;
             return <line key={i} className={cls} x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={s.width} />;
           }
           case 'rect': {
@@ -22,9 +24,9 @@ export function CadDrawing({ drawing, label, maxHeight = 320 }: { drawing: Drawi
             return <rect key={i} className={cls} x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} rx={s.r} strokeWidth={s.width} />;
           }
           case 'poly':
-            return <polygon key={i} className={cls} points={points(s)} style={s.color ? { fill: s.color, stroke: s.color } : undefined} />;
+            return <polygon key={i} className={cls} points={points(s)} strokeWidth={s.width} style={s.color ? { fill: s.color, stroke: s.color } : s.width && !s.fill ? { fill: 'none' } : undefined} />;
           case 'circle':
-            return <circle key={i} className={cls} cx={s.pts?.[0].x} cy={s.pts?.[0].y} r={s.r} />;
+            return <circle key={i} className={cls} cx={s.pts?.[0].x} cy={s.pts?.[0].y} r={s.r} strokeWidth={s.width} style={s.width && !s.fill && s.role !== 'copper' && s.role !== 'drill' ? { fill: 'none' } : undefined} />;
           default:
             return (
               <text key={i} className={cls} {...textAttrs(s)}>
