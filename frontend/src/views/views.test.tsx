@@ -126,7 +126,10 @@ describe('CatalogView', () => {
     // Only the one clicked is on.
     expect(second).toHaveAttribute('aria-pressed', 'true');
     expect(first).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByText(/Triode\/MOS Tube\/Transistor › MOSFETs/)).toBeInTheDocument();
+    // The chip names both: the category may give way to an ellipsis, the subcategory doesn't.
+    const chip = screen.getByTitle(/^Triode\/MOS Tube\/Transistor › MOSFETs: click to clear/);
+    expect(chip).toHaveTextContent(/Triode\/MOS Tube\/Transistor\s*›\s*MOSFETs/);
+    expect(chip.querySelector('.catalog-chip-sub')).toHaveTextContent(/^MOSFETs$/);
     // The other is its own choice.
     fireEvent.click(first);
     await waitFor(() => expect(b.callsTo('catalog.search').at(-1)).toMatchObject({ category: 'Transistors/Thyristors', subcategory: 'MOSFETs' }));

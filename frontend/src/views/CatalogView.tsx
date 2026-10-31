@@ -326,7 +326,14 @@ export function CatalogView({ params }: { params: Record<string, unknown> }) {
           <input className="input catalog-search" autoFocus placeholder="Part number or specs: TPS563200 · buck 3A SOT-23 · 10k 0402" value={text} onChange={(e) => setText(e.target.value)} />
           {sub && (
             <span className="chip on catalog-chip" onClick={() => choose('', '')} title={`${cat ? `${cat} › ${sub}` : sub}: click to clear the category`}>
-              <span className="ellipsis">{cat ? `${cat} › ${sub}` : sub}</span> <X size={11} />
+              {/* The category gives way first: the subcategory is what was picked. */}
+              {cat && (
+                <>
+                  <span className="ellipsis catalog-chip-cat">{cat}</span>
+                  <span className="catalog-chip-sep">›</span>
+                </>
+              )}
+              <span className="ellipsis catalog-chip-sub">{sub}</span> <X size={11} />
             </span>
           )}
           <label className="row nowrap" style={{ gap: 6 }}>
