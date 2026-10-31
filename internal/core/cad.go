@@ -617,7 +617,7 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			}
 			solids, ps := cad.MakeSolids(*pkgSpec)
 			fv.Problems = append(fv.Problems, ps...)
-			fpi.Solids = solids
+			fpi.Solids = append(solids, cad.Marking(p.MPN, *pkgSpec)...)
 			fv.Package = pkgSpec
 		}
 		// The 3D model as the user or an agent edited it.

@@ -15,6 +15,9 @@ type Solid struct {
 	Color string  `json:"color,omitempty"`
 	Verts []V3    `json:"verts"`
 	Faces [][]int `json:"faces"`
+	// Group names what several solids are together (a marking's
+	// strokes), which the editor shows as one shape.
+	Group string `json:"group,omitempty"`
 }
 
 // What a solid is.

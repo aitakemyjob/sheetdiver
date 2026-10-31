@@ -45,8 +45,29 @@ type Shape3D struct {
 func ShapesOf(ss []Solid) []Shape3D {
 	out := make([]Shape3D, 0, len(ss))
 	leads := 0
+	groups := map[string]int{}
 	for i := range ss {
 		s := ss[i]
+		if s.Group != "" {
+			// A group's solids are one shape, its faces together.
+			if gi, ok := groups[s.Group]; ok {
+				m := out[gi].Solid
+				off := len(m.Verts)
+				m.Verts = append(m.Verts, s.Verts...)
+				for _, f := range s.Faces {
+					shifted := make([]int, len(f))
+					for k, v := range f {
+						shifted[k] = v + off
+					}
+					m.Faces = append(m.Faces, shifted)
+				}
+				continue
+			}
+			groups[s.Group] = len(out)
+			merged := Solid{Part: s.Part, Color: s.Color, Verts: append([]V3(nil), s.Verts...), Faces: append([][]int(nil), s.Faces...)}
+			out = append(out, Shape3D{Kind: Shape3DSolid, Part: s.Part, Color: s.Color, Name: s.Group, Solid: &merged})
+			continue
+		}
 		name := s.Part
 		if s.Part == PartLead || s.Part == PartPad {
 			leads++
@@ -58,6 +79,60 @@ func ShapesOf(ss []Solid) []Shape3D {
 			continue
 		}
 		out = append(out, Shape3D{Kind: Shape3DSolid, Part: s.Part, Color: s.Color, Name: name, Solid: &s})
+	}
+	return out
+}
+
+// components splits a solid into the solids its faces make: faces that
+// share a vertex belong together.
+func components(s Solid) []Solid {
+	parent := make([]int, len(s.Verts))
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(i int) int {
+		for parent[i] != i {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
+	}
+	for _, f := range s.Faces {
+		for _, v := range f[1:] {
+			parent[find(v)] = find(f[0])
+		}
+	}
+	byRoot := map[int]*Solid{}
+	var order []int
+	index := map[int]map[int]int{}
+	for _, f := range s.Faces {
+		if len(f) == 0 {
+			continue
+		}
+		r := find(f[0])
+		c, ok := byRoot[r]
+		if !ok {
+			c = &Solid{Part: s.Part, Color: s.Color, Group: s.Group}
+			byRoot[r], index[r] = c, map[int]int{}
+			order = append(order, r)
+		}
+		face := make([]int, len(f))
+		for k, v := range f {
+			if _, ok := index[r][v]; !ok {
+				index[r][v] = len(c.Verts)
+				c.Verts = append(c.Verts, s.Verts[v])
+			}
+			face[k] = index[r][v]
+		}
+		c.Faces = append(c.Faces, face)
+	}
+	if len(order) <= 1 {
+		return []Solid{s}
+	}
+	out := make([]Solid, 0, len(order))
+	for _, r := range order {
+		out = append(out, *byRoot[r])
 	}
 	return out
 }
@@ -127,7 +202,9 @@ func SolidsOf(shapes []Shape3D) ([]Solid, error) {
 			}
 		}
 		s.Part, s.Color = sh.Part, sh.Color
-		out = append(out, s)
+		// A shape of several pieces (a marking) is a solid each, so each
+		// is a closed shell in the STEP model.
+		out = append(out, components(s)...)
 	}
 	return out, nil
 }
