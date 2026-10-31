@@ -119,6 +119,16 @@ func defaultHeight(p Package) float64 {
 		return 0.5
 	case "bga":
 		return 1.0
+	case "dip", "inline":
+		return 4.5
+	case "header":
+		return 2.5
+	case "radial":
+		return 7
+	case "axial":
+		return p.BodyWidth.Mid() + p.Standoff.Mid()
+	case "custom":
+		return 2
 	}
 	return 1.2
 }

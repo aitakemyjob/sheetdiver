@@ -59,6 +59,23 @@ func chipSize(code string, l, w, t, h Dim) Package {
 	return Package{Family: "chip", Name: code, Pins: 2, BodyLength: l, BodyWidth: w, LeadLength: t, Height: h}
 }
 
+// pdip is a plastic DIP (JEDEC MS-001, 0.3" rows) with n pins.
+func pdip(n int, length float64) Package {
+	return Package{Family: "dip", Name: fmt.Sprintf("DIP-%d", n), Pins: n, Pitch: 2.54, RowSpacing: Dim{Nom: 7.62},
+		BodyLength: d(length-0.25, length+0.25), BodyWidth: d(6.1, 6.6), Height: Dim{Max: 5.33}, Standoff: Dim{Min: 0.38},
+		LeadWidth: d(0.36, 0.56), LeadThickness: d(0.2, 0.36)}
+}
+
+// pinHeader is a 2.54 mm pin header of rows × per pins.
+func pinHeader(rows, per int) Package {
+	return Package{Family: "header", Name: fmt.Sprintf("PinHeader_%dx%02d_P2.54mm", rows, per), Pins: rows * per, Rows: rows, Pitch: 2.54,
+		LeadWidth: Dim{Nom: 0.64}, LeadThickness: Dim{Nom: 0.64}, Height: Dim{Nom: 2.5}}
+}
+
+// headerRe reads a pin header's rows and pins per row from its name:
+// "PinHeader_2x05", "HEADER 1X4", "CONN 1x08".
+var headerRe = regexp.MustCompile(`^(?:PINHEADER|HEADER|CONN|PINSOCKET)?([12])X0?(\d{1,2})`)
+
 // standard are the standard packages by their names, normalised.
 var standard = map[string]Package{}
 
@@ -72,12 +89,18 @@ func init() {
 		chipSize("0603", d(1.45, 1.75), d(0.65, 0.95), d(0.15, 0.45), d(0.4, 0.5)),
 		chipSize("0805", d(1.8, 2.2), d(1.05, 1.45), d(0.25, 0.75), d(0.45, 0.55)),
 		chipSize("1206", d(2.9, 3.3), d(1.4, 1.8), d(0.25, 0.75), d(0.5, 0.6)),
+		pdip(8, 9.27), pdip(14, 19.05), pdip(16, 19.3), pdip(18, 22.86), pdip(20, 26.16),
+		{Family: "inline", Name: "TO-92", Pins: 3, Pitch: 1.27, BodyLength: d(4.32, 5.33), BodyWidth: d(3.18, 4.19), Height: d(4.32, 5.33), Standoff: Dim{Nom: 2},
+			LeadWidth: d(0.36, 0.5)},
+		{Family: "inline", Name: "TO-220-3", Pins: 3, Pitch: 2.54, BodyLength: d(9.66, 10.66), BodyWidth: d(4.07, 4.83), BodyOffset: 1.5,
+			Height: Dim{Nom: 19}, Standoff: Dim{Nom: 3.5}, LeadWidth: d(0.7, 0.9), LeadThickness: d(0.36, 0.61)},
 	} {
 		standard[normal(p.Name)] = p
 	}
 	for k, v := range map[string]string{"SOT23": "SOT23", "SOT233": "SOT23", "SO8": "SOIC8", "SOP8": "SOIC8", "SO14": "SOIC14", "SO16": "SOIC16",
 		"SOT235": "SOT235", "SOT236": "SOT236", "SC746": "SOT236", "SC745": "SOT235", "MSOP8": "MSOP8", "VSSOP8": "MSOP8", "MSOP10": "MSOP10", "VSSOP10": "MSOP10",
-		"1005": "0402", "1608": "0603", "2012": "0805", "3216": "1206"} {
+		"1005": "0402", "1608": "0603", "2012": "0805", "3216": "1206",
+		"PDIP8": "DIP8", "PDIP14": "DIP14", "PDIP16": "DIP16", "PDIP18": "DIP18", "PDIP20": "DIP20", "TO2203": "TO2203", "TO220": "TO2203", "TO220AB": "TO2203"} {
 		if p, ok := standard[v]; ok {
 			standard[k] = p
 		}
@@ -120,6 +143,13 @@ func Standard(name string, pins int) (Package, bool) {
 	for _, t := range try {
 		if p, ok := standard[t]; ok && (pins == 0 || p.Pins == pins) {
 			return p, true
+		}
+		if m := headerRe.FindStringSubmatch(t); m != nil {
+			rows, _ := strconv.Atoi(m[1])
+			per, _ := strconv.Atoi(m[2])
+			if p := pinHeader(rows, per); pins == 0 || p.Pins == pins {
+				return p, true
+			}
 		}
 	}
 	return Package{}, false

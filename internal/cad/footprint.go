@@ -42,7 +42,8 @@ func (r Rect) overlaps(o Rect) bool { return r.X0 < o.X1 && o.X0 < r.X1 && r.Y0 
 // Pad kinds.
 const (
 	PadSMD   = "smd"   // a surface-mount pad on the top copper, mask and paste
-	PadThru  = "thru"  // a plated hole: a thermal via in an exposed pad
+	PadThru  = "thru"  // a plated hole: a through-hole pin, or a thermal via
+	PadNPTH  = "npth"  // an unplated hole: a mounting or locating peg
 	PadPaste = "paste" // a paste window with no copper of its own
 )
 
@@ -59,10 +60,16 @@ type Pad struct {
 	Drill float64 `json:"drill,omitempty"`
 	// NoPaste leaves paste off the pad (its paste is in windows of its own).
 	NoPaste bool `json:"noPaste,omitempty"`
+	// Via is a thermal via in a surface-mount pad of the same number.
+	Via bool `json:"via,omitempty"`
 }
 
 // Rect is the pad's copper.
 func (p Pad) Rect() Rect { return centred(p.X, p.Y, p.W, p.H) }
+
+// Terminal reports whether the pad is one a pin lands on: a surface-mount
+// pad or a plated hole, not a via, paste window or bare hole.
+func (p Pad) Terminal() bool { return p.Kind == PadSMD || p.Kind == PadThru && !p.Via }
 
 // Layers of a footprint's drawing.
 const (
@@ -100,6 +107,24 @@ type Footprint struct {
 	// From says where the pads came from: the datasheet's recommended
 	// land pattern, or calculated from the package (IPC-7351 nominal).
 	From string `json:"from"`
+	// Mount is smd or through_hole.
+	Mount string `json:"mount"`
+}
+
+// Mounting styles.
+const (
+	MountSMD  = "smd"
+	MountThru = "through_hole"
+)
+
+// mountOf is smd unless a pin goes through the board.
+func mountOf(pads []Pad) string {
+	for _, p := range pads {
+		if p.Kind == PadThru && !p.Via {
+			return MountThru
+		}
+	}
+	return MountSMD
 }
 
 // Where pads came from.
@@ -118,6 +143,12 @@ type Family interface {
 	Pads(p Package, ps *problems) (pads []Pad, body Rect, from string)
 	// Solids are its 3D body.
 	Solids(p Package) []Solid
+}
+
+// outliner is a family whose body isn't a box (a radial can's circle): it
+// draws its own fabrication and silkscreen outline.
+type outliner interface {
+	Outline(p Package, body Rect) []Line
 }
 
 // families are the known package families by name.
@@ -155,11 +186,15 @@ func MakeFootprint(name string, p Package) (Footprint, []Problem) {
 	if ps.failed() {
 		return Footprint{Name: name}, ps
 	}
-	fp := Footprint{Name: name, Pads: pads, Body: body, From: from}
+	fp := Footprint{Name: name, Pads: pads, Body: body, From: from, Mount: mountOf(pads)}
 	fp.Description = describe(p, from)
 	fp.Courtyard = courtyard(pads, body)
-	fp.Lines = append(fp.Lines, fabOutline(body)...)
-	fp.Lines = append(fp.Lines, silkOutline(body, pads)...)
+	if o, ok := f.(outliner); ok {
+		fp.Lines = append(fp.Lines, o.Outline(p, body)...)
+	} else {
+		fp.Lines = append(fp.Lines, fabOutline(body)...)
+		fp.Lines = append(fp.Lines, silkOutline(body, pads)...)
+	}
 	fp.Lines = append(fp.Lines, rectLines(LayerCourtyard, fp.Courtyard, 0.05)...)
 	if mark, ok := pin1Mark(pads, body); ok {
 		fp.Polys = append(fp.Polys, mark)
@@ -233,7 +268,7 @@ func silkOutline(body Rect, pads []Pad) []Line {
 	r := body.grow(0.11)
 	var keep []Rect
 	for _, p := range pads {
-		if p.Kind == PadSMD {
+		if p.Kind != PadPaste && !p.Via {
 			keep = append(keep, p.Rect().grow(0.2+w/2))
 		}
 	}
@@ -321,7 +356,7 @@ func checkPads(pads []Pad, ps *problems) {
 	for i := range pads {
 		for j := i + 1; j < len(pads); j++ {
 			a, b := pads[i], pads[j]
-			if a.Kind != PadSMD || b.Kind != PadSMD || a.Number == b.Number {
+			if !a.Terminal() || !b.Terminal() || a.Number == b.Number {
 				continue
 			}
 			ra, rb := a.Rect(), b.Rect()
@@ -530,7 +565,7 @@ func exposedPad(p Package, pads []Pad) []Pad {
 			for j := 0; j < v.Rows; j++ {
 				x := (float64(i) - float64(v.Columns-1)/2) * v.Pitch
 				y := (float64(j) - float64(v.Rows-1)/2) * v.Pitch
-				pads = append(pads, Pad{Number: num, Kind: PadThru, Shape: "circle", X: Number(x), Y: Number(y), W: Number(drill + 0.2), H: Number(drill + 0.2), Drill: drill})
+				pads = append(pads, Pad{Number: num, Kind: PadThru, Shape: "circle", X: Number(x), Y: Number(y), W: Number(drill + 0.2), H: Number(drill + 0.2), Drill: drill, Via: true})
 			}
 		}
 	}

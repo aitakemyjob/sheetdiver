@@ -1269,7 +1269,9 @@ export interface CadOutline {
   leadLength?: CadDim;
   leadWidth?: CadDim;
   exposedPad?: { w: number; h: number };
-  land?: { padLength: number; padWidth: number; rowSpan: number; page?: number };
+  rowSpacing?: CadDim;
+  pads?: { number?: string }[];
+  land?: { padLength: number; padWidth: number; rowSpan: number; drill?: number; page?: number };
   page?: number;
 }
 

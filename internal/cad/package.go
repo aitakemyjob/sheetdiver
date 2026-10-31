@@ -73,10 +73,13 @@ func mm(v float64) string {
 // Package is a package's dimensions as its outline drawing gives them,
 // with the land pattern the datasheet recommends when it has one.
 type Package struct {
-	// Family is how the package is built: gullwing (SOIC, SOP, TSSOP,
-	// MSOP, SOT-23), qfp, dfn (DFN, SON, two rows of no-lead terminals),
-	// qfn, chip (two-terminal 0402, 0603… resistors, capacitors, SOD) or
-	// bga.
+	// Family is how the package is built. Surface mount: gullwing (SOIC,
+	// SOP, TSSOP, MSOP, SOT-23), qfp, dfn (DFN, SON, two rows of no-lead
+	// terminals), qfn, chip (two-terminal 0402, 0603… resistors,
+	// capacitors, SOD) or bga. Through hole: dip, header (pin headers and
+	// SIP, one or two rows), inline (TO-92, TO-220: one row of leads under
+	// a body), radial (capacitors, LEDs) or axial (resistors, diodes).
+	// custom is any other: its pads listed one by one.
 	Family string `json:"family"`
 	// Name is the package's name, e.g. SOT-23-6, WSON-10, QFN-32.
 	Name string `json:"name,omitempty"`
@@ -125,6 +128,17 @@ type Package struct {
 	// Rows and Columns are a BGA's grid.
 	Rows    int `json:"rows,omitempty"`
 	Columns int `json:"columns,omitempty"`
+	// RowSpacing is the distance between a DIP's two rows of leads, or a
+	// two-row header's (default: the pitch), centre to centre.
+	RowSpacing Dim `json:"rowSpacing,omitempty"`
+	// BodyOffset moves an inline package's body off its row of leads,
+	// towards the back (a TO-220's tab side), in mm.
+	BodyOffset float64 `json:"bodyOffset,omitempty"`
+	// LeadBelow is how far through-hole leads stick out under the board,
+	// for the 3D model (default 3 mm).
+	LeadBelow float64 `json:"leadBelow,omitempty"`
+	// Pads are a custom package's pads, from its drawing.
+	Pads []PadSpec `json:"pads,omitempty"`
 	// Land is the land pattern the datasheet recommends; it wins over the
 	// one calculated from the package.
 	Land *Land `json:"land,omitempty"`
@@ -172,8 +186,30 @@ type Land struct {
 	Vias *Vias `json:"vias,omitempty"`
 	// Round makes the pads round (a BGA's always are).
 	Round bool `json:"round,omitempty"`
+	// Drill is a through-hole pad's finished hole; its pad is then
+	// padLength × padWidth (the same for round pads).
+	Drill float64 `json:"drill,omitempty"`
 	// Page is the datasheet page it is drawn on.
 	Page int `json:"page,omitempty"`
+}
+
+// PadSpec is one pad of a custom package, as its drawing gives it, in
+// footprint coordinates: x right, y down, from the package's centre.
+type PadSpec struct {
+	// Number is the pin it is; pads with the same number are one pin
+	// (a shield's tabs). Empty for a mounting hole.
+	Number string  `json:"number,omitempty"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	W      float64 `json:"w"`
+	H      float64 `json:"h,omitempty"`
+	// Shape is rect, roundrect, oval or circle (default rect, circle when
+	// it has a hole and no height).
+	Shape string `json:"shape,omitempty"`
+	// Drill makes it a plated through hole; with Kind npth, a bare hole.
+	Drill float64 `json:"drill,omitempty"`
+	// Kind is smd, thru or npth (default: thru with a drill, else smd).
+	Kind string `json:"kind,omitempty"`
 }
 
 // Vias is a grid of thermal vias.

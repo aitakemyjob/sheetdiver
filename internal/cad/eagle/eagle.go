@@ -7,6 +7,7 @@ package eagle
 import (
 	"encoding/xml"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -153,28 +154,64 @@ func Library(name string, parts []Part) []byte {
 	return []byte(b.String())
 }
 
+// padNames are a footprint's pads' names as Eagle wants them, unique: a
+// number used by several pads (a shield's tabs) becomes 5, 5@2, 5@3…
+func padNames(fp cad.Footprint) map[int]string {
+	seen := map[string]int{}
+	out := map[int]string{}
+	for i, p := range fp.Pads {
+		if !p.Terminal() {
+			continue
+		}
+		seen[p.Number]++
+		out[i] = p.Number
+		if seen[p.Number] > 1 {
+			out[i] = fmt.Sprintf("%s@%d", p.Number, seen[p.Number])
+		}
+	}
+	return out
+}
+
 // writePackage writes a footprint, its y flipped (Eagle's is up).
 func writePackage(b *strings.Builder, fp cad.Footprint) {
 	fmt.Fprintf(b, "   <package name=\"%s\">\n    <description>%s</description>\n", esc(Name(fp.Name)), esc(fp.Description))
-	for _, p := range fp.Pads {
-		switch p.Kind {
-		case cad.PadSMD:
-			attrs := []string{"name", p.Number, "x", f(p.X), "y", f(-p.Y), "dx", f(p.W), "dy", f(p.H), "layer", strconv.Itoa(layerTop)}
+	names := padNames(fp)
+	for i, p := range fp.Pads {
+		switch {
+		case p.Kind == cad.PadSMD:
+			attrs := []string{"name", names[i], "x", f(p.X), "y", f(-p.Y), "dx", f(p.W), "dy", f(p.H), "layer", strconv.Itoa(layerTop)}
 			switch p.Shape {
 			case "roundrect":
 				attrs = append(attrs, "roundness", "25")
-			case "circle":
+			case "circle", "oval":
 				attrs = append(attrs, "roundness", "100")
 			}
 			if p.NoPaste {
 				attrs = append(attrs, "cream", "no")
 			}
 			w(b, 4, "smd", attrs...)
-		case cad.PadPaste:
+		case p.Kind == cad.PadThru && !p.Via:
+			// Eagle's pads are round, square or long (twice as long as
+			// wide, along x unless turned).
+			shape, dia, rot := "round", math.Min(p.W, p.H), "R0"
+			switch {
+			case p.Shape == "rect":
+				shape = "square"
+			case p.W != p.H:
+				shape = "long"
+				if p.H > p.W {
+					rot = "R90"
+				}
+			}
+			w(b, 4, "pad", "name", names[i], "x", f(p.X), "y", f(-p.Y), "drill", f(p.Drill), "diameter", f(dia), "shape", shape, "rot", rot)
+		case p.Kind == cad.PadNPTH:
+			w(b, 4, "hole", "x", f(p.X), "y", f(-p.Y), "drill", f(p.Drill))
+		case p.Kind == cad.PadPaste:
 			w(b, 4, "rectangle", "x1", f(p.X-p.W/2), "y1", f(-p.Y-p.H/2), "x2", f(p.X+p.W/2), "y2", f(-p.Y+p.H/2), "layer", strconv.Itoa(layerTCream))
 		}
-		// Thermal vias: Eagle names pads uniquely, so they are left for
-		// the board (a via per hole, on the exposed pad's net).
+		// Thermal vias: Eagle names pads uniquely and a via isn't a pad,
+		// so they are left for the board (a via per hole, on the exposed
+		// pad's net).
 	}
 	layerOf := map[string]int{cad.LayerSilk: layerTPlace, cad.LayerFab: layerTDocu, cad.LayerCourtyard: layerTKeep}
 	for _, l := range fp.Lines {
@@ -229,15 +266,16 @@ func writeDevice(b *strings.Builder, p Part) {
 	w(b, 5, "gate", "name", "G$1", "symbol", Name(p.Symbol.Name), "x", "0", "y", "0")
 	fmt.Fprintf(b, "    </gates>\n    <devices>\n     <device name=\"\" package=\"%s\">\n      <connects>\n", esc(Name(p.Footprint.Name)))
 	names := pinNames(p.Symbol)
-	pads := map[string]bool{}
-	for _, pad := range p.Footprint.Pads {
-		if pad.Kind == cad.PadSMD {
-			pads[pad.Number] = true
+	padsOf := map[string][]string{}
+	pn := padNames(p.Footprint)
+	for i, pad := range p.Footprint.Pads {
+		if n, ok := pn[i]; ok {
+			padsOf[pad.Number] = append(padsOf[pad.Number], n)
 		}
 	}
 	for _, pin := range p.Symbol.Pins {
-		if pads[pin.Number] {
-			w(b, 7, "connect", "gate", "G$1", "pin", names[pin.Number], "pad", pin.Number)
+		if pads := padsOf[pin.Number]; len(pads) > 0 {
+			w(b, 7, "connect", "gate", "G$1", "pin", names[pin.Number], "pad", strings.Join(pads, " "))
 		}
 	}
 	b.WriteString("      </connects>\n      <technologies>\n")

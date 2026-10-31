@@ -26,8 +26,12 @@ func fpText(kind, value string, x, y float64, layer string, size float64) *Node 
 // FootprintNode is a footprint as a .kicad_mod file's list; model is the
 // path of its 3D model ("" for none).
 func FootprintNode(f cad.Footprint, model string) *Node {
+	mount := f.Mount
+	if mount == "" {
+		mount = cad.MountSMD
+	}
 	fp := n("footprint", Str(SafeName(f.Name)), n("version", Atom(footprintVersion)), n("generator", Atom(generator)),
-		n("layer", Str("F.Cu")), n("descr", Str(f.Description)), n("attr", Atom("smd")))
+		n("layer", Str("F.Cu")), n("descr", Str(f.Description)), n("attr", Atom(mount)))
 	c := f.Courtyard
 	fp.Args = append(fp.Args,
 		fpText("reference", "REF**", 0, c.Y0-0.8, "F.SilkS", 1),
@@ -59,8 +63,12 @@ func FootprintNode(f cad.Footprint, model string) *Node {
 func padNode(p cad.Pad) *Node {
 	kind, layers := "smd", []any{Str("F.Cu"), Str("F.Paste"), Str("F.Mask")}
 	switch {
-	case p.Kind == cad.PadThru:
+	case p.Kind == cad.PadThru && p.Via:
 		kind, layers = "thru_hole", []any{Str("*.Cu")}
+	case p.Kind == cad.PadThru:
+		kind, layers = "thru_hole", []any{Str("*.Cu"), Str("*.Mask")}
+	case p.Kind == cad.PadNPTH:
+		kind, layers = "np_thru_hole", []any{Str("*.Cu"), Str("*.Mask")}
 	case p.Kind == cad.PadPaste:
 		layers = []any{Str("F.Paste")}
 	case p.NoPaste:
@@ -141,6 +149,20 @@ func ReadFootprint(nd *Node) cad.Footprint {
 		}
 	}
 	f.Courtyard, f.Body = crt, fab
+	// A plated hole numbered like a surface pad is a via in it.
+	smd := map[string]bool{}
+	for _, p := range f.Pads {
+		if p.Kind == cad.PadSMD {
+			smd[p.Number] = true
+		}
+	}
+	for i := range f.Pads {
+		f.Pads[i].Via = f.Pads[i].Kind == cad.PadThru && smd[f.Pads[i].Number]
+	}
+	f.Mount = cad.MountSMD
+	if a := nd.Child("attr"); a.Has("through_hole") {
+		f.Mount = cad.MountThru
+	}
 	return f
 }
 
@@ -169,7 +191,9 @@ func readPad(x *Node) cad.Pad {
 		return false
 	}
 	switch {
-	case x.Text(1) == "thru_hole" || x.Text(1) == "np_thru_hole":
+	case x.Text(1) == "np_thru_hole":
+		p.Kind = cad.PadNPTH
+	case x.Text(1) == "thru_hole":
 		p.Kind = cad.PadThru
 	case !has("F.Cu") && has("F.Paste"):
 		p.Kind = cad.PadPaste

@@ -148,8 +148,9 @@ Altium's Import Wizard and other tools also read).
 
 SheetDiver draws what it can on its own: a symbol from every pin table
 (supplies on top, grounds along the bottom, outputs on the right), and a
-footprint for standard outlines (SOIC, TSSOP, MSOP, SOT-23, 0402…1206)
-with IPC-7351 nominal pads. The agent draws the rest from the datasheet:
+footprint for standard outlines (SOIC, TSSOP, MSOP, SOT-23, 0402…1206,
+DIP, TO-92, TO-220, 2.54 mm pin headers) with IPC-7351 nominal pads and
+IPC-2222 holes. The agent draws the rest from the datasheet:
 the package outline's dimension table and the recommended land pattern
 (`draw_footprint`), and a symbol laid out the way an engineer reads it
 (`draw_symbol`), checking each with `get_cad_image`.
@@ -167,7 +168,7 @@ is left alone. Each symbol and footprint has a state: `auto`
 | `get_cad` | A part's CAD data per package: the symbol's pins by side and type, the footprint (from a standard outline, the datasheet's land pattern or calculated), each one's state, what doesn't match between pins and pads, and what's missing. |
 | `get_cad_image` | A picture of a part's `symbol`, `footprint` (pads numbered; pitch, row span and pad size dimensioned; courtyard dashed) or `3d` model, to compare with the datasheet's drawings. |
 | `draw_symbol` | Place pins: `{number, side, position, type, name, hidden}`; unplaced pins keep their place by role. Electrical types are KiCad's (`power_in`, `open_collector`…). Refused for a symbol the user edited. |
-| `draw_footprint` | Give the package `outline` from its datasheet in mm: `family` (`gullwing`, `qfp`, `dfn`, `qfn`, `chip`, `bga`), `pins`, `pitch`, `bodyLength`, `bodyWidth`, `height`, `standoff`, `span`, `leadLength`, `leadWidth`, `leadThickness` (each `{min, nom, max}`), `exposedPad`, `layout` for skipped or oddly numbered pins, BGA `rows`/`columns`/`depopulated`, and `land`, the recommended land pattern (`padLength`, `padWidth`, `rowSpan` centre to centre, `exposedPad`, `paste`, `vias`). Pads come from `land` when given, else IPC-7351 nominal; the 3D model is built from the outline. Refused for a footprint the user edited. |
+| `draw_footprint` | Give the package `outline` from its datasheet in mm: `family` (surface mount `gullwing`, `qfp`, `dfn`, `qfn`, `chip`, `bga`; through hole `dip`, `header`, `inline` for TO-92/TO-220, `radial`, `axial`; `custom` with its `pads` listed one by one, for connectors, modules and anything else, with plated and bare holes), `pins`, `pitch`, `bodyLength`, `bodyWidth`, `height`, `standoff`, `span`, `leadLength`, `leadWidth`, `leadThickness` (each `{min, nom, max}`), `exposedPad`, `layout` for skipped or oddly numbered pins, BGA `rows`/`columns`/`depopulated`, and `land`, the recommended land pattern (`padLength`, `padWidth`, `rowSpan` centre to centre, `exposedPad`, `paste`, `vias`). Pads come from `land` when given, else IPC-7351 nominal; the 3D model is built from the outline. Refused for a footprint the user edited. |
 | `reset_cad` | Drop the newest work on a symbol or footprint: the user's edit (back to the agent's drawing or SheetDiver's) or an agent's drawing. Only when the user asks. |
 | `sync_cad_library` | Read back the user's edits, then write the library in every format; says where it is and how to add it to KiCad. |
 

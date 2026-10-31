@@ -54,6 +54,21 @@ func testParts(t *testing.T) ([]cad.Symbol, []cad.Footprint, map[string][]cad.So
 		}
 	}
 	add("TEST_BGA-9", bga, balls)
+	// Through hole: a DIP, a TO-220, a radial can and a custom connector
+	// with shield tabs (one pin, four pads) and bare locating holes.
+	dip, _ := cad.Standard("DIP-8", 8)
+	add("NE555_DIP-8", dip, []cad.PinInfo{{Number: "1", Name: "GND"}, {Number: "2", Name: "TRIG", Type: "I"}, {Number: "3", Name: "OUT", Type: "O"}, {Number: "4", Name: "RESET", Type: "I"},
+		{Number: "5", Name: "CV", Type: "I"}, {Number: "6", Name: "THR", Type: "I"}, {Number: "7", Name: "DIS", Type: "O"}, {Number: "8", Name: "VCC", Type: "P"}})
+	to220, _ := cad.Standard("TO-220-3", 3)
+	add("LM317_TO-220", to220, []cad.PinInfo{{Number: "1", Name: "ADJ", Type: "I"}, {Number: "2", Name: "VOUT", Type: "O"}, {Number: "3", Name: "VIN", Type: "P"}})
+	add("CP_D6.3", cad.Package{Family: "radial", Pins: 2, Pitch: 2.5, BodyWidth: cad.Dim{Nom: 6.3}, Height: cad.Dim{Nom: 11}, LeadWidth: cad.Dim{Nom: 0.5}, Color: "blue"},
+		[]cad.PinInfo{{Number: "1", Name: "+"}, {Number: "2", Name: "-"}})
+	conn := cad.Package{Family: "custom", BodyWidth: cad.Dim{Nom: 9}, BodyLength: cad.Dim{Nom: 7}, Height: cad.Dim{Nom: 3}, Pads: []cad.PadSpec{
+		{Number: "1", X: -1, Y: -3, W: 0.6, H: 1.2}, {Number: "2", X: 1, Y: -3, W: 0.6, H: 1.2},
+		{Number: "S", X: -4.3, Y: -2.5, W: 1, H: 2, Shape: "oval", Drill: 0.6}, {Number: "S", X: 4.3, Y: -2.5, W: 1, H: 2, Shape: "oval", Drill: 0.6},
+		{Number: "S", X: -4.3, Y: 1.5, W: 1, H: 1.6, Shape: "oval", Drill: 0.6}, {Number: "S", X: 4.3, Y: 1.5, W: 1, H: 1.6, Shape: "oval", Drill: 0.6},
+		{X: -2.9, Y: -1.5, Drill: 0.65, Kind: "npth"}, {X: 2.9, Y: -1.5, Drill: 0.65, Kind: "npth"}}}
+	add("CONN_TEST", conn, []cad.PinInfo{{Number: "1", Name: "D+"}, {Number: "2", Name: "D-"}, {Number: "S", Name: "SHIELD"}})
 	return syms, fps, solids
 }
 
@@ -132,7 +147,7 @@ const boardHead = `(kicad_pcb (version 20221018) (generator test)
     (38 "B.Mask" user) (39 "F.Mask" user) (44 "Edge.Cuts" user) (46 "B.CrtYd" user "B.Courtyard") (47 "F.CrtYd" user "F.Courtyard") (48 "B.Fab" user) (49 "F.Fab" user))
   (setup (pad_to_mask_clearance 0))
   (net 0 "")
-  (gr_rect (start 90 90) (end 150 120) (stroke (width 0.1) (type default)) (fill none) (layer "Edge.Cuts"))
+  (gr_rect (start 90 90) (end 160 140) (stroke (width 0.1) (type default)) (fill none) (layer "Edge.Cuts"))
 `
 
 // KiCad itself reads what's written: the symbol library and footprints
@@ -159,6 +174,8 @@ func TestKiCadReadsThem(t *testing.T) {
 	}
 	board := boardHead
 	for i, f := range fps {
+		x := 100 + float64(i%5)*12
+		y := 105 + float64(i/5)*14
 		model := filepath.Join(shapes, f.Name+".step")
 		if err := os.WriteFile(model, step.Write(f.Name, solids[f.Name], time.Now()), 0o644); err != nil {
 			t.Fatal(err)
@@ -168,7 +185,7 @@ func TestKiCadReadsThem(t *testing.T) {
 			t.Fatal(err)
 		}
 		nd.Args[0] = Str("SheetDiver:" + f.Name)
-		nd.Args = append(nd.Args[:1], append([]any{xy("at", 100+float64(i)*12, 105)}, nd.Args[1:]...)...)
+		nd.Args = append(nd.Args[:1], append([]any{xy("at", x, y)}, nd.Args[1:]...)...)
 		board += nd.String()
 	}
 	board += ")\n"
@@ -200,7 +217,7 @@ func TestKiCadReadsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The board's STEP holds each model's solids.
-	if n := strings.Count(string(b), "MANIFOLD_SOLID_BREP"); n < 40 {
+	if n := strings.Count(string(b), "MANIFOLD_SOLID_BREP"); n < 75 {
 		t.Errorf("the board's STEP has %d solids: the models didn't load\n%s", n, out)
 	}
 	if os.Getenv("SHEETDIVER_KEEP") != "" {

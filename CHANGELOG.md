@@ -30,6 +30,12 @@ every merged pull request.
     a symbol or footprint you changed (not merely re-saved) is kept as you
     left it, shown in the app, carried into the Eagle library, and never
     redrawn until you reset it; a 3D model you replaced is left alone.
+  - **Through-hole and custom packages.** DIP, pin headers and SIP,
+    TO-92 and TO-220 style inline packages, radial and axial parts, with
+    holes sized from the lead (IPC-2222), square pin 1 pads and 3D leads
+    through the board; and `custom` packages drawn pad by pad from their
+    drawing (connectors with shield tabs and locating holes, modules,
+    power packages), with plated and bare holes.
   New MCP tools: `get_cad`, `get_cad_image`, `draw_symbol`,
   `draw_footprint`, `reset_cad` and `sync_cad_library`.
 

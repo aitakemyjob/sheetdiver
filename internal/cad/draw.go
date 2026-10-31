@@ -173,24 +173,30 @@ func DrawFootprint(f Footprint) Drawing {
 	}
 	for _, p := range f.Pads {
 		r := p.Rect()
+		rr := 0.0
+		switch p.Shape {
+		case "roundrect":
+			rr = 0.25 * math.Min(p.W, p.H)
+		case "oval", "circle":
+			rr = math.Min(p.W, p.H) / 2
+		}
 		switch {
-		case p.Kind == PadThru:
-			d.add(Shape{Kind: ShapeCircle, Role: RoleCopper, Pts: []Pt{{p.X, p.Y}}, R: p.W / 2})
+		case p.Kind == PadNPTH:
 			d.add(Shape{Kind: ShapeCircle, Role: RoleDrill, Pts: []Pt{{p.X, p.Y}}, R: p.Drill / 2})
+			d.add(Shape{Kind: ShapeCircle, Role: RoleFab, Pts: []Pt{{p.X, p.Y}}, R: p.Drill / 2, Width: 0.05})
 		case p.Kind == PadPaste:
 			d.add(Shape{Kind: ShapeRect, Role: RolePaste, Pts: []Pt{{r.X0, r.Y0}, {r.X1, r.Y1}}, R: 0.05})
 		case p.Shape == "circle":
 			d.add(Shape{Kind: ShapeCircle, Role: RoleCopper, Pts: []Pt{{p.X, p.Y}}, R: p.W / 2})
 		default:
-			rr := 0.0
-			if p.Shape == "roundrect" {
-				rr = 0.25 * math.Min(p.W, p.H)
-			}
 			d.add(Shape{Kind: ShapeRect, Role: RoleCopper, Pts: []Pt{{r.X0, r.Y0}, {r.X1, r.Y1}}, R: rr})
+		}
+		if p.Kind == PadThru {
+			d.add(Shape{Kind: ShapeCircle, Role: RoleDrill, Pts: []Pt{{p.X, p.Y}}, R: p.Drill / 2})
 		}
 	}
 	for _, p := range f.Pads {
-		if p.Kind == PadSMD {
+		if p.Terminal() {
 			size := math.Min(0.8, 0.7*math.Min(p.W, p.H))
 			if len(f.Pads) > 6 && p.W > 2 && p.H > 1 { // an exposed pad
 				size = 0.8
@@ -208,7 +214,7 @@ func dimension(d *Drawing, f Footprint) {
 	var p1, p2, across *Pad
 	for i := range f.Pads {
 		p := &f.Pads[i]
-		if p.Kind != PadSMD {
+		if !p.Terminal() {
 			continue
 		}
 		if p1 == nil {
@@ -250,6 +256,8 @@ func dimension(d *Drawing, f Footprint) {
 type face struct {
 	pts   []Pt
 	depth float64
+	// solid is its solid's depth, which orders it first.
+	solid float64
 	color string
 }
 
@@ -269,6 +277,21 @@ func Draw3D(ss []Solid) Drawing {
 	var faces []face
 	for _, s := range ss {
 		rgb := s.RGB()
+		// Solids are drawn far to near by their middles, and each one's
+		// faces far to near: comparing single faces of different solids
+		// puts a tall pin's far side over the body in front of it.
+		var solidDepth float64
+		for _, v := range s.Verts {
+			_, dp := project(v)
+			solidDepth += dp / float64(len(s.Verts))
+		}
+		// Marks on the body go on top of it, the pad under it first.
+		switch s.Part {
+		case PartMark:
+			solidDepth -= 1e3
+		case PartPad:
+			solidDepth += 1e3
+		}
 		for _, f := range s.Faces {
 			nv := newell(s.Verts, f)
 			ny1 := nv[0]*sa + nv[1]*ca
@@ -282,19 +305,18 @@ func Draw3D(ss []Solid) Drawing {
 				fc.depth += dp
 			}
 			fc.depth /= float64(len(f))
-			// Marks on the body go on top of it, the pad under it first.
-			switch s.Part {
-			case PartMark:
-				fc.depth -= 1e3
-			case PartPad:
-				fc.depth += 1e3
-			}
+			fc.solid = solidDepth
 			k := 0.5 + 0.5*math.Max(0, dot3(nv, light))
 			fc.color = fmt.Sprintf("#%02x%02x%02x", int(255*rgb[0]*k), int(255*rgb[1]*k), int(255*rgb[2]*k))
 			faces = append(faces, fc)
 		}
 	}
-	sort.SliceStable(faces, func(i, j int) bool { return faces[i].depth > faces[j].depth })
+	sort.SliceStable(faces, func(i, j int) bool {
+		if faces[i].solid != faces[j].solid {
+			return faces[i].solid > faces[j].solid
+		}
+		return faces[i].depth > faces[j].depth
+	})
 	var d Drawing
 	for _, f := range faces {
 		d.add(Shape{Kind: ShapePoly, Role: RoleFace, Pts: f.pts, Color: f.color})

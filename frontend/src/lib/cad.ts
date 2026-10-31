@@ -87,6 +87,8 @@ export function outlineRows(o: CadOutline | undefined): [string, string, string]
     ['Family', '', o.family + (o.name ? ` (${o.name})` : '')],
     ['Pins', '', String(o.pins)],
     ['Pitch', 'e', o.pitch ? String(o.pitch) : ''],
+    ['Row spacing', '', dim(o.rowSpacing)],
+    ['Pads drawn one by one', '', o.pads?.length ? String(o.pads.length) : ''],
     ['Body length', 'D', dim(o.bodyLength)],
     ['Body width', 'E1', dim(o.bodyWidth)],
     ['Span', 'E', dim(o.span)],
@@ -95,7 +97,8 @@ export function outlineRows(o: CadOutline | undefined): [string, string, string]
     ['Height', 'A', dim(o.height)],
     ['Exposed pad', 'D2 × E2', o.exposedPad ? `${o.exposedPad.w} × ${o.exposedPad.h}` : ''],
   ];
-  if (o.land) rows.push(['Land pattern', '', `pads ${o.land.padLength} × ${o.land.padWidth}, rows ${o.land.rowSpan} apart${o.land.page ? ` (p. ${o.land.page})` : ''}`]);
+  if (o.land?.drill) rows.push(['Land pattern', '', `pads ${o.land.padLength} across, ${o.land.drill} holes${o.land.page ? ` (p. ${o.land.page})` : ''}`]);
+  else if (o.land) rows.push(['Land pattern', '', `pads ${o.land.padLength} × ${o.land.padWidth}, rows ${o.land.rowSpan} apart${o.land.page ? ` (p. ${o.land.page})` : ''}`]);
   return rows.filter((r) => r[2] !== '');
 }
 
