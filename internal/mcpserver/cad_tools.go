@@ -97,6 +97,9 @@ func cadText(pc core.PartCad) string {
 			if f.Standard {
 				b.WriteString(", from the standard outline (not yet checked against the datasheet's drawing)")
 			}
+			if f.DatasheetPage > 0 {
+				fmt.Fprintf(&b, ", from the datasheet's package dimensions (page %d, get_package)", f.DatasheetPage)
+			}
 			if f.Notes != "" {
 				fmt.Fprintf(&b, " — %s", f.Notes)
 			}

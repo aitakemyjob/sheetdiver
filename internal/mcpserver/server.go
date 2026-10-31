@@ -100,6 +100,7 @@ func New(c *core.Service) *Server {
 	s.registerDesign()
 	s.registerSimulation()
 	s.registerCad()
+	s.registerPackages()
 	return s
 }
 

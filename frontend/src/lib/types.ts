@@ -1292,6 +1292,7 @@ export interface CadView {
   package?: CadOutline;
   model?: CadDrawing;
   standard?: boolean;
+  datasheetPage?: number;
   modelKept?: boolean;
 }
 
@@ -1336,4 +1337,47 @@ export interface CadReport {
   adopted?: string[];
   symbols: number;
   footprints: number;
+}
+
+/** A package dimension in mm, as a datasheet prints it. */
+export interface PackageDim {
+  symbol: string;
+  description?: string;
+  key?: string;
+  min?: number;
+  nom?: number;
+  max?: number;
+  unit?: string;
+  note?: string;
+  source: string;
+}
+
+/** A stored package row: the extractor's or one recorded. */
+export interface PackageRow {
+  id: number;
+  name: string;
+  source: string;
+  updated: string;
+}
+
+/** One of a part's packages, its dimensions merged from its rows. */
+export interface PartPackage {
+  name: string;
+  code?: string;
+  reference?: string;
+  page: number;
+  dims: PackageDim[];
+  land: PackageDim[];
+  candidates?: string[];
+  checks?: string[];
+  notes?: string;
+  sources: string[];
+  pins?: number;
+  rows: PackageRow[];
+}
+
+/** A part's packages. */
+export interface PartPackages {
+  part: Part;
+  packages: PartPackage[];
 }

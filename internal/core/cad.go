@@ -83,6 +83,9 @@ type CadView struct {
 	// Standard says the package is a standard outline, not the
 	// datasheet's own dimensions.
 	Standard bool `json:"standard,omitempty"`
+	// DatasheetPage is the page of the datasheet's package drawing its
+	// dimensions came from (1-based), when they did.
+	DatasheetPage int `json:"datasheetPage,omitempty"`
 	// ModelKept says the user replaced the 3D model with their own.
 	ModelKept bool `json:"modelKept,omitempty"`
 }
@@ -214,6 +217,10 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			url = d.SourceURL
 		}
 	}
+	dsPkgs, err := s.partPackages(ctx, p)
+	if err != nil {
+		return cadPart{}, err
+	}
 	out := cadPart{meta: map[*cadlib.Item]cadMeta{}}
 	find := func(kind, pkg string) (library.CadItem, bool) {
 		for _, it := range stored {
@@ -303,6 +310,16 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 			}
 		}
 		if pkgSpec == nil && fpi.State == cadlib.Auto {
+			// The datasheet's own dimensions, when they make a footprint.
+			if pp, ok := packageFor(dsPkgs, pk.name); ok {
+				if sp, ok := datasheetPackage(pp, pk.name, nonPad); ok {
+					if _, ps := cad.MakeFootprint("check", sp); cad.Err(ps) == nil {
+						pkgSpec, fv.DatasheetPage = &sp, sp.Page
+					}
+				}
+			}
+		}
+		if pkgSpec == nil && fpi.State == cadlib.Auto {
 			if sp, ok := cad.Standard(pk.name, nonPad); ok {
 				pkgSpec, fv.Standard = &sp, true
 			}
@@ -355,7 +372,7 @@ func (s *Service) cadOfPart(ctx context.Context, p library.Part) (cadPart, error
 		case len(fv.Problems) > 0:
 			view.Footprint = fv
 		default:
-			view.Missing = fmt.Sprintf("no dimensions for package %q yet: draw it from the datasheet's package drawing (draw_footprint)", pk.name)
+			view.Missing = fmt.Sprintf("no dimensions for package %q yet: read them (get_package) and record them (record_package), or draw it from the datasheet's package drawing (draw_footprint)", pk.name)
 			if pk.name == "" {
 				view.Missing = "the part's package isn't known: say which it is and draw it (draw_footprint)"
 			}

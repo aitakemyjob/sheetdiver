@@ -350,3 +350,31 @@ func TestResolveOrderingNumbers(t *testing.T) {
 		t.Error("an unknown part with an ordering suffix was found")
 	}
 }
+
+func TestRecordedPackagesSurviveReExtraction(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	v := func(x float64) *float64 { return &x }
+	in := &Import{Datasheet: Datasheet{SHA256: "pkg", File: "p.pdf", Filename: "p.pdf", Pages: 2}, Parts: []Part{{MPN: "AP2112"}},
+		Packages: []PackageDims{{Name: "SO-8", Page: 16, Dims: []PackageDim{{Symbol: "D", Key: "bodyLength", Min: v(4.85), Max: v(4.95), Unit: "mm"}}}}}
+	ds, err := s.SaveImport(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPackage(ctx, PackageDims{DatasheetID: ds, Name: "SOT-23-5", Dims: []PackageDim{{Symbol: "e", Key: "pitch", Nom: v(0.95)}}}, SourceAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecordPackage(ctx, PackageDims{DatasheetID: ds, Name: "SOT-23-5"}, SourceAgent); err == nil {
+		t.Error("a package with no dimensions was recorded")
+	}
+	if _, err := s.SaveImport(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	ps, err := s.Packages(ctx, ds)
+	if err != nil || len(ps) != 2 || ps[0].Name != "SO-8" || ps[0].Source != SourceAuto || ps[1].Source != SourceAgent || *ps[0].Dims[0].Max != 4.95 {
+		t.Fatalf("packages %+v %v", ps, err)
+	}
+	if n, _ := s.RecordedCounts(ctx, ds); n["packages"] != 1 {
+		t.Errorf("recorded counts %v", n)
+	}
+}

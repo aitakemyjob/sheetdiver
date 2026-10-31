@@ -708,4 +708,17 @@ func (a *API) registerCad() {
 	a.methods["cad.reset"] = method(func(ctx context.Context, in cadReq) (any, error) {
 		return c.ResetCad(ctx, in.Part, in.Package, in.Kind)
 	})
+	a.methods["packages.part"] = method(func(ctx context.Context, in cadReq) (any, error) { return c.PartPackages(ctx, in.Part) })
+	a.methods["packages.record"] = method(func(ctx context.Context, in packageReq) (any, error) {
+		return c.RecordPackage(ctx, in.Part, in.Package, library.SourceUser)
+	})
+	a.methods["packages.delete"] = method(func(ctx context.Context, in idReq) (any, error) {
+		return nil, c.DeletePackage(ctx, in.ID)
+	})
+}
+
+// packageReq records a package's dimensions for a part.
+type packageReq struct {
+	Part    string              `json:"part"`
+	Package library.PackageDims `json:"package"`
 }

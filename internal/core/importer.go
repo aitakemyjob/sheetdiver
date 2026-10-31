@@ -506,7 +506,22 @@ func buildImport(res *extract.Result, doc *pdf.Document, req ImportRequest, sha,
 	for _, p := range res.Pins {
 		in.Pins = append(in.Pins, library.Pin{Package: p.Package, Number: p.Number, Name: p.Name, Type: p.Type, Description: p.Description, Page: p.Page})
 	}
+	for _, p := range res.Packages {
+		in.Packages = append(in.Packages, library.PackageDims{
+			Name: p.Name, Code: p.Code, Reference: p.Reference, Page: p.Page, Box: p.Box,
+			Dims: libraryDims(p.Dims), Land: libraryDims(p.Land), Candidates: p.Candidates, Checks: p.Checks,
+		})
+	}
 	return in
+}
+
+// libraryDims are extracted dimensions as stored.
+func libraryDims(ds []extract.PackageDim) []library.PackageDim {
+	var out []library.PackageDim
+	for _, d := range ds {
+		out = append(out, library.PackageDim(d))
+	}
+	return out
 }
 
 // recTableRe matches captions of recommended-component tables.

@@ -175,6 +175,26 @@ KiCad library is left alone and embedded in the Altium one. Each symbol and foot
 | `reset_cad` | Drop the newest work on a symbol or footprint: the user's edit (back to the agent's drawing or SheetDiver's) or an agent's drawing. Only when the user asks. |
 | `sync_cad_library` | Read back the user's edits, then write the library in every format; says where it is and how to add it to KiCad. |
 
+### Package dimensions
+
+Each datasheet's package drawings are read on import: dimension tables
+(symbol against min/nom/max, in mm or inches: inches are converted, and
+the two columns are checked against each other) and recommended land
+patterns (X, Y, C, G, Z), with each package's name, drawing code and
+JEDEC outline. A table in JEDEC's lettering (A, A1, b, c, D, E, E1, e, L)
+has each dimension named (`height`, `leadWidth`, `bodyLength`, `span`,
+`pitch`…); a maker's own lettering is kept as printed. Where the numbers
+are only on the drawing (TI's newer outlines), the dimension-like texts
+on it are listed, stacked max/min pairs joined, for the agent to read
+against the drawing and record. Footprints are drawn from these
+dimensions (over the standard outline's, when the name is one) whenever
+they're enough; an agent's drawing or the user's edit still wins.
+
+| Tool | What it does |
+|---|---|
+| `get_package` | A part's packages: outline and land pattern dimensions in mm with where each came from, the numbers off a drawing with no table, and checks (limits in order, the pins fit the body, the land's pads reach past the body). `image=true` adds the drawing's page. |
+| `record_package` | Record a package as read from its drawing: `name`, `code`, `reference`, `page`, `dims` and `land` (`{symbol, key, min, nom, max, note}` in mm). Kept on re-extraction; wins over the extractor's dimension by dimension. |
+
 ## Canonical parameter keys
 
 Calculators and project checks find values by key. `list_calculators`

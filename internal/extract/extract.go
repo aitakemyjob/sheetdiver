@@ -15,7 +15,7 @@ import (
 
 // Version identifies the extractor; stored with each datasheet so
 // re-extraction can be offered when it changes.
-const Version = "6"
+const Version = "7"
 
 // Line is a run of spans on one baseline that belong together (spans are
 // split into separate lines at wide gaps, so two captions side by side
@@ -119,6 +119,8 @@ type Result struct {
 	Tables       []Table   `json:"tables"`
 	Params       []Param   `json:"params"`
 	Pins         []Pin     `json:"pins"`
+	// Packages are the package outlines' dimensions and land patterns.
+	Packages []Package `json:"packages,omitempty"`
 	// PinWarnings say when the pins read fall short of what the datasheet
 	// says its packages have (or none were read).
 	PinWarnings []string    `json:"pinWarnings,omitempty"`
@@ -169,6 +171,7 @@ func Analyze(doc *pdf.Document, filename string) *Result {
 	}
 	fillSectionText(r.Sections, r.Lines, lay, r.BodySize, contentRegions(r.Figures, r.Tables))
 	r.Pins = numberPads(r.Pins)
+	r.Packages = Packages(doc, r.Sections)
 	r.PinWarnings = pinWarnings(r.Pins, packagePinCounts(pinTexts(r.Sections, r.Figures), first(r.PageText)))
 	r.Manufacturer = Manufacturer(doc, r.PageText)
 	r.Families = Families(doc, r.PageText)

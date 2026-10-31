@@ -3,9 +3,11 @@ package extract
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/aitakemyjob/sheetdiver/internal/pdf"
@@ -45,6 +47,10 @@ type corpusEntry struct {
 			// Unit, when set, must match (catches µ read as m).
 			Unit string `json:"unit"`
 		} `json:"values"`
+		// Packages by name: dimensions by key as [min, max] (nom when
+		// the table gives one value), the land by key, and how many
+		// numbers a drawing without a table must offer.
+		Packages map[string]corpusPackage `json:"packages"`
 	} `json:"expect"`
 }
 
@@ -209,6 +215,7 @@ func TestCorpus(t *testing.T) {
 					t.Errorf("%s unit = %q, want %q", key, got.Unit, want.Unit)
 				}
 			}
+			checkPackages(t, r.Packages, x.Packages)
 			figs := map[string]string{}
 			for _, f := range r.Figures {
 				figs[f.Number] = f.Kind
@@ -219,5 +226,62 @@ func TestCorpus(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// corpusPackage is a package a datasheet must give.
+type corpusPackage struct {
+	Code          string                `json:"code"`
+	Dims          map[string][2]float64 `json:"dims"`
+	Land          map[string]float64    `json:"land"`
+	MinCandidates int                   `json:"minCandidates"`
+}
+
+// checkPackages compares packages read with those expected.
+func checkPackages(t *testing.T, got []Package, exp map[string]corpusPackage) {
+	t.Helper()
+	near := func(a *float64, b float64) bool { return a != nil && math.Abs(*a-b) < 0.006 }
+	for name, w := range exp {
+		var p *Package
+		for i := range got {
+			if strings.EqualFold(got[i].Name, name) {
+				p = &got[i]
+			}
+		}
+		if p == nil {
+			t.Errorf("no package %s", name)
+			continue
+		}
+		if w.Code != "" && p.Code != w.Code {
+			t.Errorf("package %s code = %q, want %q", name, p.Code, w.Code)
+		}
+		for key, mm := range w.Dims {
+			var d *PackageDim
+			for i := range p.Dims {
+				if p.Dims[i].Key == key {
+					d = &p.Dims[i]
+				}
+			}
+			switch {
+			case d == nil:
+				t.Errorf("package %s has no %s", name, key)
+			case mm[0] == mm[1] && !near(d.Nom, mm[0]):
+				t.Errorf("package %s %s = %+v, want %g", name, key, *d, mm[0])
+			case mm[0] != mm[1] && (!near(d.Min, mm[0]) || !near(d.Max, mm[1])):
+				t.Errorf("package %s %s = %+v, want %g–%g", name, key, *d, mm[0], mm[1])
+			}
+		}
+		for key, mm := range w.Land {
+			ok := false
+			for _, d := range p.Land {
+				ok = ok || d.Key == key && near(d.Nom, mm)
+			}
+			if !ok {
+				t.Errorf("package %s land has no %s of %g mm", name, key, mm)
+			}
+		}
+		if len(p.Candidates) < w.MinCandidates {
+			t.Errorf("package %s: %d numbers off its drawing, want at least %d", name, len(p.Candidates), w.MinCandidates)
+		}
 	}
 }

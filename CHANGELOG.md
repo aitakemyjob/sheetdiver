@@ -9,6 +9,17 @@ every merged pull request.
 ## [Unreleased]
 
 ### Added
+- **Package dimensions** (#59). Importing a datasheet now reads its
+  package drawings' dimension tables (A, A1, b, c, D, E, E1, e, L…, in mm
+  or inches, the two checked against each other) and recommended land
+  patterns (X, Y, C, G, Z), with each package's name, drawing code and
+  JEDEC outline. Where the numbers are only on the drawing, as in TI's
+  newer outlines, they're listed for an agent to read against it and
+  record. A part's new **Package** tab shows them with checks (limits in
+  order, the pins fit the body, the land's pads reach past it); agents
+  use `get_package` and `record_package`. Footprints in the CAD library
+  are drawn from a datasheet's own dimensions whenever they're enough.
+  Re-extract your datasheets to read them.
 - **CAD library** (preview). SheetDiver keeps your own library of
   schematic symbols, footprints and 3D models for your parts, in a folder
   you choose (Settings → CAD library), as KiCad libraries (`.kicad_sym`,

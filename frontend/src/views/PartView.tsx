@@ -14,10 +14,11 @@ import { CategoryBadge, Empty, ErrorBox, Markdown, SourceBadge, Spinner, useAsyn
 import { NotesPanel } from './NotesPanel';
 import { Alternatives } from './Alternatives';
 import { PartCadPanel } from './PartCad';
+import { PartPackagesPanel } from './PartPackages';
 import { UpdateDialog } from '../components/UpdateDialog';
 import { DeleteDialog } from '../components/DeleteDialog';
 
-type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'cad' | 'sections' | 'registers' | 'tables' | 'alternatives' | 'notes' | 'variants';
+type Sub = 'overview' | 'parameters' | 'figures' | 'pins' | 'package' | 'cad' | 'sections' | 'registers' | 'tables' | 'alternatives' | 'notes' | 'variants';
 
 /** Calculator suggested for a category. */
 export function calcFor(category: string): string | undefined {
@@ -60,6 +61,7 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
     ['parameters', 'Parameters', c.parameters],
     ['figures', 'Figures', c.figures],
     ['pins', 'Pins', c.pins],
+    ['package', 'Package'],
     ['cad', 'CAD'],
     ['sections', 'Sections', c.sections],
     ['registers', 'Registers', c.registers],
@@ -190,6 +192,14 @@ export function PartView({ params }: { params: Record<string, unknown> }) {
             {sub === 'parameters' && ds && <Parameters d={d} query={String(params.query ?? '')} />}
             {sub === 'figures' && ds && <Figures d={d} />}
             {sub === 'pins' && ds && <Pins d={d} />}
+            {sub === 'package' && ds && (
+              <div className="pad">
+                <PartPackagesPanel
+                  part={d.part.mpn}
+                  onPage={(page) => s.open({ kind: 'page', title: `${d.part.mpn} p${page + 1}`, params: { ds: ds.id, page, part: d.part.mpn, nonce: Date.now() } })}
+                />
+              </div>
+            )}
             {sub === 'cad' && <PartCadPanel part={d.part.mpn} />}
             {sub === 'sections' && ds && <Sections d={d} />}
             {sub === 'registers' && ds && <Registers d={d} />}

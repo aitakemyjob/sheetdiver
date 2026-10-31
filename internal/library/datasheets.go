@@ -29,6 +29,8 @@ type Import struct {
 	Tables    []Table
 	Params    []Parameter
 	Pins      []Pin
+	// Packages are the packages' dimensions and land patterns.
+	Packages []PackageDims
 	// Recommendations read from regular recommended-component tables.
 	Recommendations []Recommendation
 	// Replaces, when set, is the datasheet this PDF is a newer revision
@@ -192,6 +194,9 @@ func (s *Store) SaveImport(ctx context.Context, in *Import) (int64, error) {
 			}
 		}
 		if err := saveTables(ctx, tx, dsID, in.Tables); err != nil {
+			return err
+		}
+		if err := savePackages(ctx, tx, dsID, in.Packages); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM recommendations WHERE datasheet_id = ? AND source = 'auto'`, dsID); err != nil {
@@ -547,7 +552,7 @@ func (s *Store) RecordedCounts(ctx context.Context, dsID int64) (map[string]int,
 	out := map[string]int{}
 	for kind, table := range map[string]string{
 		"parameters": "parameters", "figures": "figures", "tables": "doc_tables", "pins": "pins",
-		"registers": "registers", "recommendations": "recommendations",
+		"registers": "registers", "recommendations": "recommendations", "packages": "packages",
 	} {
 		var n int
 		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+table+` WHERE datasheet_id = ? AND source <> 'auto'`, dsID).Scan(&n); err != nil { //nolint:gosec // table names are constants

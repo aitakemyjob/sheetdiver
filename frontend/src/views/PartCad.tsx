@@ -126,6 +126,7 @@ function Pane({ title, icon, view, empty, onReset, badge = true, children }: { t
               <code>{view.name}</code>
               {view.footprint && <> · pads {view.footprint.from}</>}
               {view.standard && <> · standard outline, not yet checked against the datasheet</>}
+              {!!view.datasheetPage && <> · from the datasheet's package dimensions (page {view.datasheetPage})</>}
               {view.updated && <> · {relTime(view.updated)}</>}
             </div>
           )}

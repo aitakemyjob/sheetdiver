@@ -375,7 +375,7 @@ ALTER TABLE project_assignments ADD COLUMN col INTEGER;
 ALTER TABLE project_assignments ADD COLUMN row INTEGER;
 `, simulationMigration, variationMigration, `
 ALTER TABLE pins ADD COLUMN part TEXT NOT NULL DEFAULT '';
-`, cadMigration}
+`, cadMigration, packageMigration}
 
 // migrate applies pending schema migrations.
 func (s *Store) migrate(ctx context.Context) error {
@@ -419,6 +419,9 @@ func (s *Store) repair(ctx context.Context) error {
 	}
 	if _, err := s.db.ExecContext(ctx, cadMigration); err != nil {
 		return fmt.Errorf("repair cad_items: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, packageMigration); err != nil {
+		return fmt.Errorf("repair packages: %w", err)
 	}
 	return nil
 }

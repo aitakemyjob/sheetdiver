@@ -8,7 +8,7 @@ import type {
   CategoryInfo, CompareFilter, CompareResult, BOMResult, ProjectImportResult, ImportJob, AltResult, UpdateCheck, CatalogItem, CatalogStatus, CatalogCategory, CatalogParam, CatalogFilter, DeletePlan, DeleteResult,
   TranslateStatus,
   ConnectionsChange,
-  NgspiceState, PartCad, CadLibrary, CadReport, SimulationSummary, SimulationDetail, SimulationData, SimRun,
+  NgspiceState, PartCad, PartPackages, CadLibrary, CadReport, SimulationSummary, SimulationDetail, SimulationData, SimRun,
 } from './types';
 
 /** Calls a backend method. */
@@ -107,6 +107,10 @@ export const api = {
   project: (project: string) => call<ProjectDetail>('project.detail', { project }),
   /** A part's symbols, footprints and 3D models, per package. */
   partCad: (part: string) => call<PartCad>('cad.part', { part }),
+  /** A part's package dimensions and land patterns. */
+  partPackages: (part: string) => call<PartPackages>('packages.part', { part }),
+  /** Remove a recorded package row. */
+  deletePackage: (id: number) => call<null>('packages.delete', { id }),
   /** Where and how the CAD library is kept. */
   cadLibrary: () => call<CadLibrary>('cad.library'),
   /** Read the user's edits back from the CAD library, then write it. */
