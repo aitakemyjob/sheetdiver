@@ -24,6 +24,7 @@ func (it *Item) keep3D(raw map[string]string) map[string]string {
 // under: the model itself, as JSON.
 const ModelKey = "sheetdiver"
 
+// init registers the decoder for edits made in SheetDiver.
 func init() { RegisterDecoder(ModelKey, modelDecoder{}) }
 
 // modelDecoder reads back an edit made in SheetDiver.
