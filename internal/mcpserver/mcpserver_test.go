@@ -620,3 +620,26 @@ func TestAssignAPassiveToAGroupWithNoParts(t *testing.T) {
 		t.Errorf("C5 with U3 in its group:\n%s", out)
 	}
 }
+
+func TestRecordPinsForOnePartOfADatasheet(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	// A 2-pin and a 3-pin header from one catalogue datasheet.
+	if _, err := h.core.Import(ctx, core.ImportRequest{Data: testutil.Mini("ZX2002", "Connector"), Filename: "headers.pdf", MPNs: []string{"ZX2002", "ZX2003"}}); err != nil {
+		t.Fatal(err)
+	}
+	pin := func(n, name string) map[string]any { return map[string]any{"number": n, "name": name} }
+	h.must("record_pins", map[string]any{"part": "ZX2003", "pins": []any{pin("1", "VIN"), pin("2", "GND"), pin("3", "RX")}}, "recorded 3 pins for ZX2003 alone (its datasheet covers 2 parts")
+	h.must("record_pins", map[string]any{"part": "ZX2002", "package": "1x2", "pins": []any{pin("1", "VIN"), pin("2", "GND")}}, "recorded 2 pins for ZX2002 alone")
+	out := h.must("get_pins", map[string]any{"part": "ZX2002"}, "recorded for ZX2002 alone", "[1x2] 1 VIN", "[1x2] 2 GND")
+	if strings.Contains(out, "RX") {
+		t.Errorf("ZX2002 has the 3-pin header's pin:\n%s", out)
+	}
+	h.must("get_pins", map[string]any{"part": "ZX2003"}, "3 RX")
+	// One table for both, when asked.
+	if out := h.must("record_pins", map[string]any{"part": "ZX2002", "all_parts": true, "pins": []any{pin("1", "A")}}, "recorded 1 pins"); strings.Contains(out, "alone") {
+		t.Errorf("all_parts: %s", out)
+	}
+	// Each part's own table still wins over the shared one.
+	h.must("get_pins", map[string]any{"part": "ZX2003"}, "3 RX")
+}

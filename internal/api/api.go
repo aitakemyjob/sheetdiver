@@ -108,6 +108,12 @@ type idReq struct {
 	ID int64 `json:"id"`
 }
 
+// pinsReq asks for a datasheet's pins (ID), or one part's of them (Part).
+type pinsReq struct {
+	ID   int64 `json:"id"`
+	Part int64 `json:"part,omitempty"`
+}
+
 // partReq names a part.
 type partReq struct {
 	Part string `json:"part"`
@@ -484,7 +490,16 @@ func (a *API) registerLibrary() {
 		c.Changed("table", t.DatasheetID)
 		return t, err
 	})
-	a.methods["pins.list"] = method(func(ctx context.Context, in idReq) (any, error) { return c.Lib.Pins(ctx, in.ID, "") })
+	a.methods["pins.list"] = method(func(ctx context.Context, in pinsReq) (any, error) {
+		if in.Part == 0 {
+			return c.Lib.Pins(ctx, in.ID, "")
+		}
+		p, err := c.Lib.PartByID(ctx, in.Part)
+		if err != nil {
+			return nil, err
+		}
+		return c.PartPins(ctx, p, "")
+	})
 	a.methods["registers.list"] = method(func(ctx context.Context, in idReq) (any, error) { return c.Lib.Registers(ctx, in.ID) })
 	a.methods["recommendations.list"] = method(func(ctx context.Context, in struct {
 		DatasheetID int64  `json:"datasheetId"`

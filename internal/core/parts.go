@@ -90,7 +90,7 @@ func (s *Service) PartDetail(ctx context.Context, ref string) (PartDetail, error
 	out.FigureKinds, _ = s.Lib.FigureKinds(ctx, d.ID)
 	params, _ := s.Lib.Parameters(ctx, d.ID, library.ParamFilter{MPN: p.MPN})
 	out.Key = keyValues(params)
-	pins, _ := s.Lib.Pins(ctx, d.ID, "")
+	pins, _ := s.PartPins(ctx, p, "")
 	regs, _ := s.Lib.Registers(ctx, d.ID)
 	tables, _ := s.Lib.Tables(ctx, d.ID, false)
 	out.Recommended, _ = s.Lib.Recommendations(ctx, d.ID, p.MPN)

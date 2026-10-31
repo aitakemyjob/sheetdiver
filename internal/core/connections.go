@@ -159,9 +159,28 @@ func (s *Service) entryPins(ctx context.Context, parts []library.ProjectPart) ma
 			continue
 		}
 		part, _ := s.Lib.PartByID(ctx, pp.PartID)
-		out[pp.ID] = packagePins(all, part)
+		out[pp.ID] = packagePins(ownPins(all, part.MPN), part)
 	}
 	return out
+}
+
+// ownPins are one part's pins of its datasheet's: those recorded for it,
+// when any were (a datasheet of a 2-pin and a 3-pin header), else those
+// recorded for no part in particular.
+func ownPins(all []library.Pin, mpn string) []library.Pin {
+	var own, shared []library.Pin
+	for _, p := range all {
+		switch {
+		case p.Part == "":
+			shared = append(shared, p)
+		case strings.EqualFold(p.Part, mpn):
+			own = append(own, p)
+		}
+	}
+	if len(own) > 0 {
+		return own
+	}
+	return shared
 }
 
 // packagePins are a part's pins when its datasheet lists several
@@ -750,17 +769,47 @@ func endpoint(parts []library.ProjectPart, blocks []library.Block, ref string) t
 	return target{}
 }
 
-// RecordPins records a datasheet's pin table for a package and keeps the
-// connections made to its pins: one connected by name before the table
-// had numbers, or under a name since changed, is moved to the pin's key
-// now (its number, else its name), matched by number, else by place in
-// a table of the same length, else by name.
+// RecordPins records a datasheet's pin table for a package, for every
+// part of the datasheet; RecordPartPins records it for one.
 func (s *Service) RecordPins(ctx context.Context, dsID int64, pkg string, pins []library.Pin, source string) error {
-	old, _ := s.Lib.Pins(ctx, dsID, pkg)
-	if err := s.Lib.RecordPins(ctx, dsID, pkg, pins, source); err != nil {
+	return s.RecordPartPins(ctx, dsID, "", pkg, pins, source)
+}
+
+// RecordPartPins records the pin table of one part of a datasheet (""
+// for all of them) for a package, and keeps the connections made to its
+// pins: one connected by name before the table had numbers, or under a
+// name since changed, is moved to the pin's key now (its number, else its
+// name), matched by number, else by place in a table of the same length,
+// else by name. Only that part's connections move.
+func (s *Service) RecordPartPins(ctx context.Context, dsID int64, part, pkg string, pins []library.Pin, source string) error {
+	all, _ := s.Lib.Pins(ctx, dsID, "")
+	var old []library.Pin
+	for _, p := range ownPins(all, part) {
+		if pkg == "" || strings.EqualFold(p.Package, pkg) {
+			old = append(old, p)
+		}
+	}
+	if err := s.Lib.RecordPartPins(ctx, dsID, part, pkg, pins, source); err != nil {
 		return err
 	}
-	return s.Lib.RekeyPins(ctx, dsID, rekeys(old, pins))
+	return s.Lib.RekeyPins(ctx, dsID, part, rekeys(old, pins))
+}
+
+// PartPins is a part's pin table: its datasheet's pins recorded for it,
+// else those for every part, in one package or ("") all.
+func (s *Service) PartPins(ctx context.Context, p library.Part, pkg string) ([]library.Pin, error) {
+	if p.DatasheetID == 0 {
+		return []library.Pin{}, nil
+	}
+	all, err := s.Lib.Pins(ctx, p.DatasheetID, pkg)
+	if err != nil {
+		return nil, err
+	}
+	own := ownPins(all, p.MPN)
+	if own == nil {
+		own = []library.Pin{}
+	}
+	return own, nil
 }
 
 // rekeys maps each old pin's number and name, and each new pin's name,

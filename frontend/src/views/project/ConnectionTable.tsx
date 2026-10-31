@@ -41,8 +41,8 @@ export function ConnectionTable({ d, highlight, onChange }: { d: ProjectDetail; 
   const entry = d.parts.find((p) => designators(p.designator || p.mpn).includes(part));
   useEffect(() => {
     setPins([]);
-    if (entry?.datasheetId) api.pins(entry.datasheetId).then(setPins, () => {});
-  }, [entry?.datasheetId]);
+    if (entry?.datasheetId) api.pins(entry.datasheetId, entry.partId).then(setPins, () => {});
+  }, [entry?.datasheetId, entry?.partId]);
   const hl = highlight?.toLowerCase();
   const add = () => {
     if (!net.trim() || !part) return;
