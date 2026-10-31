@@ -9,6 +9,10 @@ every merged pull request.
 ## [Unreleased]
 
 ### Fixed
+- The BOM's Ref column shows every designator of an entry, wrapping onto
+  more lines instead of cutting "C40-C45, C60-C72" off at "C40-C4"; its
+  tooltip lists each one with ranges written out, and a badge says when
+  their count isn't the entry's quantity ("19 refs · qty 18").
 - The block diagram no longer fails with "Cannot read properties of
   undefined (reading 'pins')" when a BOM entry with several designators
   (`Q1,Q4`) is drawn as transistors (#107).

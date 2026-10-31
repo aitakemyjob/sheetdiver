@@ -368,6 +368,8 @@ html { font-size: var(--ui-font-size, 13px); }
 .dtable .cond { color: var(--text-2); font-size: 11.5px; }
 .dtable input.cell { width: 100%; min-width: 50px; height: 24px; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 0 4px; font-family: inherit; font-size: inherit; }
 .dtable input.cell:focus { border-color: var(--accent); background: var(--bg-2); outline: none; }
+.dtable textarea.ref-cell { width: 100%; min-width: 80px; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 2px 4px; font-family: inherit; font-size: inherit; line-height: 1.35; resize: none; overflow: hidden; color: inherit; display: block; }
+.dtable textarea.ref-cell:focus { border-color: var(--accent); background: var(--bg-2); outline: none; }
 .dtable td.num input.cell { text-align: right; font-family: var(--font-mono); }
 .dtable tr.group td { background: var(--bg); color: var(--text-3); font-weight: 650; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
 

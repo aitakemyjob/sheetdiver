@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBackend, type FakeBackend } from '../test/backend';
 import { useStore } from '../lib/store';
-import { currentHint, currentTitle, loadText, parseLoad, ProjectView } from './ProjectView';
+import { currentHint, currentTitle, loadText, parseLoad, ProjectView, RefCell } from './ProjectView';
 import type { ProjectPart } from '../lib/types';
 
 let b: FakeBackend;
@@ -112,5 +112,44 @@ describe('BOM current cells', () => {
     expect(currentTitle(pp({ supplyRail: '5V', outputRail: '4.2V', category: 'charger' }))).toMatch(/charge current your board programs/);
     expect(currentTitle(pp({ supplyRail: '4.2V', outputRail: '3V3' }))).toMatch(/input current/);
     expect(currentTitle(pp({ supplyRail: '3V3' }))).toMatch(/draws from its supply rail/);
+  });
+});
+
+describe('BOM designators', () => {
+  const part = (designator: string, qty: number): ProjectPart =>
+    ({ id: 7, projectId: 1, partId: 3, mpn: 'CC0603KRX7R9BB104', category: 'capacitor', hasDatasheet: true, designator, qty }) as ProjectPart;
+
+  it('shows every designator of a long entry, each written out on hover', () => {
+    render(<RefCell pp={part('C40-C45, C60-C72', 19)} onSave={() => {}} />);
+    const cell = screen.getByRole('textbox', { name: 'Designators' });
+    // A textarea that wraps: all of it is there, over as many lines as it takes.
+    expect(cell.tagName).toBe('TEXTAREA');
+    expect(cell).toHaveValue('C40-C45, C60-C72');
+    expect(Number(cell.getAttribute('rows'))).toBeGreaterThan(1);
+    expect(cell).toHaveAttribute('title', 'C40, C41, C42, C43, C44, C45, C60, C61, C62, C63, C64, C65, C66, C67, C68, C69, C70, C71, C72 (19)');
+    // Its count matches the quantity: nothing to say.
+    expect(screen.queryByText(/refs · qty/)).not.toBeInTheDocument();
+  });
+
+  it("says when the designators don't match the quantity", () => {
+    render(<RefCell pp={part('C40-C45, C60-C72', 18)} onSave={() => {}} />);
+    expect(screen.getByText('19 refs · qty 18')).toHaveAttribute('title', '19 designators but a quantity of 18');
+  });
+
+  it('keeps one designator on one line, without a tooltip or a count', () => {
+    render(<RefCell pp={part('U1', 1)} onSave={() => {}} />);
+    const cell = screen.getByRole('textbox', { name: 'Designators' });
+    expect(cell).toHaveAttribute('rows', '1');
+    expect(cell).not.toHaveAttribute('title');
+  });
+
+  it('saves an edit on Enter or when it loses focus', () => {
+    const saved: string[] = [];
+    render(<RefCell pp={part('C1', 1)} onSave={(d) => saved.push(d)} />);
+    const cell = screen.getByRole('textbox', { name: 'Designators' });
+    fireEvent.change(cell, { target: { value: 'C1, C2' } });
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    fireEvent.blur(cell);
+    expect(saved).toEqual(['C1, C2']);
   });
 });
