@@ -17,31 +17,70 @@ env:
   NODE_VERSION: '24'
 
 jobs:
+  # Whether the change needs the builds and tests: a pull request that only
+  # touches documentation doesn't (scripts/ci-changes.sh says which files
+  # count). Pushes to main always run everything.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only "$BASE...$HEAD" | tee "$RUNNER_TEMP/changed"
+            code=$(scripts/ci-changes.sh < "$RUNNER_TEMP/changed")
+          else
+            code=true
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          [ "$code" = true ] || echo "::notice::Documentation only: builds and tests skipped"
+
   go:
     name: Go · ${{ matrix.os }}
+    needs: changes
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+    # The steps, not the job, are skipped for documentation: a skipped
+    # matrix job reports one check under its unexpanded name, and the
+    # required "Go · <os>" checks would wait for it.
+    env:
+      CODE: ${{ needs.changes.outputs.code }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.CODE == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: env.CODE == 'true'
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true  # runner caches can lag behind the latest patch
       - name: gofmt
-        if: runner.os == 'Linux'
+        if: env.CODE == 'true' && runner.os == 'Linux'
         run: |
           unformatted=$(gofmt -l $(git ls-files '*.go'))
           if [ -n "$unformatted" ]; then echo "needs gofmt:"; echo "$unformatted"; exit 1; fi
       - name: go vet
+        if: env.CODE == 'true'
         run: go vet -tags nogui ./...
       - name: go test
+        if: env.CODE == 'true'
         run: go test -race -tags nogui -count=1 ./...
 
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +105,8 @@ jobs:
 
   security:
     name: Security audit
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -86,6 +127,8 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -119,7 +162,8 @@ jobs:
 
   desktop:
     name: Desktop build · ${{ matrix.os }}
-    needs: [go, frontend]
+    needs: [changes, go, frontend]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -165,7 +209,8 @@ jobs:
           fi
   headless:
     name: Headless cross-compile
-    needs: [go, frontend]
+    needs: [changes, go, frontend]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
