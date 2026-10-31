@@ -7,7 +7,7 @@ import { ProjectView } from '../ProjectView';
 import { darkTheme, palette, swatch } from '../../lib/diagramPalette';
 import { fitView, terminalLabel, zoomAbout } from './BlockDiagram';
 import { connectionsCSV } from './ConnectionTable';
-import { designators } from './connections';
+import { designators, eachDesignator } from './connections';
 import { pinoutsCSV } from './PinTables';
 
 let b: FakeBackend;
@@ -434,5 +434,10 @@ describe('designators', () => {
     expect(designators('C1–3')).toEqual(['C1–3', 'C1', 'C2', 'C3']);
     expect(designators('R5-C7')).toEqual(['R5-C7']);
     expect(designators('D3-D1')).toEqual(['D3-D1']);
+    // Each one, for the BOM: none when there's none, the one when there's one.
+    expect(eachDesignator('C40-C42, C60')).toEqual(['C40', 'C41', 'C42', 'C60']);
+    expect(eachDesignator('U1')).toEqual(['U1']);
+    expect(eachDesignator('  ')).toEqual([]);
+    expect(eachDesignator(undefined)).toEqual([]);
   });
 });

@@ -38,6 +38,13 @@ export function designators(d: string): string[] {
   return each.length > 1 ? [d, ...each] : [d];
 }
 
+/** Each designator of an entry, ranges expanded: "C40-C42, C60" is C40, C41, C42 and C60; none when it has none. */
+export function eachDesignator(d: string | undefined): string[] {
+  if (!d?.trim()) return [];
+  const all = designators(d.trim());
+  return all.length > 1 ? all.slice(1) : all;
+}
+
 /** One designator, or each of a range "C40-C45" (one prefix, at most 500). */
 function expandRange(f: string): string[] {
   const m = /^([A-Za-z]+)(\d+)[-–]([A-Za-z]*)(\d+)$/.exec(f);

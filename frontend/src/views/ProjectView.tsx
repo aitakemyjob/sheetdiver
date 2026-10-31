@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Calculator, Download, FileText, Plus, Trash2, Zap } from 'lucide-react';
 import { api, exportProject } from '../lib/api';
 import { categories, eng, parseSI, relTime } from '../lib/format';
@@ -14,6 +14,7 @@ import { BlockDiagram } from './project/BlockDiagram';
 import { ConnectionTable } from './project/ConnectionTable';
 import { PinTables } from './project/PinTables';
 import { Simulations } from './project/Simulations';
+import { eachDesignator } from './project/connections';
 
 /** The project view's tabs. */
 type ProjectTab = 'overview' | 'diagram' | 'pins' | 'connections' | 'simulations';
@@ -381,7 +382,7 @@ function Bom({ d, onChange, highlight }: { d: ProjectDetail; onChange: () => voi
         <table className="dtable">
           <thead>
             <tr>
-              <th style={{ width: 70 }}>Ref</th>
+              <th style={{ width: 96 }}>Ref</th>
               <th>Part</th>
               <th style={{ width: 46 }}>Qty</th>
               <th>Role</th>
@@ -402,7 +403,7 @@ function Bom({ d, onChange, highlight }: { d: ProjectDetail; onChange: () => voi
                   className={highlight && (pp.designator?.toLowerCase() === highlight || pp.mpn.toLowerCase() === highlight) ? 'agent-hl' : ''}
                 >
                   <td>
-                    <input className="cell" defaultValue={pp.designator} onBlur={(e) => e.target.value !== (pp.designator ?? '') && update(pp, { designator: e.target.value })} />
+                    <RefCell pp={pp} onSave={(designator) => update(pp, { designator })} />
                   </td>
                   <td className="mono">
                     <a style={{ cursor: 'pointer' }} onClick={() => s.open({ kind: 'part', title: pp.mpn, params: { part: pp.mpn } })}>
@@ -466,5 +467,53 @@ function Bom({ d, onChange, highlight }: { d: ProjectDetail; onChange: () => voi
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * A BOM entry's designators, all of them: the cell wraps rather than
+ * cutting "C40-C45, C60-C72" off at "C40-C4", its tooltip lists each one
+ * with ranges written out, and a badge says when their count isn't the
+ * entry's quantity.
+ */
+export function RefCell({ pp, onSave }: { pp: ProjectPart; onSave: (designator: string) => void }) {
+  const each = eachDesignator(pp.designator);
+  // A first guess at the lines it needs, then exactly its text's height
+  // once drawn, at whatever width the column ends up.
+  const rows = Math.max(1, Math.ceil((pp.designator ?? '').length / 11));
+  const box = useRef<HTMLTextAreaElement>(null);
+  const fit = () => {
+    const el = box.current;
+    if (!el || !el.scrollHeight) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useLayoutEffect(fit);
+  const title = each.length > 1 ? `${each.join(', ')} (${each.length})` : undefined;
+  return (
+    <>
+      <textarea
+        ref={box}
+        className="cell ref-cell"
+        rows={rows}
+        onInput={fit}
+        aria-label="Designators"
+        title={title}
+        defaultValue={pp.designator}
+        onBlur={(e) => e.target.value !== (pp.designator ?? '') && onSave(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter saves, as in the other cells; the text wraps by itself.
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      {each.length > 1 && each.length !== pp.qty && (
+        <span className="badge warn nowrap" title={`${each.length} designators but a quantity of ${pp.qty}`}>
+          {each.length} refs · qty {pp.qty}
+        </span>
+      )}
+    </>
   );
 }
