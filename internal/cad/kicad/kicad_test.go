@@ -160,6 +160,8 @@ func TestKiCadReadsThem(t *testing.T) {
 	}
 	dir := t.TempDir()
 	syms, fps, solids := testParts(t)
+	// Drawn graphics too.
+	syms[0].Graphics, fps[0].Graphics = allGraphics(cad.LayerBody), allGraphics(cad.LayerSilk)
 	lib, _ := SymbolLibrary(syms, nil)
 	symPath := filepath.Join(dir, "SheetDiver.kicad_sym")
 	pretty := filepath.Join(dir, "SheetDiver.pretty")

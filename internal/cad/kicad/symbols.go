@@ -62,13 +62,20 @@ func SymbolNode(s cad.Symbol) *Node {
 	)
 	// Pin names sit inside the body, pin numbers on the pins.
 	sym.Args = append(sym.Args[:1], append([]any{n("pin_names", n("offset", num(1.016)))}, sym.Args[1:]...)...)
-	body := n("symbol", Str(name+"_0_1"),
-		n("rectangle", xy("start", b.X0, b.Y1), xy("end", b.X1, b.Y0),
+	body := n("symbol", Str(name+"_0_1"))
+	if b != (cad.Rect{}) {
+		body.Args = append(body.Args, n("rectangle", xy("start", b.X0, b.Y1), xy("end", b.X1, b.Y0),
 			n("stroke", n("width", num(0.254)), n("type", Atom("default"))),
 			n("fill", n("type", Atom("background")))))
+	}
 	for _, l := range s.Extra {
 		body.Args = append(body.Args, n("polyline", n("pts", xy("xy", l.A.X, l.A.Y), xy("xy", l.B.X, l.B.Y)),
 			n("stroke", n("width", num(0.254)), n("type", Atom("default"))), n("fill", n("type", Atom("none")))))
+	}
+	for _, g := range s.Graphics {
+		if g.Check() == nil {
+			body.Args = append(body.Args, symbolGraphic(g))
+		}
 	}
 	pins := n("symbol", Str(name+"_1_1"))
 	for _, p := range s.Pins {
@@ -81,6 +88,43 @@ func SymbolNode(s cad.Symbol) *Node {
 	}
 	sym.Args = append(sym.Args, body, pins)
 	return sym
+}
+
+// symStroke is a symbol shape's stroke; 0 is KiCad's default width.
+func symStroke(w float64) *Node {
+	return n("stroke", n("width", num(w)), n("type", Atom("default")))
+}
+
+// symFill is a symbol shape's fill: in its outline's colour, or none.
+func symFill(on bool) *Node {
+	if on {
+		return n("fill", n("type", Atom("outline")))
+	}
+	return n("fill", n("type", Atom("none")))
+}
+
+// symbolGraphic is a drawn graphic on a symbol's body.
+func symbolGraphic(g cad.Graphic) *Node {
+	p := g.Pts
+	switch g.Kind {
+	case cad.GraphicLine:
+		return n("polyline", n("pts", xy("xy", p[0].X, p[0].Y), xy("xy", p[1].X, p[1].Y)), symStroke(g.Width), symFill(false))
+	case cad.GraphicRect:
+		return n("rectangle", xy("start", p[0].X, p[0].Y), xy("end", p[1].X, p[1].Y), symStroke(g.Width), symFill(g.Fill))
+	case cad.GraphicCircle:
+		return n("circle", xy("center", p[0].X, p[0].Y), n("radius", num(g.R)), symStroke(g.Width), symFill(g.Fill))
+	case cad.GraphicArc:
+		return n("arc", xy("start", p[0].X, p[0].Y), xy("mid", p[1].X, p[1].Y), xy("end", p[2].X, p[2].Y), symStroke(g.Width), symFill(g.Fill))
+	case cad.GraphicPoly:
+		pts := n("pts")
+		for _, pt := range append(append([]cad.Pt(nil), p...), p[0]) { // closed
+			pts.Args = append(pts.Args, xy("xy", pt.X, pt.Y))
+		}
+		return n("polyline", pts, symStroke(g.Width), symFill(g.Fill))
+	}
+	// A text: a symbol's text angle is in tenths of a degree.
+	return n("text", Str(g.Text), n("at", num(p[0].X), num(p[0].Y), num(g.Angle*10)),
+		n("effects", n("font", n("size", num(g.Size), num(g.Size))), n("justify", Atom("left"), Atom("bottom"))))
 }
 
 // SymbolLibrary is a .kicad_sym file holding the symbols, each written
@@ -161,19 +205,47 @@ func ReadSymbol(nd *Node) cad.Symbol {
 		for _, r := range unit.Children("rectangle") {
 			a, b := r.Child("start"), r.Child("end")
 			rect := cad.Rect{X0: math.Min(a.Float(0), b.Float(0)), Y0: math.Min(a.Float(1), b.Float(1)), X1: math.Max(a.Float(0), b.Float(0)), Y1: math.Max(a.Float(1), b.Float(1))}
-			if !haveBody {
+			if !haveBody && !filled(r) {
 				s.Body, haveBody = rect, true
 				continue
 			}
-			s.Extra = append(s.Extra, rectEdges(rect)...)
+			s.Graphics = append(s.Graphics, cad.Graphic{Kind: cad.GraphicRect, Layer: cad.LayerBody, Pts: []cad.Pt{{X: a.Float(0), Y: a.Float(1)}, {X: b.Float(0), Y: b.Float(1)}},
+				Width: r.Child("stroke").Child("width").Float(0), Fill: filled(r)})
 		}
 		for _, pl := range unit.Children("polyline") {
 			pts := pl.Child("pts").Children("xy")
-			for i := 1; i < len(pts); i++ {
-				s.Extra = append(s.Extra, cad.Line{Layer: "body", A: cad.Pt{X: pts[i-1].Float(0), Y: pts[i-1].Float(1)}, B: cad.Pt{X: pts[i].Float(0), Y: pts[i].Float(1)}, Width: 0.254})
-				grow(pts[i].Float(0), pts[i].Float(1))
-				grow(pts[i-1].Float(0), pts[i-1].Float(1))
+			var ps []cad.Pt
+			for _, x := range pts {
+				ps = append(ps, cad.Pt{X: x.Float(0), Y: x.Float(1)})
+				grow(x.Float(0), x.Float(1))
 			}
+			if filled(pl) && len(ps) >= 4 && ps[0] == ps[len(ps)-1] {
+				s.Graphics = append(s.Graphics, cad.Graphic{Kind: cad.GraphicPoly, Layer: cad.LayerBody, Pts: ps[:len(ps)-1], Width: pl.Child("stroke").Child("width").Float(0), Fill: true})
+				continue
+			}
+			for i := 1; i < len(ps); i++ {
+				s.Extra = append(s.Extra, cad.Line{Layer: cad.LayerBody, A: ps[i-1], B: ps[i], Width: 0.254})
+			}
+		}
+		for _, c := range unit.Children("circle") {
+			at := c.Child("center")
+			s.Graphics = append(s.Graphics, cad.Graphic{Kind: cad.GraphicCircle, Layer: cad.LayerBody, Pts: []cad.Pt{{X: at.Float(0), Y: at.Float(1)}}, R: c.Child("radius").Float(0),
+				Width: c.Child("stroke").Child("width").Float(0), Fill: filled(c)})
+		}
+		for _, a := range unit.Children("arc") {
+			if a.Child("mid") == nil {
+				continue
+			}
+			pt := func(x *Node) cad.Pt { return cad.Pt{X: x.Float(0), Y: x.Float(1)} }
+			g := cad.Graphic{Kind: cad.GraphicArc, Layer: cad.LayerBody, Pts: []cad.Pt{pt(a.Child("start")), pt(a.Child("mid")), pt(a.Child("end"))},
+				Width: a.Child("stroke").Child("width").Float(0), Fill: filled(a)}
+			if g.Check() == nil {
+				s.Graphics = append(s.Graphics, g)
+			}
+		}
+		for _, t := range unit.Children("text") {
+			// A symbol's text angle is in tenths of a degree.
+			s.Graphics = append(s.Graphics, readText(t, t.Text(0), cad.LayerBody, false, 10))
 		}
 		for _, p := range unit.Children("pin") {
 			at := p.Child("at")

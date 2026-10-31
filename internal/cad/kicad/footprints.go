@@ -12,7 +12,7 @@ import (
 )
 
 // layerNames are KiCad's layers for the model's.
-var layerNames = map[string]string{cad.LayerSilk: "F.SilkS", cad.LayerFab: "F.Fab", cad.LayerCourtyard: "F.CrtYd"}
+var layerNames = map[string]string{cad.LayerSilk: "F.SilkS", cad.LayerFab: "F.Fab", cad.LayerCourtyard: "F.CrtYd", cad.LayerCopper: "F.Cu"}
 
 // stroke is a line's stroke.
 func stroke(w float64) *Node { return n("stroke", n("width", num(w)), n("type", Atom("solid"))) }
@@ -47,6 +47,11 @@ func FootprintNode(f cad.Footprint, model string) *Node {
 		}
 		fp.Args = append(fp.Args, n("fp_poly", pts, stroke(0.12), n("fill", Atom("solid")), n("layer", Str(layerNames[p.Layer]))))
 	}
+	for _, g := range f.Graphics {
+		if _, ok := layerNames[g.Layer]; ok && g.Check() == nil {
+			fp.Args = append(fp.Args, graphicNode(g))
+		}
+	}
 	for _, p := range f.Pads {
 		fp.Args = append(fp.Args, padNode(p))
 	}
@@ -57,6 +62,79 @@ func FootprintNode(f cad.Footprint, model string) *Node {
 			n("rotate", n("xyz", Atom("0"), Atom("0"), Atom("0")))))
 	}
 	return fp
+}
+
+// fill is a shape's fill: solid or none.
+func fill(on bool) *Node {
+	if on {
+		return n("fill", Atom("solid"))
+	}
+	return n("fill", Atom("none"))
+}
+
+// graphicNode is a drawn graphic on a footprint.
+func graphicNode(g cad.Graphic) *Node {
+	layer := n("layer", Str(layerNames[g.Layer]))
+	p := g.Pts
+	switch g.Kind {
+	case cad.GraphicLine:
+		return n("fp_line", xy("start", p[0].X, p[0].Y), xy("end", p[1].X, p[1].Y), stroke(g.Width), layer)
+	case cad.GraphicRect:
+		return n("fp_rect", xy("start", p[0].X, p[0].Y), xy("end", p[1].X, p[1].Y), stroke(g.Width), fill(g.Fill), layer)
+	case cad.GraphicCircle:
+		return n("fp_circle", xy("center", p[0].X, p[0].Y), xy("end", p[0].X+g.R, p[0].Y), stroke(g.Width), fill(g.Fill), layer)
+	case cad.GraphicArc:
+		return n("fp_arc", xy("start", p[0].X, p[0].Y), xy("mid", p[1].X, p[1].Y), xy("end", p[2].X, p[2].Y), stroke(g.Width), layer)
+	case cad.GraphicPoly:
+		pts := n("pts")
+		for _, pt := range p {
+			pts.Args = append(pts.Args, xy("xy", pt.X, pt.Y))
+		}
+		return n("fp_poly", pts, stroke(g.Width), fill(g.Fill), layer)
+	}
+	// A text, anchored at its baseline's left end.
+	return n("fp_text", Atom("user"), Str(g.Text), n("at", num(p[0].X), num(p[0].Y), num(g.Angle)), layer,
+		n("effects", n("font", n("size", num(g.Size), num(g.Size)), n("thickness", num(g.Size*0.15))), n("justify", Atom("left"), Atom("bottom"))))
+}
+
+// readText is a text's graphic: anchored at its baseline's left end,
+// wherever KiCad's justification put the point it's placed by; its angle
+// is in degrees over angleUnit.
+func readText(x *Node, text string, layer string, flipY bool, angleUnit float64) cad.Graphic {
+	at := x.Child("at")
+	size := 1.27
+	if s := x.Child("effects").Child("font").Child("size"); s != nil {
+		size = s.Float(1)
+	}
+	angle := at.Float(2) / angleUnit
+	g := cad.Graphic{Kind: cad.GraphicText, Layer: layer, Text: text, Size: size, Angle: angle, Pts: []cad.Pt{{X: at.Float(0), Y: at.Float(1)}}}
+	j := x.Child("effects").Child("justify")
+	// Offsets along and across the text, as seen, to its baseline's start.
+	along, across := 0.0, 0.0
+	w := float64(len([]rune(text))) * size * 0.6
+	switch {
+	case j.Has("left"):
+	case j.Has("right"):
+		along = -w
+	default:
+		along = -w / 2
+	}
+	switch {
+	case j.Has("bottom"):
+	case j.Has("top"):
+		across = -size
+	default:
+		across = -size / 2
+	}
+	t := angle * math.Pi / 180
+	// As seen (y up): along the text is (cos, sin), down from it (sin, -cos).
+	dx := along*math.Cos(t) + across*math.Sin(t)
+	dy := along*math.Sin(t) - across*math.Cos(t)
+	if flipY { // y down: a step up as seen is a step down in y
+		dy = -dy
+	}
+	g.Pts[0] = cad.Pt{X: cad.Number(g.Pts[0].X + dx), Y: cad.Number(g.Pts[0].Y + dy)}
+	return g
 }
 
 // padNode is a pad.
@@ -91,7 +169,7 @@ func ReadFootprint(nd *Node) cad.Footprint {
 	if d := nd.Child("descr"); d != nil {
 		f.Description = d.Text(0)
 	}
-	layerOf := map[string]string{"F.SilkS": cad.LayerSilk, "F.Silkscreen": cad.LayerSilk, "F.Fab": cad.LayerFab, "F.CrtYd": cad.LayerCourtyard, "F.Courtyard": cad.LayerCourtyard}
+	layerOf := map[string]string{"F.SilkS": cad.LayerSilk, "F.Silkscreen": cad.LayerSilk, "F.Fab": cad.LayerFab, "F.CrtYd": cad.LayerCourtyard, "F.Courtyard": cad.LayerCourtyard, "F.Cu": cad.LayerCopper}
 	var crt, fab cad.Rect
 	add := func(r *cad.Rect, p cad.Pt) {
 		if *r == (cad.Rect{}) {
@@ -100,20 +178,22 @@ func ReadFootprint(nd *Node) cad.Footprint {
 		}
 		*r = cad.Rect{X0: math.Min(r.X0, p.X), Y0: math.Min(r.Y0, p.Y), X1: math.Max(r.X1, p.X), Y1: math.Max(r.Y1, p.Y)}
 	}
+	box := func(l string, p cad.Pt) {
+		switch l {
+		case cad.LayerCourtyard:
+			add(&crt, p)
+		case cad.LayerFab:
+			add(&fab, p)
+		}
+	}
 	line := func(layer string, a, b cad.Pt, w float64) {
 		l, ok := layerOf[layer]
 		if !ok {
 			return
 		}
 		f.Lines = append(f.Lines, cad.Line{Layer: l, A: a, B: b, Width: w})
-		switch l {
-		case cad.LayerCourtyard:
-			add(&crt, a)
-			add(&crt, b)
-		case cad.LayerFab:
-			add(&fab, a)
-			add(&fab, b)
-		}
+		box(l, a)
+		box(l, b)
 	}
 	width := func(x *Node) float64 {
 		if s := x.Child("stroke"); s != nil {
@@ -132,9 +212,11 @@ func ReadFootprint(nd *Node) cad.Footprint {
 		case "fp_line":
 			line(layer, pt(x.Child("start")), pt(x.Child("end")), width(x))
 		case "fp_rect":
-			s, e := pt(x.Child("start")), pt(x.Child("end"))
-			for _, l := range rectEdges(cad.Rect{X0: s.X, Y0: s.Y, X1: e.X, Y1: e.Y}) {
-				line(layer, l.A, l.B, width(x))
+			if l, ok := layerOf[layer]; ok {
+				s, e := pt(x.Child("start")), pt(x.Child("end"))
+				f.Graphics = append(f.Graphics, cad.Graphic{Kind: cad.GraphicRect, Layer: l, Pts: []cad.Pt{s, e}, Width: width(x), Fill: filled(x)})
+				box(l, s)
+				box(l, e)
 			}
 		case "fp_poly":
 			if l, ok := layerOf[layer]; ok {
@@ -142,7 +224,30 @@ func ReadFootprint(nd *Node) cad.Footprint {
 				for _, p := range x.Child("pts").Children("xy") {
 					pts = append(pts, pt(p))
 				}
-				f.Polys = append(f.Polys, cad.Poly{Layer: l, Pts: pts})
+				if filled(x) {
+					f.Polys = append(f.Polys, cad.Poly{Layer: l, Pts: pts})
+				} else if len(pts) >= 3 {
+					f.Graphics = append(f.Graphics, cad.Graphic{Kind: cad.GraphicPoly, Layer: l, Pts: pts, Width: width(x)})
+				}
+			}
+		case "fp_circle":
+			if l, ok := layerOf[layer]; ok {
+				c, e := pt(x.Child("center")), pt(x.Child("end"))
+				r := cad.Number(math.Hypot(e.X-c.X, e.Y-c.Y))
+				f.Graphics = append(f.Graphics, cad.Graphic{Kind: cad.GraphicCircle, Layer: l, Pts: []cad.Pt{c}, R: r, Width: width(x), Fill: filled(x)})
+				box(l, cad.Pt{X: c.X - r, Y: c.Y - r})
+				box(l, cad.Pt{X: c.X + r, Y: c.Y + r})
+			}
+		case "fp_arc":
+			if l, ok := layerOf[layer]; ok && x.Child("mid") != nil {
+				g := cad.Graphic{Kind: cad.GraphicArc, Layer: l, Pts: []cad.Pt{pt(x.Child("start")), pt(x.Child("mid")), pt(x.Child("end"))}, Width: width(x)}
+				if g.Check() == nil {
+					f.Graphics = append(f.Graphics, g)
+				}
+			}
+		case "fp_text":
+			if l, ok := layerOf[layer]; ok && x.Text(0) == "user" && x.Text(1) != "${REFERENCE}" {
+				f.Graphics = append(f.Graphics, readText(x, x.Text(1), l, true, 1))
 			}
 		case "pad":
 			f.Pads = append(f.Pads, readPad(x))
@@ -164,6 +269,13 @@ func ReadFootprint(nd *Node) cad.Footprint {
 		f.Mount = cad.MountThru
 	}
 	return f
+}
+
+// filled reports whether a shape is filled, as KiCad 7 ((fill solid)) or
+// KiCad 8 ((fill yes)) writes it.
+func filled(x *Node) bool {
+	f := x.Child("fill")
+	return f.Has("solid") || f.Has("yes") || f.Child("type").Has("outline") || f.Child("type").Has("color")
 }
 
 // readPad reads a pad.
@@ -260,10 +372,23 @@ func Fingerprint(nd *Node) string {
 				}
 			}
 			coords(x)
-			lines = append(lines, fmt.Sprintf("%s %s %s", strings.TrimPrefix(x.Name, "fp_"), x.Child("layer").Text(0), strings.Join(pts, " ")))
+			lines = append(lines, fmt.Sprintf("%s %s %s %s %v", strings.TrimPrefix(x.Name, "fp_"), x.Child("layer").Text(0), strings.Join(pts, " "), r4(x.Child("radius").Float(0)), filled(x)))
 			return
 		case "model":
 			lines = append(lines, "model "+x.Text(0))
+			return
+		case "fp_text", "text":
+			// Drawn texts; a footprint's reference and value aren't.
+			if x.Name == "fp_text" && (x.Text(0) != "user" || x.Text(1) == "${REFERENCE}") {
+				return
+			}
+			value := x.Text(0)
+			if x.Name == "fp_text" {
+				value = x.Text(1)
+			}
+			at := x.Child("at")
+			lines = append(lines, fmt.Sprintf("text %s %q %s,%s %s %s", x.Child("layer").Text(0), value, r4(at.Float(0)), r4(at.Float(1)), r4(at.Float(2)),
+				r4(x.Child("effects").Child("font").Child("size").Float(0))))
 			return
 		}
 		for _, a := range x.Args {
