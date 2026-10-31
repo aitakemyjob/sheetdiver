@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Box, Copy, Cylinder, Redo2, RotateCcw, Save, Trash2, Undo2 } from 'lucide-react';
 import { cadActions } from '../../lib/cad';
 import { Model3DController, draw, frameOf, homeCamera, orbit, projector, shapeFieldsOf, topCamera, type Camera } from '../../lib/editor/model3d';
@@ -104,7 +104,8 @@ export function Model3DEditor({ part, pkg, shapes, footprint, edited, onSaved, o
     if (d && !d.moved && d.mode === 'orbit' && d.shape >= 0) editor.select(d.shape);
   };
   // Zooms about the pointer: the point under it stays there.
-  const wheel = (e: WheelEvent<SVGSVGElement>) => {
+  const wheel = (e: WheelEvent) => {
+    e.preventDefault();
     const ctm = svg.current?.getScreenCTM();
     if (!ctm) return;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
@@ -113,6 +114,17 @@ export function Model3DEditor({ part, pkg, shapes, footprint, edited, onSaved, o
     const g = zoom / view.zoom;
     setView({ ...view, zoom, pan: { x: p.x + (cx - p.x) / g - middle.x, y: p.y + (cy - p.y) / g - middle.y } });
   };
+  // React registers wheel listeners passive, so the page would scroll
+  // along with the zoom: a native listener of our own, kept current.
+  const wheelRef = useRef(wheel);
+  wheelRef.current = wheel;
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const on = (e: WheelEvent) => wheelRef.current(e);
+    el.addEventListener('wheel', on, { passive: false });
+    return () => el.removeEventListener('wheel', on);
+  }, []);
   const sel = snap.shapes[snap.selected];
   const save = () => {
     setSaving(true);
@@ -203,7 +215,6 @@ export function Model3DEditor({ part, pkg, shapes, footprint, edited, onSaved, o
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
-        onWheel={wheel}
         onContextMenu={(e) => e.preventDefault()}
       >
         {faces.map((f, i) => {
