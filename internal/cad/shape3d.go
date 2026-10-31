@@ -38,6 +38,9 @@ type Shape3D struct {
 	Solid *Solid `json:"solid,omitempty"`
 	// Name says what it is, for people: "body", "lead 3".
 	Name string `json:"name,omitempty"`
+	// Group names what the shape's pieces are together (a marking's
+	// strokes), kept so they stay one shape when read back.
+	Group string `json:"group,omitempty"`
 }
 
 // ShapesOf are a model's solids as shapes to edit: a box when it's one,
@@ -65,7 +68,7 @@ func ShapesOf(ss []Solid) []Shape3D {
 			}
 			groups[s.Group] = len(out)
 			merged := Solid{Part: s.Part, Color: s.Color, Verts: append([]V3(nil), s.Verts...), Faces: append([][]int(nil), s.Faces...)}
-			out = append(out, Shape3D{Kind: Shape3DSolid, Part: s.Part, Color: s.Color, Name: s.Group, Solid: &merged})
+			out = append(out, Shape3D{Kind: Shape3DSolid, Part: s.Part, Color: s.Color, Name: s.Group, Group: s.Group, Solid: &merged})
 			continue
 		}
 		name := s.Part
@@ -201,7 +204,7 @@ func SolidsOf(shapes []Shape3D) ([]Solid, error) {
 				s.Verts = append(s.Verts, V3{Number(v[0] + sh.Offset[0]), Number(v[1] - sh.Offset[1]), Number(v[2] + sh.Offset[2])})
 			}
 		}
-		s.Part, s.Color = sh.Part, sh.Color
+		s.Part, s.Color, s.Group = sh.Part, sh.Color, sh.Group
 		// A shape of several pieces (a marking) is a solid each, so each
 		// is a closed shell in the STEP model.
 		out = append(out, components(s)...)

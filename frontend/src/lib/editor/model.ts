@@ -126,6 +126,8 @@ export interface Shape3D {
   offset?: V3;
   solid?: Solid;
   name?: string;
+  /** What the shape's pieces are together (a marking's strokes); kept as read. */
+  group?: string;
 }
 
 /** A part's model for one package, to edit. */

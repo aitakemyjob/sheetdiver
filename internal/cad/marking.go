@@ -34,67 +34,171 @@ var glyphs = map[rune]string{
 const (
 	glyphW, glyphH, glyphAdvance = 4.0, 6.0, 6.0
 	// markingMaxHeight is the tallest the marking is drawn, mm.
-	markingMaxHeight = 2.0
+	markingMaxHeight = 1.2
 	// markingMinHeight is the smallest marking worth drawing, mm.
-	markingMinHeight = 0.45
+	markingMinHeight = 0.35
 	// markingGroup is the strokes' group, one shape in the editor.
 	markingGroup = "marking"
+	// markingDepth is how far the strokes sink into the body, and
+	// markingProud how far they stand above its top, mm.
+	markingDepth, markingProud = 0.015, 0.005
 )
 
-// Marking is a part number printed on the top of a package's body, as
-// white strokes: along the body's longer side, centred, as large as the
-// body allows up to 2 mm high. Nothing for packages with no flat top
-// (TO-220s, radials) or too small to read it on (an 0402).
-func Marking(text string, p Package) []Solid {
+// markingBody is the top face a marking goes on: the body's rectangle
+// (a custom package's from its pads) and ok when the family has a flat
+// top to print on.
+func markingBody(p Package) (Rect, bool) {
 	switch p.Family {
 	case "gullwing", "qfp", "dfn", "qfn", "bga", "dip":
-	default:
-		return nil
+		w, l := p.BodyWidth.Mid(), p.BodyLength.Mid()
+		return centred(0, 0, w, l), w > 0 && l > 0
+	case "custom":
+		var ps problems
+		_, body, _ := custom{}.Pads(p, &ps)
+		return body, !ps.failed() && body.X1-body.X0 > 0 && body.Y1-body.Y0 > 0
 	}
+	return Rect{}, false
+}
+
+// Marking is a part number printed on the top of a package's body, as
+// white strokes: along the body's longer side, centred, on the fewest
+// lines that make it readable, clear of the pin 1 mark's corner. Nothing
+// for packages with no flat top (TO-220s, radials) or too small to read
+// it on (an 0402, a SOT-23).
+func Marking(text string, p Package) []Solid {
+	body, ok := markingBody(p)
 	text = strings.ToUpper(strings.TrimSpace(text))
-	w, l := p.BodyWidth.Mid(), p.BodyLength.Mid()
-	if text == "" || w <= 0 || l <= 0 {
+	if !ok || text == "" {
 		return nil
 	}
-	n := float64(len([]rune(text)))
-	along, cross, vertical := w, l, false
+	runes := []rune(text)
+	w, l := body.X1-body.X0, body.Y1-body.Y0
+	mx, my := math.Max(0.3, 0.08*w), math.Max(0.3, 0.08*l)
 	if l > w {
-		along, cross, vertical = l, w, true
+		mx, my = math.Max(0.3, 0.1*w), math.Max(0.3, 0.08*l)
+	} else {
+		mx, my = math.Max(0.3, 0.08*w), math.Max(0.3, 0.1*l)
 	}
-	along -= 2 * math.Max(0.3, 0.08*along)
-	cross -= 2 * math.Max(0.3, 0.1*cross)
-	u := math.Min(cross/2/glyphH, along/(glyphAdvance*n-1))
-	h := glyphH * u
-	if h > markingMaxHeight {
-		h = markingMaxHeight
-		u = h / glyphH
+	areas := []Rect{{body.X0 + mx, body.Y0 + my, body.X1 - mx, body.Y1 - my}}
+	if p.Family != "custom" {
+		// The pin 1 mark sits in the top left corner: keep off it by
+		// cutting the area under it or to its right, whichever leaves
+		// the bigger letters.
+		r := math.Min(0.25, 0.1*math.Min(w, l))
+		clear := 0.25 + 2*r + 0.1
+		under, right := areas[0], areas[0]
+		under.Y0 = math.Max(under.Y0, body.Y0+clear)
+		right.X0 = math.Max(right.X0, body.X0+clear)
+		areas = []Rect{under, right}
 	}
+	var best markingLayout
+	for _, a := range areas {
+		if lay := layoutMarking(runes, a); lay.u > best.u {
+			best = lay
+		}
+	}
+	h := glyphH * best.u
 	if h < markingMinHeight {
 		return nil
 	}
+	u, lines, vertical := best.u, best.lines, best.vertical
+	cx, cy := (best.area.X0+best.area.X1)/2, (best.area.Y0+best.area.Y1)/2
 	z := height(p)
-	stroke := math.Max(0.06, 0.12*h)
-	x0 := -(glyphAdvance*n - 1) * u / 2
-	// at maps a glyph point (x right, y up, from the text's bottom left)
-	// to the footprint (y down), the text along x or, turned to read
-	// up the longer side, along y.
+	stroke := math.Max(0.05, 0.09*h)
+	blockH := ((glyphH+2)*float64(len(lines)) - 2) * u
+	// at maps a point (x right, y up, from the text block's bottom left)
+	// to the footprint (y down) about the area's centre: the text along
+	// x or, turned to read up the longer side, along y.
 	at := func(gx, gy float64) Pt {
 		if vertical {
-			return Pt{h/2 - gy*u, -(x0 + gx*u)}
+			return Pt{cx + blockH/2 - gy*u, cy - gx*u}
 		}
-		return Pt{x0 + gx*u, h/2 - gy*u}
+		return Pt{cx + gx*u, cy + blockH/2 - gy*u}
 	}
 	var out []Solid
-	for i, r := range text {
-		for _, poly := range strokesOf(r) {
-			for k := 0; k+1 < len(poly); k++ {
-				a := at(float64(i)*glyphAdvance+poly[k][0], poly[k][1])
-				b := at(float64(i)*glyphAdvance+poly[k+1][0], poly[k+1][1])
-				s := slab(PartMark, a, b, stroke, z, z+0.02)
-				s.Group = markingGroup
-				out = append(out, s)
+	for li, line := range lines {
+		n := float64(len([]rune(line)))
+		x0 := -(glyphAdvance*n - 1) / 2
+		y0 := (glyphH + 2) * float64(len(lines)-1-li)
+		for i, r := range line {
+			for _, poly := range strokesOf(r) {
+				for k := 0; k+1 < len(poly); k++ {
+					a := at(x0+float64(i)*glyphAdvance+poly[k][0], y0+poly[k][1])
+					b := at(x0+float64(i)*glyphAdvance+poly[k+1][0], y0+poly[k+1][1])
+					// Sunk into the body but for a hair, as printed rather
+					// than raised.
+					s := slab(PartMark, a, b, stroke, z-markingDepth, z+markingProud)
+					s.Group = markingGroup
+					out = append(out, s)
+				}
 			}
 		}
+	}
+	return out
+}
+
+// markingLayout is a marking's lines and letter size in an area.
+type markingLayout struct {
+	area     Rect
+	lines    []string
+	u        float64 // a grid unit, mm: the letters are glyphH of them
+	vertical bool
+}
+
+// markingTargetHeight is the letter height a marking is readable at:
+// the fewest lines reaching it are used, else the lines that come
+// nearest.
+const markingTargetHeight = 0.55
+
+// layoutMarking lays a part number out in an area along its longer side,
+// on one line, two or three.
+func layoutMarking(runes []rune, area Rect) markingLayout {
+	along, cross, vertical := area.X1-area.X0, area.Y1-area.Y0, false
+	if cross > along {
+		along, cross, vertical = cross, along, true
+	}
+	best := markingLayout{area: area, vertical: vertical}
+	for k := 1; k <= 3 && k <= len(runes); k++ {
+		lines := wrap(runes, k)
+		longest := 0
+		for _, ln := range lines {
+			longest = max(longest, len([]rune(ln)))
+		}
+		// k lines of glyphH with 2 between across; the longest along.
+		u := math.Min(cross/float64((glyphH+2)*k-2), along/(glyphAdvance*float64(longest)-1))
+		u = math.Min(u, markingMaxHeight/glyphH)
+		if u > best.u {
+			best.lines, best.u = lines, u
+		}
+		if glyphH*u >= markingTargetHeight {
+			break
+		}
+	}
+	return best
+}
+
+// wrap cuts a part number into k lines of about equal length, after a
+// "-" or "_" near the cut when there is one.
+func wrap(runes []rune, k int) []string {
+	var out []string
+	rest := runes
+	for i := k; i > 0; i-- {
+		if i == 1 {
+			out = append(out, string(rest))
+			break
+		}
+		cut := (len(rest) + i - 1) / i
+		for d := 0; d <= 1; d++ {
+			for _, c := range []int{cut + d, cut - d} {
+				if c > 0 && c < len(rest) && (rest[c-1] == '-' || rest[c-1] == '_') {
+					cut = c
+					d = 2
+					break
+				}
+			}
+		}
+		out = append(out, string(rest[:cut]))
+		rest = rest[cut:]
 	}
 	return out
 }
