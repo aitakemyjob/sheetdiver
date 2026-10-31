@@ -26,6 +26,20 @@ describe('the library tree', () => {
     expect(JSON.parse(localStorage.getItem('sheetdiver.library.closed') ?? '{}')).toMatchObject({ 'power/buck': true, power: false });
   });
 
+  it('collapses and expands the whole tree', async () => {
+    render(<Sidebar />);
+    await screen.findByText('SD1234');
+    fireEvent.click(screen.getByTitle('Collapse all'));
+    expect(screen.queryByText('Buck')).not.toBeInTheDocument();
+    expect(screen.getByText('Power')).toBeInTheDocument();
+    // A collapsed group opens with its categories still folded.
+    fireEvent.click(screen.getByText('Power'));
+    expect(screen.getByText('Buck')).toBeInTheDocument();
+    expect(screen.queryByText('SD1234')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle('Expand all'));
+    expect(screen.getByText('SD1234')).toBeInTheDocument();
+  });
+
   it('opens a part from the tree', async () => {
     render(<Sidebar />);
     fireEvent.click(await screen.findByText('SD1234'));

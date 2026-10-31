@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, ChevronRight, CloudDownload, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
+import { Bot, ChevronRight, ChevronsDownUp, ChevronsUpDown, CloudDownload, FileUp, FolderKanban, ListChecks, Plus, Star } from 'lucide-react';
 import { api } from '../lib/api';
 import { categories, plural, relTime } from '../lib/format';
 import { groupOf, groups } from '../lib/taxonomy';
@@ -88,6 +88,9 @@ function LibraryPanel() {
     }
   }, [closed]);
   const toggle = (k: string) => setClosed((c) => ({ ...c, [k]: !c[k] }));
+  const expandAll = () => setClosed({});
+  // Collapsing closes the groups and their categories, so opening a group shows it folded.
+  const collapseAll = () => setClosed(Object.fromEntries(tree.flatMap((g) => [[g.id, true], ...g.categories.map((c) => [`${g.id}/${c.id}`, true])])));
   // A filter shows every match: the tree opens where they are.
   const filtering = q.trim() !== '' || fav;
   const isOpen = (k: string) => filtering || !closed[k];
@@ -101,6 +104,12 @@ function LibraryPanel() {
           {parts.data ? plural(parts.data.length, 'part') : ''}
         </span>
         <div className="actions">
+          <button className="btn ghost icon sm" title="Expand all" onClick={expandAll}>
+            <ChevronsUpDown size={14} />
+          </button>
+          <button className="btn ghost icon sm" title="Collapse all" onClick={collapseAll}>
+            <ChevronsDownUp size={14} />
+          </button>
           <button className={`btn ghost icon sm ${fav ? 'on' : ''}`} title={fav ? 'Show all parts' : 'Show favorites only'} aria-pressed={fav} onClick={() => setFav(!fav)}>
             <Star size={14} fill={fav ? 'currentColor' : 'none'} style={fav ? { color: 'var(--warn)' } : undefined} />
           </button>
