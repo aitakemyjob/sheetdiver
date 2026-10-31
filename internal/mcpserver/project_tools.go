@@ -1380,8 +1380,13 @@ func assignedText(d core.ProjectDetail, part string) string {
 		if !slices.ContainsFunc(strings.Split(p.Label, ","), func(l string) bool { return strings.EqualFold(l, part) }) {
 			continue
 		}
-		if p.Group != "" && group == "" {
+		switch {
+		case p.Group != "" && group == "":
 			group = p.Group + " (its part's)"
+		case group != "" && !strings.EqualFold(p.Group, group):
+			// A group with no parts has no frame: it's drawn with the part
+			// it hangs by (#82).
+			group += fmt.Sprintf(", but drawn in %s with %s, as %s has no parts to frame it: put %s in %s too, or leave the group unset", orNone(p.Group), label[p.Part], group, label[p.Part], group)
 		}
 		if t := supportsText(p, label); t != "" {
 			supports = strings.TrimSuffix(strings.TrimPrefix(t, " (supports "), ")")

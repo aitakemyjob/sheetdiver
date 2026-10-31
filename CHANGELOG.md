@@ -32,6 +32,16 @@ every merged pull request.
   by a guessed IC instead. Power-path, analog-switch and multiplexer
   categories are now ICs, and the fuse symbol matches the word fuse
   only. (#77)
+- **A group set with a refused support is kept.** `set_connections`
+  dropped a whole assignment when its `supports` was refused (another
+  passive, a name that isn't on the board, or a load switch before #77),
+  so the group, subgroup and cell given with it were lost and the passive
+  was drawn in its part's group, listed as "(its part's)". The rest of
+  the assignment is now saved, and the support it had stays. A passive
+  put in a group that has no parts (so no frame), hanging off a part in
+  another, was drawn in no frame, or not at all on a board with groups;
+  it's now drawn with the part it hangs by, and the reply says so and
+  how to put it in its group. (#82)
 
 ## [0.2.1] - 2026-10-29
 
