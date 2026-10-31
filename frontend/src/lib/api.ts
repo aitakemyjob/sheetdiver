@@ -67,9 +67,9 @@ export const api = {
   catalogDownload: () => call<CatalogStatus>('catalog.download'),
   catalogRemove: () => call<CatalogStatus>('catalog.remove'),
   catalogGet: (lcsc: string[]) => call<CatalogItem[]>('catalog.get', { lcsc }),
-  catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; subcategory?: string; attrs?: CatalogFilter[]; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
+  catalogSearch: (q: { text: string; inStock?: boolean; basic?: boolean; category?: string; subcategory?: string; attrs?: CatalogFilter[]; sort?: string; desc?: boolean; limit?: number; offset?: number }) =>
     call<CatalogItem[]>('catalog.search', q),
-  catalogParams: (q: { text: string; subcategory?: string; inStock?: boolean; basic?: boolean; attrs?: CatalogFilter[] }) => call<CatalogParam[]>('catalog.params', q),
+  catalogParams: (q: { text: string; category?: string; subcategory?: string; inStock?: boolean; basic?: boolean; attrs?: CatalogFilter[] }) => call<CatalogParam[]>('catalog.params', q),
   catalogCategories: () => call<CatalogCategory[]>('catalog.categories'),
   catalogSubcategories: () => call<string[]>('catalog.subcategories'),
   catalogImport: (lcsc: string[]) => call<ImportJob[]>('catalog.import', { lcsc }),

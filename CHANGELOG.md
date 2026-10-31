@@ -48,6 +48,14 @@ every merged pull request.
   was dropped because the pair already had a link. It now joins that
   link, with its nets, and a link through series passives is labelled
   with the nets' bus when they're on one (`J1 — J2: USB_CC`). (#85)
+- **Catalogue subcategories are picked by their category.** JLCPCB has
+  the same subcategory under several categories ("MOSFETs" under
+  Transistors/Thyristors, Triode/MOS Tube/Transistor and Transistors; 207
+  such names in all), and choosing one highlighted all of them and mixed
+  their parts in the results and parameter filters. The catalogue view
+  now selects and searches by category and subcategory, and
+  `search_catalog`, `catalog_parameters` and `show` take a `category` to
+  say which one. (#19)
 
 ## [0.2.1] - 2026-10-29
 

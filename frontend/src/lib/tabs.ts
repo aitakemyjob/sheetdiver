@@ -102,7 +102,7 @@ function baseTab(f: Focus): Omit<Tab, 'id'> | undefined {
       if (!f.parts?.length) return undefined;
       return { kind: 'compare', title: f.parts.join(' vs '), params: { parts: f.parts, keys: f.keys, notes: f.notes } };
     case 'catalog':
-      return { kind: 'catalog', title: 'Parts catalogue', params: { query: f.query, subcategory: f.subcategory, filters: f.filters, lcsc: f.lcsc, nonce: Date.now() } };
+      return { kind: 'catalog', title: 'Parts catalogue', params: { query: f.query, category: f.category, subcategory: f.subcategory, filters: f.filters, lcsc: f.lcsc, nonce: Date.now() } };
   }
   return undefined;
 }
